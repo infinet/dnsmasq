@@ -44,6 +44,7 @@ int main (int argc, char **argv)
   time_t now, last = 0;
   struct irec *interfaces = NULL;
   struct listener *listener, *listeners;
+  struct doctor *doctors = NULL;
   char *mxname = NULL;
   char *mxtarget = NULL;
   char *lease_file = NULL;
@@ -109,7 +110,8 @@ int main (int argc, char **argv)
 		      &if_names, &if_addrs, &if_except, &bogus_addr, 
 		      &serv_addrs, &cachesize, &port, &query_port, &local_ttl, &addn_hosts,
 		      &dhcp, &dhcp_configs, &dhcp_options,
-		      &dhcp_file, &dhcp_sname, &dhcp_next_server, &maxleases, &min_leasetime);
+		      &dhcp_file, &dhcp_sname, &dhcp_next_server, &maxleases, &min_leasetime,
+		      &doctors);
 
   /* if we cannot support binding the wildcard address, set the "bind only
      interfaces in use" option */
@@ -152,7 +154,6 @@ int main (int argc, char **argv)
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
       if (options & OPT_ETHERS)
 	dhcp_configs = dhcp_read_ethers(dhcp_configs, dnamebuff);
-      dhcp_update_configs(dhcp_configs);
       lease_update_from_configs(dhcp_configs, domain_suffix); /* must follow cache_init and lease_init */
       lease_update_file(0, now); 
       lease_update_dns();
@@ -390,7 +391,7 @@ int main (int argc, char **argv)
       for (serverfdp = sfds; serverfdp; serverfdp = serverfdp->next)
 	if (FD_ISSET(serverfdp->fd, &rset))
 	  last_server = reply_query(serverfdp->fd, options, packet, now, 
-				    dnamebuff, last_server, bogus_addr);
+				    dnamebuff, last_server, bogus_addr, doctors);
 
       if (dhcp && FD_ISSET(dhcpfd, &rset))
 	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs,

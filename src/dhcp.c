@@ -21,7 +21,7 @@ void dhcp_init(int *fdp, int* rfdp)
   int opt = 1;
   
   if (fd == -1)
-    die ("Cannot create DHCP socket : %s", NULL);
+    die ("cannot create DHCP socket : %s", NULL);
   
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 #if defined(IP_PKTINFO)
@@ -49,11 +49,11 @@ void dhcp_init(int *fdp, int* rfdp)
       if ((fd = open(filename, O_RDWR, 0)) != -1)
 	break;
       if (errno != EBUSY)
-	die("Cannot create DHCP BPF socket: %s", NULL);
+	die("cannot create DHCP BPF socket: %s", NULL);
     }	    
 #else
   if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETHERTYPE_IP))) == -1)
-    die("Cannot create DHCP packet socket: %s", NULL);
+    die("cannot create DHCP packet socket: %s", NULL);
 #endif
   
   *rfdp = fd;
@@ -426,7 +426,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
   
   if (hostname)
     for (config = configs; config; config = config->next)
-      if (config->hostname && strcmp(config->hostname, hostname) == 0 &&
+      if (config->hostname && hostname_isequal(config->hostname, hostname) &&
 	  is_addr_in_context(context, config))
 	return config;
   
@@ -439,24 +439,25 @@ struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
   unsigned int e0, e1, e2, e3, e4, e5;
   char *ip, *cp, *name;
   struct in_addr addr;
-  struct dhcp_config *new;
+  struct dhcp_config *config;
   
   if (!f)
-    die("Failed to open " ETHERSFILE ":%s", NULL);
+    die("failed to open " ETHERSFILE ":%s", NULL);
   
   while (fgets(buff, MAXDNAME, f))
     {
       while (strlen(buff) > 0 && 
 	     (buff[strlen(buff)-1] == '\n' || 
 	      buff[strlen(buff)-1] == ' ' || 
+	      buff[strlen(buff)-1] == '\r' || 
 	      buff[strlen(buff)-1] == '\t'))
 	buff[strlen(buff)-1] = 0;
       
       if ((*buff == '#') || (*buff == '+'))
 	continue;
       
-      for (ip = buff; *ip && *ip != ' '; ip++);
-      for(; *ip && *ip == ' '; ip++)
+      for (ip = buff; *ip && *ip != ' ' && *ip != '\t'; ip++);
+      for(; *ip && (*ip == ' ' || *ip == '\t'); ip++)
 	*ip = 0;
       if (!*ip)
 	continue;
@@ -473,29 +474,42 @@ struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
 	{
 	  name = NULL;
 	  if ((addr.s_addr = inet_addr(ip)) == (in_addr_t)-1)
-		continue;
+	    continue;
+	  
+	  for (config = configs; config; config = config->next)
+	    if (config->addr.s_addr == addr.s_addr)
+	      break;
 	}
       else 
 	{
-	  name = safe_string_alloc(ip);
+	  if (!canonicalise(ip))
+	    continue;
+	  name = ip;
 	  addr.s_addr = 0;
+
+	  for (config = configs; config; config = config->next)
+	    if (config->hostname && hostname_isequal(config->hostname, name))
+	      break;
 	}
       
-      new = safe_malloc(sizeof(struct dhcp_config));
-      new->clid_len = 0;
-      new->clid = NULL;
-      new->hwaddr[0] = e0;
-      new->hwaddr[1] = e1;
-      new->hwaddr[2] = e2;
-      new->hwaddr[3] = e3;
-      new->hwaddr[4] = e4;
-      new->hwaddr[5] = e5;
-      new->hostname = name;
-      new->addr = addr;
-      new->lease_time = 0;
-      new->next = configs;
-      
-      configs = new;
+      if (!config)
+	{ 
+	  config = safe_malloc(sizeof(struct dhcp_config));
+	  config->clid_len = 0;
+	  config->clid = NULL; 
+	  config->lease_time = 0;
+	  config->hostname = safe_string_alloc(name);
+	  config->addr = addr;
+	  config->next = configs;
+	  configs = config;
+	}
+
+      config->hwaddr[0] = e0;
+      config->hwaddr[1] = e1;
+      config->hwaddr[2] = e2;
+      config->hwaddr[3] = e3;
+      config->hwaddr[4] = e4;
+      config->hwaddr[5] = e5;
     }
   
   fclose(f);

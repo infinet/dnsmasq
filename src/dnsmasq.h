@@ -105,6 +105,12 @@ struct bogus_addr {
   struct bogus_addr *next;
 };
 
+/* dns doctor param */
+struct doctor {
+  struct in_addr in, out, mask;
+  struct doctor *next;
+};
+
 union bigname {
   char name[MAXDNAME];
   union bigname *next; /* freelist */
@@ -304,7 +310,8 @@ unsigned short extract_request(HEADER *header, unsigned int qlen, char *name);
 int setup_reply(HEADER *header, unsigned int qlen,
 		struct all_addr *addrp, unsigned short flags,
 		unsigned long local_ttl);
-void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
+void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
+		       time_t now, struct doctor *doctors);
 void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
 int answer_request(HEADER *header, char *limit, unsigned int qlen, char *mxname, 
 		   char *mxtarget, unsigned int options, time_t now, unsigned long local_ttl,
@@ -334,13 +341,13 @@ unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resol
 		       int *port, int *query_port, unsigned long *local_ttl, char **addn_hosts,
 		       struct dhcp_context **dhcp, struct dhcp_config **dhcp_conf, struct dhcp_opt **opts,
 		       char **dhcp_file, char **dhcp_sname, struct in_addr *dhcp_next_server,
-		       int *maxleases, unsigned int *min_leasetime);
+		       int *maxleases, unsigned int *min_leasetime, struct doctor **doctors);
 
 /* forward.c */
 void forward_init(int first);
 struct server *reply_query(int fd, int options, char *packet, time_t now,
 			   char *dnamebuff, struct server *last_server, 
-			   struct bogus_addr *bogus_nxdomain);
+			   struct bogus_addr *bogus_nxdomain, struct doctor *doctors);
 
 struct server *receive_query(struct listener *listen, char *packet, char *mxname, 
 			     char *mxtarget, unsigned int options, time_t now, 

@@ -641,7 +641,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
       if (crec->flags & F_HOSTS)
 	{
 	  if (crec->addr.addr.addr4.s_addr != host_address->s_addr)
-	    syslog(LOG_WARNING, "Not naming DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
+	    syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
 	}
       else if (!(crec->flags & F_DHCP))
 	{
@@ -653,7 +653,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 	      goto newrec;
 	    }
 	  else
-	    syslog(LOG_WARNING, "Not naming DHCP lease for %s because it clashes with a cached name.", cache_get_name(crec));
+	    syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with a cached name.", cache_get_name(crec));
 	}
       return;
     }
@@ -686,7 +686,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 
 void dump_cache(int debug, int cache_size)
 {
-  syslog(LOG_INFO, "Cache size %d, %d/%d cache insertions re-used unexpired cache entries.", 
+  syslog(LOG_INFO, "cache size %d, %d/%d cache insertions re-used unexpired cache entries.", 
 	 cache_size, cache_live_freed, cache_inserted); 
   
   if (debug)

@@ -243,6 +243,15 @@ filterwin2k
 # registries which have implemented wildcard A records.
 #bogus-nxdomain=64.94.110.11
 
+# If you want to fix up DNS results from upstream servers, use the
+# alias option. This only works for IPv4.
+# This alias makes a result of 1.2.3.4 appear as 5.6.7.8
+#alias=1.2.3.4,5.6.7.8
+# and this maps 1.2.3.x to 5.6.7.x
+#alias=1.2.3.0,5.6.7.0,255.255.255.0
+
+ 
+
 # For debugging purposes, log each DNS query as it passes through
 # dnsmasq.
 #log-queries

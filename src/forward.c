@@ -314,7 +314,8 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 
 /* returns new last_server */
 struct server *reply_query(int fd, int options, char *packet, time_t now,
-			   char *dnamebuff, struct server *last_server, struct bogus_addr *bogus_nxdomain)
+			   char *dnamebuff, struct server *last_server, 
+			   struct bogus_addr *bogus_nxdomain, struct doctor *doctors)
 {
   /* packet from peer server, extract data for cache, and send to
      original requester */
@@ -338,7 +339,7 @@ struct server *reply_query(int fd, int options, char *packet, time_t now,
 			check_for_bogus_wildcard(header, (unsigned int)n, dnamebuff, bogus_nxdomain, now)))
 		    {
 		      if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
-			extract_addresses(header, (unsigned int)n, dnamebuff, now);
+			extract_addresses(header, (unsigned int)n, dnamebuff, now, doctors);
 		      else if (!(options & OPT_NO_NEG))
 			extract_neg_addrs(header, (unsigned int)n, dnamebuff, now);
 		    }

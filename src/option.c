@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:"
+#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -67,7 +67,9 @@ static struct myoption opts[] = {
   {"except-interface", 1, 0, 'I'},
   {"domain-needed", 0, 0, 'D'},
   {"dhcp-lease-max", 1, 0, 'X' },
+  {"bind-interfaces", 0, 0, 'z'},
   {"read-ethers", 0, 0, 'Z' },
+  {"alias", 1, 0, 'V' },
   {0, 0, 0, 0}
 };
 
@@ -138,6 +140,7 @@ static char *usage =
 "-T, --local-ttl=time                Specify time-to-live in seconds for replies from /etc/hosts.\n"
 "-u, --user=username                 Change to this user after startup. (defaults to " CHUSER ").\n" 
 "-v, --version                       Display dnsmasq version.\n"
+"-V, --alias=addr,addr,mask          Translate IPv4 addresses from upstream servers.\n"
 "-w, --help                          Display this message.\n"
 "-x, --pid-file=path                 Specify path of PID file. (defaults to " RUNFILE ").\n"
 "-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
@@ -154,7 +157,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			int *query_port, unsigned long *local_ttl, char **addn_hosts, struct dhcp_context **dhcp,
 			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, char **dhcp_file,
 			char **dhcp_sname, struct in_addr *dhcp_next_server, int *dhcp_max, 
-			unsigned int *min_leasetime)
+			unsigned int *min_leasetime, struct doctor **doctors)
 {
   int option = 0, i;
   unsigned int flags = 0;
@@ -194,7 +197,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      /* fgets gets end of line char too. */
 	      while (strlen(buff) > 0 && 
 		     (buff[strlen(buff)-1] == '\n' || 
-		      buff[strlen(buff)-1] == ' ' || 
+		      buff[strlen(buff)-1] == ' ' ||  
+		      buff[strlen(buff)-1] == '\r' || 
 		      buff[strlen(buff)-1] == '\t'))
 		buff[strlen(buff)-1] = 0;
 	      if (*buff == 0)
@@ -918,6 +922,44 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    if (comma && (dhcp_next_server->s_addr = inet_addr(comma+1)) == (in_addr_t)-1)
 		      option = '?';
 		  }
+		break;
+	      }
+
+	    case 'V':
+	      {
+		char *a[3] = { NULL, NULL, NULL };
+		int k;
+		struct in_addr in, out, mask;
+		struct doctor *new;
+
+		mask.s_addr = 0xffffffff;
+		
+		a[0] = optarg;
+		for (k = 1; k < 4; k++)
+		  {
+		    if (!(a[k] = strchr(a[k-1], ',')))
+		      break;
+		    *(a[k]++) = 0;
+		  }
+
+		if ((k < 2) ||
+		    ((in.s_addr = inet_addr(a[0])) == (in_addr_t)-1) ||
+		    ((out.s_addr = inet_addr(a[1])) == (in_addr_t)-1))
+		  {
+		    option = '?';
+		    break;
+		  }
+
+		if (k == 3)
+		  mask.s_addr = inet_addr(a[2]);
+
+		new = safe_malloc(sizeof(struct doctor));
+		new->in = in;
+		new->out = out;
+		new->mask = mask;
+		new->next = *doctors;
+		*doctors = new;
+		
 		break;
 	      }
 	    }

@@ -246,11 +246,12 @@ int dhcp_reply(struct dhcp_context *context,
       
       log_packet("DISCOVER", opt ? &mess->yiaddr : NULL, mess->chaddr, iface_name, NULL);
       
-      if (lease && 
-	  ((lease->addr.s_addr & context->netmask.s_addr) == (context->start.s_addr & context->netmask.s_addr)))
-	mess->yiaddr = lease->addr;
-      else if (config && config->addr.s_addr && !lease_find_by_addr(config->addr))
+      if (config && config->addr.s_addr && !lease_find_by_addr(config->addr))
 	mess->yiaddr = config->addr;
+      else if (lease && 
+	       ((lease->addr.s_addr & context->netmask.s_addr) == 
+		(context->start.s_addr & context->netmask.s_addr)))
+	mess->yiaddr = lease->addr;
       else if ((!opt || !address_available(context, mess->yiaddr)) &&
 	       !address_allocate(context, dhcp_configs, &mess->yiaddr))
 	{

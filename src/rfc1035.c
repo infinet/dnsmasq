@@ -440,7 +440,19 @@ void extract_neg_addrs(HEADER *header, unsigned int qlen, char *name, time_t now
   cache_end_insert();
 }
 
-void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now)
+static void dns_doctor(struct doctor *doctor, struct in_addr *addr)
+{
+  for (; doctor; doctor = doctor->next)
+    if ((doctor->in.s_addr & doctor->mask.s_addr) == (addr->s_addr & doctor->mask.s_addr))
+      {
+	addr->s_addr &= ~doctor->mask.s_addr;
+	addr->s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
+	break;
+      }
+}
+
+void extract_addresses(HEADER *header, unsigned int qlen, char *name, 
+		       time_t now, struct doctor *doctors)
 {
   unsigned char *p, *psave, *endrr;
   int qtype, qclass, rdlen;
@@ -477,8 +489,11 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 	}
 
       if (qtype == T_A) /* A record. */
-	cache_insert(name, (struct all_addr *)p, now, 
-		     ttl, F_IPV4 | F_FORWARD);
+	{
+	  dns_doctor(doctors, (struct in_addr *)p);
+	  cache_insert(name, (struct all_addr *)p, now, 
+		       ttl, F_IPV4 | F_FORWARD);
+	}
 #ifdef HAVE_IPV6
       else if (qtype == T_AAAA) /* IPV6 address record. */
 	cache_insert(name, (struct all_addr *)p, now,
@@ -546,8 +561,11 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 		return;
 
 	      if (qtype == T_A) /* A record. */
-		cache_insert(name, (struct all_addr *)p, now, 
-			     cttl, F_IPV4 | F_FORWARD);
+		{
+		  dns_doctor(doctors, (struct in_addr *)p);
+		  cache_insert(name, (struct all_addr *)p, now, 
+			       cttl, F_IPV4 | F_FORWARD);
+		}
 #ifdef HAVE_IPV6
 	      else if (qtype == T_AAAA) /* IPV6 address record. */
 		cache_insert(name, (struct all_addr *)p, now, 

@@ -33,12 +33,10 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
       for (tmp = names; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
 	  break;
-      if (!tmp && !addrs) 
-	return NULL;
- 
-      for (tmp = addrs; tmp; tmp = tmp->next)
-	if (sockaddr_isequal(&tmp->addr, addr))
-	  break;
+      if (!tmp) 
+	for (tmp = addrs; tmp; tmp = tmp->next)
+	  if (sockaddr_isequal(&tmp->addr, addr))
+	    break;
       if (!tmp) 
 	return NULL;
     }

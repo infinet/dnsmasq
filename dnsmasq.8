@@ -114,6 +114,14 @@ running another nameserver on the same machine.
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
 which are not found in /etc/hosts or the DHCP leases file are resolved to the IP address in dotted-quad form.
 .TP
+.B \-V, --alias=<old-ip>,<new-ip>[,<mask>]
+Modify IPv4 addresses returned from upstream nameservers; old-ip is
+replaced by new-ip. If the optional mask is given then any address
+which matches the masked old-ip will be re-written. So, for instance
+.B --alias=1.2.3.0,6.7.8.0,255.255.255.0 
+will map 1.2.3.56 to 6.7.8.56 and 1.2.3.67 to 6.7.8.67. This is what
+Cisco PIX routers call "DNS doctoring".
+.TP 
 .B \-B, --bogus-nxdomain=<ipaddr>
 Transform replies which contain the IP address given into "No such
 domain" replies. This is intended to counteract a devious move made by

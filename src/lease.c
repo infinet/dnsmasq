@@ -34,9 +34,13 @@ int lease_init(char *filename, char *domain, char *buff,
   leases = NULL;
   leases_left = maxleases;
 
-  if (!(lease_file = fopen(filename, "r+")))
+  /* NOTE: need a+ mode to create file if it doesn't exist */
+  if (!(lease_file = fopen(filename, "a+")))
     die("cannot open or create leases file: %s", NULL);
     
+  /* a+ mode lease pointer at end. */
+  rewind(lease_file);
+
   while (fscanf(lease_file, "%lu %x:%x:%x:%x:%x:%x %d.%d.%d.%d %256s %500s",
 		&ei, &e0, &e1, &e2, &e3, &e4, &e5, &a0, &a1, &a2, &a3, buff, buff2) == 13)
     {

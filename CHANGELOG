@@ -821,5 +821,27 @@ release 2.3
 	     embedded systems without a stable RTC. Oleg Vdovikin
 	     helped work out how to make that work.
 
+release 2.4
+	     Fixed inability to start when the lease file doesn't
+	     already exist. Thanks to Dag Wieers for reporting that.
+
+	     Fixed problem were dhcp-host configuration options did
+	     not play well with entries in /etc/ethers for the same
+	     host. Thanks again to Dag Wieers.
+
+	     Tweaked DHCP code to favour moving to a newly-configured
+	     static IP address rather than an old lease when doing
+	     DHCP allocation.
+
+	     Added --alias configuration option. This provides IPv4
+	     rewrite facilities like Cisco "DNS doctoring". Suggested
+	     by Chad Skeeters.
+
+	     Fixed bug in /etc/ethers parsing code triggered by tab
+	     characters. Qudos to Dag Wieers for hepling to nail that
+	     one.
+ 	     
+	     Added "bind-interfaces" option correctly.	     
 
 
+	     
