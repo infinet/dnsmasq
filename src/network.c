@@ -356,34 +356,37 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
   struct irec *iface;
   int flags = port, opt = 1;
   
-  /* Create bound listeners only for IPv4, IPv6 always binds the wildcard */
-
-#ifdef HAVE_IPV6
-  if (!create_ipv6_listener(&listeners, port))
-    die("failed to to create listening socket: %s", NULL);
-#endif
-
   for (iface = interfaces ;iface; iface = iface->next)
-    if (iface->addr.sa.sa_family == AF_INET)
-      {
-	struct listener *new = safe_malloc(sizeof(struct listener));
-	new->family = iface->addr.sa.sa_family;
-	new->next = listeners;
-	listeners = new;
-	if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
-	    (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
-	    setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	    setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	    /* See Stevens 16.6 */
-	    (flags = fcntl(new->tcpfd, F_GETFL, 0)) == -1 ||
-	    fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-	    (flags = fcntl(new->fd, F_GETFL, 0)) == -1 ||
-	    fcntl(new->fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-	    bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
-	    bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
-	    listen(new->tcpfd, 5) == -1)
-	  die("failed to to create listening socket: %s", NULL);
-      }
+    {
+      struct listener *new = safe_malloc(sizeof(struct listener));
+      new->family = iface->addr.sa.sa_family;
+      new->next = listeners;
+      listeners = new;
+      if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
+	  (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
+	  setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	  setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	  /* See Stevens 16.6 */
+	  (flags = fcntl(new->tcpfd, F_GETFL, 0)) == -1 ||
+	  fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+	  (flags = fcntl(new->fd, F_GETFL, 0)) == -1 ||
+	  fcntl(new->fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	die("failed to create listening socket: %s", NULL);
+      
+#ifdef HAVE_IPV6
+      if (iface->addr.sa.sa_family == AF_INET6)
+	{
+	  if (setsockopt(new->fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
+	      setsockopt(new->tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
+	    die("failed to set IPV6 options on listening socket: %s", NULL);
+	}
+#endif
+      
+      if (bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
+	  bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
+	  listen(new->tcpfd, 5) == -1)
+	die("failed to bind listening socket: %s", NULL);
+    }
   
   return listeners;
 }

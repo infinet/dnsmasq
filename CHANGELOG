@@ -1253,3 +1253,44 @@ version 2.16
 	    Added dynamic-dnsmasq from Peter Willis to the contrib
 	    section.
 
+version 2.17
+	    Correctly deduce the size of numeric dhcp-options, rather
+	    than making wild guesses. Also cope with negative values.
+
+	    Fixed use of C library reserved symbol "index" which broke
+	    under certain combinations of library and compiler.
+
+	    Make bind-interfaces work for IPv6 interfaces too.
+
+	    Warn if an interface is given for listening which doesn't
+	    currently exist when not in bind-interfaces mode. (This is
+	    already a fatal error when bind-interfaces is set.)
+
+	    Allow the --interface and --except-interface options to
+	    take a comma-seperated list of interfaces.
+
+	    Tweak --dhcp-userclass matching code to work with the
+	    ISC dhclient which violates RFC3004 unless its
+	    configuration is very warped. Thanks to Cedric Duval for
+	    the bug report. 
+
+	    Allow more than one network-id tag in a dhcp-option. All
+	    the tags must match to enable the option.
+
+	    Added dhcp-ignore option to disable classes of hosts based
+	    on network-id tags. Also allow BOOTP options to be
+	    controlled by network tags.
+
+	    Fill in sname, file and siaddr fields in replies to
+	    DHCPINFORM messages.
+
+	    Don't send NAK replies to DHCPREQUEST packets for disabled
+	    clients. Credit to Cedric Duval for spotting this.
+
+	    Fix rare crash associated with long DNS names and CNAME
+	    records. Thanks to Holger_Hoffstatte and especially Steve
+	    Grecni for help chasing that one down.
+
+ 
+
+	    

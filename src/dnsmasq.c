@@ -30,6 +30,7 @@ int main (int argc, char **argv)
   struct irec *interfaces;
   struct sigaction sigact;
   sigset_t sigmask;
+  struct iname *if_tmp;
 
   sighup = 1; /* init cache the first time through */
   sigusr1 = 0; /* but don't dump */
@@ -92,7 +93,6 @@ int main (int argc, char **argv)
     
   if (daemon->options & OPT_NOWILD) 
     {
-      struct iname *if_tmp;
       daemon->listeners = create_bound_listeners(interfaces, daemon->port);
 
       for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
@@ -263,6 +263,11 @@ int main (int argc, char **argv)
   if (bind_fallback)
     syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
   
+  if (!(daemon->options & OPT_NOWILD)) 
+    for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
+      if (if_tmp->name && !if_tmp->used)
+	syslog(LOG_WARNING, "warning: interface %s does not currently exist", if_tmp->name);
+  
   if (daemon->dhcp)
     {
       struct dhcp_context *dhcp_tmp;
@@ -288,13 +293,12 @@ int main (int argc, char **argv)
 		 "DHCP, IP range %s -- %s, lease time %s",
 		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), time);
 	}
+ 
+#ifdef HAVE_BROKEN_RTC
+      syslog(LOG_INFO, "DHCP, %s will be written every %ds", daemon->lease_file, daemon->min_leasetime/3);
+#endif
     }
 
-#ifdef HAVE_BROKEN_RTC
-  if (daemon->dhcp)
-    syslog(LOG_INFO, "DHCP, %s will be written every %ds", daemon->lease_file, daemon->min_leasetime/3);
-#endif
-  
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
     syslog(LOG_WARNING, "running as root");
   

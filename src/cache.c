@@ -17,7 +17,7 @@ static struct crec *dhcp_inuse, *dhcp_spare, *new_chain;
 static int cache_inserted, cache_live_freed, insert_error;
 static union bigname *big_free;
 static int bignames_left, log_queries, cache_size, hash_size;
-static int index;
+static int uid;
 
 static void cache_free(struct crec *crecp);
 static void cache_unlink(struct crec *crecp);
@@ -36,7 +36,7 @@ void cache_init(int size, int logq)
   cache_size = size;
   big_free = NULL;
   bignames_left = size/10;
-  index = 0;
+  uid = 0;
 
   cache_inserted = cache_live_freed = 0;
 
@@ -48,7 +48,7 @@ void cache_init(int size, int logq)
 	{
 	  cache_link(crecp);
 	  crecp->flags = 0;
-	  crecp->uid = index++;
+	  crecp->uid = uid++;
 	}
     }
   
@@ -85,7 +85,7 @@ static void cache_free(struct crec *crecp)
 {
   crecp->flags &= ~F_FORWARD;
   crecp->flags &= ~F_REVERSE;
-  crecp->uid = index++; /* invalidate CNAMES pointing to this. */
+  crecp->uid = uid++; /* invalidate CNAMES pointing to this. */
   
   if (cache_tail)
     cache_tail->next = crecp;
@@ -673,7 +673,7 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
   if (!host_name)
     return;
 
-  if ((crec = cache_find_by_name(NULL, host_name, 0, F_IPV4)))
+  if ((crec = cache_find_by_name(NULL, host_name, 0, F_IPV4 | F_CNAME)))
     {
       if (crec->flags & F_HOSTS)
 	{
@@ -681,7 +681,7 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 	    {
 	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
 	      syslog(LOG_WARNING, 
-		     "not giving name %s to the DHCP lease of %s because"
+		     "not giving name %s to the DHCP lease of %s because "
 		     "the name exists in %s with address %s", 
 		     host_name, inet_ntoa(*host_address),
 		     record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
@@ -689,7 +689,7 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 	  return;
 	}
       else if (!(crec->flags & F_DHCP))
-	cache_scan_free(host_name, NULL, 0, F_IPV4 | F_FORWARD);
+	cache_scan_free(host_name, NULL, 0, crec->flags & (F_IPV4 | F_CNAME | F_FORWARD));
     }
  
   if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, F_IPV4)))

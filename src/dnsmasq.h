@@ -269,6 +269,10 @@ struct dhcp_netid {
   struct dhcp_netid *next;
 };
 
+struct dhcp_netid_list {
+  struct dhcp_netid *list;
+  struct dhcp_netid_list *next;
+};
 struct dhcp_config {
   unsigned int flags;
   int clid_len;          /* length of client identifier */
@@ -293,12 +297,19 @@ struct dhcp_config {
 struct dhcp_opt {
   int opt, len, is_addr;
   unsigned char *val;
-  char *netid;
+  struct dhcp_netid *netid;
   struct dhcp_opt *next;
 };
 
+struct dhcp_boot {
+  char *file, *sname;
+  struct in_addr next_server;
+  struct dhcp_netid *netid;
+  struct dhcp_boot *next;
+};
+
 struct dhcp_vendor {
-  int len, is_vendor, used;
+  int len, is_vendor;
   char *data;
   struct dhcp_netid netid;
   struct dhcp_vendor *next;
@@ -361,9 +372,8 @@ struct daemon {
   struct dhcp_config *dhcp_conf;
   struct dhcp_opt *dhcp_opts;
   struct dhcp_vendor *dhcp_vendors;
-  char *dhcp_file;
-  char *dhcp_sname;
-  struct in_addr dhcp_next_server;
+  struct dhcp_boot *boot_config;
+  struct dhcp_netid_list *dhcp_ignore;
   int dhcp_max; 
   unsigned int min_leasetime;
   struct doctor *doctors;

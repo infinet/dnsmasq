@@ -653,7 +653,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 			  if (!cname_count--)
 			    return; /* looped CNAMES */
 			  newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
-			  if (cpp)
+			  if (newc && cpp)
 			    {
 			      cpp->addr.cname.cache = newc;
 			      cpp->addr.cname.uid = newc->uid;
@@ -673,7 +673,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 			  if (aqtype == T_A)
 			    dns_doctor(header, daemon->doctors, (struct in_addr *)p1);
 			  newc = cache_insert(name, (struct all_addr *)p1, now, attl, flags | F_FORWARD);
-			  if (cpp)
+			  if (newc && cpp)
 			    {
 			      cpp->addr.cname.cache = newc;
 			      cpp->addr.cname.uid = newc->uid;
@@ -700,7 +700,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 	      if (ttl || cpp)
 		{
 		  newc = cache_insert(name, (struct all_addr *)p, now, ttl ? ttl : cttl, F_FORWARD | F_NEG | flags);	
-		  if (cpp)
+		  if (newc && cpp)
 		    {
 		      cpp->addr.cname.cache = newc;
 		      cpp->addr.cname.uid = newc->uid;
@@ -807,7 +807,7 @@ int check_for_local_domain(char *name, time_t now, struct mx_record *mx)
 {
   struct crec *crecp;
   
-  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4|F_IPV6)) &&
+  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)) &&
       (crecp->flags & (F_HOSTS | F_DHCP)))
     return 1;
   
@@ -1038,7 +1038,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 		{
 		  unsigned short type = T_A;
 		  int addrsz = INADDRSZ;
-		  
+		 		  
 		  if (flag == F_IPV6)
 		    {
 #ifdef HAVE_IPV6
@@ -1049,18 +1049,20 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 #endif
 		    }
 		  
-		  if (qtype != type && qtype != T_ANY && qtype != T_CNAME)
+		  if (qtype != type && qtype != T_ANY)
 		    continue;
 
 		cname_restart:
 		  crecp = NULL;
 		  while ((crecp = cache_find_by_name(crecp, name, now, flag | F_CNAME)))
 		    { 
+		      /* don't answer wildcard queries with data not from /etc/hosts
+			 or DHCP leases */
+		      if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
+			break;
+		      
 		      if (crecp->flags & F_CNAME)
 			{
-			  if (qtype == T_CNAME)
-			    ans = 1;
-			  
 			  if (!dryrun)
 			    {
 			      ansp = add_text_record(header, nameoffset, ansp, crecp->ttd - now, 0, T_CNAME, 
@@ -1068,17 +1070,10 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 			      anscount++;
 			      log_query(crecp->flags, name, NULL, 0, daemon->addn_hosts, crecp->uid);
 			    }
+			  			  
 			  strcpy(name, cache_get_name(crecp->addr.cname.cache));
 			  goto cname_restart;
 			}
-		      
-		      if (qtype == T_CNAME)
-			break;
-
-		      /* don't answer wildcard queries with data not from /etc/hosts
-			 or DHCP leases */
-		      if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
-			continue;
 
 		      if (crecp->flags & F_NEG)
 			{

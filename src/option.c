@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
+#define OPTSTRING "ZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -72,6 +72,7 @@ static struct myoption opts[] = {
   {"alias", 1, 0, 'V' },
   {"dhcp-vendorclass", 1, 0, 'U'},
   {"dhcp-userclass", 1, 0, 'j'},
+  {"dhcp-ignore", 1, 0, 'J'},
   {"edns-packet-max", 1, 0, 'P'},
   {"keep-in-foreground", 0, 0, 'k'},
   {"dhcp-authoritative", 0, 0, 'K'},
@@ -107,8 +108,11 @@ static struct optflags optmap[] = {
 };
 
 static char *usage =
-"Usage: dnsmasq [options]\n"
-"\nValid options are :\n"
+"Usage: dnsmasq [options]\n\n"
+#ifndef HAVE_GETOPT_LONG
+"Use short options only on the command line.\n"
+#endif
+"Valid options are :\n"
 "-a, --listen-address=ipaddr         Specify local address(es) to listen on.\n"
 "-A, --address=/domain/ipaddr        Return ipaddr for all hosts in specified domains.\n"
 "-b, --bogus-priv                    Fake reverse lookups for RFC1918 private address ranges.\n"
@@ -128,6 +132,7 @@ static char *usage =
 "-i, --interface=interface           Specify interface(s) to listen on.\n"
 "-I, --except-interface=int          Specify interface(s) NOT to listen on.\n"
 "-j, --dhcp-userclass=<id>,<class>   Map DHCP user class to option set.\n"
+"-J, --dhcp-ignore=<id>              Don't do DHCP for hosts in option set.\n"
 "-k, --keep-in-foreground            Do NOT fork into the background, do NOT run in debug mode.\n"
 "-K, --dhcp-authoritative            Assume we are the only DHCP server on the local network.\n"
 "-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
@@ -167,7 +172,7 @@ struct daemon *read_opts (int argc, char **argv)
   char *problem = NULL, *buff = safe_malloc(MAXDNAME);
   int option = 0, i;
   FILE *file_save = NULL, *f = NULL;
-  char *file_name_save = NULL, *conffile = CONFFILE;
+  char *comma, *file_name_save = NULL, *conffile = CONFFILE;
   int hosts_index = 1, conffile_set = 0;
   int line_save = 0, lineno = 0;
   opterr = 0;
@@ -367,8 +372,7 @@ struct daemon *read_opts (int argc, char **argv)
 
 	    case 'm':
 	      {
-		char *comma = strchr(optarg, ',');
-		if (comma)
+		if ((comma = strchr(optarg, ',')))
 		  *(comma++) = 0;
 		if (!canonicalise(optarg) || (comma && !canonicalise(comma)))
 		  {
@@ -428,8 +432,10 @@ struct daemon *read_opts (int argc, char **argv)
 	      break;
 	      
 	    case 'i':
-	      {
+	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
+		if ((comma = strchr(optarg, ',')))
+		  *comma++ = 0;
 		new->next = daemon->if_names;
 		daemon->if_names = new;
 		/* new->name may be NULL if someone does
@@ -438,20 +444,24 @@ struct daemon *read_opts (int argc, char **argv)
 		new->isloop = new->used = 0;
 		if (strchr(optarg, ':'))
 		  daemon->options |= OPT_NOWILD;
-		break;
-	      }
-	      
+		optarg = comma;
+	      } while (optarg);
+	      break;
+	    
 	    case 'I':
-	      {
+	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
+		if ((comma = strchr(optarg, ',')))
+		  *comma++ = 0;
 		new->next = daemon->if_except;
 		daemon->if_except = new;
 		new->name = safe_string_alloc(optarg);
 		if (strchr(optarg, ':'))
-		   daemon->options |= OPT_NOWILD;
-		break;
-	      }
-	      
+		  daemon->options |= OPT_NOWILD;
+		optarg = comma;
+	      } while (optarg);
+	      break;
+	      	      
 	    case 'B':
 	      {
 		struct in_addr addr;
@@ -725,7 +735,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'F':
 	      {
 		int k, leasepos = 2;
-		char *cp, *comma, *a[5] = { NULL, NULL, NULL, NULL, NULL };
+		char *cp, *a[5] = { NULL, NULL, NULL, NULL, NULL };
 		struct dhcp_context *new = safe_malloc(sizeof(struct dhcp_context));
 		
 		new->next = daemon->dhcp;
@@ -902,10 +912,7 @@ struct daemon *read_opts (int argc, char **argv)
 			      memcpy(new->clid, arg, len);
 			    }
 			}
-		      else if ((arg[0] == 'n' || arg[0] == 'N') &&
-			       (arg[1] == 'e' || arg[1] == 'E') &&
-			       (arg[2] == 't' || arg[3] == 'T') &&
-			       arg[3] == ':')
+		      else if (strstr(arg, "net:") == arg)
 			{
 			  new->flags |= CONFIG_NETID;
 			  new->netid.net = safe_string_alloc(arg+4);
@@ -1005,7 +1012,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'O':
 	      {
 		struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
-		char *cp, *comma;
+		char *cp;
 		int addrs, digs, is_addr, is_hex, is_dec;
 		
 		new->next = daemon->dhcp_opts;
@@ -1016,25 +1023,30 @@ struct daemon *read_opts (int argc, char **argv)
 				
 		if ((comma = strchr(optarg, ',')))
 		  {
+		    struct dhcp_netid *np = NULL;
 		    *comma++ = 0;
 		
-		    for (cp = optarg; *cp; cp++)
-		      if (!(*cp == ' ' || (*cp >='0' && *cp <= '9')))
+		    do {
+		      for (cp = optarg; *cp; cp++)
+			if (!(*cp == ' ' || (*cp >='0' && *cp <= '9')))
+			  break;
+		      if (!*cp)
 			break;
-
-		    if (*cp)
-		      {
-			new->netid = safe_string_alloc(optarg);
-			optarg = comma;
-			if ((comma = strchr(optarg, ',')))
-			  *comma++ = 0;
-		      }
+		      
+		      new->netid = safe_malloc(sizeof (struct dhcp_netid));
+		      new->netid->net = safe_string_alloc(optarg);
+		      new->netid->next = np;
+		      np = new->netid;
+		      optarg = comma;
+		      if ((comma = strchr(optarg, ',')))
+			*comma++ = 0;
+		    } while (optarg);
 		  }
 		
-		if ((new->opt = atoi(optarg)) == 0)
+		if (!optarg || (new->opt = atoi(optarg)) == 0)
 		  {
 		    option = '?';
-		    problem = "bad dhcp-opt";
+		    problem = "bad dhcp-option";
 		  }
 		else if (comma && new->opt == 119)
 		  {
@@ -1052,7 +1064,7 @@ struct daemon *read_opts (int argc, char **argv)
 			if (!canonicalise(optarg))
 			  {
 			    option = '?';
-			    problem = "bad dhcp-search-opt";
+			    problem = "bad domain in dhcp-option";
 			    break;
 			  }
 			
@@ -1115,7 +1127,7 @@ struct daemon *read_opts (int argc, char **argv)
 			}
 		      else if (*cp == '.')
 			is_dec = is_hex = 0;
-		      else if (!(*cp >='0' && *cp <= '9'))
+		      else if (!((*cp >='0' && *cp <= '9') || *cp == '-'))
 			{
 			  is_dec = is_addr = 0;
 			  if (!((*cp >='A' && *cp <= 'F') ||
@@ -1150,31 +1162,24 @@ struct daemon *read_opts (int argc, char **argv)
 		      }
 		    else if (is_dec)
 		      {
-			/* Given that we don't know the length,
-			   this appaling hack is the best available */
-			unsigned int val = atoi(comma);
-			if (val < 256)
+			int i, val = atoi(comma);
+			/* assume numeric arg is 1 byte except for
+			   options where it is known otherwise. */
+			switch (new->opt)
 			  {
+			  default:
 			    new->len = 1;
-			    new->val = safe_malloc(1);
-			    *(new->val) = val;
-			  }
-			else if (val < 65536)
-			  {
+			    break;
+			  case 13: case 22: case 25: case 26: 
 			    new->len = 2;
-			    new->val = safe_malloc(2);
-			    *(new->val) = val>>8;
-			    *(new->val+1) = val;
-			  }
-			else
-			  {
+			    break;
+			  case 2: case 24: case 35: case 38: 
 			    new->len = 4;
-			    new->val = safe_malloc(4);
-			    *(new->val) = val>>24;
-			    *(new->val+1) = val>>16;
-			    *(new->val+2) = val>>8;
-			    *(new->val+3) = val;
+			    break;
 			  }
+			new->val = safe_malloc(new->len);
+			for (i=0; i<new->len; i++)
+			  new->val[i] = val>>((new->len - i - 1)*8);
 		      }
 		    else if (is_addr)	
 		      {
@@ -1224,19 +1229,57 @@ struct daemon *read_opts (int argc, char **argv)
 
 	    case 'M':
 	      {
-		char *comma;
-		
-		if ((comma = strchr(optarg, ',')))
-		  *comma = 0;
-		daemon->dhcp_file = safe_string_alloc(optarg);
-		if (comma)
+		struct dhcp_netid *id = NULL;
+		while (optarg && strstr(optarg, "net:") == optarg)
 		  {
-		    optarg = comma+1;
+		    struct dhcp_netid *newid = safe_malloc(sizeof(struct dhcp_netid));
+		    newid->next = id;
+		    id = newid;
 		    if ((comma = strchr(optarg, ',')))
-		      *comma = 0;
-		    daemon->dhcp_sname = safe_string_alloc(optarg);
-		    if (comma && (daemon->dhcp_next_server.s_addr = inet_addr(comma+1)) == (in_addr_t)-1)
-		      option = '?';
+		      *comma++ = 0;
+		    newid->net = safe_string_alloc(optarg+4);
+		    optarg = comma;
+		  };
+		
+		if (!optarg)
+		  option = '?';
+		else 
+		  {
+		    char *dhcp_file, *dhcp_sname = NULL;
+		    struct in_addr dhcp_next_server;
+		    if ((comma = strchr(optarg, ',')))
+		      *comma++ = 0;
+		    dhcp_file = safe_string_alloc(optarg);
+		    dhcp_next_server.s_addr = 0;
+		    if (comma)
+		      {
+			optarg = comma;
+			if ((comma = strchr(optarg, ',')))
+			  *comma++ = 0;
+			dhcp_sname = safe_string_alloc(optarg);
+			if (comma && (dhcp_next_server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
+			  option = '?';
+		      }
+		    if (option != '?')
+		      {
+			struct dhcp_boot *new = safe_malloc(sizeof(struct dhcp_boot));
+			new->file = dhcp_file;
+			new->sname = dhcp_sname;
+			new->next_server = dhcp_next_server;
+			new->netid = id;
+			new->next = daemon->boot_config;
+			daemon->boot_config = new;
+		      }
+		  }
+
+		if (option == '?')
+		  {
+		    struct dhcp_netid *tmp;
+		    for (; id; id = tmp)
+		      {
+			tmp = id->next;
+			free(id);
+		      }
 		  }
 		break;
 	      }
@@ -1244,8 +1287,6 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'U':
 	    case 'j':
 	      {
-		char *comma;
-		
 		if (!(comma = strchr(optarg, ',')))
 		  option = '?';
 		else
@@ -1262,7 +1303,27 @@ struct daemon *read_opts (int argc, char **argv)
 		  }
 		break;
 	      }
-		    
+	      
+	    case 'J':
+	      {
+		struct dhcp_netid_list *new = safe_malloc(sizeof(struct dhcp_netid_list));
+		struct dhcp_netid *list = NULL;
+		new->next = daemon->dhcp_ignore;
+		daemon->dhcp_ignore = new;
+		do {
+		  struct dhcp_netid *member = safe_malloc(sizeof(struct dhcp_netid));
+		  if ((comma = strchr(optarg, ',')))
+		    *comma++ = 0;
+		  member->next = list;
+		  list = member;
+		  member->net = safe_string_alloc(optarg);
+		  optarg = comma;
+		} while (optarg);
+		
+		new->list = list;
+		break;
+	      }
+
 	    case 'V':
 	      {
 		char *a[3] = { NULL, NULL, NULL };
@@ -1312,7 +1373,11 @@ struct daemon *read_opts (int argc, char **argv)
 	      complain(buff, NULL);
 	    }
 	  else
+#ifdef HAVE_GETOPT_LONG
 	    die("bad command line options: %s.", problem ? problem : "try --help");
+#else
+	    die("bad command line options: %s.", problem ? problem : "try -w");
+#endif
 	}
     }
       

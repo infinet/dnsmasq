@@ -65,45 +65,43 @@ static void send_from(int fd, int nowild, char *packet, int len,
   msg.msg_iov = iov;
   msg.msg_iovlen = 1;
   
-  if (!nowild && to->sa.sa_family == AF_INET)
+  if (!nowild)
     {
+      struct cmsghdr *cmptr;
       msg.msg_control = &control_u;
       msg.msg_controllen = sizeof(control_u);
-      {
-	struct cmsghdr *cmptr = CMSG_FIRSTHDR(&msg);
-#if defined(IP_PKTINFO)
-	struct in_pktinfo *pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
-	pkt->ipi_ifindex = 0;
-	pkt->ipi_spec_dst = source->addr.addr4;
-	msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
-	cmptr->cmsg_level = SOL_IP;
-	cmptr->cmsg_type = IP_PKTINFO;
-#elif defined(IP_SENDSRCADDR)
-	struct in_addr *a = (struct in_addr *)CMSG_DATA(cmptr);
-	*a = source->addr.addr4;
-	msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
-	cmptr->cmsg_level = IPPROTO_IP;
-	cmptr->cmsg_type = IP_SENDSRCADDR;
-#endif
-      }
-    }
+      cmptr = CMSG_FIRSTHDR(&msg);
 
-#ifdef HAVE_IPV6
-  if (to->sa.sa_family == AF_INET6)
-    {
-      msg.msg_control = &control_u;
-      msg.msg_controllen = sizeof(control_u);
-      {
-	struct cmsghdr *cmptr = CMSG_FIRSTHDR(&msg);
-	struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
-	pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
-	pkt->ipi6_addr = source->addr.addr6;
-	msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
-	cmptr->cmsg_type = IPV6_PKTINFO;
-	cmptr->cmsg_level = IPV6_LEVEL;
-      }
-    }
+      if (to->sa.sa_family == AF_INET)
+	{
+#if defined(IP_PKTINFO)
+	  struct in_pktinfo *pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
+	  pkt->ipi_ifindex = 0;
+	  pkt->ipi_spec_dst = source->addr.addr4;
+	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
+	  cmptr->cmsg_level = SOL_IP;
+	  cmptr->cmsg_type = IP_PKTINFO;
+#elif defined(IP_SENDSRCADDR)
+	  struct in_addr *a = (struct in_addr *)CMSG_DATA(cmptr);
+	  *a = source->addr.addr4;
+	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
+	  cmptr->cmsg_level = IPPROTO_IP;
+	  cmptr->cmsg_type = IP_SENDSRCADDR;
 #endif
+	}
+      
+#ifdef HAVE_IPV6
+      else
+	{
+	  struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
+	  pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
+	  pkt->ipi6_addr = source->addr.addr6;
+	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+	  cmptr->cmsg_type = IPV6_PKTINFO;
+	  cmptr->cmsg_level = IPV6_LEVEL;
+	}
+#endif
+    }
   
  retry:
   if (sendmsg(fd, &msg, 0) == -1)
@@ -462,7 +460,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 	{
 	  header->id = htons(forward->orig_id);
 	  header->ra = 1; /* recursion if available */
-send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
+	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
 		    &forward->source, &forward->dest, forward->iface);
 	  forward->new_id = 0; /* cancel */
 	}
@@ -476,7 +474,6 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
   unsigned short type;
   struct iname *tmp;
   struct all_addr dst_addr;
-  int check_dst = !(daemon->options & OPT_NOWILD);
   int m, n, if_index = 0;
   struct iovec iov[1];
   struct msghdr msg;
@@ -508,57 +505,55 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
   if ((n = recvmsg(listen->fd, &msg, 0)) == -1)
     return;
   
-  source_addr.sa.sa_family = listen->family;
-#ifdef HAVE_IPV6
-  if (listen->family == AF_INET6)
-    {
-      check_dst = 1;
-      source_addr.in6.sin6_flowinfo = htonl(0);
-    }
-#endif
-  
-  if (check_dst && msg.msg_controllen < sizeof(struct cmsghdr))
-    return;
-
-#if defined(IP_PKTINFO)
-  if (check_dst && listen->family == AF_INET)
-    for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-      if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
-	{
-	  dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
-	  if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
-	}
-#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
-  if (check_dst && listen->family == AF_INET)
-    {
-      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
-	  dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
-	else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-	  if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
-    }
-#endif
-
-#ifdef HAVE_IPV6
-  if (listen->family == AF_INET6)
-    {
-      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == IPV6_PKTINFO)
-	  {
-	    dst_addr.addr.addr6 = ((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_addr;
-	    if_index =((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex;
-	  }
-    }
-#endif
-  
   if (n < (int)sizeof(HEADER) || header->qr)
     return;
   
-  /* enforce available interface configuration */
-  if (check_dst)
+  source_addr.sa.sa_family = listen->family;
+#ifdef HAVE_IPV6
+  if (listen->family == AF_INET6)
+    source_addr.in6.sin6_flowinfo = htonl(0);
+#endif
+  
+  if (!(daemon->options & OPT_NOWILD))
     {
       struct ifreq ifr;
 
+      if (msg.msg_controllen < sizeof(struct cmsghdr))
+	return;
+
+#if defined(IP_PKTINFO)
+      if (listen->family == AF_INET)
+	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	  if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+	    {
+	      dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
+	      if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
+	    }
+#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
+      if (listen->family == AF_INET)
+	{
+	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	    if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
+	      dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
+	    else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
+	      if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
+	}
+#endif
+      
+#ifdef HAVE_IPV6
+      if (listen->family == AF_INET6)
+	{
+	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	    if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == IPV6_PKTINFO)
+	      {
+		dst_addr.addr.addr6 = ((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_addr;
+		if_index =((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex;
+	      }
+	}
+#endif
+      
+      /* enforce available interface configuration */
+      
       if (if_index == 0)
 	return;
       

@@ -366,7 +366,7 @@ have exactly the same effect as
 .B --dhcp-host
 options containing the same information.
 .TP
-.B \-O, --dhcp-option=[network-id,]<opt>,[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]]<opt>,[<value>[,<value>]]
 Specfify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -382,12 +382,10 @@ and to set the time-server address to 192.168.0.4, do
 The special address 0.0.0.0 is taken to mean "the address of the
 machine running dnsmasq". Data types allowed are comma seperated
 dotted-quad IP addresses, a decimal number, colon-seperated hex digits
-and a text string. If the optional network-id is given then
-this option is only sent to machines on the network whose dhcp-range
-contains a matching network-id.
+and a text string. If the optional network-ids are given then
+this option is only sent when all the network-ids are matched.
 Be careful: no checking is done that the correct type of data for the
-option number is sent, and there are option numbers for which it is not
-possible to generate the correct data type; it is quite possible to
+option number is sent, it is quite possible to
 persuade dnsmasq to generate illegal DHCP packets with injudicious use
 of this flag.
 .TP
@@ -412,10 +410,17 @@ to different classes of hosts. It is possible, for instance to use
 this to set a different printer server for hosts in the class
 "accounts" than for hosts in the class "engineering".
 .TP
-.B \-M, --dhcp-boot=<filename>,[<servername>[,<server address>]]
+.B \ -J, --dhcp-ignore=<network-id>[,<network-id>]
+When all the given network-ids match the set of network-ids derived
+from the net, host, vendor and user classes, ignore the host and do
+not allocate it a DHCP lease.
+.TP
+.B \-M, --dhcp-boot=[net:<network-id>,]<filename>,[<servername>[,<server address>]]
 Set BOOTP options to be returned by the DHCP server. These are needed
 for machines which network boot, and tell the machine where to collect
-its initial configuration.
+its initial configuration. If the optional network-id(s) are given,
+they must match for this configuration to be sent. Note that
+network-ids are prefixed by "net:" to distinguish them.
 .TP  
 .B \-X, --dhcp-lease-max=<number>
 Limits dnsmasq to the specified maximum number of DHCP leases. The
@@ -539,6 +544,21 @@ and run dnsmasq with the
 .B \-r /etc/resolv.dnsmasq
 option. This second technique allows for dynamic update of the server
 addresses by PPP or DHCP.
+.PP
+The network-id system works as follows: For each DHCP request, dnsmasq
+collects a set of valid network-id tags, one from the 
+.B dhcp-range
+used to allocate the address, one from any matching 
+.B dhcp-host
+and possibly many from matching vendor classes and user
+classes sent by the DHCP client. Any 
+.B dhcp-option 
+which has network-id tags will be used in preference  to an untagged 
+.B dhcp-option,
+provided that _all_ the tags match somewhere in the
+set collected as described above. The prefix '#' on a tag means 'not'
+so --dhcp=option=#purple,3,1.2.3.4 sends the option when the
+network-id tag purple is not in the set of valid tags.
 .PP
 The DHCP server in dnsmasq will function as a BOOTP server also,
 provided that the MAC address and IP address for clients are given,

@@ -47,6 +47,8 @@ void dhcp_init(struct daemon *daemon)
   daemon->dhcpfd = fd;
 
   if ((fd = socket (AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1 ||
+      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) ||
       setsockopt(fd, SOL_SOCKET, SO_DONTROUTE, &zeroopt, sizeof(zeroopt)) == -1)
     die("cannot create ICMP raw socket: %s.", NULL);
@@ -73,8 +75,6 @@ void dhcp_init(struct daemon *daemon)
      socket receive buffer size to one to avoid that. (zero is
      rejected as non-sensical by some BSD kernels) */
   if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETHERTYPE_IP))) == -1 ||
-      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1)
     die("cannot create DHCP packet socket: %s. "
 	"Is CONFIG_PACKET enabled in your kernel?", NULL);
@@ -358,8 +358,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	iov[0].iov_len = sizeof(struct ether_header);
 	iov[1].iov_base = (char *)rawpacket;
 	iov[1].iov_len = ntohs(rawpacket->ip.ip_len);
-	while (writev(daemon->dhcp_raw_fd, iov, 2) == -1 &&
-	       errno == EINTR);
+	while (writev(daemon->dhcp_raw_fd, iov, 2) == -1 && retry_send());
 #else
 	struct sockaddr_ll dest;
 	
@@ -370,7 +369,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	memcpy(dest.sll_addr, hwdest, ETHER_ADDR_LEN); 
 	while (sendto(daemon->dhcp_raw_fd, rawpacket, ntohs(rawpacket->ip.ip_len), 
 		      0, (struct sockaddr *)&dest, sizeof(dest)) == -1 &&
-	       errno == EINTR);
+	       retry_send());
 #endif
       }
     }

@@ -23,7 +23,8 @@ Mac OS X.
 Dnsmasq is included in at least the following Linux distributions:
 Gentoo, Debian, Slackware, Suse, 
 Smoothwall, IP-Cop, floppyfw, Firebox, LEAF, Freesco, CoyoteLinux and
-Clarkconnect. It is also available as a FreeBSD port and is used in Linksys wireless routers.
+Clarkconnect. It is also available as a FreeBSD port and is used in
+Linksys wireless routers and the m0n0wall project.
 <P>
 Dnsmasq provides the following features:
 <DIR>
@@ -41,22 +42,18 @@ machine: If the names of local machines are there, then they can all
 be addressed without having to maintain /etc/hosts on each machine.
 </LI>
 <LI>
-Dnsmasq will serve names from the DHCP leases file on the firewall machine:
-If machines specify a hostname when they take out a DHCP lease, then they are
-addressable in the local DNS. <B>UPDATE</B> Dnsmasq version 2 now offers an integrated DHCP server
-instead of the lease file reader. This gives better control of the
-interaction with new functions (for example fixed IP leasess and
-attaching names to ethernet addresses centrally) it's also much
-smaller than dnsmasq and ISC dhcpd which is important for router distros.
+The integrated DHCP server supports static and dynamic DHCP leases and
+multiple networks and IP ranges. It works across BOOTP relays and
+supports DHCP options including RFC3397 DNS search lists.
+Machines which are configured by DHCP have their names automatically 
+included in the DNS and the names can specified by each machine or
+centrally by associating a name with a MAC address in the dnsmasq
+config file.
 </LI>
 <LI>
 Dnsmasq caches internet addresses (A records and AAAA records) and address-to-name
 mappings (PTR records), reducing the load on upstream servers and
-improving performance (especially on modem connections). From version
-0.95 the cache honours time-to-live information and removes old
-records as they expire. From version 0.996 dnsmasq does negative
-caching. From version 1.2 dnsmasq supports IPv6 addresses, both
-in its cache and in /etc/hosts.
+improving performance (especially on modem connections). 
 </LI>
 <LI>
 Dnsmasq can be configured to automatically pick up the addresses of
@@ -76,14 +73,8 @@ upstream servers handling only those domains. This makes integration
 with private DNS systems easy.
 </LI>
 <LI>
-Dnsmasq can be configured to return an MX record 
-for the firewall host. This makes it easy to configure the mailer on the local 
-machines to forward all mail to the central mailer on the firewall host. Never 
-lose root messages from your machines again!
-</LI>
-<LI>
-For version 1.15 dnsmasq has a facility to work around Verisign's infamous wildcard A record
-in the .com and .net TLDs
+Dnsmasq supports MX records and can be configured to return MX records
+for any or all local machines.
 </LI>
 </DIR>
 
@@ -115,12 +106,19 @@ bzip2 dnsmasq-zzz.tar
 Ulrich Ivens has a nice HOWTO in German on installing dnsmasq at <A
 HREF="http://howto.linux-hardware-shop.de/dnsmasq.html">http://howto.linux-hardware-shop.de/dnsmasq.html</A>
 and Damien Raude-Morvan has one in French at <A HREF="http://www.drazzib.com/docs-dnsmasq.html">http://www.drazzib.com/docs-dnsmasq.html</A>
+There is a good article about dnsmasq at <A
+HREF="http://www.enterprisenetworkingplanet.com/netos/article.php/3377351">http://www.enterprisenetworkingplanet.com/netos/article.php/3377351</A>
 
 <H2>License.</H2>
 Dnsmasq is distributed under the GPL. See the file COPYING in the distribution 
 for details.
 
 <H2>Contact.</H2>
-Dnsmasq was written by Simon Kelley. You can contact me at <A HREF="mailto:simon@thekelleys.org.uk">simon@thekelleys.org.uk</A>. Bugreports, patches, and suggestions for improvements gratefully accepted.
+There is a dnsmasq mailing list at <A
+HREF="http://lists.thekelleys.org.uk/mailman/listinfo/dnsmasq-discuss">
+http://lists.thekelleys.org.uk/mailman/listinfo/dnsmasq-discuss</A> which should be the
+first location for queries, bugreports, suggestions etc.
+Dnsmasq was written by Simon Kelley. You can contact me at <A
+HREF="mailto:simon@thekelleys.org.uk">simon@thekelleys.org.uk</A>.
 </BODY>
 
