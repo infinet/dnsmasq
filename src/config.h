@@ -12,14 +12,13 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.1"
+#define VERSION "2.2"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define TIMEOUT 40 /* drop queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
 #define CACHESIZ 150 /* default cache size */
 #define SMALLDNAME 40 /* most domain names are smaller than this */
-#define CONFFILE "/etc/dnsmasq.conf"
 #define HOSTSFILE "/etc/hosts"
 #ifdef __uClinux__
 #  define RESOLVFILE "/etc/config/resolv.conf"
@@ -29,8 +28,10 @@
 #define RUNFILE "/var/run/dnsmasq.pid"
 #ifdef __FreeBSD__
 #   define LEASEFILE "/var/db/dnsmasq.leases"
+#   define CONFFILE "/usr/local/etc/dnsmasq.conf"
 #else
 #   define LEASEFILE "/var/lib/misc/dnsmasq.leases"
+#   define CONFFILE "/etc/dnsmasq.conf"
 #endif
 #define DEFLEASE 3600 /* default lease time, 1 hour */
 #define CHUSER "nobody"

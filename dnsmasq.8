@@ -132,7 +132,7 @@ time is the one used.
 .TP
 .B \-R, --no-resolv
 Don't read /etc/resolv.conf. Get upstream servers only from the command
-line or /etc/dnsmasq.conf.
+line or the dnsmasq configuration file.
 .TP
 .B \-o, --strict-order
 By default, dnsmasq will send queries to any of the upstream servers
@@ -307,10 +307,11 @@ both as "laptop" and "laptop.thekelleys.org.uk".
 Add the domain-suffix to simple names (without a period) in /etc/hosts
 in the same way as for DHCP-derived names.
 .SH CONFIG FILE
-At startup, dnsmasq reads /etc/dnsmasq.conf, if it exists. The format of this
+At startup, dnsmasq reads /etc/dnsmasq.conf, if it exists. (On
+FreeBSD, the file is /usr/local/etc/dnsmasq.conf) The format of this
 file consists of one option per line, exactly as the long options detailed 
 in the OPTIONS section but without the leading "--". Lines starting with # are comments and ignored. For
-options which may only be specified once, /etc/dnsmasq.conf overrides 
+options which may only be specified once, the configuration file overrides 
 the command line. Use the --conf-file option to specify a different
 configuration file.
 .SH NOTES
@@ -320,7 +321,7 @@ clears its cache and then re-loads /etc/hosts. If
 .B
 --no-poll
 is set SIGHUP also re-reads /etc/resolv.conf. SIGHUP
-does NOT re-read /etc/dnsmasq.conf.
+does NOT re-read the configuration file.
 .PP
 When it receives a SIGUSR1,
 .B dnsmasq 
@@ -365,7 +366,7 @@ dnsmasq can be set to poll both /etc/ppp/resolv.conf and
 last, giving automatic switching between DNS servers.
 .PP
 Upstream servers may also be specified on the command line or in
-/etc/dnsmasq.conf. These server specifications optionally take a
+the configuration file. These server specifications optionally take a
 domain name which tells dnsmasq to use that server only to find names
 in that particular domain.
 .PP
@@ -382,17 +383,20 @@ and run dnsmasq with the
 option. This second technique allows for dynamic update of the server
 addresses by PPP or DHCP.
 .SH FILES
-.IR /etc/dnsmasq.conf
+.IR /etc/dnsmasq.conf 
+
+.IR /usr/local/etc/dnsmasq.conf
 
 .IR /etc/resolv.conf
 
 .IR /etc/hosts
 
-.IR /var/lib/misc/dnsmasq.leases
+.IR /var/lib/misc/dnsmasq.leases 
+
+.IR /var/db/dnsmasq.leases
 
 .IR /var/run/dnsmasq.pid
 .SH SEE ALSO
-.BR dhcp.leases (5),
 .BR hosts (5), 
 .BR resolver (5)
 .SH AUTHOR

@@ -218,7 +218,8 @@ char *enumerate_interfaces(struct irec **interfacep,
       {
 	FILE *f = fopen(IP6INTERFACES, "r");
 	int found = 0;
-	
+	union mysockaddr addr6;
+
 	if (f)
 	  {
 	    unsigned int plen, scope, flags, if_idx;
@@ -230,18 +231,18 @@ char *enumerate_interfaces(struct irec **interfacep,
 		if (strcmp(devname, ifr->ifr_name) == 0)
 		  {
 		    int i;
-		    unsigned char *addr6p = (unsigned char *) &addr.in6.sin6_addr;
-		    memset(&addr, 0, sizeof(addr));
-		    addr.sa.sa_family = AF_INET6;
+		    unsigned char *addr6p = (unsigned char *) &addr6.in6.sin6_addr;
+		    memset(&addr6, 0, sizeof(addr6));
+		    addr6.sa.sa_family = AF_INET6;
 		    for (i=0; i<16; i++)
 		      {
 			unsigned int byte;
 			sscanf(addrstring+i+i, "%02x", &byte);
 			addr6p[i] = byte;
 		      }
-		    addr.in6.sin6_port = htons(port);
-		    addr.in6.sin6_flowinfo = htonl(0);
-		    addr.in6.sin6_scope_id = htonl(scope);
+		    addr6.in6.sin6_port = htons(port);
+		    addr6.in6.sin6_flowinfo = htonl(0);
+		    addr6.in6.sin6_scope_id = htonl(scope);
 		    
 		    found = 1;
 		    break;
@@ -253,7 +254,7 @@ char *enumerate_interfaces(struct irec **interfacep,
 	
 	if (found && 
 	    (err = add_iface(interfacep, ifr->ifr_flags,  ifr->ifr_name,
-			     &addr, names, addrs, except)))
+			     &addr6, names, addrs, except)))
 	  goto end;
       }
       

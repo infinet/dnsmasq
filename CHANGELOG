@@ -713,3 +713,9 @@ release 2.1
              Fix problem with setting domains as "local only".
 
 	     Added support for max message size DHCP option.
+
+release 2.2
+             Fix total lack for DHCP functionality on
+	     Linux systems with IPv6 enabled.
+
+	     Move default config file under FreeBSD.
