@@ -104,7 +104,6 @@ static void send_from(int fd, int nowild, char *packet, int len,
       msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
       cmptr->cmsg_type = IPV6_PKTINFO;
       cmptr->cmsg_level = IPV6_LEVEL;
-      cmptr->cmsg_level = IPPROTO_IPV6;
     }
 #endif
 
@@ -368,11 +367,10 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
   union mysockaddr source_addr;
   struct iname *tmp;
   struct all_addr dst_addr;
-  int m, n, gotit = 0;
+  int m, n, if_index = 0;
   struct iovec iov[1];
   struct msghdr msg;
   struct cmsghdr *cmptr;
-  char if_name[IF_NAMESIZE];
   union {
     struct cmsghdr align; /* this ensures alignment */
 #ifdef HAVE_IPV6
@@ -414,20 +412,16 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
       if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
 	{
 	  dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
-	  if_indextoname(((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex, if_name);
-	  gotit = 1;
+	  if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
 	}
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
   if (!(options & OPT_NOWILD) && listen->family == AF_INET)
     {
       for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
 	if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
-	  {
-	    dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
-	    gotit = 1;
-	  }
+	  dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
 	else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-	  if_indextoname(((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index, if_name);
+	  if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
     }
 #endif
 
@@ -438,8 +432,7 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
 	if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == IPV6_PKTINFO)
 	  {
 	    dst_addr.addr.addr6 = ((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_addr;
-	    if_indextoname(((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex, if_name);
-	    gotit = 1;
+	    if_index =((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex;
 	  }
     }
 #endif
@@ -450,17 +443,31 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
   /* enforce available interface configuration */
   if (!(options & OPT_NOWILD))
     {
-      if (!gotit)
+      struct ifreq ifr;
+
+      if (if_index == 0)
 	return last_server;
       
+      if (except || names)
+	{
+#ifdef SIOCGIFNAME
+	  ifr.ifr_ifindex = if_index;
+	  if (ioctl(listen->fd, SIOCGIFNAME, &ifr) == -1)
+	    return last_server;
+#else
+	  if (!if_indextoname(if_index, ifr.ifr_name))
+	    return last_server;
+#endif
+	}
+
       for (tmp = except; tmp; tmp = tmp->next)
-	if (tmp->name && (strcmp(tmp->name, if_name) == 0))
+	if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
 	  return last_server;
       
       if (names || addrs)
 	{
 	  for (tmp = names; tmp; tmp = tmp->next)
-	    if (tmp->name && (strcmp(tmp->name, if_name) == 0))
+	    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
 	      break;
 	  if (!tmp)
 	    for (tmp = addrs; tmp; tmp = tmp->next)

@@ -843,5 +843,21 @@ release 2.4
  	     
 	     Added "bind-interfaces" option correctly.	     
 
+release 2.5
+	     Made "where are we allocating addresses?" code in DHCP
+	     server cope with requests via a relay which is on a
+	     directly connected network for which there is not a
+	     configured netmask. This strange state of affairs occurs
+	     with win4lin. Thanks to Alex Melt and Jim Horner for bug
+	     reports and testing with this. 
+
+	     Fixed trivial-but-irritating missing #include which broke
+	     compilation on *BSD.
+
+	     Force --bind-interfaces if IP-aliased interface
+	     specifications are used, since the sockets API provides
+	     no other sane way to determine which alias of an
+	     interface a packet was sent to. Thanks to Javier Kohen
+	     for the bug report.
 
 	     

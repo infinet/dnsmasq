@@ -145,7 +145,7 @@ struct irec *enumerate_interfaces(struct iname *names,
 	  lo->next = names->next;
 	  names->next = lo;
 	}
-      
+
       if ((new = add_iface(iface, ifr->ifr_name, 
 			   &addr, names, addrs, except)))
 	{

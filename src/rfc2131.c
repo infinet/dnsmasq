@@ -61,7 +61,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     unsigned char *req_options, 
 				     struct dhcp_opt *config_opts,
 				     char *domainname, char *hostname,
-				     struct in_addr relay,
+				     struct in_addr router,
 				     struct in_addr iface_addr,
 				     int iface_mtu);
 
@@ -74,7 +74,7 @@ int dhcp_reply(struct dhcp_context *context,
 	       unsigned int sz, time_t now, char *namebuff, 
 	       struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
 	       char *domain_suffix, char *dhcp_file, char *dhcp_sname, 
-	       struct in_addr dhcp_next_server)
+	       struct in_addr dhcp_next_server, struct in_addr router)
 {
   unsigned char *opt, *clid;
   struct dhcp_lease *lease;
@@ -265,7 +265,7 @@ int dhcp_reply(struct dhcp_context *context,
       p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
       p = option_put(p, end, OPTION_LEASE_TIME, 4, expires_time);
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
-			 NULL, mess->giaddr, iface_addr, iface_mtu);
+			 NULL, router, iface_addr, iface_mtu);
       p = option_put(p, end, OPTION_END, 0, 0);
       
       log_packet("OFFER" , &mess->yiaddr, mess->chaddr, iface_name, NULL);
@@ -354,7 +354,7 @@ int dhcp_reply(struct dhcp_context *context,
 	  p = option_put(p, end, OPTION_T2, 4, ((renewal_time * 7)/8) - fuzz);
 	}
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
-			 hostname, mess->giaddr, iface_addr, iface_mtu);
+			 hostname, router, iface_addr, iface_mtu);
       p = option_put(p, end, OPTION_END, 0, 0);
       return p - (unsigned char *)mess; 
       
@@ -364,7 +364,7 @@ int dhcp_reply(struct dhcp_context *context,
       p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
       p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
-			 hostname, mess->giaddr, iface_addr, iface_mtu);
+			 hostname, router, iface_addr, iface_mtu);
       p = option_put(p, end, OPTION_END, 0, 0);
       
       log_packet("ACK", &mess->ciaddr, mess->chaddr, iface_name, hostname);
@@ -538,7 +538,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     unsigned char *req_options,
 				     struct dhcp_opt *config_opts,
 				     char *domainname, char *hostname,
-				     struct in_addr relay, 
+				     struct in_addr router, 
 				     struct in_addr iface_addr,
 				     int iface_mtu)
 {
@@ -563,7 +563,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
   if (in_list(req_options, OPTION_ROUTER) &&
       !option_find2(context, config_opts, OPTION_ROUTER))
     p = option_put(p, end, OPTION_ROUTER, INADDRSZ, 
-		   ntohl(relay.s_addr ? relay.s_addr : iface_addr.s_addr ));
+		   ntohl(router.s_addr));
 
   if (in_list(req_options, OPTION_DNSSERVER) &&
       !option_find2(context, config_opts, OPTION_DNSSERVER))

@@ -165,7 +165,6 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
   char *conffile = CONFFILE;
   int conffile_set = 0;
   int lineno = 0;
-
   opterr = 0;
   
   *min_leasetime = UINT_MAX;
@@ -359,6 +358,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		/* new->name may be NULL if someone does
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(optarg);
+		if (strchr(optarg, ':'))
+		  flags |= OPT_NOWILD;
 		break;
 	      }
 	      
@@ -368,6 +369,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		new->next = *if_except;
 		*if_except = new;
 		new->name = safe_string_alloc(optarg);
+		if (strchr(optarg, ':'))
+		   flags |= OPT_NOWILD;
 		break;
 	      }
 	      
@@ -684,14 +687,13 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			      }
 			    
 			    new->lease_time = atoi(a[leasepos]) * fac;
-			    if (new->lease_time < *min_leasetime)
-			      *min_leasetime = new->lease_time;
 			  }
 		      }
 		  }
 				
 		new->last = new->start;
-		
+		if (new->lease_time < *min_leasetime)
+		  *min_leasetime = new->lease_time;
 		break;
 	      }
 
@@ -803,17 +805,17 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			    new->hostname = safe_string_alloc(a[j]);
 			}
 		      else
-			{
-			  new->lease_time = atoi(a[j]) * fac;  
-			  if (new->lease_time < *min_leasetime)
-			    *min_leasetime = new->lease_time;
-			}
+			new->lease_time = atoi(a[j]) * fac;  
 		    }
 
 		if (option == '?')
 		  free(new);
 		else
-		  *dhcp_conf = new;
+		  {
+		    if (new->lease_time < *min_leasetime)
+		      *min_leasetime = new->lease_time;
+		    *dhcp_conf = new;
+		  }
 		break;
 	      }
 	      
@@ -1023,7 +1025,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
     *resolv_files = 0;
   else if (*resolv_files && (*resolv_files)->next && (flags & OPT_NO_POLL))
     die("only one resolv.conf file allowed in no-poll mode.", NULL);
-  
+
   return flags;
 }
       

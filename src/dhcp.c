@@ -75,7 +75,8 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
   struct iovec iov[2];
   struct cmsghdr *cmptr;
   int sz, newlen, iface_index = 0;
-  struct in_addr source, real_netmask, iface_addr, netmask_save, broadcast_save;
+  struct in_addr source, iface_netmask, iface_addr, iface_broadcast;
+  struct in_addr netmask_save, broadcast_save, router;
 #ifdef HAVE_BPF
   unsigned char iface_hwaddr[ETHER_ADDR_LEN];
 #endif
@@ -112,7 +113,8 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
     if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
       iface_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
   
-  if (!iface_index || !if_indextoname(iface_index, ifr.ifr_name))
+  if (!(ifr.ifr_ifindex = iface_index) || 
+      ioctl(dhcp_fd, SIOCGIFNAME, &ifr) == -1)
     return;
 
 #elif defined(IP_RECVIF)
@@ -169,17 +171,30 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
   /* If the packet came via a relay, use that address to look up the context,
      else use the address of the interface is arrived on. */
    source = mess->giaddr.s_addr ? mess->giaddr : iface_addr;
+   
+   iface_netmask.s_addr = 0;
+   iface_broadcast.s_addr = 0;
 
+   if (ioctl(dhcp_fd, SIOCGIFNETMASK, &ifr) != -1)
+     {
+       iface_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+       /* we can use the interface netmask if either the packet came direct,
+	  or it came via a relay listening on the same network. This sounds unlikely,
+	  but it happens with win4lin. */
+       if ((source.s_addr & iface_netmask.s_addr) != (iface_addr.s_addr & iface_netmask.s_addr))
+	 iface_netmask.s_addr = 0;
+       else if (ioctl(dhcp_fd, SIOCGIFBRDADDR, &ifr) != -1)
+	 iface_broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+	      
+     }
+          
    for (context = contexts; context; context = context->next)
     {
-      if (!context->netmask.s_addr && !mess->giaddr.s_addr && ioctl(dhcp_fd, SIOCGIFNETMASK, &ifr) != -1)
-	real_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-      else
-	real_netmask = context->netmask;
-      
-      if (real_netmask.s_addr && 
-	  (source.s_addr & real_netmask.s_addr) == (context->start.s_addr & real_netmask.s_addr) &&
-	  (source.s_addr & real_netmask.s_addr) == (context->end.s_addr & real_netmask.s_addr))
+      struct in_addr netmask = context->netmask.s_addr ? context->netmask : iface_netmask;
+
+      if (netmask.s_addr && 
+	  (source.s_addr & netmask.s_addr) == (context->start.s_addr & netmask.s_addr) &&
+	  (source.s_addr & netmask.s_addr) == (context->end.s_addr & netmask.s_addr))
 	break;
     }
       
@@ -192,26 +207,34 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
   netmask_save = context->netmask;
   broadcast_save = context->broadcast;
   
-  context->netmask = real_netmask;
+  if (!context->netmask.s_addr)
+    context->netmask = iface_netmask;
   
   if (!context->broadcast.s_addr)
     {
-      if (mess->giaddr.s_addr)
-	context->broadcast.s_addr = (mess->giaddr.s_addr & real_netmask.s_addr) | ~real_netmask.s_addr;
-      else if (ioctl(dhcp_fd, SIOCGIFBRDADDR, &ifr) != -1)
-	context->broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+      if (iface_broadcast.s_addr)
+	context->broadcast = iface_broadcast;
       else
-	context->broadcast.s_addr = (iface_addr.s_addr & real_netmask.s_addr) | ~real_netmask.s_addr;
+	context->broadcast.s_addr  = (source.s_addr & context->netmask.s_addr) | ~context->netmask.s_addr;
     }
   
   if (ioctl(dhcp_fd, SIOCGIFMTU, &ifr) == -1)
    ifr.ifr_mtu = ETHERMTU;
+
+  /* Normally, we set the default route to point to the machine which is getting the
+     DHCP broadcast, either this machine or a relay. In the special case that the relay
+     is on the same network as us, we set the default route to us, not the relay.
+     This is the win4lin scenario again. */ 
+  if ((source.s_addr & context->netmask.s_addr) == (iface_addr.s_addr & context->netmask.s_addr))
+    router = iface_addr;
+  else
+    router = source;
   
   lease_prune(NULL, now); /* lose any expired leases */
   newlen = dhcp_reply(context, iface_addr, ifr.ifr_name, ifr.ifr_mtu, 
 		      rawpacket, sz, now, namebuff, 
 		      dhcp_opts, dhcp_configs, domain_suffix, dhcp_file,
-		      dhcp_sname, dhcp_next_server);
+		      dhcp_sname, dhcp_next_server, router);
   lease_update_file(0, now);
   lease_update_dns();
 	  

@@ -40,6 +40,7 @@
 #  include <sys/sockio.h>
 #endif
 #include <sys/time.h>
+#include <limits.h>
 #include <net/if.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -403,5 +404,5 @@ int dhcp_reply(struct dhcp_context *context,
 	       unsigned int sz, time_t now, char *namebuff, 
 	       struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
 	       char *domain_suffix, char *dhcp_file, char *dhcp_sname, 
-	       struct in_addr dhcp_next_server);
+	       struct in_addr dhcp_next_server, struct in_addr router);
 

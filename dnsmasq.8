@@ -82,7 +82,14 @@ flags are given, dnsmasq listens on all available interfaces unless overridden b
 .B \-a
 or
 .B \-I
-flags.
+flags. If IP alias interfaces (eg "eth1:0") are used with
+.B --interface
+or
+.B --except-interface
+options, then the 
+.B --bind-interfaces 
+option will be automatically set. This is required for deeply boring
+sockets-API reasons. 
 .TP
 .B \-I, --except-interface=<interface name>
 Do not listen on the specified interface.
@@ -108,7 +115,9 @@ requests that it shouldn't reply to. This has the advantage of
 working even when interfaces come and go and change address. This
 option forces dnsmasq to really bind only the interfaces it is
 listening on. About the only time when this is useful is when 
-running another nameserver on the same machine.
+running another nameserver on the same machine or using IP
+alias. Specifying interfaces with IP alias automatically turns this
+option on.
 .TP
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
