@@ -213,12 +213,12 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 {
   struct frec *forward;
   char *domain = NULL;
-  int forwardall = 0, type = 0;
+  int type = 0;
   struct all_addr *addrp = NULL;
   unsigned short flags = 0;
   unsigned short gotname = extract_request(header, (unsigned int)plen, daemon->namebuff, NULL);
   struct server *start = NULL;
-  unsigned int crc = questions_crc(header,(unsigned int)plen);
+  unsigned int crc = questions_crc(header,(unsigned int)plen, daemon->namebuff);
   
   /* may be  recursion not speced or no servers available. */
   if (!header->rd || !daemon->servers)
@@ -229,7 +229,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
       domain = forward->sentto->domain;
       if (!(daemon->options & OPT_ORDER))
 	{
-	  forwardall = 1;
+	  forward->forwardall = 1;
 	  daemon->last_server = NULL;
 	}
       type = forward->sentto->flags & SERV_TYPE;
@@ -248,6 +248,16 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
       
       if (forward)
 	{
+	  forward->source = *udpaddr;
+	  forward->dest = *dst_addr;
+	  forward->iface = dst_iface;
+	  forward->new_id = get_id();
+	  forward->fd = udpfd;
+	  forward->orig_id = ntohs(header->id);
+	  forward->crc = crc;
+	  forward->forwardall = 0;
+	  header->id = htons(forward->new_id);
+
 	  /* In strict_order mode, or when using domain specific servers
 	     always try servers in the order specified in resolv.conf,
 	     otherwise, use the one last known to work. */
@@ -257,17 +267,8 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	  else if (!(start = daemon->last_server))
 	    {
 	      start = daemon->servers;
-	      forwardall = 1;
+	      forward->forwardall = 1;
 	    }
-	  
-	  forward->source = *udpaddr;
-	  forward->dest = *dst_addr;
-	  forward->iface = dst_iface;
-	  forward->new_id = get_id();
-	  forward->fd = udpfd;
-	  forward->orig_id = ntohs(header->id);
-	  forward->crc = crc;
-	  header->id = htons(forward->new_id);
 	}
     }
 
@@ -313,8 +314,9 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 #endif 
 		  forwarded = 1;
 		  forward->sentto = start;
-		  if (!forwardall) 
+		  if (!forward->forwardall) 
 		    break;
+		  forward->forwardall++;
 		}
 	    } 
 	  
@@ -341,7 +343,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 }
 
 static int process_reply(struct daemon *daemon, HEADER *header, time_t now, 
-			 union mysockaddr *serveraddr, unsigned int n)
+			 unsigned int query_crc, struct server *server, unsigned int n)
 {
   unsigned char *pheader, *sizep;
   unsigned int plen, munged = 0;
@@ -360,25 +362,27 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 	PUTSHORT(daemon->edns_pktsz, psave);
     }
 
-  /* Complain loudly if the upstream server is non-recursive. */
-  if (!header->ra && header->rcode == NOERROR && ntohs(header->ancount) == 0)
-    {
-      char addrbuff[ADDRSTRLEN];
-#ifdef HAVE_IPV6
-      if (serveraddr->sa.sa_family == AF_INET)
-	inet_ntop(AF_INET, &serveraddr->in.sin_addr, addrbuff, ADDRSTRLEN);
-      else if (serveraddr->sa.sa_family == AF_INET6)
-	inet_ntop(AF_INET6, &serveraddr->in6.sin6_addr, addrbuff, ADDRSTRLEN);
-#else
-      strcpy(addrbuff, inet_ntoa(serveraddr->in.sin_addr));
-#endif
-      syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
-      return 0;
-    }
-  
   if (header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
     return n;
   
+  /* Complain loudly if the upstream server is non-recursive. */
+  if (!header->ra && header->rcode == NOERROR && ntohs(header->ancount) == 0 &&
+      server && !(server->flags & SERV_WARNED_RECURSIVE))
+    {
+      char addrbuff[ADDRSTRLEN];
+#ifdef HAVE_IPV6
+      if (server->addr.sa.sa_family == AF_INET)
+	inet_ntop(AF_INET, &server->addr.in.sin_addr, addrbuff, ADDRSTRLEN);
+      else if (server->addr.sa.sa_family == AF_INET6)
+	inet_ntop(AF_INET6, &server->addr.in6.sin6_addr, addrbuff, ADDRSTRLEN);
+#else
+      strcpy(addrbuff, inet_ntoa(server->addr.in.sin_addr));
+#endif
+      syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
+      if (!(daemon->options & OPT_LOG))
+	server->flags |= SERV_WARNED_RECURSIVE;
+    }  
+    
   if (daemon->bogus_addr && header->rcode != NXDOMAIN &&
       check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
@@ -400,7 +404,11 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 	  header->rcode = NOERROR;
 	}
   
-      extract_addresses(header, n, daemon->namebuff, now, daemon);
+      /* If the crc of the question section doesn't match the crc we sent, then
+	 someone might be attempting to insert bogus values into the cache by 
+	 sending replies containing questions and bogus answers. */
+      if (query_crc == questions_crc(header, n, daemon->namebuff))
+	extract_addresses(header, n, daemon->namebuff, now, daemon);
     }
   
   /* do this after extract_addresses. Ensure NODATA reply and remove
@@ -442,28 +450,42 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
   
   if (n >= (int)sizeof(HEADER) && header->qr && forward)
     {
-      /* find good server by address if possible, otherwise assume the last one we sent to */ 
-      if ((forward->sentto->flags & SERV_TYPE) == 0)
-	{
-	  struct server *last_server;
-	  daemon->last_server = forward->sentto;
-	  for (last_server = daemon->servers; last_server; last_server = last_server->next)
-	    if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
-		sockaddr_isequal(&last_server->addr, &serveraddr))
-	      {
-		daemon->last_server = last_server;
-		break;
-	      }
-	}
-      
-      if ((n = process_reply(daemon, header, now, &serveraddr, (unsigned int)n)))
+       struct server *server = forward->sentto;
+       
+       if ((forward->sentto->flags & SERV_TYPE) == 0)
+	 {
+	   if (header->rcode == SERVFAIL || header->rcode == REFUSED)
+	     server = NULL;
+	   else
+	    {
+	      /* find good server by address if possible, otherwise assume the last one we sent to */ 
+	      struct server *last_server;
+	      for (last_server = daemon->servers; last_server; last_server = last_server->next)
+		if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
+		    sockaddr_isequal(&last_server->addr, &serveraddr))
+		  {
+		    server = last_server;
+		    break;
+		  }
+	    } 
+	   daemon->last_server = server;
+	 }
+       
+      if ((n = process_reply(daemon, header, now, forward->crc, server, (unsigned int)n)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->ra = 1; /* recursion if available */
 	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
 		    &forward->source, &forward->dest, forward->iface);
-	  forward->new_id = 0; /* cancel */
 	}
+	 
+      /* If the answer is an error, keep the forward record in place in case
+	 we get a good reply from another server. Kill it when we've
+	 had replies from all to avoid filling the forwarding table when
+	 everything is broken */
+      if (forward->forwardall == 0 || --forward->forwardall == 1 || 
+	  (header->rcode != REFUSED && header->rcode != SERVFAIL))
+	forward->new_id = 0; /* cancel */
     }
 }
 
@@ -728,7 +750,8 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now,
 	  if (!flags && last_server)
 	    {
 	      struct server *firstsendto = NULL;
-	      
+	      unsigned int crc = questions_crc(header, (unsigned int)size, daemon->namebuff);
+
 	      /* Loop round available servers until we succeed in connecting to one.
 	         Note that this code subtley ensures that consecutive queries on this connection
 	         which can go to the same server, do so. */
@@ -793,7 +816,7 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now,
 		  /* There's no point in updating the cache, since this process will exit and
 		     lose the information after one query. We make this call for the alias and 
 		     bogus-nxdomain side-effects. */
-		  m = process_reply(daemon, header, now, &last_server->addr, (unsigned int)m);
+		  m = process_reply(daemon, header, now, crc, last_server, (unsigned int)m);
 		  
 		  break;
 		}

@@ -200,7 +200,7 @@ int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
   if ((f = fopen(IP6INTERFACES, "r")))
     {
       unsigned int plen, scope, flags, if_idx;
-      char devname[20], addrstring[32];
+      char devname[21], addrstring[33];
       
       while (fscanf(f, "%32s %x %x %x %x %20s\n",
 		    addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 

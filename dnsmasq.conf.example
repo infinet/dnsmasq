@@ -167,6 +167,10 @@ bogus-priv
 # the machine with ethernet address 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,net:red
 
+# Send extra options which are tagged as "red" to 
+# any machine with ethernet address starting 11:22:33:
+#dhcp-host=11:22:33:*:*:*,net:red
+
 # Send extra options which are tagged as "red" to any machine whose
 # DHCP vendorclass string includes the substring "Linux"
 #dhcp-vendorclass=red,Linux
@@ -310,7 +314,8 @@ bogus-priv
 # The fields are <name>,<target>,<port>,<priority>,<weight>
 # If the domain part if missing from the name (so that is just has the
 # service and protocol sections) then the domain given by the domain=
-# config option is used.
+# config option is used. (Note that expand-hosts does not need to be
+# set for this to work.)
 
 # A SRV record sending LDAP for the example.com domain to
 # ldapserver.example.com port 289
@@ -328,6 +333,19 @@ bogus-priv
 # A SRV record indicating that there is no LDAP server for the domain
 # example.com 
 #srv-host=_ldap._tcp.example.com
+
+
+# Change the following lines to enable dnsmasq to serve TXT records.
+# These are used for things like SPF and zeroconf. (Note that the
+# domain-name expansion done for SRV records _does_not 
+# occur for TXT records.)
+
+#Example SPF.
+#txt-record=example.com,v=spf1 a -all
+
+#Example zeroconf
+#txt-record=_http._tcp.example.com,name=value,paper=A4
+
 
 # For debugging purposes, log each DNS query as it passes through
 # dnsmasq.

@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.20"
+#define VERSION "2.21"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -158,6 +158,12 @@ HAVE_PSELECT
 HAVE_BPF
    If your OS implements Berkeley Packet filter, define this.
 
+HAVE_RTNETLINK
+   If your OS has the Linux Routing netlink socket API and suitable
+   C library headers, define this. Note that the code will fall
+   back to the Berkley API at runtime if netlink support is not
+   configured into the kernel.
+
 NOTES:
    For Linux you should define 
       HAVE_LINUX_IPV6_PROC 
@@ -165,6 +171,7 @@ NOTES:
       HAVE_RANDOM
       HAVE_DEV_RANDOM
       HAVE_DEV_URANDOM
+      HAVE_RTNETLINK
   you should NOT define 
       HAVE_ARC4RANDOM
       HAVE_SOCKADDR_SA_LEN
@@ -175,6 +182,7 @@ NOTES:
      HAVE_BPF
    you should NOT define  
      HAVE_LINUX_IPV6_PROC 
+     HAVE_RTNETLINK
    and you MAY define  
      HAVE_ARC4RANDOM - OpenBSD and FreeBSD and NetBSD version 2.0 or later
      HAVE_DEV_URANDOM - OpenBSD and FreeBSD and NetBSD
@@ -199,6 +207,7 @@ NOTES:
 #if defined(__uClinux__) || defined(__UCLIBC__)
 #undef HAVE_LINUX_IPV6_PROC
 #define HAVE_GETOPT_LONG
+#undef HAVE_RTNETLINK /* headers broken */
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM
@@ -223,6 +232,7 @@ NOTES:
       (_LINUX_C_LIB_VERSION_MAJOR == 5 )
 #undef HAVE_IPV6
 #undef HAVE_LINUX_IPV6_PROC
+#undef HAVE_RTNETLINK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
@@ -237,6 +247,7 @@ typedef size_t socklen_t;
 /* This is for glibc 2.x */
 #elif defined(__linux__)
 #define HAVE_LINUX_IPV6_PROC
+#define HAVE_RTNETLINK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
@@ -256,6 +267,7 @@ typedef unsigned long in_addr_t;
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #undef HAVE_LINUX_IPV6_PROC
+#undef HAVE_RTNETLINK
 /* Later verions of FreeBSD have getopt_long() */
 #if defined(optional_argument) && defined(required_argument)
 #   define HAVE_GETOPT_LONG
@@ -271,6 +283,7 @@ typedef unsigned long in_addr_t;
 
 #elif defined(__APPLE__)
 #undef HAVE_LINUX_IPV6_PROC
+#undef HAVE_RTNETLINK
 #undef HAVE_GETOPT_LONG
 #define HAVE_ARC4RANDOM
 #define HAVE_RANDOM
@@ -285,6 +298,7 @@ typedef unsigned long in_addr_t;
  
 #elif defined(__NetBSD__)
 #undef HAVE_LINUX_IPV6_PROC
+#undef HAVE_RTNETLINK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
@@ -297,6 +311,7 @@ typedef unsigned long in_addr_t;
 /* env "LIBS=-lsocket -lnsl" make */
 #elif defined(__sun) || defined(__sun__)
 #undef HAVE_LINUX_IPV6_PROC
+#undef HAVE_RTNETLINK
 #undef HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM

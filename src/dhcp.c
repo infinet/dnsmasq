@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -98,10 +98,10 @@ void dhcp_init(struct daemon *daemon)
 	die("duplicate IP address %s in dhcp-config directive.", inet_ntoa(cp->addr));
   
   daemon->dhcp_packet = safe_malloc(sizeof(struct udp_dhcp_packet));
-  /* These two each hold a DHCP option max size 256 
+  /* These two each hold a DHCP option max size 255
      and get a terminating zero added */
-  daemon->dhcp_buff = safe_malloc(257);
-  daemon->dhcp_buff2 = safe_malloc(257); 
+  daemon->dhcp_buff = safe_malloc(256);
+  daemon->dhcp_buff2 = safe_malloc(256); 
 
 }
 
@@ -116,7 +116,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   struct iovec iov[2];
   struct cmsghdr *cmptr;
   int sz, newlen, iface_index = 0;
-  struct in_addr iface_netmask, iface_addr, iface_broadcast;
+  struct in_addr iface_addr;
 #ifdef HAVE_BPF
   unsigned char iface_hwaddr[ETHER_ADDR_LEN];
 #endif
@@ -206,66 +206,29 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	return; 
     }
   
-  iface_netmask.s_addr = 0;
-  iface_broadcast.s_addr = 0;
-  
   for (context = daemon->dhcp; context; context = context->next)
-    {
-      /* Fill in missing netmask and broadcast address values for any approriate
-	 dhcp-ranges which match this interface and don't have them. */
-      if (!context->netmask.s_addr)
-	{
-	  if (!iface_netmask.s_addr && ioctl(daemon->dhcpfd, SIOCGIFNETMASK, &ifr) != -1)
-	    iface_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-	  
-	  if (iface_netmask.s_addr &&
-	      (is_same_net(iface_addr, context->start, iface_netmask) ||
-	       is_same_net(iface_addr, context->end, iface_netmask)))
-	    {
-	      context->netmask = iface_netmask; 
-	      if (!(is_same_net(iface_addr, context->start, iface_netmask) &&
-		    is_same_net(iface_addr, context->end, iface_netmask)))
-		{
-		   strcpy(daemon->dhcp_buff, inet_ntoa(context->start));
-		   strcpy(daemon->dhcp_buff2, inet_ntoa(context->end));
-		   syslog(LOG_WARNING, "DHCP range %s -- %s is not consistent with netmask %s",
-			  daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(iface_netmask));
-		}
-	    }
-	}    
-	 
-      /* Determine "default" default routes. These are to this server or the relay agent.
-	 Also broadcast addresses, if not specified */
-      if (context->netmask.s_addr)
-	{
-	  if (is_same_net(iface_addr, context->start, context->netmask))
-	    {
-	      if (!context->router.s_addr)
-		context->router = iface_addr;
-	      if (!context->broadcast.s_addr)
-		{
-		  if (!iface_broadcast.s_addr && ioctl(daemon->dhcpfd, SIOCGIFBRDADDR, &ifr) != -1)
-		    iface_broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-		  if (iface_broadcast.s_addr && 
-		      is_same_net(iface_broadcast, context->start, context->netmask))
-		    context->broadcast = iface_broadcast;
-		  else 
-		    context->broadcast.s_addr  = context->start.s_addr | ~context->netmask.s_addr;
-		}
-	    }	
-	  else if (mess->giaddr.s_addr && is_same_net(mess->giaddr, context->start, context->netmask))
-	    {
-	      if (!context->router.s_addr)
-		context->router = mess->giaddr;
-	      /* fill in missing broadcast addresses for relayed ranges */
-	      if (!context->broadcast.s_addr)
-		context->broadcast.s_addr  = context->start.s_addr | ~context->netmask.s_addr;
-	    }
-	}
-    }
+    context->current = NULL;
   
+#ifdef HAVE_RTNETLINK
+  if (!netlink_process(daemon, iface_index, mess->giaddr, iface_addr, &context))
+#endif
+    {
+      struct in_addr iface_netmask, iface_broadcast;
+      
+      if (ioctl(daemon->dhcpfd, SIOCGIFNETMASK, &ifr) < 0)
+	return;
+      iface_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+      
+      if (ioctl(daemon->dhcpfd, SIOCGIFBRDADDR, &ifr) < 0)
+	return;
+      iface_broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+      
+      context = complete_context(daemon, iface_addr, NULL, iface_netmask, 
+				 iface_broadcast, mess->giaddr, iface_addr);
+    }
+
   lease_prune(NULL, now); /* lose any expired leases */
-  newlen = dhcp_reply(daemon, iface_addr, ifr.ifr_name, sz, now);
+  newlen = dhcp_reply(daemon, context, ifr.ifr_name, sz, now);
   lease_update_file(0, now);
   lease_update_dns(daemon);
   
@@ -382,6 +345,73 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     }
 }
 
+/* This is a complex routine: it gets called with each (address,netmask,broadcast) triple 
+   of the interface on which a DHCP packet arrives (and any relay address) and does the 
+   following things:
+   1) Fills in any netmask and broadcast addresses which have not been explicitly configured.
+   2) Fills in local (this host) and router (this host or relay) addresses.
+   3) Links contexts which are valid for hosts directly connected to the arrival interface on ->current.
+   Note that the current chain may be superceded later for configured hosts or those coming via gateways. */
+struct dhcp_context *complete_context(struct daemon *daemon, struct in_addr local, struct dhcp_context *current,
+				      struct in_addr netmask, struct in_addr broadcast, struct in_addr relay,
+				      struct in_addr primary)
+{
+  struct dhcp_context *context;
+  
+  for (context = daemon->dhcp; context; context = context->next)
+    {
+      if (!(context->flags & CONTEXT_NETMASK) &&
+	  (is_same_net(local, context->start, netmask) ||
+	   is_same_net(local, context->end, netmask)))
+      { 
+	if (context->netmask.s_addr != netmask.s_addr &&
+	    !(is_same_net(local, context->start, netmask) &&
+	      is_same_net(local, context->end, netmask)))
+	  {
+	    strcpy(daemon->dhcp_buff, inet_ntoa(context->start));
+	    strcpy(daemon->dhcp_buff2, inet_ntoa(context->end));
+	    syslog(LOG_WARNING, "DHCP range %s -- %s is not consistent with netmask %s",
+		   daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(netmask));
+	  }	
+ 	context->netmask = netmask;
+      }
+      
+      if (context->netmask.s_addr)
+	{
+	  if (is_same_net(local, context->start, context->netmask) &&
+	      is_same_net(local, context->end, context->netmask))
+	    {
+	      if (!context->current)
+		{
+		  context->router = local;
+		  context->local = local;
+		  context->current = current;
+		  current = context;
+		}
+	      
+	      if (!(context->flags & CONTEXT_BRDCAST))
+		{
+		  if (is_same_net(broadcast, context->start, context->netmask))
+		    context->broadcast = broadcast;
+		  else 
+		    context->broadcast.s_addr  = context->start.s_addr | ~context->netmask.s_addr;
+		}
+	    }	
+	  else if (relay.s_addr && is_same_net(relay, context->start, context->netmask))
+	    {
+	      context->router = relay;
+	      context->local = primary;
+	      /* fill in missing broadcast addresses for relayed ranges */
+	      if (!(context->flags & CONTEXT_BRDCAST))
+		context->broadcast.s_addr  = context->start.s_addr | ~context->netmask.s_addr;
+	    }
+
+	}
+    }
+
+  return current;
+}
+	  
 struct dhcp_context *address_available(struct dhcp_context *context, struct in_addr taddr)
 {
   /* Check is an address is OK for this network, check all
@@ -394,7 +424,7 @@ struct dhcp_context *address_available(struct dhcp_context *context, struct in_a
       start = ntohl(context->start.s_addr);
       end = ntohl(context->end.s_addr);
 
-      if (!context->static_only &&
+      if (!(context->flags & CONTEXT_STATIC) &&
 	  addr >= start &&
 	  addr <= end)
 	return context;
@@ -419,7 +449,7 @@ struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr
     return tmp;
   
   for (tmp = context; tmp; tmp = tmp->current)
-    if (tmp->static_only)
+    if (tmp->flags & CONTEXT_STATIC)
       return tmp;
 
   return context;
@@ -470,26 +500,27 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
      Try to return from contexts which mathc netis first. */
 
   struct in_addr start, addr ;
+  struct dhcp_context *c;
   unsigned int i, j;
   
-  for (; context; context = context->current)
-    if (context->static_only)
+  for (c = context; c; c = c->current)
+    if (c->flags & CONTEXT_STATIC)
       continue;
-    else if (netids && !context->filter_netid)
+    else if (netids && !(c->flags & CONTEXT_FILTER))
       continue;
-    else if (!netids && context->filter_netid)
+    else if (!netids && (c->flags & CONTEXT_FILTER))
       continue;
-    else if (netids && context->filter_netid && !match_netid(&context->netid, netids))
+    else if (netids && (c->flags & CONTEXT_FILTER) && !match_netid(&c->netid, netids))
       continue;
     else
       {
 	/* pick a seed based on hwaddr then iterate until we find a free address. */
-	for (j = context->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
+	for (j = c->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
 	  j += hwaddr[i] + (hwaddr[i] << 8) + (hwaddr[i] << 16);
 	
 	start.s_addr = addr.s_addr = 
-	  htonl(ntohl(context->start.s_addr) + 
-		(j % (1 + ntohl(context->end.s_addr) - ntohl(context->start.s_addr))));
+	  htonl(ntohl(c->start.s_addr) + 
+		(j % (1 + ntohl(c->end.s_addr) - ntohl(c->start.s_addr))));
 	
 	do {
 	  if (!lease_find_by_addr(addr) && 
@@ -498,7 +529,7 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 	      if (icmp_ping(daemon, addr))
 		/* perturb address selection so that we are
 		   less likely to try this address again. */
-		context->addr_epoch++;
+		c->addr_epoch++;
 	      else
 		{
 		  *addrp = addr;
@@ -508,8 +539,8 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 
 	  addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
 	  
-	  if (addr.s_addr == htonl(ntohl(context->end.s_addr) + 1))
-	    addr = context->start;
+	  if (addr.s_addr == htonl(ntohl(c->end.s_addr) + 1))
+	    addr = c->start;
 	  
 	} while (addr.s_addr != start.s_addr);
       }
@@ -523,7 +554,7 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *config)
 {
   if (!context)
-    return 1;
+    return 1; 
   if (!(config->flags & CONFIG_ADDR))
     return 1;
   if (is_same_net(config->addr, context->start, context->netmask))
@@ -532,6 +563,7 @@ static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *
   return 0;
 }
 
+
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,
@@ -539,7 +571,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 {
   struct dhcp_config *config; 
   
-  if (clid_len)
+  if (clid)
     for (config = configs; config; config = config->next)
       if (config->flags & CONFIG_CLID)
 	{
@@ -558,24 +590,40 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
   
   for (config = configs; config; config = config->next)
     if ((config->flags & CONFIG_HWADDR) &&
+	config->wildcard_mask == 0 &&
 	memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0 &&
 	is_addr_in_context(context, config))
       return config;
   
-  if (hostname)
+
+  if (hostname && context)
     for (config = configs; config; config = config->next)
       if ((config->flags & CONFIG_NAME) && 
 	  hostname_isequal(config->hostname, hostname) &&
 	  is_addr_in_context(context, config))
 	return config;
   
+  for (config = configs; config; config = config->next)
+    if ((config->flags & CONFIG_HWADDR) &&
+	config->wildcard_mask != 0 &&
+	is_addr_in_context(context, config))
+      {
+	int i;
+	unsigned int mask = config->wildcard_mask;
+	for (i = ETHER_ADDR_LEN - 1; i >= 0; i--, mask = mask >> 1)
+	  if (mask & 1)
+	    config->hwaddr[i] = hwaddr[i];
+	if (memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
+	  return config;
+      }
+
   return NULL;
 }
 
 void dhcp_read_ethers(struct daemon *daemon)
 {
   FILE *f = fopen(ETHERSFILE, "r");
-  unsigned int flags, e0, e1, e2, e3, e4, e5;
+  unsigned int flags;
   char *buff = daemon->namebuff;
   char *ip, *cp;
   struct in_addr addr;
@@ -603,16 +651,9 @@ void dhcp_read_ethers(struct daemon *daemon)
       if (!*ip)
 	continue;
       
-      if (!sscanf(buff, "%x:%x:%x:%x:%x:%x", &e0, &e1, &e2, &e3, &e4, &e5))
+      if (parse_hex(buff, hwaddr, 6, NULL) != 6)
 	continue;
       
-      hwaddr[0] = e0;
-      hwaddr[1] = e1;
-      hwaddr[2] = e2;
-      hwaddr[3] = e3;
-      hwaddr[4] = e4;
-      hwaddr[5] = e5;
-
       /* check for name or dotted-quad */
       for (cp = ip; *cp; cp++)
 	if (!(*cp == '.' || (*cp >='0' && *cp <= '9')))

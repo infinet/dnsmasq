@@ -4,7 +4,7 @@
 CFLAGS?= -O2
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o isc.o \
-       network.o dnsmasq.o dhcp.o lease.o rfc2131.o 
+       network.o dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o
 
 .c.o: dnsmasq.h config.h 
 	$(CC) $(CFLAGS) $(RPM_OPT_FLAGS) -Wall -W -c $*.c 

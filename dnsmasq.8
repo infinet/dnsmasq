@@ -310,6 +310,10 @@ domain given by the
 option. The data in these is stereotyped, but is enough for resolvers
 to deduce that the domain is a valid one for resolving SRV records.
 .TP
+.B \-Y, --txt-record=<name>[[,<text>],<text>]
+Return a TXT DNS record. The value of TXT record is a set of strings,
+so  any number may be included, split by commas.
+.TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.
 .TP
@@ -319,7 +323,7 @@ Disable negative caching. Negative caching allows dnsmasq to remember
 identical queries without forwarding them again. This flag disables
 negative caching.
 .TP
-.B \-F, --dhcp-range=[network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<default lease time>]
+.B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<default lease time>]
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
 in 
@@ -339,8 +343,10 @@ given using the
 option. This limitation currently affects OpenBSD. It is always
 allowed to have more than one dhcp-range in a single subnet. The optional
 network-id is a alphanumeric label which marks this network so that
-dhcp options may be specified on a per-network basis. The end address
-may be replaced by the keyword 
+dhcp options may be specified on a per-network basis. 
+When it is prefixed with 'net:' then its meaning changes from setting
+a tag to matching it.
+The end address may be replaced by the keyword 
 .B static
 which tells dnsmasq to enable DHCP for the network specified, but not
 to dynamically allocate IP addresses. Only hosts which have static
@@ -387,6 +393,12 @@ useful when there is another DHCP server on the network which should
 be used by some machines. The net:<network-id> parameter enables DHCP options just
 for this host in the same way as the the network-id in
 .B dhcp-range.
+Ethernet addresses (but not client-ids) may have
+wildcard bytes, so for example 
+.B --dhcp-host=00:20:e0:3b:13:*,ignore 
+will cause dnsmasq to ignore a range of ethernet addresses. Note that
+the "*" will need to be escaped or quoted on a command line, but not
+in the configuration file.
 .TP 
 .B \-Z, --read-ethers
 Read /etc/ethers for information about hosts for the DHCP server. The
@@ -500,7 +512,10 @@ options which may only be specified once, the configuration file overrides
 the command line. Use the --conf-file option to specify a different
 configuration file. The conf-file option is also allowed in
 configuration files, to include multiple configuration files. Only one
-level of nesting is allowed.
+level of nesting is allowed. Quoting is allowed in a config file:
+between " quotes the special meaning of , and # is removed and the
+following escapes are allowed: \\\\ \\" \\t and \\n. The later two
+corresponding to newline and tab.
 .SH NOTES
 When it receives a SIGHUP, 
 .B dnsmasq 

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -114,7 +114,7 @@ int canonicalise(char *s)
 {
   /* check for legal chars and remove trailing . 
      also fail empty string and label > 63 chars */
-  int dotgap = 0, l = strlen(s);
+  size_t dotgap = 0, l = strlen(s);
   char c;
 
   if (l == 0 || l > MAXDNAME) return 0;
@@ -135,7 +135,7 @@ int canonicalise(char *s)
 }
 
 /* for use during startup */
-void *safe_malloc(int size)
+void *safe_malloc(size_t size)
 {
   void *ret = malloc(size);
   
@@ -158,7 +158,7 @@ char *safe_string_alloc(char *cp)
   return ret;
 }
 
-void complain(char *message, char *arg1)
+static void log_err(char *message, char *arg1)
 {
   char *errmess = strerror(errno);
   
@@ -172,9 +172,17 @@ void complain(char *message, char *arg1)
   syslog(LOG_CRIT, message, arg1, errmess);
 }
 
+void complain(char *message, int lineno, char *file)
+{
+  char buff[256];
+  
+  sprintf(buff, "%s at line %d of %s", message, lineno, file);
+  log_err(buff, NULL);
+}
+
 void die(char *message, char *arg1)
 {
-  complain(message, arg1);
+  log_err(message, arg1);
   syslog(LOG_CRIT, "FAILED to start up");
   exit(1);
 }
@@ -269,4 +277,51 @@ int retry_send(void)
      return 1;
 
    return 0;
+}
+
+void prettyprint_time(char *buf, unsigned int t)
+{
+  if (t == 0xffffffff)
+    sprintf(buf, "infinite");
+  else
+    {
+      unsigned int x, p = 0;
+      if ((x = t/3600))
+	p += sprintf(&buf[p], "%dh", x);
+      if ((x = (t/60)%60))
+	p += sprintf(&buf[p], "%dm", x);
+      if ((x = t%60))
+	p += sprintf(&buf[p], "%ds", x);
+    }
+}
+
+
+/* in may equal out, when maxlen may be -1 (No max len). */
+int parse_hex(char *in, unsigned char *out, int maxlen, unsigned int *wildcard_mask)
+{
+  int mask = 0, i = 0;
+  char *r;
+
+  while (maxlen == -1 || i < maxlen)
+    {
+      for (r = in; *r != 0 && *r != ':' && *r != '-'; r++);
+      if (*r == 0)
+	maxlen = i;
+      if (r != in )
+	{
+	  *r = 0;
+	  mask = mask << 1;
+	  if (strcmp(in, "*") == 0)
+	    mask |= 1;
+	  else
+	    out[i] = strtol(in, NULL, 16);
+	  i++;
+	}
+      in = r+1;
+    }
+  
+  if (wildcard_mask)
+    *wildcard_mask = mask;
+
+  return i;
 }

@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.20
+Version: 2.21
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers

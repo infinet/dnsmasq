@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -333,21 +333,48 @@ static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *heade
   return ansp;
 }
 
-/* CRC all the bytes of the question section. This is used to
-   safely detect query retransmision. */
-unsigned int questions_crc(HEADER *header, unsigned int plen)
+/* CRC the question section. This is used to safely detect query 
+   retransmision and to detect answers to questions we didn't ask, which 
+   might be poisoning attacks. Note that we decode the name rather 
+   than CRC the raw bytes, since replies might be compressed differently. 
+   We ignore case in the names for the same reason. */
+unsigned int questions_crc(HEADER *header, unsigned int plen, char *name)
 {
-  unsigned char *start, *end = skip_questions(header, plen);
-  unsigned int crc = 0xffffffff;
+  unsigned int q, crc = 0xffffffff;
+  unsigned char *p1, *p = (unsigned char *)(header+1);
 
-  if (end)
-    for (start = (unsigned char *)(header+1); start < end; start++)
-      {
-	int i = 8;
-	crc ^= *start << 24;
-	while (i--)
-	  crc = crc & 0x80000000 ? (crc << 1) ^ 0x04c11db7 : crc << 1;
-      }
+  for (q = 0; q < ntohs(header->qdcount); q++) 
+    {
+      if (!extract_name(header, plen, &p, name, 1))
+	return crc; /* bad packet */
+      
+      for (p1 = name; *p1; p1++)
+	{
+	  int i = 8;
+	  char c = *p1;
+
+	  if (c >= 'A' && c <= 'Z')
+	    c += 'a' - 'A';
+
+	  crc ^= c << 24;
+	  while (i--)
+	    crc = crc & 0x80000000 ? (crc << 1) ^ 0x04c11db7 : crc << 1;
+	}
+      
+      /* CRC the class and type as well */
+      for (p1 = p; p1 < p+4; p1++)
+	{
+	  int i = 8;
+	  crc ^= *p1 << 24;
+	  while (i--)
+	    crc = crc & 0x80000000 ? (crc << 1) ^ 0x04c11db7 : crc << 1;
+	}
+
+      p += 4;
+      if ((unsigned int)(p - (unsigned char *)header) > plen)
+	return crc; /* bad packet */
+    }
+
   return crc;
 }
 
@@ -437,14 +464,12 @@ static void dns_doctor(HEADER *header, struct doctor *doctor, struct in_addr *ad
 	addr->s_addr &= ~doctor->mask.s_addr;
 	addr->s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
 	/* Since we munged the data, the server it came from is no longer authoritative */
-	header->nscount = htons(0);
-	header->arcount = htons(0);
 	header->aa = 0;
 	break;
       }
 }
 
-static int find_soa(HEADER *header, unsigned int qlen)
+static int find_soa(HEADER *header, struct doctor *doctor, unsigned int qlen)
 {
   unsigned char *p;
   int qtype, qclass, rdlen;
@@ -491,6 +516,26 @@ static int find_soa(HEADER *header, unsigned int qlen)
 	return 0; /* bad packet */
     }
  
+  if (doctor)
+    for (i=0; i<ntohs(header->arcount); i++)
+      {
+	if (!(p = skip_name(p, header, qlen)))
+	  return 0; /* bad packet */
+      
+	GETSHORT(qtype, p); 
+	GETSHORT(qclass, p);
+	GETLONG(ttl, p);
+	GETSHORT(rdlen, p);
+	
+	if ((qclass == C_IN) && (qtype == T_A))
+	  dns_doctor(header, doctor, (struct in_addr *)p);
+	
+	p += rdlen;
+	
+	if ((unsigned int)(p - (unsigned char *)header) > qlen)
+	  return 0; /* bad packet */
+      }
+ 
   return found_soa ? minttl : 0;
 }
 
@@ -501,8 +546,16 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 {
   unsigned char *p, *p1, *endrr;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
-   
+  unsigned long ttl = 0;
+
   cache_start_insert();
+
+  /* find_soa is needed for dns_doctor side-effects, so don't call it lazily if there are any. */
+  if (daemon->doctors)
+    {
+      searched_soa = 1;
+      ttl = find_soa(header, daemon->doctors, qlen);
+    }
   
   /* go through the questions. */
   p = (unsigned char *)(header+1);
@@ -512,7 +565,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
       int found = 0, cname_count = 5;
       struct crec *cpp = NULL;
       int flags = header->rcode == NXDOMAIN ? F_NXDOMAIN : 0;
-      unsigned long cttl = ULONG_MAX, attl, ttl = 0;
+      unsigned long cttl = ULONG_MAX, attl;
       
       if (!extract_name(header, qlen, &p, name, 1))
 	return; /* bad packet */
@@ -581,7 +634,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen);
+		  ttl = find_soa(header, NULL, qlen);
 		}
 	      if (ttl)
 		cache_insert(name, &addr, now, ttl, name_encoding | F_REVERSE | F_NEG | flags);	
@@ -665,7 +718,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name, time_t now
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen);
+		  ttl = find_soa(header, NULL, qlen);
 		}
 	      /* If there's no SOA to get the TTL from, but there is a CNAME 
 		 pointing at this, inherit it's TTL */
@@ -705,11 +758,11 @@ unsigned short extract_request(HEADER *header,unsigned int qlen, char *name, uns
   GETSHORT(qtype, p); 
   GETSHORT(qclass, p);
 
+  if (typep)
+    *typep = qtype;
+
   if (qclass == C_IN)
     {
-      if (typep)
-	*typep = qtype;
-
       if (qtype == T_A)
 	return F_IPV4;
       if (qtype == T_AAAA)
@@ -766,21 +819,21 @@ int setup_reply(HEADER *header, unsigned int qlen,
 int check_for_local_domain(char *name, time_t now, struct daemon *daemon)
 {
   struct crec *crecp;
-  struct mx_record *mx;
-  struct srv_record *srv;
-  
+  struct mx_srv_record *mx;
+  struct txt_record *txt;
+    
   if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)) &&
       (crecp->flags & (F_HOSTS | F_DHCP)))
     return 1;
   
   for (mx = daemon->mxnames; mx; mx = mx->next)
-    if (hostname_isequal(name, mx->mxname))
+    if (hostname_isequal(name, mx->name))
       return 1;
 
-  for (srv = daemon->srvnames; srv; srv = srv->next)
-    if (hostname_isequal(name, srv->srvname))
+  for (txt = daemon->txt; txt; txt = txt->next)
+    if (hostname_isequal(name, txt->name))
       return 1;
-
+  
   return 0;
 }
 
@@ -880,6 +933,8 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigne
 	
       case 'd':
 	/* get domain-name answer arg and store it in RDATA field */
+	if (offset)
+	  *offset = p - (unsigned char *)header;
 	sval = va_arg(ap, char *);
 	while (sval && *sval)
 	  {
@@ -894,11 +949,10 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigne
 	break;
 
       case 't':
+	usval = va_arg(ap, int);
 	sval = va_arg(ap, char *);
-	j = strlen(sval);
-	*p++ = j;
-	memcpy(p, sval, j);
-	p += j;
+	memcpy(p, sval, usval);
+	p += usval;
 	break;
       }
 
@@ -906,9 +960,6 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigne
   
   j = p - sav - 2;
   PUTSHORT(j, sav);     /* Now, store real RDLength */
-  
-  if (offset)
-    *offset = sav - (unsigned char *)header;
   
   /* check for overflow of buffer */
   if (limit && ((unsigned char *)limit - p) < 0)
@@ -933,11 +984,12 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
   unsigned int nameoffset;
   unsigned short flag;
   int qdcount = ntohs(header->qdcount); 
-  int q, ans, anscount = 0;
+  int q, ans, anscount = 0, addncount = 0;
   int dryrun = 0, sec_reqd = 0;
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0;
-
+  struct mx_srv_record *rec;
+ 
   if (!qdcount || header->opcode != QUERY )
     return 0;
 
@@ -968,6 +1020,9 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
       dryrun = 1;
     }
 
+  for (rec = daemon->mxnames; rec; rec = rec->next)
+    rec->offset = 0;
+  
  rerun:
   /* determine end of question section (we put answers there) */
   if (!(ansp = skip_questions(header, qlen)))
@@ -994,27 +1049,24 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 
       ans = 0; /* have we answered this question */
       
-      if (qclass == C_CHAOS && qtype == T_TXT)
-	/* special query to get version. */
+      if (qtype == T_TXT || qtype == T_ANY)
 	{
-	  ans = 1;
-	  if (!dryrun)
+	  struct txt_record *t;
+	  for(t = daemon->txt; t ; t = t->next)
 	    {
-	      if (hostname_isequal(name, "version.bind"))
-		sprintf(name, "dnsmasq-%s", VERSION);
-	      else if (hostname_isequal(name, "authors.bind"))
-		sprintf(name, "Simon Kelley");
-	      else if (hostname_isequal(name, "copyright.bind"))
-		sprintf(name, COPYRIGHT);
-	      else
-		*name = 0;
-	      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 0, NULL,
-				       T_TXT, C_CHAOS, "t", name))
-		anscount++;
+	      if (t->class == qclass && hostname_isequal(name, t->name))
+		{
+		  ans = 1;
+		  log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, 0, NULL, 0);
+		  if (!dryrun &&
+		      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 0, NULL,
+					  T_TXT, t->class, "t", t->len, t->txt))
+		    anscount++;
+		}
 	    }
-	  }
+	}
 
-      else if (qclass == C_IN)
+      if (qclass == C_IN)
 	{
 	  if (qtype == T_PTR || qtype == T_ANY)
 	    {
@@ -1172,18 +1224,21 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 	  if (qtype == T_MX || qtype == T_ANY)
 	    {
 	      int found = 0;
-	      struct mx_record *mx;
-	      for (mx = daemon->mxnames; mx; mx = mx->next)
-		if (hostname_isequal(name, mx->mxname))
+	      for (rec = daemon->mxnames; rec; rec = rec->next)
+		if (!rec->issrv && hostname_isequal(name, rec->name))
 		  {
 		  ans = found = 1;
 		  if (!dryrun)
 		    {
+		      int offset;
 		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_IPV4, name, NULL, 0, NULL, 0);
-		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, NULL, 
-					      T_MX, C_IN, "sd", mx->preference, 
-					      mx->mxtarget ? mx->mxtarget : daemon->mxtarget))
-			anscount++;
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl,
+					      &offset, T_MX, C_IN, "sd", rec->weight, rec->target))
+			{
+			  anscount++;
+			  if (rec->target)
+			    rec->offset = offset;
+			}
 		    }
 		  }
 	      
@@ -1205,19 +1260,23 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 	  if (qtype == T_SRV || qtype == T_ANY)
 	    {
 	      int found = 0;
-	      struct srv_record *srv;
 	      
-	      for (srv = daemon->srvnames; srv; srv = srv->next)
-		if (hostname_isequal(name, srv->srvname))
+	      for (rec = daemon->mxnames; rec; rec = rec->next)
+		if (rec->issrv && hostname_isequal(name, rec->name))
 		  {
 		    found = ans = 1;
 		    if (!dryrun)
 		      {
+			int offset;
 			log_query(F_CNAME | F_FORWARD | F_CONFIG | F_IPV6, name, NULL, 0, NULL, 0);
 			if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, 
-						NULL, T_SRV, C_IN, "sssd", 
-						srv->priority, srv->weight, srv->srvport, srv->srvtarget))
-			  anscount++;
+						&offset, T_SRV, C_IN, "sssd", 
+						rec->priority, rec->weight, rec->srvport, rec->target))
+			  {
+			    anscount++;
+			    if (rec->target)
+			      rec->offset = offset;
+			  }
 		      }
 		  }
 	      
@@ -1250,6 +1309,39 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
       goto rerun;
     }
   
+  /* create an additional data section, for stuff in SRV and MX record replies. */
+  for (rec = daemon->mxnames; rec; rec = rec->next)
+    if (rec->offset != 0)
+      {
+	/* squash dupes */
+	struct mx_srv_record *tmp;
+	for (tmp = rec->next; tmp; tmp = tmp->next)
+	  if (tmp->offset != 0 && hostname_isequal(rec->target, tmp->target))
+	    tmp->offset = 0;
+	
+	crecp = NULL;
+	while ((crecp = cache_find_by_name(crecp, rec->target, now, F_IPV4 | F_IPV6)))
+	  {
+	    unsigned long ttl;
+#ifdef HAVE_IPV6
+	    int type =  crecp->flags & F_IPV4 ? T_A : T_AAAA;
+#else
+	    int type = T_A;
+#endif
+	    if (crecp->flags & F_NEG)
+	      continue;
+
+	    if  (crecp->flags & (F_IMMORTAL | F_DHCP))
+	      ttl = daemon->local_ttl;
+	    else
+	      ttl = crecp->ttd - now;
+	    
+	    if (add_resource_record(header, limit, NULL, rec->offset, &ansp, ttl, NULL, type, C_IN, 
+				    crecp->flags & F_IPV4 ? "4" : "6", &crecp->addr))
+	      addncount++;
+	  }
+      }
+  
   /* done all questions, set up header and return length of result */
   header->qr = 1; /* response */
   header->aa = auth; /* authoritive - only hosts and DHCP derived names. */
@@ -1261,7 +1353,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
     header->rcode = NOERROR; /* no error */
   header->ancount = htons(anscount);
   header->nscount = htons(0);
-  header->arcount = htons(0);
+  header->arcount = htons(addncount);
   return ansp - (unsigned char *)header;
 }
 

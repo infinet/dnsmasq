@@ -1369,5 +1369,56 @@ version 2.20
 	    Added preference values for MX records.
 
 	    Added the --localise-queries option.
-	    
-	    
+
+version 2.21
+            Improve handling of SERVFAIL and REFUSED errors. Receiving
+	    these now initiates search for a new good server, and a 
+	    server which returns them is not a candidate as a good
+            server. Thanks to Istvan Varadi for pointing out the
+            problem.
+
+	    Tweak the time code in BROKEN_RTC mode.
+
+	    Sanity check lease times in dhcp-range and dhcp-host
+	    configurations and force them to be at least two minutes
+	    (120s) leases shorter than a minute confuse some clients,
+	    notably Apple MacOS X. Rory Campbell-Lange found this
+	    problem.
+
+	    Only warn once about an upstream server which is refusing to do
+	    recursive queries.
+
+	    Fix DHCP address allocation problem when netid tags are in
+	    use. Thanks to Will Murnane for the bug report and
+	    subsequent testing.
+
+	    Add an additional data section to the reply for MX and SRV
+	    queries. Add support for DNS TXT records. Thanks to Robert 
+	    Kean and John Hampton for prompts and testing of these.
+
+	    Apply address rewriting to records in the additional data section
+	    of DNS packets. This makes things like MX records work
+	    with the alias function. Thanks to Chad Skeeters for
+	    pointing out the need for this.
+
+	    Added support for quoted strings in config file.
+
+	    Detect and defeat cache-poisoning attacks which attempt to
+	    send (malicious) answers to questions we didn't
+	    send. These are ignored now even if the attacker manages
+	    to guess a random query-id.
+
+	    Provide DHCP support for interfaces with multiple IP
+	    addresses or aliases. This in only enabled under Linux.
+	    See the FAQ entry for details.
+
+	    Revisit the MAC-address and client-id matching code to
+	    provide saner behaviour with PXE boots, where some
+	    requests have a client-id and some don't.
+
+	    Fixed off-by-one buffer overflow in lease file reading
+	    code. Thanks to Rob Holland for the bug report.
+
+	    Added wildcard matching for MAC addresses in dhcp-host
+	    options. A sensible suggestion by Nathaniel McCallum.
+

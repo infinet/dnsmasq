@@ -79,9 +79,17 @@
 #endif
 #include <sys/uio.h>
 
-/* Size: we check after adding each record, so there must be 
-     memory for the largest packet, and the largest record */
-#define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
+/* Min buffer size: we check after adding each record, so there must be 
+   memory for the largest packet, and the largest record so the
+   min for DNS is PACKETSZ+MAXDNAME+RRFIXEDSZ which is < 1000.
+   This might be increased is EDNS packet size if greater than the minimum.
+   The buffer is also used for NETLINK, which needs to be about 2000
+   on systems with many interfaces/addresses. */
+#ifdef HAVE_RTNETLINK
+# define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
+#else
+# define DNSMASQ_PACKETSZ 2000
+#endif
 
 #define OPT_BOGUSPRIV      1
 #define OPT_FILTER         2
@@ -123,16 +131,16 @@ struct doctor {
   struct doctor *next;
 };
 
-struct mx_record {
-  char *mxname, *mxtarget;
-  int preference;
-  struct mx_record *next;
+struct mx_srv_record {
+  char *name, *target;
+  int issrv, srvport, priority, weight, offset;
+  struct mx_srv_record *next;
 };
 
-struct srv_record {
-  char *srvname, *srvtarget;
-  int srvport, priority, weight;
-  struct srv_record *next;
+struct txt_record {
+  char *name, *txt;
+  unsigned short class, len;
+  struct txt_record *next;
 };
 
 union bigname {
@@ -199,13 +207,15 @@ union mysockaddr {
 #endif
 };
 
-#define SERV_FROM_RESOLV     1  /* 1 for servers from resolv, 0 for command line. */
-#define SERV_NO_ADDR         2  /* no server, this domain is local only */
-#define SERV_LITERAL_ADDRESS 4  /* addr is the answer, not the server */ 
-#define SERV_HAS_SOURCE      8  /* source address specified */
-#define SERV_HAS_DOMAIN     16  /* server for one domain only */
-#define SERV_FOR_NODOTS     32  /* server for names with no domain part only */
+#define SERV_FROM_RESOLV       1  /* 1 for servers from resolv, 0 for command line. */
+#define SERV_NO_ADDR           2  /* no server, this domain is local only */
+#define SERV_LITERAL_ADDRESS   4  /* addr is the answer, not the server */ 
+#define SERV_HAS_SOURCE        8  /* source address specified */
+#define SERV_HAS_DOMAIN       16  /* server for one domain only */
+#define SERV_FOR_NODOTS       32  /* server for names with no domain part only */
+#define SERV_WARNED_RECURSIVE 64  /* avoid warning spam */
 #define SERV_TYPE    (SERV_HAS_DOMAIN | SERV_FOR_NODOTS)
+
 
 struct serverfd {
   int fd;
@@ -263,7 +273,7 @@ struct frec {
   struct server *sentto;
   unsigned int iface;
   unsigned short orig_id, new_id;
-  int fd;
+  int fd, forwardall;
   unsigned int crc;
   time_t time;
   struct frec *next;
@@ -296,18 +306,18 @@ struct dhcp_config {
   char *hostname;
   struct dhcp_netid netid;
   struct in_addr addr;
-  unsigned int lease_time;
+  unsigned int lease_time, wildcard_mask;
   struct dhcp_config *next;
 };
 
-#define CONFIG_DISABLE   1
-#define CONFIG_CLID      2
-#define CONFIG_HWADDR    4
-#define CONFIG_TIME      8
-#define CONFIG_NAME     16
-#define CONFIG_ADDR     32
-#define CONFIG_NETID    64
-#define CONFIG_NOCLID  128
+#define CONFIG_DISABLE           1
+#define CONFIG_CLID              2
+#define CONFIG_HWADDR            4
+#define CONFIG_TIME              8
+#define CONFIG_NAME             16
+#define CONFIG_ADDR             32
+#define CONFIG_NETID            64
+#define CONFIG_NOCLID          128
 
 struct dhcp_opt {
   int opt, len, is_addr;
@@ -332,12 +342,19 @@ struct dhcp_vendor {
 
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
-  struct in_addr netmask, broadcast, router;
+  struct in_addr netmask, broadcast;
+  struct in_addr local, router;
   struct in_addr start, end; /* range of available addresses */
-  int static_only, filter_netid;
+  int flags;
   struct dhcp_netid netid;
   struct dhcp_context *next, *current;
 };
+
+#define CONTEXT_STATIC    1
+#define CONTEXT_FILTER    2
+#define CONTEXT_NETMASK   4
+#define CONTEXT_BRDCAST   8
+
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -370,12 +387,12 @@ struct daemon {
 
   unsigned int options;
   struct resolvc default_resolv, *resolv_files;
-  struct mx_record *mxnames;
+  struct mx_srv_record *mxnames;
+  struct txt_record *txt;
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname;
   char *domain_suffix;
-  struct srv_record *srvnames;
   char *runfile; 
   struct iname *if_names, *if_addrs, *if_except;
   struct bogus_addr *bogus_addr;
@@ -397,6 +414,7 @@ struct daemon {
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
+  int packet_buff_sz; /* size of above */
   char *namebuff; /* MAXDNAME size buffer */
   struct serverfd *sfds;
   struct listener *listeners;
@@ -405,6 +423,9 @@ struct daemon {
   
   /* DHCP state */
   int dhcpfd, dhcp_raw_fd, dhcp_icmp_fd, lease_fd;
+#ifdef HAVE_RTNETLINK
+  int netlinkfd;
+#endif
   struct udp_dhcp_packet *dhcp_packet;
   char *dhcp_buff, *dhcp_buff2;
 };
@@ -443,7 +464,7 @@ int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name,
 unsigned char *find_pseudoheader(HEADER *header, unsigned int plen,
 				 unsigned int *len, unsigned char **p);
 int check_for_local_domain(char *name, time_t now, struct daemon *daemon);
-unsigned int questions_crc(HEADER *header, unsigned int plen);
+unsigned int questions_crc(HEADER *header, unsigned int plen, char *buff);
 int resize_packet(HEADER *header, unsigned int plen, 
 		  unsigned char *pheader, unsigned int hlen);
 
@@ -453,8 +474,8 @@ int legal_char(char c);
 int canonicalise(char *s);
 int atoi_check(char *a, int *res);
 void die(char *message, char *arg1);
-void complain(char *message, char *arg1);
-void *safe_malloc(int size);
+void complain(char *message, int lineno, char *file);
+void *safe_malloc(size_t size);
 char *safe_string_alloc(char *cp);
 int sa_len(union mysockaddr *addr);
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
@@ -462,6 +483,9 @@ int hostname_isequal(unsigned char *a, unsigned char *b);
 time_t dnsmasq_time(int fd);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 int retry_send(void);
+void prettyprint_time(char *buf, unsigned int t);
+int parse_hex(char *in, unsigned char *out, int maxlen, 
+	      unsigned int *wildcard_mask);
 
 /* option.c */
 struct daemon *read_opts (int argc, char **argv);
@@ -501,22 +525,29 @@ void dhcp_read_ethers(struct daemon *daemon);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 char *strip_hostname(struct daemon *daemon, char *hostname);
 char *host_from_dns(struct daemon *daemon, struct in_addr addr);
+struct dhcp_context *complete_context(struct daemon *daemon, struct in_addr local, 
+				      struct dhcp_context *current, struct in_addr netmask, 
+				      struct in_addr broadcast, struct in_addr relay,
+				      struct in_addr primary);
 
 /* lease.c */
 void lease_update_file(int force, time_t now);
 void lease_update_dns(struct daemon *daemon);
 void lease_init(struct daemon *daemon, time_t now);
-struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_addr addr);
-void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr);
+struct dhcp_lease *lease_allocate(unsigned char *hwaddr, unsigned char *clid,
+				  int clid_len, struct in_addr addr);
+int lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
+		      unsigned char *clid, int clid_len);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix);
 void lease_set_expires(struct dhcp_lease *lease, time_t exp);
-struct dhcp_lease *lease_find_by_client(unsigned char *clid, int clid_len);
+struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr,
+					unsigned char *clid, int clid_len);
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
 void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain);
 
 /* rfc2131.c */
-int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_name, unsigned int sz, time_t now);
+int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, unsigned int sz, time_t now);
 
 /* dnsmasq.c */
 int icmp_ping(struct daemon *daemon, struct in_addr addr);
@@ -526,3 +557,10 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr);
 void load_dhcp(struct daemon *daemon, time_t now);
 #endif
 
+/* netlink.c */
+#ifdef HAVE_RTNETLINK
+int netlink_init(void);
+int netlink_process(struct daemon *daemon, int index, 
+		    struct in_addr relay, struct in_addr primary,
+		    struct dhcp_context **retp);
+#endif

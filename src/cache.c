@@ -846,8 +846,6 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
   if (!log_queries)
     return;
   
-  strcpy(types, " ");
-  
   if (flags & F_NEG)
     {
       if (flags & F_REVERSE)
@@ -875,6 +873,8 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
 	strcpy(addrbuff, "<MX>");
       else if (flags & F_IPV6)
 	strcpy(addrbuff, "<SRV>");
+      else if (flags & F_NXDOMAIN)
+	strcpy(addrbuff, "<TXT>");
       else
 	strcpy(addrbuff, "<CNAME>");
     }
@@ -937,19 +937,19 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
       
       if (type != 0)
         {
-          sprintf(types, "[type=%d] ", type); 
+          sprintf(types, "query[type=%d]", type); 
           for (i = 0; i < (sizeof(typestr)/sizeof(typestr[0])); i++)
 	    if (typestr[i].type == type)
-	      sprintf(types,"[%s] ", typestr[i].name);
+	      sprintf(types,"query[%s]", typestr[i].name);
 	}
-      source = "query";
+      source = types;
       verb = "from";
     }
   else
     source = "cached";
   
   if ((flags & F_FORWARD) | (flags & F_NEG))
-    syslog(LOG_DEBUG, "%s %s%s%s %s", source, name, types, verb, addrbuff);
+    syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, addrbuff);
   else if (flags & F_REVERSE)
     syslog(LOG_DEBUG, "%s %s is %s", source, addrbuff, name);
 }

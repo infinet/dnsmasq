@@ -14,7 +14,7 @@
 
 #include "dnsmasq.h"
 
-static int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
+static volatile int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd);
 static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now);
@@ -69,8 +69,9 @@ int main (int argc, char **argv)
   
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
-  daemon->packet = safe_malloc(daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
-			       daemon->edns_pktsz : DNSMASQ_PACKETSZ);
+  daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
+    daemon->edns_pktsz : DNSMASQ_PACKETSZ;
+  daemon->packet = safe_malloc(daemon->packet_buff_sz);
   
   if (!daemon->lease_file)
     {
@@ -272,31 +273,31 @@ int main (int argc, char **argv)
   if (daemon->dhcp)
     {
       struct dhcp_context *dhcp_tmp;
+
+#ifdef HAVE_RTNETLINK
+      /* Must do this after daemonizing so that the pid is right */
+      daemon->netlinkfd =  netlink_init();
+#endif
+      
       for (dhcp_tmp = daemon->dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
 	{
-	  char *time = daemon->dhcp_buff2;
+	  prettyprint_time(daemon->dhcp_buff2, dhcp_tmp->lease_time);
 	  strcpy(daemon->dhcp_buff, inet_ntoa(dhcp_tmp->start));
-	  if (dhcp_tmp->lease_time == 0)
-	    sprintf(time, "infinite");
-	  else
-	    {
-	      unsigned int x, p = 0, t = (unsigned int)dhcp_tmp->lease_time;
-	      if ((x = t/3600))
-		p += sprintf(&time[p], "%dh", x);
-	      if ((x = (t/60)%60))
-		p += sprintf(&time[p], "%dm", x);
-	      if ((x = t%60))
-		p += sprintf(&time[p], "%ds", x);
-	    }
 	  syslog(LOG_INFO, 
-		 dhcp_tmp->static_only ? 
+		 (dhcp_tmp->flags & CONTEXT_STATIC) ? 
 		 "DHCP, static leases only on %.0s%s, lease time %s" :
 		 "DHCP, IP range %s -- %s, lease time %s",
-		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), time);
+		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), daemon->dhcp_buff2);
 	}
  
 #ifdef HAVE_BROKEN_RTC
-      syslog(LOG_INFO, "DHCP, %s will be written every %ds", daemon->lease_file, daemon->min_leasetime/3);
+      daemon->min_leasetime = daemon->min_leasetime/3;
+      if (daemon->min_leasetime > (60 * 60 * 24))
+	daemon->min_leasetime = 60 * 60 * 24;
+      if (daemon->min_leasetime < 60)
+	daemon->min_leasetime = 60;
+      prettyprint_time(daemon->dhcp_buff2, daemon->min_leasetime);
+      syslog(LOG_INFO, "DHCP, %s will be written every %s", daemon->lease_file, daemon->dhcp_buff2);
 #endif
     }
 
@@ -341,7 +342,7 @@ int main (int argc, char **argv)
 	    {
 	      lease_update_file(1, now);
 #ifdef HAVE_BROKEN_RTC
-	      alarm(daemon->min_leasetime/3);
+	      alarm(daemon->min_leasetime);
 #endif
 	    } 
 	  sigalarm  = 0;
@@ -681,3 +682,5 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
   
   return gotreply;
 }
+
+ 
