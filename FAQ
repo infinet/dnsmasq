@@ -206,19 +206,66 @@ A: What is happening is this: The boot process sends a DHCP
    the MAC address has a static allocation, that address is still in
    use by the first incarnation of the machine (the one from the boot,
    without a client ID.) dnsmasq therefore has to give the machine a
-   dynamic address from its pool. There are two ways to solve this:
+   dynamic address from its pool. There are three ways to solve this:
    (1) persuade your DHCP client not to send a client ID, or (2) set up
    the static assignment to the client ID, not the MAC address. The
    default client-id will be 01:<MAC address>, so change the dhcp-host
    line from "dhcp-host=11:22:33:44:55:66,1.2.3.4" to
-   "dhcp-host=id:01:11:22:33:44:55:66,1.2.3.4" 
+   "dhcp-host=id:01:11:22:33:44:55:66,1.2.3.4" or (3) tell dnsmasq to
+   ignore client IDs for a particular MAC address, like this:
+   dhcp-host=11:22:33:44:55:66,id:*
 
 Q: What network types are supported by the DHCP server?
   
 A: Ethernet (and 802.11 wireless) are supported on all platforms. On
    Linux Token Ring is also supported.
 
+Q: What is this strange "bind-interface" option?
 
+A: The DNS spec says that the reply to a DNS query must come from the
+   same address it was sent to. The traditional way to write an UDP
+   server to do this is to find all of the addresses belonging to the
+   machine (ie all the interfaces on the machine) and then create a
+   socket for each interface which is bound to the address of the
+   interface. Then when a packet is sent to address A, it is received
+   on the socket bound to address A and when the reply is also sent
+   via that socket, the source address is set to A by the kernel and
+   everything works. This is the how dnsmasq works when
+   "bind-interfaces" is set, with the obvious extension that is misses
+   out creating sockets for some interfaces depending on the
+   --interface, --address and --except-interface flags.  The
+   disadvantage of this approach is that it breaks if interfaces don't
+   exist or are not configured when the daemon starts and does the
+   socket creation step. In a hotplug-aware world this is a real
+   problem.
 
+   The alternative approach is to have only one socket, which is bound
+   to the correct port and the wildcard IP address (0.0.0.0). That
+   socket will receive _all_ packets sent to port 53, no matter what
+   destination address they have. This solves the problem of
+   interfaces which are created or reconfigured after daemon
+   start-up. To make this work is more complicated because of the
+   "reply source address" problem. When a UDP packet is sent by a
+   socket bound to 0.0.0.0 its source address will be set to the
+   address of one of the machine's interfaces, but which one is not
+   determined and can vary depending on the OS being run. To get round
+   this it is neccessary to use a scary advanced API to determine the
+   address to which a query was sent, and force that to be the source
+   address in the reply. For IPv4 this stuff in non-portable and quite
+   often not even available (It's different between FreeBSD 5.x and
+   Linux, for instance, and FreeBSD 4.x, Linux 2.0.x and OpenBSD don't
+   have it at all.) Hence "bind-interfaces" has to always be available
+   as a fall back. For IPv6 the API is standard and universally
+   available.
+
+   It could be argued that if the --interface or --address flags are
+   used then binding interfaces is more appropriate, but using
+   wildcard binding means that dnsmasq will quite happily start up
+   after being told to use interfaces which don't exist, but which are
+   created later. Wildcard binding breaks the scenario when dnsmasq is
+   listening on one interface and another server (most probably BIND)
+   is listening on another. It's not possible for BIND to bind to an
+   (address,port) pair when dnsmasq has bound (wildcard,port), hence
+   the ability to explicitly turn off wildcard binding.
 
 

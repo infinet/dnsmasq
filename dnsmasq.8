@@ -120,7 +120,9 @@ option forces dnsmasq to really bind only the interfaces it is
 listening on. About the only time when this is useful is when 
 running another nameserver on the same machine or using IP
 alias. Specifying interfaces with IP alias automatically turns this
-option on.
+option on. Note that this only applies to the DNS part of dnsmasq, the
+DHCP server always binds the wildcard address in order to receive
+broadcast packets.
 .TP
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
@@ -230,8 +232,10 @@ additional facility that /#/ matches any domain. Thus
 answered from /etc/hosts or DHCP and not sent to an upstream
 nameserver by a more specific --server directive.
 .TP
-.B \-m, --mx-host=<mx name>
-Return an MX record named <mx name> pointing to the host specified in the --mx-target switch
+.B \-m, --mx-host=<mx name>[,<hostname>]
+Return an MX record named <mx name> pointing to the given hostname (if
+given), or
+the host specified in the --mx-target switch
 or, if that switch is not given, the host on which dnsmasq 
 is running. This is useful for directing mail from systems on a LAN
 to a central server.
@@ -409,7 +413,9 @@ for DHCP-configured hosts to claim. The intention is to constrain hostnames so t
 .B --domain-suffix=thekelleys.org.uk
 and have a machine whose DHCP hostname is "laptop". The IP address for that machine is available from 
 .B dnsmasq
-both as "laptop" and "laptop.thekelleys.org.uk".
+both as "laptop" and "laptop.thekelleys.org.uk". If the domain is
+given as "#" then the domain is read from the first "search" directive
+in /etc/resolv.conf (or equivalent). 
 .TP
 .B \-E, --expand-hosts
 Add the domain-suffix to simple names (without a period) in /etc/hosts

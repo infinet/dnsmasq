@@ -30,14 +30,17 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
   /* we may need to check the whitelist */
   if (names || addrs)
     { 
+      int found = 0;
+
       for (tmp = names; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
-	  break;
-      if (!tmp) 
-	for (tmp = addrs; tmp; tmp = tmp->next)
-	  if (sockaddr_isequal(&tmp->addr, addr))
-	    break;
-      if (!tmp) 
+	  found = tmp->used = 1;
+      
+      for (tmp = addrs; tmp; tmp = tmp->next)
+	if (sockaddr_isequal(&tmp->addr, addr))
+	  found = tmp->used = 1;
+      
+      if (!found) 
 	return list;
     }
   
@@ -72,7 +75,7 @@ struct irec *enumerate_interfaces(struct iname **names,
   
   if (fd == -1)
     die ("cannot create socket to enumerate interfaces: %s", NULL);
-      
+        
   while (1)
      {
        buf = safe_malloc(len);
@@ -137,15 +140,24 @@ struct irec *enumerate_interfaces(struct iname **names,
 	die("ioctl error getting interface flags: %m", NULL);
 
       /* If we are restricting the set of interfaces to use, make
-	 sure that loopback interfaces are in that set. Note that
-	 this is done as addresses rather than interface names so
-	 as not to confuse the no-IPRECVIF workaround on the DHCP code */
+	 sure that loopback interfaces are in that set. */
       if (*names && (ifr->ifr_flags & IFF_LOOPBACK))
 	{
-	  struct iname *lo = safe_malloc(sizeof(struct iname));
-	  lo->addr = addr;
-	  lo->next = *addrs;
-	  *addrs = lo;
+	  struct iname *lo;
+	  for (lo = *names; lo; lo = lo->next)
+	    if (lo->name && strcmp(lo->name, ifr->ifr_name) == 0)
+	      {
+		lo->isloop = 1;
+		break;
+	      }
+	  if (!lo)
+	    {
+	      lo = safe_malloc(sizeof(struct iname));
+	      lo->name = safe_string_alloc(ifr->ifr_name);
+	      lo->isloop = lo->used = 1;
+	      lo->next = *names;
+	      *names = lo;
+	    }
 	}
 
       iface = add_iface(iface, ifr->ifr_name, &addr, *names, *addrs, except);
@@ -192,17 +204,7 @@ struct irec *enumerate_interfaces(struct iname **names,
 	  }
 	
 	if (found)
-	  {
-	    if (*names && (ifr->ifr_flags & IFF_LOOPBACK))
-	      {
-		struct iname *lo = safe_malloc(sizeof(struct iname));
-		lo->addr = addr6;
-		lo->next = *addrs;
-		*addrs = lo;
-	      }
-	    
-	    iface = add_iface(iface, ifr->ifr_name, &addr6, *names, *addrs, except);
-	  }
+	  iface = add_iface(iface, ifr->ifr_name, &addr6, *names, *addrs, except);
       }
 #endif /* LINUX */
     }
@@ -220,6 +222,9 @@ struct irec *enumerate_interfaces(struct iname **names,
 
 struct listener *create_wildcard_listeners(int port)
 {
+#if !(defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
+  return NULL;
+#else
   union mysockaddr addr;
   int opt = 1;
   struct listener *listen;
@@ -235,7 +240,10 @@ struct listener *create_wildcard_listeners(int port)
 #endif
   listen = safe_malloc(sizeof(struct listener));
   if ((listen->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-    die("failed to create socket: %s", NULL);
+    {
+      free(listen);
+      return NULL;
+    }
   if (setsockopt(listen->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 #if defined(IP_PKTINFO) 
       setsockopt(listen->fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
@@ -244,7 +252,11 @@ struct listener *create_wildcard_listeners(int port)
       setsockopt(listen->fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
 #endif 
       bind(listen->fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-    die("failed to bind socket: %s", NULL);
+    {
+      close(listen->fd);
+      free(listen);
+      return NULL;
+    }
   listen->next = NULL;
   listen->family = AF_INET;
 #ifdef HAVE_IPV6
@@ -260,7 +272,11 @@ struct listener *create_wildcard_listeners(int port)
       if (errno != EPROTONOSUPPORT &&
 	  errno != EAFNOSUPPORT &&
 	  errno != EINVAL)
-	die("failed to create IPv6 socket: %s", NULL);
+	{
+	  close(listen->fd);
+	  free(listen);
+	  return NULL;
+	}
     }
   else
     {
@@ -271,11 +287,19 @@ struct listener *create_wildcard_listeners(int port)
       if (setsockopt(listen->next->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 	  setsockopt(listen->next->fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1 ||
 	  bind(listen->next->fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-	die("failed to bind IPv6 socket: %s", NULL);
+	{
+	  close(listen->next->fd);
+	  free(listen->next);
+	  close(listen->fd);
+	  free(listen);
+	  return NULL;
+	}
     }
 #endif
   
   return listen;
+  
+#endif
 }
 
 struct listener *create_bound_listeners(struct irec *interfaces)
@@ -455,7 +479,7 @@ struct server *reload_servers(char *fname, char *buff, struct server *serv, int 
 	  
 	  if (!token || strcmp(token, "nameserver") != 0)
 	    continue;
-	  if (!(token = strtok(NULL, " \t\n")))
+	  if (!(token = strtok(NULL, " \t\n\r")))
 	    continue;
 	  
 #ifdef HAVE_IPV6

@@ -120,22 +120,27 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 {
   struct frec *forward;
   char *domain = NULL;
-  int type = 0;
-  struct server *serv;
+  int forwardall = 0, type = 0;
   struct all_addr *addrp = NULL;
   unsigned short flags = 0;
   unsigned short gotname = extract_request(header, (unsigned int)plen, dnamebuff);
-
+  struct server *start = NULL;
+  
   /* may be  recursion not speced or no servers available. */
   if (!header->rd || !servers)
     forward = NULL;
   else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr)))
     {
-      /* retry on existing query, send to next server */
+      /* retry on existing query, send to all available servers  */
       domain = forward->sentto->domain;
+      if (!(options & OPT_ORDER))
+	{
+	  forwardall = 1;
+	  last_server = NULL;
+	}
       type = forward->sentto->flags & SERV_TYPE;
-      if (!(forward->sentto = forward->sentto->next))
-	forward->sentto = servers; /* at end of list, recycle */
+      if (!(start = forward->sentto->next))
+	start = servers; /* at end of list, recycle */
       header->id = htons(forward->new_id);
     }
   else 
@@ -148,29 +153,25 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  unsigned int namelen = strlen(dnamebuff);
 	  unsigned int matchlen = 0;
-	 
+	  struct server *serv;
+
 	  for (serv=servers; serv; serv=serv->next)
 	    /* domain matches take priority over NODOTS matches */
 	    if ((serv->flags & SERV_FOR_NODOTS) && type != SERV_HAS_DOMAIN && !strchr(dnamebuff, '.'))
 	      {
-		if (serv->flags & SERV_LITERAL_ADDRESS)
+		unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
+		type = SERV_FOR_NODOTS;
+		flags = 0;
+		if ((serv->flags & SERV_LITERAL_ADDRESS) && (sflag & gotname))
 		  {
-		    /* flags gets set if server is in fact an answer */
-		    unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
-		    if (sflag & gotname) /* only OK if addrfamily == query */
-		      {
-			type = SERV_FOR_NODOTS;
-			flags = sflag;
-			if (serv->addr.sa.sa_family == AF_INET) 
-			  addrp = (struct all_addr *)&serv->addr.in.sin_addr;
+		    flags = sflag;
+		    if (serv->addr.sa.sa_family == AF_INET) 
+		      addrp = (struct all_addr *)&serv->addr.in.sin_addr;
 #ifdef HAVE_IPV6
-			else
-			  addrp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+		    else
+		      addrp = (struct all_addr *)&serv->addr.in6.sin6_addr;
 #endif 
-		      }
 		  }
-		else
-		  flags = 0;
 	      }
 	    else if (serv->flags & SERV_HAS_DOMAIN)
 	      {
@@ -179,29 +180,20 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 		    hostname_isequal(dnamebuff + namelen - domainlen, serv->domain) &&
 		    domainlen >= matchlen)
 		  {
-		    if (serv->flags & SERV_LITERAL_ADDRESS)
-		      { /* flags gets set if server is in fact an answer */
-			unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
-			if ((sflag | F_QUERY ) & gotname) /* only OK if addrfamily == query */
-			  {
-			    type = SERV_HAS_DOMAIN;
-			    flags = gotname;
-			    domain = serv->domain;
-			    matchlen = domainlen; 
-			    if (serv->addr.sa.sa_family == AF_INET) 
-			      addrp = (struct all_addr *)&serv->addr.in.sin_addr;
-#ifdef HAVE_IPV6
-			    else
-			      addrp = (struct all_addr *)&serv->addr.in6.sin6_addr;
-#endif
-			  }
-		      }
-		    else
+		    unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
+		    type = SERV_HAS_DOMAIN;
+		    domain = serv->domain;
+		    matchlen = domainlen;
+		    flags = 0;
+		    if ((serv->flags & SERV_LITERAL_ADDRESS) && ((sflag | F_QUERY ) & gotname))
 		      {
-			flags = 0; /* may be better match from previous literal */
-			domain = serv->domain;
-			matchlen = domainlen;
-			type = SERV_HAS_DOMAIN;
+			flags = gotname;
+			if (serv->addr.sa.sa_family == AF_INET) 
+			  addrp = (struct all_addr *)&serv->addr.in.sin_addr;
+#ifdef HAVE_IPV6
+			else
+			  addrp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+#endif
 		      }
 		  } 
 	      }
@@ -231,10 +223,13 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 	     otherwise, use the one last known to work. */
 	  
 	  if (type != 0  || (options & OPT_ORDER))
-	    forward->sentto = servers;
-	  else
-	    forward->sentto = last_server;
-	  
+	    start = servers;
+	  else if (!(start = last_server))
+	    {
+	      start = servers;
+	      forwardall = 1;
+	    }
+	    	  
 	  forward->source = *udpaddr;
 	  forward->dest = *dst_addr;
 	  forward->new_id = get_id();
@@ -250,51 +245,51 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
   
   if (!flags && forward)
     {
-      struct server *firstsentto = forward->sentto;
-            
+      struct server *firstsentto = start;
+      int forwarded = 0;
+
       while (1)
 	{ 
-	  int logflags = 0;
-	  
-	  if (forward->sentto->addr.sa.sa_family == AF_INET)
-	    {
-	      logflags = F_SERVER | F_IPV4 | F_FORWARD;
-	      addrp = (struct all_addr *)&forward->sentto->addr.in.sin_addr;
-	    }
-#ifdef HAVE_IPV6
-	  else
-	    { 
-	      logflags = F_SERVER | F_IPV6 | F_FORWARD;
-	      addrp = (struct all_addr *)&forward->sentto->addr.in6.sin6_addr;
-	    }
-#endif
 	  /* only send to servers dealing with our domain.
 	     domain may be NULL, in which case server->domain 
 	     must be NULL also. */
 	  
-	  if (type == (forward->sentto->flags & SERV_TYPE) &&
-	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, forward->sentto->domain)))
+	  if (type == (start->flags & SERV_TYPE) &&
+	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)))
 	    {
-	      if (forward->sentto->flags & SERV_NO_ADDR)
+	      if (start->flags & SERV_NO_ADDR)
 		flags = F_NOERR; /* NULL servers are OK. */
-	      else if (!(forward->sentto->flags & SERV_LITERAL_ADDRESS) &&
-		       sendto(forward->sentto->sfd->fd, (char *)header, plen, 0,
-			      &forward->sentto->addr.sa,
-			      sa_len(&forward->sentto->addr)) != -1)
+	      else if (!(start->flags & SERV_LITERAL_ADDRESS) &&
+		       sendto(start->sfd->fd, (char *)header, plen, 0,
+			      &start->addr.sa,
+			      sa_len(&start->addr)) != -1)
 		{
-		  log_query(logflags, gotname ? dnamebuff : "query", addrp); 
-		  /* for no-domain, don't update last_server */
-		  return domain ? last_server : (forward->sentto->next ? forward->sentto->next : servers);
+		  if (!gotname)
+		    strcpy(dnamebuff, "query");
+		  if (start->addr.sa.sa_family == AF_INET)
+		    log_query(F_SERVER | F_IPV4 | F_FORWARD, dnamebuff, 
+			      (struct all_addr *)&start->addr.in.sin_addr); 
+#ifdef HAVE_IPV6
+		  else
+		    log_query(F_SERVER | F_IPV6 | F_FORWARD, dnamebuff, 
+			      (struct all_addr *)&start->addr.in6.sin6_addr);
+#endif 
+		  forwarded = 1;
+		  forward->sentto = start;
+		  if (!forwardall) 
+		    break;
 		}
 	    } 
 	  
-	  if (!(forward->sentto = forward->sentto->next))
-	    forward->sentto = servers;
+	  if (!(start = start->next))
+	    start = servers;
 	  
-	  /* check if we tried all without success */
-	  if (forward->sentto == firstsentto)
+	  if (start == firstsentto)
 	    break;
 	}
+      
+      if (forwarded)
+	  return last_server;
       
       /* could not send on, prepare to return */ 
       header->id = htons(forward->orig_id);
@@ -312,52 +307,81 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 }
 
 /* returns new last_server */
-struct server *reply_query(int fd, int options, char *packet, time_t now,
-			   char *dnamebuff, struct server *last_server, 
+struct server *reply_query(struct serverfd *sfd, int options, char *packet, time_t now,
+			   char *dnamebuff, struct server *servers, struct server *last_server,
 			   struct bogus_addr *bogus_nxdomain, struct doctor *doctors)
 {
   /* packet from peer server, extract data for cache, and send to
      original requester */
   struct frec *forward;
   HEADER *header;
-  int n = recv(fd, packet, PACKETSZ, 0);
+  union mysockaddr serveraddr;
+  socklen_t addrlen = sizeof(serveraddr);
+  int n = recvfrom(sfd->fd, packet, PACKETSZ, 0, &serveraddr.sa, &addrlen);
+  
+  /* Determine the address of the server replying  so that we can mark that as good */
+  serveraddr.sa.sa_family = sfd->source_addr.sa.sa_family;
+#ifdef HAVE_IPV6
+  if (serveraddr.sa.sa_family == AF_INET6)
+    serveraddr.in6.sin6_flowinfo = htonl(0);
+#endif
   
   header = (HEADER *)packet;
-  if (n >= (int)sizeof(HEADER) && header->qr)
+  if (n >= (int)sizeof(HEADER) && header->qr && (forward = lookup_frec(ntohs(header->id))))
     {
-      if ((forward = lookup_frec(ntohs(header->id))))
+      /* find good server by address if possible, otherwise assume the last one we sent to */ 
+      if ((forward->sentto->flags & SERV_TYPE) == 0)
 	{
-	  if (header->rcode == NOERROR || header->rcode == NXDOMAIN)
-	    {
-	      if (!forward->sentto->domain)
-		last_server = forward->sentto; /* known good */
-	      if (header->opcode == QUERY)
-		{
-		  if (!(bogus_nxdomain && 
-			header->rcode == NOERROR && 
-			check_for_bogus_wildcard(header, (unsigned int)n, dnamebuff, bogus_nxdomain, now)))
-		    {
-		      if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
-			extract_addresses(header, (unsigned int)n, dnamebuff, now, doctors);
-		      else if (!(options & OPT_NO_NEG))
-			extract_neg_addrs(header, (unsigned int)n, dnamebuff, now);
-		    }
-		}
-	    }
-	  header->id = htons(forward->orig_id);
-	  /* There's no point returning an upstream reply marked as truncated,
-	     since that will prod the resolver into moving to TCP - which we
-	     don't support. */
-	  header->tc = 0; /* goodbye truncate */
-	  send_from(forward->fd, options & OPT_NOWILD, packet, n, &forward->source, &forward->dest);
-	  forward->new_id = 0; /* cancel */
+	  for (last_server = servers; last_server; last_server = last_server->next)
+	    if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
+		sockaddr_isequal(&last_server->addr, &serveraddr))
+	      break;
+	  if (!last_server)
+	    last_server = forward->sentto;
 	}
+ 
+      /* Complain loudly if the upstream server is non-recursive. */
+      if (!header->ra && header->rcode == NOERROR && ntohs(header->ancount) == 0)
+	{
+	  char addrbuff[ADDRSTRLEN];
+#ifdef HAVE_IPV6
+          if (serveraddr.sa.sa_family == AF_INET)
+	    inet_ntop(AF_INET, &serveraddr.in.sin_addr, addrbuff, ADDRSTRLEN);
+	  else if (serveraddr.sa.sa_family == AF_INET6)
+	    inet_ntop(AF_INET6, &serveraddr.in6.sin6_addr, addrbuff, ADDRSTRLEN);
+#else
+          strcpy(addrbuff, inet_ntoa(serveraddr.in.sin_addr));
+#endif
+	  syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
+	  return NULL;
+	}
+      
+      if ((header->rcode == NOERROR || header->rcode == NXDOMAIN) && header->opcode == QUERY)
+	{
+	  if (!(bogus_nxdomain && 
+		header->rcode == NOERROR && 
+		check_for_bogus_wildcard(header, (unsigned int)n, dnamebuff, bogus_nxdomain, now)))
+	    {
+	      if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
+		extract_addresses(header, (unsigned int)n, dnamebuff, now, doctors);
+	      else if (!(options & OPT_NO_NEG))
+		extract_neg_addrs(header, (unsigned int)n, dnamebuff, now);
+	    }
+	}
+  
+      header->id = htons(forward->orig_id);
+      /* There's no point returning an upstream reply marked as truncated,
+	 since that will prod the resolver into moving to TCP - which we
+	 don't support. */
+      header->tc = 0; /* goodbye truncate */
+      send_from(forward->fd, options & OPT_NOWILD, packet, n, &forward->source, &forward->dest);
+      forward->new_id = 0; /* cancel */
     }
-
+  
   return last_server;
 }
 
-struct server *receive_query(struct listener *listen, char *packet, char *mxname, 
+struct server *receive_query(struct listener *listen, char *packet, struct mx_record *mxnames, 
 			     char *mxtarget, unsigned int options, time_t now, 
 			     unsigned long local_ttl, char *namebuff,
 			     struct iname *names, struct iname *addrs, struct iname *except,
@@ -395,7 +419,8 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
   msg.msg_iov = iov;
   msg.msg_iovlen = 1;
   
-  n = recvmsg(listen->fd, &msg, 0);
+  if ((n = recvmsg(listen->fd, &msg, 0)) == -1)
+    return last_server;
   
   source_addr.sa.sa_family = listen->family;
 #ifdef HAVE_IPV6
@@ -502,7 +527,7 @@ struct server *receive_query(struct listener *listen, char *packet, char *mxname
     }
 
   m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, 
-		      mxname, mxtarget, options, now, local_ttl, namebuff);
+		      mxnames, mxtarget, options, now, local_ttl, namebuff);
   if (m >= 1)
     send_from(listen->fd, options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr);
   else

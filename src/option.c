@@ -154,7 +154,7 @@ static char *usage =
 
 
 unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **resolv_files, 
-			char **mxname, char **mxtarget, char **lease_file, 
+			struct mx_record **mxnames, char **mxtarget, char **lease_file, 
 			char **username, char **groupname, char **domain_suffix, char **runfile, 
 			struct iname **if_names, struct iname **if_addrs, struct iname **if_except,
 			struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, int *port, 
@@ -346,11 +346,22 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      }
 
 	    case 'm':
-	      if (!canonicalise(optarg))
-		option = '?';
-	      else 
-		*mxname = safe_string_alloc(optarg);
-	      break;
+	      {
+		char *comma = strchr(optarg, ',');
+		if (comma)
+		  *(comma++) = 0;
+		if (!canonicalise(optarg) || (comma && !canonicalise(comma)))
+		  option = '?';
+		else 
+		  {
+		    struct mx_record *new = safe_malloc(sizeof(struct mx_record));
+		    new->next = *mxnames;
+		    *mxnames = new;
+		    new->mxname = safe_string_alloc(optarg);
+		    new->mxtarget = safe_string_alloc(comma); /* may be NULL */
+		  }
+		break;
+	      }
 	      
 	    case 't':
 	      if (!canonicalise(optarg))
@@ -371,7 +382,9 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      break;
 	      
 	    case 's':
-	      if (!canonicalise(optarg))
+	      if (strcmp (optarg, "#") == 0)
+		flags |= OPT_RESOLV_DOMAIN;
+	      else if (!canonicalise(optarg))
 		option = '?';
 	      else
 		*domain_suffix = safe_string_alloc(optarg);
@@ -393,6 +406,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		/* new->name may be NULL if someone does
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(optarg);
+		new->isloop = new->used = 0;
 		if (strchr(optarg, ':'))
 		  flags |= OPT_NOWILD;
 		break;
@@ -481,7 +495,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			/* # matches everything and becomes a zero length domain string */
 			if (strcmp(optarg, "#") == 0)
 			  domain = "";
-			else if (!canonicalise(optarg))
+			else if (!canonicalise(optarg) && strlen(optarg) != 0)
 			  option = '?';
 			else
 			  domain = safe_string_alloc(optarg); /* NULL if strlen is zero */
@@ -1191,13 +1205,18 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		      
   /* only one of these need be specified: the other defaults to the
      host-name */
-  if ((flags & OPT_LOCALMX) || *mxname || *mxtarget)
+  if ((flags & OPT_LOCALMX) || *mxnames || *mxtarget)
     {
       if (gethostname(buff, MAXDNAME) == -1)
 	die("cannot get host-name: %s", NULL);
 	      
-      if (!*mxname)
-	*mxname = safe_string_alloc(buff);
+      if (!*mxnames)
+	{
+	  *mxnames = safe_malloc(sizeof(struct mx_record));
+	  (*mxnames)->next = NULL;
+	  (*mxnames)->mxtarget = NULL;
+	  (*mxnames)->mxname = safe_string_alloc(buff);
+	}
       
       if (!*mxtarget)
 	*mxtarget = safe_string_alloc(buff);
@@ -1207,7 +1226,36 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
     *resolv_files = 0;
   else if (*resolv_files && (*resolv_files)->next && (flags & OPT_NO_POLL))
     die("only one resolv.conf file allowed in no-poll mode.", NULL);
+  
+  if (flags & OPT_RESOLV_DOMAIN)
+    {
+      char *line;
+      
+      if (!*resolv_files || (*resolv_files)->next)
+	die("must have exactly one resolv.conf to read domain from.", NULL);
+      
+      if (!(f = fopen((*resolv_files)->name, "r")))
+	die("failed to read %s: %m", (*resolv_files)->name);
+      
+      while ((line = fgets(buff, MAXDNAME, f)))
+	{
+	  char *token = strtok(line, " \t\n\r");
+	  
+	  if (!token || strcmp(token, "search") != 0)
+	    continue;
+	  
+	  if ((token = strtok(NULL, " \t\n\r")) &&  
+	      canonicalise(token) &&
+	      (*domain_suffix = safe_string_alloc(token)))
+	    break;
+	}
+      
+      fclose(f);
 
+      if (!*domain_suffix)
+	die("no search directive found in %s", (*resolv_files)->name);
+    }
+      
   return flags;
 }
       

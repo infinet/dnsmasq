@@ -129,13 +129,9 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
     return;
 
 #else
-  if (!names || !names->name || names->next)
-    {
-      syslog(LOG_ERR, "must set exactly one interface on broken systems without IP_RECVIF");
-      return;
-    }
-  else
-    strcpy(ifr.ifr_name, names->name);
+  while (names->isloop)
+    names = names->next;
+  strcpy(ifr.ifr_name, names->name);
 #endif
 
 #ifdef HAVE_BPF
@@ -572,7 +568,7 @@ struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
 	    config->addr = addr;
 	}
       
-      config->flags |= CONFIG_HWADDR;
+      config->flags |= CONFIG_HWADDR | CONFIG_NOCLID;
       memcpy(config->hwaddr, hwaddr, ETHER_ADDR_LEN);
 
       count++;

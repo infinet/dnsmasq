@@ -56,7 +56,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <grp.h>
-#if defined(__OpenBSD__)
+#if defined(__OpenBSD__) || defined(__NetBSD__)
 #  include <netinet/if_ether.h>
 #else
 #  include <net/ethernet.h>
@@ -91,6 +91,7 @@
 #define OPT_NODOTS_LOCAL   4096
 #define OPT_NOWILD         8192
 #define OPT_ETHERS         16384
+#define OPT_RESOLV_DOMAIN  32768
 
 struct all_addr {
   union {
@@ -110,6 +111,11 @@ struct bogus_addr {
 struct doctor {
   struct in_addr in, out, mask;
   struct doctor *next;
+};
+
+struct mx_record {
+  char *mxname, *mxtarget;
+  struct mx_record *next;
 };
 
 union bigname {
@@ -206,6 +212,7 @@ struct listener {
 struct iname {
   char *name;
   union mysockaddr addr;
+  int isloop, used;
   struct iname *next;
 };
 
@@ -337,7 +344,7 @@ int setup_reply(HEADER *header, unsigned int qlen,
 void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
 		       time_t now, struct doctor *doctors);
 void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
-int answer_request(HEADER *header, char *limit, unsigned int qlen, char *mxname, 
+int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_record *mxnames,
 		   char *mxtarget, unsigned int options, time_t now, unsigned long local_ttl,
 		   char *namebuff);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
@@ -360,7 +367,7 @@ int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 
 /* option.c */
 unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resolv_file, 
-		       char **mxname, char **mxtarget, char **lease_file, 
+		       struct mx_record **mxnames, char **mxtarget, char **lease_file, 
 		       char **username, char **groupname, 
 		       char **domain_suffix, char **runfile, 
 		       struct iname **if_names, struct iname **if_addrs, struct iname **if_except, 
@@ -373,11 +380,11 @@ unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resol
 
 /* forward.c */
 void forward_init(int first);
-struct server *reply_query(int fd, int options, char *packet, time_t now,
-			   char *dnamebuff, struct server *last_server, 
+struct server *reply_query(struct serverfd *sfd, int options, char *packet, time_t now,
+			   char *dnamebuff, struct server *servers, struct server *last_server, 
 			   struct bogus_addr *bogus_nxdomain, struct doctor *doctors);
 
-struct server *receive_query(struct listener *listen, char *packet, char *mxname, 
+struct server *receive_query(struct listener *listen, char *packet, struct mx_record *mxnames, 
 			     char *mxtarget, unsigned int options, time_t now, 
 			     unsigned long local_ttl, char *namebuff,
 			     struct iname *names, struct iname *addrs, struct iname *except,

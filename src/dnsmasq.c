@@ -37,15 +37,16 @@ int main (int argc, char **argv)
   int maxleases = MAXLEASES;
   int query_port = 0;
   int first_loop = 1;
+  int bind_fallback = 0;
   unsigned long local_ttl = 0;
   unsigned int options, min_leasetime;
   char *runfile = RUNFILE;
   time_t resolv_changed = 0;
   time_t now, last = 0;
   struct irec *interfaces = NULL;
-  struct listener *listener, *listeners;
+  struct listener *listener, *listeners = NULL;
   struct doctor *doctors = NULL;
-  char *mxname = NULL;
+  struct mx_record *mxnames = NULL;
   char *mxtarget = NULL;
   char *lease_file = NULL;
   char *addn_hosts = NULL;
@@ -106,7 +107,7 @@ int main (int argc, char **argv)
   packet = safe_malloc(DNSMASQ_PACKETSZ);
   
   dhcp_next_server.s_addr = 0;
-  options = read_opts(argc, argv, dnamebuff, &resolv, &mxname, &mxtarget, &lease_file,
+  options = read_opts(argc, argv, dnamebuff, &resolv, &mxnames, &mxtarget, &lease_file,
 		      &username, &groupname, &domain_suffix, &runfile, 
 		      &if_names, &if_addrs, &if_except, &bogus_addr, 
 		      &serv_addrs, &cachesize, &port, &query_port, &local_ttl, &addn_hosts,
@@ -124,18 +125,41 @@ int main (int argc, char **argv)
     die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
 #endif
   
-#ifndef  HAVE_UDP_SRC_DST
-  /* if we cannot support binding the wildcard address, set the "bind only
-     interfaces in use" option */
-  options |= OPT_NOWILD;
-#endif
-
   interfaces = enumerate_interfaces(&if_names, &if_addrs, if_except, port);
-  if (options & OPT_NOWILD)
-    listeners = create_bound_listeners(interfaces);
-  else
-    listeners = create_wildcard_listeners(port);
+
+  if (!(options & OPT_NOWILD) && !(listeners = create_wildcard_listeners(port)))
+    {
+      bind_fallback = 1;
+      options |= OPT_NOWILD;
+    }
     
+  if (options & OPT_NOWILD) 
+    {
+      struct iname *if_tmp;
+      listeners = create_bound_listeners(interfaces);
+
+      for (if_tmp = if_names; if_tmp; if_tmp = if_tmp->next)
+	if (if_tmp->name && !if_tmp->used)
+	  die("unknown interface %s", if_tmp->name);
+  
+      for (if_tmp = if_addrs; if_tmp; if_tmp = if_tmp->next)
+	if (!if_tmp->used)
+	  {
+	    char addrbuff[ADDRSTRLEN];
+#ifdef HAVE_IPV6
+	    if (if_tmp->addr.sa.sa_family == AF_INET)
+	      inet_ntop(AF_INET, &if_tmp->addr.in.sin_addr,
+			addrbuff, ADDRSTRLEN);
+	    else
+	      inet_ntop(AF_INET6, &if_tmp->addr.in6.sin6_addr,
+			addrbuff, ADDRSTRLEN);
+#else
+	    strcpy(addrbuff, inet_ntoa(if_tmp->addr.in.sin_addr));
+#endif
+	    die("no interface with address %s", addrbuff);
+	  }
+    }
+  
   forward_init(1);
   cache_init(cachesize, options & OPT_LOG);
 
@@ -148,6 +172,15 @@ int main (int argc, char **argv)
   
   if (dhcp)
     {
+#if !defined(IP_PKTINFO) && !defined(IP_RECVIF)
+      int c;
+      struct iname *tmp;
+      for (c = 0, tmp = if_names; tmp; tmp = tmp->next)
+	if (!tmp->isloop)
+	  c++;
+      if (c != 1)
+	die("must set exactly one interface on broken systems without IP_RECVIF", NULL);
+#endif
       dhcp_init(&dhcpfd, &dhcp_raw_fd);
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
     }
@@ -228,12 +261,9 @@ int main (int argc, char **argv)
   else
     syslog(LOG_INFO, "started, version %s cache disabled", VERSION);
   
-  if (options & OPT_LOCALMX)
-    syslog(LOG_INFO, "serving MX record for local hosts target %s", mxtarget);
-  else if (mxname)
-    syslog(LOG_INFO, "serving MX record for mailhost %s target %s", 
-	   mxname, mxtarget);
-
+  if (bind_fallback)
+    syslog(LOG_WARNING, "setting --bind-interfaces option because if OS limitations");
+  
   for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
     {
       strcpy(dnamebuff, inet_ntoa(dhcp_tmp->start));
@@ -256,8 +286,9 @@ int main (int argc, char **argv)
   if (getuid() == 0 || geteuid() == 0)
     syslog(LOG_WARNING, "failed to drop root privs");
   
-  servers = last_server = check_servers(serv_addrs, interfaces, &sfds);
-  
+  servers = check_servers(serv_addrs, interfaces, &sfds);
+  last_server = NULL;
+
   while (sigterm == 0)
     {
       fd_set rset;
@@ -275,9 +306,11 @@ int main (int argc, char **argv)
 	      lease_update_dns();
 	    }
 	  if (resolv && (options & OPT_NO_POLL))
-	    servers = last_server = 
-	      check_servers(reload_servers(resolv->name, dnamebuff, servers, query_port), 
-			    interfaces, &sfds);
+	    {
+	      servers = check_servers(reload_servers(resolv->name, dnamebuff, servers, query_port), 
+				      interfaces, &sfds);
+	      last_server = NULL;
+	    }
 	  sighup = 0;
 	}
       
@@ -373,7 +406,7 @@ int main (int argc, char **argv)
 		  else
 		    {
 		      res->logged = 0;
-		      if (statbuf.st_mtime > last_change)
+		      if (difftime(statbuf.st_mtime, last_change) > 0.0)
 			{
 			  last_change = statbuf.st_mtime;
 			  latest = res;
@@ -382,20 +415,20 @@ int main (int argc, char **argv)
 		  res = res->next;
 		}
 	  
-	      if (latest && last_change > resolv_changed)
+	      if (latest && difftime(last_change, resolv_changed) > 0.0)
 		{
 		  resolv_changed = last_change;
-		  servers = last_server = 
-		    check_servers(reload_servers(latest->name, dnamebuff, servers, query_port),
-				  interfaces, &sfds);
+		  servers = check_servers(reload_servers(latest->name, dnamebuff, servers, query_port),
+					  interfaces, &sfds);
+		  last_server = NULL;
 		}
 	    }
 	}
 		
       for (serverfdp = sfds; serverfdp; serverfdp = serverfdp->next)
 	if (FD_ISSET(serverfdp->fd, &rset))
-	  last_server = reply_query(serverfdp->fd, options, packet, now, 
-				    dnamebuff, last_server, bogus_addr, doctors);
+	  last_server = reply_query(serverfdp, options, packet, now, 
+				    dnamebuff, servers, last_server, bogus_addr, doctors);
 
       if (dhcp && FD_ISSET(dhcpfd, &rset))
 	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs, dhcp_vendors,
@@ -406,7 +439,7 @@ int main (int argc, char **argv)
       for (listener = listeners; listener; listener = listener->next)
 	if (FD_ISSET(listener->fd, &rset))
 	  last_server = receive_query(listener, packet,
-			mxname, mxtarget, options, now, local_ttl, dnamebuff,
+			mxnames, mxtarget, options, now, local_ttl, dnamebuff,
 			if_names, if_addrs, if_except, last_server, servers);
     }
   

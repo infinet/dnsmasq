@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.8"
+#define VERSION "2.9"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define TIMEOUT 20 /* drop queries after TIMEOUT seconds */
@@ -58,17 +58,6 @@
 #  define DNSMASQ_LOG_FAC(debug)  LOG_DAEMON
 #endif
 
-
-/* determine if we can find the destination address of recieved packets
-   and set the source address of sent ones. If so, we can use one socket
-   bound to INADDR_ANY and cope with dynamically created interfaces.
-   Linux does this differently to FreeBSD. */
-
-#if defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR))
-#  define HAVE_UDP_SRC_DST
-#else
-#  undef HAVE_UDP_SRC_DST
-#endif
 
 /* Decide if we're going to support IPv6 */
 /* We assume that systems which don't have IPv6

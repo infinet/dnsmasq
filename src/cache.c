@@ -472,19 +472,21 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
 
   /* Remove duplicates in hosts files. */
-  if (lookup  && (lookup->flags & F_HOSTS) &&
+  if (lookup && (lookup->flags & F_HOSTS) &&
       memcmp(&lookup->addr, addr, addrlen) == 0)
     free(cache);
   else
     {
+      /* Ensure there is only one address -> name mapping (first one trumps) */
+      if (cache_find_by_addr(NULL, addr, 0, flags & (F_IPV4 | F_IPV6)))
+	flags &= ~F_REVERSE;
       cache->flags = flags;
       memcpy(&cache->addr, addr, addrlen);
       cache_hash(cache);
-
     }
 }
 
-static void read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, unsigned short addn_flag)
+static void read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int is_addn)
 {  
   FILE *f = fopen(filename, "r");
   char *line;
@@ -529,6 +531,9 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
       else
 	continue;
 
+     if (is_addn)
+	 flags |= F_ADDN;
+
      while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
        {
 	 struct crec *cache;
@@ -543,16 +548,12 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 		 strcpy(cache->name.sname, token);
 		 strcat(cache->name.sname, ".");
 		 strcat(cache->name.sname, domain_suffix);
-		 add_hosts_entry(cache, &addr, addrlen, flags | addn_flag);
-		 /* Only first name is cannonical and used for reverse lookups */
-		 flags &=  ~F_REVERSE;
+		 add_hosts_entry(cache, &addr, addrlen, flags);
 	       }
 	     if ((cache = malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
 	       {
 		 strcpy(cache->name.sname, token);
-		 add_hosts_entry(cache, &addr, addrlen, flags | addn_flag);
-		 /* Clear this here in case not done above. */
-		 flags &=  ~F_REVERSE;
+		 add_hosts_entry(cache, &addr, addrlen, flags);
 	       }
 	   }
 	 else
@@ -604,7 +605,7 @@ void cache_reload(int opts, char *buff, char *domain_suffix, char *addn_hosts)
     read_hostsfile(HOSTSFILE, opts, buff, domain_suffix, 0);
   if (addn_hosts)
     {
-      read_hostsfile(addn_hosts, opts, buff, domain_suffix, F_ADDN);
+      read_hostsfile(addn_hosts, opts, buff, domain_suffix, 1);
       addn_file = addn_hosts;
     }
 } 

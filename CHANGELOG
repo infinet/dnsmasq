@@ -1003,3 +1003,56 @@ release 2.8
 	     existing hostname, don't wipe it out. 
 	     
 	     Tweaked option parsing to flag some parameter errors.
+
+release 2.9
+	     Fixed interface filter code for two effects: 1) Fixed bug
+	     where queries sent via loopback interface
+	     but to the address of another interface were ignored
+	     unless the loopback interface was explicitly configured.
+	     2) on OpenBSD failure to configure one interface now
+	     causes a fatal error on startup rather than an huge
+	     stream of log messages. Thanks to Erik Jan Tromp for 
+	     finding that bug.
+
+	     Changed server selection strategy to improve performance
+	     when there are many available servers and some are
+	     broken. The new algorithm is to pick as before for the
+	     first try, but if a query is retried, to send to all
+	     available servers in parallel. The first one to reply
+	     then becomes prefered for the next query. This should 
+	     improve reliability without generating significant extra
+	     upstream load.
+
+	     Fixed breakage of special servers/addresses for
+	     unqualified domains introduced in version 2.8 
+	      
+	     Allow fallback to "bind-interfaces" at runtime: Some
+	     verions of *BSD seem to have enough stuff in the header
+	     files to build but no kernel support. Also now log if
+	     "bind-interfaces" is forced on.
+
+	     Log replies from upstream servers which refuse to do
+	     recursion - dnsmasq is not a recursive nameserver and
+	     relies on upstream servers to do the recursion, this
+	     flags a configuration error.
+
+	     Disable client-id matching for hosts whose MAC address is
+	     read from /etc/ethers. Patch from Oleg I. Vdovikin.
+
+	     Extended --mx-host flag to allow arbitrary targets for MX
+	     records, suggested by Moritz Bunkus.
+
+	     Fixed build under NetBSD 2.0 - thanks to Felix Deichmann
+	     for the patch.
+	     
+	     Deal correctly with repeated addresses in /etc/hosts. The
+	     first name found is now returned for reverse lookups,
+	     rather than all of them.
+
+	     Add back fatal errors when nonexistant 
+	     interfaces or interface addresses are given but only in
+	     "bind-interfaces" mode. Principle of least surprise applies.
+	     
+	     Allow # as the argument to --domain, meaning "read the
+	     domain from the first search directive in
+	     /etc.resolv.conf". Feature suggested by Evan Jones.

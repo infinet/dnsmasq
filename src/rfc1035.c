@@ -728,7 +728,7 @@ int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name,
 }
 
 /* return zero if we can't answer from cache, or packet size if we can */
-int answer_request(HEADER *header, char *limit, unsigned int qlen, char *mxname, 
+int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_record *mxnames, 
 		   char *mxtarget, unsigned int options, time_t now, 
 		   unsigned long local_ttl, char *name)
 {
@@ -988,9 +988,14 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, char *mxname,
 	  
 	  if (qtype == T_MX || qtype == T_ANY)
 	    {
-	      if (mxname && hostname_isequal(name, mxname))
+	      struct mx_record *mx;
+	      for (mx = mxnames; mx; mx = mx->next)
+		if (hostname_isequal(name, mx->mxname))
+		  break;
+	      if (mx)
 		{
-		  ansp = add_text_record(nameoffset, ansp, local_ttl, 1, T_MX, mxtarget);
+		  ansp = add_text_record(nameoffset, ansp, local_ttl, 1, T_MX, 
+					 mx->mxtarget ? mx->mxtarget : mxtarget);
 		  anscount++;
 		  ans = 1;
 		}
