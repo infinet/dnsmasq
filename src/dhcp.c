@@ -269,5 +269,18 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
   return NULL;
 }
 
-      
+void set_configs_from_cache(struct dhcp_config *configs)
+/* Some people like to keep all static IP addresses in /etc/hosts.
+   This goes through /etc/hosts and sets static addresses for any DHCP config
+   records which don't have an address and whose name matches. */
+{
+  struct dhcp_config *config;
+  struct crec *crec;
+ 
+  for (config = configs; config; config = config->next)
+    if (config->addr.s_addr == 0 && config->hostname && 
+	(crec = cache_find_by_name(NULL, config->hostname, 0, F_IPV4)) &&
+	(crec->flags & F_HOSTS))
+      config->addr = crec->addr.addr.addr4;
+}
     

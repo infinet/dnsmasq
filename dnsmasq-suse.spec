@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.0
+Version: 2.1
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers
@@ -100,7 +100,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc CHANGELOG COPYING FAQ doc.html setup.html UPGRADING_to_2.0
+%doc CHANGELOG COPYING FAQ doc.html setup.html UPGRADING_to_2.0 rpm/README.susefirewall
 %config /etc/init.d/dnsmasq
 %config /etc/dnsmasq.conf
 /usr/sbin/rcdnsmasq

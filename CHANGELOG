@@ -666,4 +666,50 @@ release 2.0
 	     domains and IPv6 queries. Thanks to Roy Marples for
 	     helping to track that one down.
 
-	      
+release 2.1  
+	     Tweak include files to allow compilation on FreeBSD 5
+             
+             Fix unaligned access warnings on BSD/Alpha.
+
+	     Allow empty DHCP options, like so: dhpc-option=44
+ 
+             Allow single-byte DHCP options like so: dhcp-option=20,1
+
+	     Allow comments on the same line as options in
+	     /etc/dnsmasq.conf
+
+	     Don't complain when the same name and address is
+	     allocated to a host using DHCP and /etc/hosts.
+	     
+	     Added to the example configuration the dnsmasq equivalent
+	     of the ISC dhcpd settings given in 
+             http://www.samba.org/samba/ftp/docs/textdocs/DHCP-Server-Configuration.txt
+
+	     Fixed long-existing strangeness in Linux IPv6 interface
+	     discovery code. The flags field in /proc/net/if_inet6 is
+	     _not_ the interface flags.
+
+	     Fail gracefully when getting an ENODEV error when trying
+	     to bind an IPv6 socket, rather than bailing out.
+
+	     Allow the name->address mapping for static DHCP leases to
+	     be set by /etc/hosts. It's now possible to have
+     	        dhcp-host=<mac addr>,wibble
+	     or even
+                dhcp-host=wibble
+	     and in /etc/hosts have
+	        wibble 1.2.3.4
+	     and for the correct thing to happen. Note that some sort
+	     of dhcp-host line is still needed, it's not possible for
+	     random host to claim an address in /etc/hosts without
+	     some explicit configuration.
+
+	     Make 0.0.0.0 in a dhcp-option to mean "the machine
+	     running dnsmasq".
+    		    
+             Fix lease time spec when specified in dhcp-range and not
+	     in dhcp-host, previously this was always one hour.
+
+             Fix problem with setting domains as "local only".
+
+	     Added support for max message size DHCP option.

@@ -139,7 +139,7 @@ int dhcp_reply(struct dhcp_context *context, struct dhcp_packet *mess,
      
   /* search again now we have a hostname */
   config = find_config(dhcp_configs, context, clid, clid_len, mess->chaddr, hostname);
-  def_time = config ? config->lease_time : context->lease_time;
+  def_time = config && config->lease_time ? config->lease_time : context->lease_time;
   
   if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
     {
@@ -444,6 +444,9 @@ static unsigned char *do_req_options(struct dhcp_context *context,
   if (!req_options)
     return p;
 
+  if (in_list(req_options, OPTION_MAXMESSAGE))
+    p = option_put(p, end, OPTION_MAXMESSAGE, 2, sizeof(struct udp_dhcp_packet));
+  
   if (in_list(req_options, OPTION_NETMASK) &&
       !option_find2(config_opts, OPTION_NETMASK))
     p = option_put(p, end, OPTION_NETMASK, INADDRSZ, ntohl(context->netmask.s_addr));
@@ -484,12 +487,34 @@ static unsigned char *do_req_options(struct dhcp_context *context,
   for (i = 0; req_options[i] != OPTION_END; i++)
     {
       struct dhcp_opt *opt = option_find2(config_opts, req_options[i]);
-      if (req_options[i] != OPTION_HOSTNAME && opt && (p + opt->len + 2 < end))
+      if (req_options[i] != OPTION_HOSTNAME && 
+	  req_options[i] != OPTION_MAXMESSAGE &&
+	  opt && (p + opt->len + 2 < end))
 	{
 	  *(p++) = opt->opt;
 	  *(p++) = opt->len;
-	  memcpy(p, opt->val, opt->len);
-	  p += opt->len;
+	  if (opt->len != 0)
+	    {
+	      if (opt->is_addr)
+		{
+		  int j;
+		  struct in_addr *a = (struct in_addr *)opt->val;
+		  for (j = 0; j < opt->len; j+=INADDRSZ, a++)
+		    {
+		      /* zero means "self" */
+		      if (a->s_addr == 0)
+			memcpy(p, &context->serv_addr, INADDRSZ);
+		      else
+			memcpy(p, a, INADDRSZ);
+		      p += INADDRSZ;
+		    }
+		}
+	      else
+		{
+		  memcpy(p, opt->val, opt->len);
+		  p += opt->len;
+		}
+	    }
 	}
     }
      

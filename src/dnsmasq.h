@@ -16,6 +16,8 @@
 #define _XOPEN_SOURCE 600
 /* but then DNS headers don't compile without.... */
 #define _BSD_SOURCE
+/* and also, on FreeBSD 5.0 ..... */
+#define __BSD_VISIBLE 1
 
 /* get these before config.h  for IPv6 stuff... */
 #include <sys/types.h>
@@ -26,7 +28,6 @@
 
 #include "config.h"
 
-#include <netinet/in.h>
 #include <arpa/nameser.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
@@ -229,8 +230,7 @@ struct dhcp_config {
 };
 
 struct dhcp_opt {
-  unsigned char opt;
-  unsigned char len;
+  int opt, len, is_addr;
   unsigned char *val;
   struct dhcp_opt *next;
  };
@@ -360,6 +360,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				unsigned char *clid, int clid_len,
 				unsigned char *hwaddr, char *hostname);
 
+void set_configs_from_cache(struct dhcp_config *configs);
 /* lease.c */
 void lease_update_dns(int force_dns);
 int lease_init(char *lease_file, char *domain, char *buff, 

@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.0"
+#define VERSION "2.1"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define TIMEOUT 40 /* drop queries after TIMEOUT seconds */

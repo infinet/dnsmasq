@@ -158,6 +158,7 @@ int main (int argc, char **argv)
 	if (!dhcp_tmp->iface)
 	  die("No suitable interface for DHCP service at address %s", inet_ntoa(dhcp_tmp->start));
             
+      set_configs_from_cache(dhcp_configs);
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, time(NULL), dhcp_configs);
       lease_update_dns(1); /* must follow cache_init and lease_init */
     }
@@ -270,6 +271,7 @@ int main (int argc, char **argv)
       if (sighup)
 	{
 	  cache_reload(options, dnamebuff, domain_suffix, addn_hosts);
+	  set_configs_from_cache(dhcp_configs);
 	  lease_update_dns(1);
 	  if (resolv && (options & OPT_NO_POLL))
 	    servers = last_server = 

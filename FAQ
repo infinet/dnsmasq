@@ -154,6 +154,34 @@ A: [note: this was written in September 2003, things may well change.]
    registries pull the same stunt; there is a list of them all, and
    the addresses to block, at http://winware.org/bogus-domains.txt
 
+Q: This new DHCP server is well and good, but it doesn't work for me.
+   What's the problem?
+
+A: There are a couple of configuration gotchas which have been
+   encountered by people moving from the ISC dhcpd to the dnsmasq
+   integrated DHCP daemon. Both are related to differences in 
+   in the way the two daemons bypass the IP stack to do "ground up"
+   IP configuration and can lead to the dnsmasq daemon failing
+   whilst the ISC one works.
+
+   The first thing to check is the broadcast address set for the
+   ethernet interface. This is normally the adddress on the connected
+   network with all ones in the host part. For instance if the 
+   address of the ethernet interface is 192.168.55.7 and the netmask
+   is 255.255.255.0 then the broadcast address should be
+   192.168.55.255. Having a broadcast address which is not on the
+   network to which the interface is connected kills things stone
+   dead.
+
+   The second potential problem relates to firewall rules: since the ISC 
+   daemon in some configurations bypasses the kernel firewall rules 
+   entirely, the ability to run the ISC daemon does not indicate 
+   that the current configuration is OK for the dnsmasq daemon.
+   For the dnsmasq daemon to operate it's vital that UDP packets to 
+   and from ports 67 and 68 and broadcast packets with source 
+   address 0.0.0.0 and destination address 255.255.255.255 are not 
+   dropped by iptables/ipchains.
+  
 
 
 

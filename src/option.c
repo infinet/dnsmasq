@@ -175,14 +175,18 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	  else
 	    {
 	      char *p;
+	      /* dump comments */
+	      for (p = buff; *p; p++)
+		if (*p == '#')
+		  *p = 0;
 	      /* fgets gets end of line char too. */
 	      while (strlen(buff) > 0 && 
 		     (buff[strlen(buff)-1] == '\n' || 
 		      buff[strlen(buff)-1] == ' ' || 
 		      buff[strlen(buff)-1] == '\t'))
 		buff[strlen(buff)-1] = 0;
-	      if (*buff == '#' || *buff == 0)
-		continue; /* comment */
+	      if (*buff == 0)
+		continue; 
 	      if ((p=strchr(buff, '=')))
 		{
 		  optarg = p+1;
@@ -639,7 +643,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		new->clid = NULL;
 		new->hostname = NULL;
 		new->addr.s_addr = 0;
-		new->lease_time = DEFLEASE; 
+		new->lease_time = 0; 
 		
 		a[0] = optarg;
 		for (k = 1; k < 4; k++)
@@ -706,8 +710,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			    {
 			    case 'h':
 			    case 'H':
-				fac *= 60;
-				/* fall through */
+			      fac *= 60;
+			      /* fall through */
 			    case 'm':
 			    case 'M':
 			      fac *= 60;
@@ -717,7 +721,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			}
 		      
 		      for (cp = a[j]; *cp; cp++)
-			if (!isdigit(*cp))
+			if (!isdigit(*cp) && *cp != ' ')
 			  break;
 		      
 		      if (*cp)
@@ -739,24 +743,33 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      {
 		struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
 		char *cp, *comma = strchr(optarg, ',');
-		int addrs;
+		int addrs, is_addr;
 		
 		new->next = *dhcp_opts;
+		new->len = 0;
+		new->is_addr = 0;
 		*dhcp_opts = new;
 		
-		if (!comma || (*comma = 0) || (new->opt = atoi(optarg)) == 0)
+		if ((new->opt = atoi(optarg)) == 0)
 		  {
 		    option = '?';
 		    break;
 		  }
 		
+		if (!comma)
+		  break;
+		
+		*comma = 0;
+
 		/* check for non-address list characters */
-		for (addrs = 1, cp = comma+1; *cp; cp++)
+		for (addrs = 1, is_addr = 0, cp = comma+1; *cp; cp++)
 		  if (*cp == ',')
 		    addrs++;
 		  else if (!(*cp == '.' || *cp == ' ' || (*cp >='0' && *cp <= '9')))
 		    break;
-		
+		  else if (*cp == '.')
+		    is_addr = 1;
+		    
 		if (*cp)
 		  {
 		    /* text arg */
@@ -768,17 +781,28 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  {
 		    struct in_addr in;
 		    unsigned char *op;
-		    new->len = INADDRSZ * addrs;
-		    new->val = op =  safe_malloc(new->len);
-		    while (addrs--) 
+
+		    if (addrs == 1 && !is_addr)
 		      {
-			cp = comma;
-			if (cp && (comma = strchr(cp+1, ',')))
-			  *comma = 0;
-			if (cp && (in.s_addr = inet_addr(cp+1)) == (in_addr_t)-1)
-			  option = '?';
-			memcpy(op, &in, INADDRSZ);
-			op += INADDRSZ;
+			new->len = 1;
+			new->val = safe_malloc(1);
+			*(new->val) = atoi(comma+1);
+		      }
+		    else
+		      {
+			new->len = INADDRSZ * addrs;
+			new->val = op = safe_malloc(new->len);
+			new->is_addr = 1;
+			while (addrs--) 
+			  {
+			    cp = comma;
+			    if (cp && (comma = strchr(cp+1, ',')))
+			      *comma = 0;
+			    if (cp && (in.s_addr = inet_addr(cp+1)) == (in_addr_t)-1)
+			      option = '?';
+			    memcpy(op, &in, INADDRSZ);
+			    op += INADDRSZ;
+			  }
 		      }
 		  }
 		break;

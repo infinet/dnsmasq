@@ -639,7 +639,10 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
   if ((crec = cache_find_by_name(NULL, host_name, 0, F_IPV4)))
     {
       if (crec->flags & F_HOSTS)
-	syslog(LOG_WARNING, "Ignoring DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
+	{
+	  if (crec->addr.addr.addr4.s_addr != host_address->s_addr)
+	    syslog(LOG_WARNING, "Not naming DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
+	}
       else if (!(crec->flags & F_DHCP))
 	{
 	  if (crec->flags & F_NEG)
@@ -650,7 +653,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 	      goto newrec;
 	    }
 	  else
-	    syslog(LOG_WARNING, "Ignoring DHCP lease for %s because it clashes with a cached name.", cache_get_name(crec));
+	    syslog(LOG_WARNING, "Not naming DHCP lease for %s because it clashes with a cached name.", cache_get_name(crec));
 	}
       return;
     }
@@ -671,7 +674,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 	crec->flags |= F_IMMORTAL;
       else
 	crec->ttd = ttd;
-      memcpy(&crec->addr, host_address, INADDRSZ);
+      crec->addr.addr.addr4 = *host_address;
       crec->name.namep = host_name;
       crec->prev = dhcp_inuse;
       dhcp_inuse = crec;

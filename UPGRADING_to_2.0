@@ -40,7 +40,7 @@ to store its leases it is necessary to remove the configuration line in
 
 To enable DHCP, simply add a line like this to /etc/dnsmasq.conf
 
-dhcp-range=192.168.0.100,192,168.0.200,12h
+dhcp-range=192.168.0.100,192.168.0.200,12h
 
 which tells dnsmasq to us the addresses 192.168.0.100 to 192.168.0.200
 for dynamic IP addresses, and to issue twelve hour leases.
@@ -60,6 +60,8 @@ Windows use winipcfg.exe
 
 
 For more complex DHCP configuration, refer to the doc/setup.html, the
-dnsmasq manpage and the annotated example configuration file.
+dnsmasq manpage and the annotated example configuration file. Also
+note that for some ISC dhcpd to dnsmasq DHCP upgrades there may be
+firewall issues: see the FAQ for details of this.
 
 

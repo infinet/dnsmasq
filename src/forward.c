@@ -132,6 +132,7 @@ struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *heade
 			flags = 0; /* may be better match from previous literal */
 			domain = serv->domain;
 			matchlen = domainlen;
+			type = SERV_HAS_DOMAIN;
 		      }
 		  } 
 	      }

@@ -76,12 +76,14 @@ static char  *add_iface(struct irec **list, unsigned int flags,
      specific addresses even if BIND is running and has bound *:53 */
   opt = 1;
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-      bind(fd, &addr->sa, sa_len(addr)))
+      bind(fd, &addr->sa, sa_len(addr)) == -1)
     {
       int errsave = errno;
       close(fd);
       errno = errsave;
-      return "failed to bind socket: %s";
+      /* IPv6 interfaces sometimes return ENODEV to bind() for unknown
+	 (to me) reasons. Don't treat that as fatal. */
+      return errno == ENODEV ? NULL : "failed to bind socket: %s";
     }
 
   /* If OK, add it to the head of the list */
@@ -119,6 +121,7 @@ char *enumerate_interfaces(struct irec **interfacep,
   struct irec *iface, *prev;
   char *buf, *ptr, *err = NULL;
   struct ifconf ifc;
+  struct ifreq *ifr = NULL;
   int fd = socket(PF_INET, SOCK_DGRAM, 0);
   int rawfd = -1;
   
@@ -158,12 +161,22 @@ char *enumerate_interfaces(struct irec **interfacep,
 
   for (ptr = buf; ptr < buf + ifc.ifc_len; )
     {
-      struct ifreq *ifr = (struct ifreq *) ptr;
       union mysockaddr addr;
-
 #ifdef HAVE_SOCKADDR_SA_LEN
-      ptr += ifr->ifr_addr.sa_len + IF_NAMESIZE;
+      /* subsequent entries may not be aligned, so copy into
+	 an aligned buffer to avoid nasty complaints about 
+	 unaligned accesses. */
+      int ifr_len = ((struct ifreq *)ptr)->ifr_addr.sa_len + IF_NAMESIZE;
+      if (!(ifr = realloc(ifr, ifr_len)))
+	{
+	  err = "cannot allocate buffer";
+	  goto end;
+	}
+      
+      memcpy(ifr, ptr, ifr_len);
+      ptr += ifr_len;
 #else
+      ifr = (struct ifreq *)ptr;
       ptr += sizeof(struct ifreq);
 #endif
 
@@ -198,6 +211,54 @@ char *enumerate_interfaces(struct irec **interfacep,
 			   &addr, names, addrs, except)))
 	goto end;
 
+#if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
+      /* IPv6 addresses don't seem to work with SIOCGIFCONF. Barf */
+      /* This code snarfed from net-tools 1.60 and certainly linux specific, though
+	 it shouldn't break on other Unices, and their SIOGIFCONF might work. */
+      {
+	FILE *f = fopen(IP6INTERFACES, "r");
+	int found = 0;
+	
+	if (f)
+	  {
+	    unsigned int plen, scope, flags, if_idx;
+	    char devname[20], addrstring[32];
+	    
+	    while (fscanf(f, "%32s %02x %02x %02x %02x %20s\n",
+			  addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 
+	      {
+		if (strcmp(devname, ifr->ifr_name) == 0)
+		  {
+		    int i;
+		    unsigned char *addr6p = (unsigned char *) &addr.in6.sin6_addr;
+		    memset(&addr, 0, sizeof(addr));
+		    addr.sa.sa_family = AF_INET6;
+		    for (i=0; i<16; i++)
+		      {
+			unsigned int byte;
+			sscanf(addrstring+i+i, "%02x", &byte);
+			addr6p[i] = byte;
+		      }
+		    addr.in6.sin6_port = htons(port);
+		    addr.in6.sin6_flowinfo = htonl(0);
+		    addr.in6.sin6_scope_id = htonl(scope);
+		    
+		    found = 1;
+		    break;
+		  }
+	      }
+	    
+	    fclose(f);
+	  }
+	
+	if (found && 
+	    (err = add_iface(interfacep, ifr->ifr_flags,  ifr->ifr_name,
+			     &addr, names, addrs, except)))
+	  goto end;
+      }
+      
+#endif /* LINUX */
+	
       /* dhcp is non-null only on the first call: set up the relevant 
 	 interface-related DHCP stuff here. DHCP is IPv4 only.
 	 Because errors here are ultimately fatal we can return directly and not bother
@@ -289,86 +350,54 @@ char *enumerate_interfaces(struct irec **interfacep,
 	      }
 
 	}
-    }
+      }
 
 #ifdef HAVE_BPF
   /* now go through the interfaces again, looking for AF_LINK records
      to get hardware addresses from */
   for (ptr = buf; ptr < buf + ifc.ifc_len; )
     {
-      struct ifreq *ifr = (struct ifreq *) ptr;
       struct dhcp_context *context;
       
 #ifdef HAVE_SOCKADDR_SA_LEN
-      ptr += ifr->ifr_addr.sa_len + IF_NAMESIZE;
+      /* subsequent entries may not be aligned, so copy into
+	 an aligned buffer to avoid nasty complaints about 
+	 unaligned accesses. */
+      int ifr_len = ((struct ifreq *)ptr)->ifr_addr.sa_len + IF_NAMESIZE;
+      if (!(ifr = realloc(ifr, ifr_len)))
+	{
+	  err = "cannot allocate buffer";
+	  goto end;
+	}
+      
+      memcpy(ifr, ptr, ifr_len);
+      ptr += ifr_len;
 #else
+      ifr = (struct ifreq *)ptr;
       ptr += sizeof(struct ifreq);
 #endif
+      
       if (ifr->ifr_addr.sa_family == AF_LINK)
 	for (context = dhcp; context; context = context->next)
 	  if (context->iface && strcmp(context->iface, ifr->ifr_name) == 0)
 	    memcpy(context->hwaddr, LLADDR((struct sockaddr_dl *)&ifr->ifr_addr), ETHER_ADDR_LEN);
     }
 #endif
-
+  
  end:
   errsave = errno; /* since errno gets overwritten by close */
   if (buf)
     free(buf);
+#ifdef HAVE_SOCKADDR_SA_LEN
+  if (ifr)
+    free(ifr);
+#endif
   close(fd);
   if (err)
     { 
       errno = errsave;
       return err;
     }
-
-#if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
-  /* IPv6 addresses don't seem to work with SIOCGIFCONF. Barf */
-  /* This code snarfed from net-tools 1.60 and certainly linux specific, though
-     it shouldn't break on other Unices, and their SIOGIFCONF might work. */
-  {
-    FILE *f = fopen(IP6INTERFACES, "r");
-    
-    if (f)
-      {
-	union mysockaddr addr;
-	unsigned int plen, scope, flags, if_idx;
-	char devname[20], addrstring[32];
-	
-	while (fscanf(f, "%32s %02x %02x %02x %02x %20s\n",
-		      addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 
-	  {
-	    int i;
-	    unsigned char *addr6p = (unsigned char *) &addr.in6.sin6_addr;
-	    memset(&addr, 0, sizeof(addr));
-	    addr.sa.sa_family = AF_INET6;
-	    for (i=0; i<16; i++)
-	      {
-		unsigned int byte;
-		sscanf(addrstring+i+i, "%02x", &byte);
-		addr6p[i] = byte;
-	      }
-#ifdef HAVE_SOCKADDR_SA_LEN 
-	    /* For completeness - should never be defined on Linux. */
-	    addr.in6.sin6_len = sizeof(struct sockaddr_in6);
-#endif
-	    addr.in6.sin6_port = htons(port);
-	    addr.in6.sin6_flowinfo = htonl(0);
-	    addr.in6.sin6_scope_id = htonl(scope);
-	    
-	    if ((err = add_iface(interfacep, flags,  devname, &addr, names, addrs, except)))
-	      {
-		errsave = errno;
-		fclose(f);
-		errno = errsave;
-		return err;
-	      }
-	  }
-	
-	fclose(f);
-      }
-  }
-#endif /* LINUX */
 
   /* now remove interfaces which were not found on this scan */
   for(prev = NULL, iface = *interfacep; iface; )

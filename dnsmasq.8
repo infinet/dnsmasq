@@ -251,7 +251,7 @@ an infinite DHCP lease.
 .B --dhcp-host=lap,192.168.0.199 
 tells
 dnsmasq to always allocate the machine lap the IP address
-192.168.0.199. Addresses allocated like this are not contrained to be
+192.168.0.199. Addresses allocated like this are not constrained to be
 in the range given by the --dhcp-range option, but they must be on the
 network being served by the DHCP server. It is allowed to use client identifiers rather than
 hardware addresses to identify hosts by prefixing with 'id:'. Thus: 
@@ -259,8 +259,12 @@ hardware addresses to identify hosts by prefixing with 'id:'. Thus:
 refers to the host with client identifier 01:02:03:04. It is also
 allowed to specify the client ID as text, like this:
 .B --dhcp-host=id:clientidastext,.....
+If a name appears in /etc/hosts, the associated address can be
+allocated to a DHCP lease, but only if a 
+.B --dhcp-host
+option specifying the name also exists.
 .TP
-.B \-O, --dhcp-option=<opt>,<value>[,<value>]
+.B \-O, --dhcp-option=<opt>,[<value>[,<value>]]
 Specfify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -273,6 +277,8 @@ specfied in RFC2132. For example, to set the default route option to
 .B --dhcp-option=3,192.168.4.4
 and to set the time-server address to 192.168.0.4, do
 .B dhcp-option=42,192.168.0.4
+The special address 0.0.0.0 is taken to mean "the address of the
+machine running dnsmasq".
 Be careful: no checking is done that the correct type of data for the
 option number is sent, and there are option numbers for which it is not
 possible to generate the correct data type; it is quite possible to
