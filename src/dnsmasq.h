@@ -29,6 +29,9 @@
 #include <syslog.h>
 #include <arpa/nameser.h>
 
+/* and this. */
+#include <getopt.h>
+
 #include "config.h"
  
 #include <arpa/inet.h>
@@ -50,9 +53,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <signal.h>
-#ifdef HAVE_GETOPT_LONG
-#  include <getopt.h>
-#endif
 #include <time.h>
 #include <errno.h>
 #include <pwd.h>
@@ -467,7 +467,8 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port);
 void dhcp_init(struct daemon *daemon);
 void dhcp_packet(struct daemon *daemon, time_t now);
 
-int address_available(struct dhcp_context *context, struct in_addr addr);
+struct dhcp_context *address_available(struct dhcp_context *context, struct in_addr addr);
+struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr taddr);
 int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 		     struct in_addr *addrp, unsigned char *hwaddr);
 struct dhcp_config *find_config(struct dhcp_config *configs,

@@ -375,7 +375,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     }
 }
 
-int address_available(struct dhcp_context *context, struct in_addr taddr)
+struct dhcp_context *address_available(struct dhcp_context *context, struct in_addr taddr)
 {
   /* Check is an address is OK for this network, check all
      possible ranges. */
@@ -390,12 +390,34 @@ int address_available(struct dhcp_context *context, struct in_addr taddr)
       if (!context->static_only &&
 	  addr >= start &&
 	  addr <= end)
-	return 1;
+	return context;
     }
 
-  return 0;
+  return NULL;
 }
- 
+
+struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr taddr)
+{
+  /* We start of with a set of possible contexts, all on the current subnet.
+     These are chained on ->current.
+     Here we have an address, and return the actual context correponding to that
+     address. Note that none may fit, if the address came a dhcp-host and is outside
+     any dhcp-range. In that case we return a static range is possible, or failing that,
+     any context on the subnet. (If there's more than one, this is a dodgy configuration: 
+     maybe there should be a warning.) */
+  
+  struct dhcp_context *tmp = address_available(context, taddr);
+
+  if (tmp)
+    return tmp;
+  
+  for (tmp = context; tmp; tmp = tmp->current)
+    if (tmp->static_only)
+      return tmp;
+
+  return context;
+}
+
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr)
 {
   struct dhcp_config *config;

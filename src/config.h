@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2004 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.17"
+#define VERSION "2.18"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -180,7 +180,7 @@ NOTES:
      HAVE_DEV_URANDOM - OpenBSD and FreeBSD and NetBSD
      HAVE_DEV_RANDOM - FreeBSD  and NetBSD 
                        (OpenBSD with hardware random number generator)
-     HAVE_GETOPT_LONG - NetBSD 
+     HAVE_GETOPT_LONG - NetBSD, later FreeBSD 
                        (FreeBSD and OpenBSD only if you link GNU getopt) 
 
 */
@@ -205,8 +205,10 @@ NOTES:
 #define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
-/* Don't fork into background on uClinux */
 #if defined(__uClinux__)
+/* Never use fork() on uClinux. Note that this is subtly different from the
+   --keep-in-foreground option, since it also  suppresses forking new 
+   processes for TCP connections. It's intended for use on MMU-less kernels. */
 #  define NO_FORK
 #endif
 
@@ -254,7 +256,12 @@ typedef unsigned long in_addr_t;
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #undef HAVE_LINUX_IPV6_PROC
-#undef HAVE_GETOPT_LONG
+/* Later verions of FreeBSD have getopt_long() */
+#if defined(optional_argument) && defined(required_argument)
+#   define HAVE_GETOPT_LONG
+#else
+#   undef HAVE_GETOPT_LONG
+#endif
 #define HAVE_ARC4RANDOM
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM

@@ -14,10 +14,32 @@
 
 #include "dnsmasq.h"
 
-static struct irec *add_iface(struct daemon *daemon, struct irec *list, char *name, union mysockaddr *addr) 
+static struct irec *add_iface(struct daemon *daemon, struct irec *list, 
+			      char *name, int is_loopback, union mysockaddr *addr) 
 {
   struct irec *iface;
   struct iname *tmp;
+  
+  /* If we are restricting the set of interfaces to use, make
+     sure that loopback interfaces are in that set. */
+  if (daemon->if_names && is_loopback)
+    {
+      struct iname *lo;
+      for (lo = daemon->if_names; lo; lo = lo->next)
+	if (lo->name && strcmp(lo->name, name) == 0)
+	  {
+	    lo->isloop = 1;
+	    break;
+	  }
+      if (!lo)
+	{
+	  lo = safe_malloc(sizeof(struct iname));
+	  lo->name = safe_string_alloc(name);
+	  lo->isloop = lo->used = 1;
+	  lo->next = daemon->if_names;
+	  daemon->if_names = lo;
+	}
+    }
   
   /* check blacklist */
   if (daemon->if_except)
@@ -67,6 +89,10 @@ static struct irec *add_iface(struct daemon *daemon, struct irec *list, char *na
 
 struct irec *enumerate_interfaces(struct daemon *daemon)
 {
+#if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
+  FILE *f;
+#endif
+  union mysockaddr addr;
   struct irec *iface = NULL;
   char *buf, *ptr;
   struct ifreq *ifr = NULL;
@@ -74,7 +100,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
   int lastlen = 0;
   int len = 20 * sizeof(struct ifreq);
   int fd = socket(PF_INET, SOCK_DGRAM, 0);
-  
+
   if (fd == -1)
     die ("cannot create socket to enumerate interfaces: %s", NULL);
         
@@ -99,9 +125,8 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
        free(buf);
      }
   
-  for (ptr = buf; ptr < buf + len; )
+  for (ptr = buf; ptr < buf + ifc.ifc_len; )
     {
-      union mysockaddr addr;
 #ifdef HAVE_SOCKADDR_SA_LEN
       /* subsequent entries may not be aligned, so copy into
 	 an aligned buffer to avoid nasty complaints about 
@@ -141,76 +166,47 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
       if (ioctl(fd, SIOCGIFFLAGS, ifr) < 0)
 	die("ioctl error getting interface flags: %m", NULL);
 
-      /* If we are restricting the set of interfaces to use, make
-	 sure that loopback interfaces are in that set. */
-      if (daemon->if_names && (ifr->ifr_flags & IFF_LOOPBACK))
-	{
-	  struct iname *lo;
-	  for (lo = daemon->if_names; lo; lo = lo->next)
-	    if (lo->name && strcmp(lo->name, ifr->ifr_name) == 0)
-	      {
-		lo->isloop = 1;
-		break;
-	      }
-	  if (!lo)
-	    {
-	      lo = safe_malloc(sizeof(struct iname));
-	      lo->name = safe_string_alloc(ifr->ifr_name);
-	      lo->isloop = lo->used = 1;
-	      lo->next = daemon->if_names;
-	      daemon->if_names = lo;
-	    }
-	}
-
-      iface = add_iface(daemon, iface, ifr->ifr_name, &addr);
-	
-#if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
-      /* IPv6 addresses don't seem to work with SIOCGIFCONF. Barf */
-      /* This code snarfed from net-tools 1.60 and certainly linux specific, though
-	 it shouldn't break on other Unices, and their SIOGIFCONF might work. */
-      {
-	FILE *f = fopen(IP6INTERFACES, "r");
-	int found = 0;
-	union mysockaddr addr6;
-
-	if (f)
-	  {
-	    unsigned int plen, scope, flags, if_idx;
-	    char devname[20], addrstring[32];
-	    
-	    while (fscanf(f, "%32s %02x %02x %02x %02x %20s\n",
-			  addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 
-	      {
-		if (strcmp(devname, ifr->ifr_name) == 0)
-		  {
-		    int i;
-		    unsigned char *addr6p = (unsigned char *) &addr6.in6.sin6_addr;
-		    memset(&addr6, 0, sizeof(addr6));
-		    addr6.sa.sa_family = AF_INET6;
-		    for (i=0; i<16; i++)
-		      {
-			unsigned int byte;
-			sscanf(addrstring+i+i, "%02x", &byte);
-			addr6p[i] = byte;
-		      }
-		    addr6.in6.sin6_port = htons(daemon->port);
-		    addr6.in6.sin6_flowinfo = htonl(0);
-		    addr6.in6.sin6_scope_id = htonl(scope);
-		    
-		    found = 1;
-		    break;
-		  }
-	      }
-	    
-	    fclose(f);
-	  }
-	
-	if (found)
-	  iface = add_iface(daemon, iface, ifr->ifr_name, &addr6);
-      }
-#endif /* LINUX */
+      iface = add_iface(daemon, iface, ifr->ifr_name, ifr->ifr_flags & IFF_LOOPBACK, &addr);
     }
-  
+
+#if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
+  /* IPv6 addresses don't seem to work with SIOCGIFCONF. Barf */
+  /* This code snarfed from net-tools 1.60 and certainly linux specific, though
+     it shouldn't break on other Unices, and their SIOGIFCONF might work. */
+  if ((f = fopen(IP6INTERFACES, "r")))
+    {
+      unsigned int plen, scope, flags, if_idx;
+      char devname[20], addrstring[32];
+      
+      while (fscanf(f, "%32s %02x %02x %02x %02x %20s\n",
+		    addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 
+	{
+	  int i;
+	  struct ifreq sifr;
+	  unsigned char *addr6p = (unsigned char *) &addr.in6.sin6_addr;
+	  memset(&addr, 0, sizeof(addr));
+	  addr.sa.sa_family = AF_INET6;
+	  for (i=0; i<16; i++)
+	    {
+	      unsigned int byte;
+	      sscanf(addrstring+i+i, "%02x", &byte);
+	      addr6p[i] = byte;
+	    }
+	  addr.in6.sin6_port = htons(daemon->port);
+	  addr.in6.sin6_flowinfo = htonl(0);
+	  addr.in6.sin6_scope_id = htonl(scope);
+	  
+	  strncpy(sifr.ifr_name, devname, IF_NAMESIZE);
+	  if (ioctl(fd, SIOCGIFFLAGS, &sifr) < 0)
+	    die("ioctl error getting interface flags: %m", NULL);
+	  
+	  iface = add_iface(daemon, iface, sifr.ifr_name, sifr.ifr_flags & IFF_LOOPBACK, &addr);
+	  
+	}	    
+      fclose(f);
+    }
+#endif /* LINUX */
+   
   if (buf)
     free(buf);
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -361,7 +357,6 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
       struct listener *new = safe_malloc(sizeof(struct listener));
       new->family = iface->addr.sa.sa_family;
       new->next = listeners;
-      listeners = new;
       if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
 	  (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
 	  setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
@@ -383,9 +378,25 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 #endif
       
       if (bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
-	  bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
-	  listen(new->tcpfd, 5) == -1)
-	die("failed to bind listening socket: %s", NULL);
+	  bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
+	{
+#ifdef HAVE_IPV6
+	  if (iface->addr.sa.sa_family == AF_INET6 && errno == ENODEV)
+	    {
+	      close(new->tcpfd);
+	      close(new->fd);
+	      free(new);
+	    }
+	  else
+#endif
+	    die("failed to bind listening socket: %s", NULL);
+	}
+      else
+	 {
+	   listeners = new;     
+	   if (listen(new->tcpfd, 5) == -1)
+	     die("failed to listen on socket: %s", NULL);
+	 }
     }
   
   return listeners;

@@ -94,7 +94,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   char *hostname = NULL;
   char *req_options = NULL;
   char *message = NULL;
-  unsigned int renewal_time, expires_time, def_time;
+  unsigned int time;
   struct dhcp_config *config;
   struct dhcp_netid *netid = NULL;
   struct in_addr addr, subnet_addr;
@@ -171,13 +171,6 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       {
 	context_tmp->current = context;
 	context = context_tmp;
-	
-	/* start to build netid chain */
-	if (context_tmp->netid.net)
-	  {
-	    context_tmp->netid.next = netid;
-	    netid = &context_tmp->netid;
-	  }
       }
   
   if (!context)
@@ -205,6 +198,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  mess->yiaddr = config->addr;
 	  if (lease_find_by_addr(config->addr))
 	    message = "address in use";
+	  context = narrow_context(context, config->addr);
 	}
       else
 	message = "no address configured";
@@ -216,6 +210,12 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
             
       if (have_config(config, CONFIG_NAME))
 	hostname = config->hostname;
+      
+      if (context->netid.net)
+	{
+	  context->netid.next = netid;
+	  netid = &context->netid;
+	}
       
       if (have_config(config, CONFIG_NETID))
 	{
@@ -348,27 +348,6 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   /* do we have a lease in store? */
   lease = lease_find_by_client(clid, clid_len);
   
-  def_time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
-  
-  if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
-    {
-      unsigned int req_time = option_uint(opt, 4);
-      
-      if (def_time == 0xffffffff || 
-	  (req_time != 0xffffffff && req_time < def_time))
-	expires_time = renewal_time = req_time;
-      else
-	expires_time = renewal_time = def_time;
-    }
-  else
-    {
-      renewal_time = def_time;
-      if (lease)
-	expires_time = (unsigned int)difftime(lease->expires, now);
-      else 
-	expires_time = def_time;
-    }
-  
   if ((opt = option_find(mess, sz, OPTION_REQUESTED_OPTIONS)))
     {
       int len = option_len(opt);
@@ -455,16 +434,33 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       if (message)
 	return 0;
       
+      context = narrow_context(context, mess->yiaddr);
+      if (context->netid.net)
+	{
+	  context->netid.next = netid;
+	  netid = &context->netid;
+	}
+       
+      time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
+      if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
+	{
+	  unsigned int req_time = option_uint(opt, 4);
+	  if (time == 0xffffffff || (req_time != 0xffffffff && req_time < time))
+	    time = req_time;
+	}
+      else if (lease && lease->expires != 0)
+	time = (unsigned int)difftime(lease->expires, now);
+
       mess->siaddr = iface_addr;
       bootp_option_put(mess, daemon->boot_config, netid);
       p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPOFFER);
       p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
-      p = option_put(p, end, OPTION_LEASE_TIME, 4, expires_time);
+      p = option_put(p, end, OPTION_LEASE_TIME, 4, time);
       /* T1 and T2 are required in DHCPOFFER by HP's wacky Jetdirect client. */
-      if (expires_time != 0xffffffff)
+      if (time != 0xffffffff)
 	{
-	  p = option_put(p, end, OPTION_T1, 4, (expires_time/2));
-	  p = option_put(p, end, OPTION_T2, 4, ((expires_time * 7)/8));
+	  p = option_put(p, end, OPTION_T1, 4, (time/2));
+	  p = option_put(p, end, OPTION_T2, 4, (time*7)/8);
 	}
       p = do_req_options(context, p, end, req_options, daemon, 
 			 NULL, iface_addr, netid, subnet_addr);
@@ -513,9 +509,6 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  
 	  /* desynchronise renewals */
 	  fuzz = rand16();
-	  while (fuzz > (renewal_time/16))
-	    fuzz = fuzz/2; 
-
 	  mess->yiaddr = mess->ciaddr;
 	}
       
@@ -568,20 +561,37 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	{
 	  log_packet("ACK", &mess->yiaddr, mess->chaddr, iface_name, hostname);
       
+	  context = narrow_context(context, mess->yiaddr);
+	  if (context->netid.net)
+	    {
+	      context->netid.next = netid;
+	      netid = &context->netid;
+	    }
+	
+	  time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
+	  if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
+	    {
+	      unsigned int req_time = option_uint(opt, 4);
+	      if (time == 0xffffffff || (req_time != 0xffffffff && req_time < time))
+		time = req_time;
+	    }
+	  
 	  lease_set_hwaddr(lease, mess->chaddr);
 	  if (hostname)
 	    lease_set_hostname(lease, hostname, daemon->domain_suffix);
-	  lease_set_expires(lease, renewal_time == 0xffffffff ? 0 : now + (time_t)renewal_time);
+	  lease_set_expires(lease, time == 0xffffffff ? 0 : now + (time_t)time);
 	  
 	  mess->siaddr = iface_addr;
 	  bootp_option_put(mess, daemon->boot_config, netid);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
 	  p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
-	  p = option_put(p, end, OPTION_LEASE_TIME, 4, renewal_time);
-	  if (renewal_time != 0xffffffff)
+	  p = option_put(p, end, OPTION_LEASE_TIME, 4, time);
+	  if (time != 0xffffffff)
 	    {
-	      p = option_put(p, end, OPTION_T1, 4, (renewal_time/2) - fuzz);
-	      p = option_put(p, end, OPTION_T2, 4, ((renewal_time * 7)/8) - fuzz);
+	      while (fuzz > (time/16))
+		fuzz = fuzz/2; 
+	      p = option_put(p, end, OPTION_T1, 4, (time/2) - fuzz);
+	      p = option_put(p, end, OPTION_T2, 4, ((time * 7)/8) - fuzz);
 	    }
 	  p = do_req_options(context, p, end, req_options, daemon, 
 			     hostname, iface_addr, netid, subnet_addr);
@@ -599,6 +609,13 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       if (message || mess->ciaddr.s_addr == 0)
 	return 0;
       
+      context = narrow_context(context, mess->ciaddr);
+      if (context->netid.net)
+	{
+	  context->netid.next = netid;
+	  netid = &context->netid;
+	}
+       
       mess->siaddr = iface_addr;
       bootp_option_put(mess, daemon->boot_config, netid);
       p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);

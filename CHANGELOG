@@ -1288,9 +1288,29 @@ version 2.17
 	    clients. Credit to Cedric Duval for spotting this.
 
 	    Fix rare crash associated with long DNS names and CNAME
-	    records. Thanks to Holger_Hoffstatte and especially Steve
+	    records. Thanks to Holger Hoffstatte and especially Steve
 	    Grecni for help chasing that one down.
 
+version 2.18
+            Reworked the Linux interface discovery code (again) to
+	    cope with interfaces which have only IPv6 addresses and 
+	    interfaces with more than one IPv6 address. Thanks to
+            Martin Pels for help with that.
+
+	    Fix problems which occured when more than one dhcp-range
+	    was specified in the same subnet: sometimes parameters
+	    (lease time, network-id tag) from the wrong one would be
+	    used. Thanks to Rory Campbell-Lange for the bug report.
+
+	    Reset cache statistics when clearing the cache.
+
+	    Enable long command line options on FreeBSD when the
+	    C library supports them.
+
+
+
+
  
+		
 
 	    

@@ -478,8 +478,10 @@ struct daemon *read_opts (int argc, char **argv)
 	      }
 
 	    case 'a':
-	      {
+	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
+		if ((comma = strchr(optarg, ',')))
+		  *comma++ = 0;
 		new->next = daemon->if_addrs;
 #ifdef HAVE_IPV6
 		if (inet_pton(AF_INET, optarg, &new->addr.in.sin_addr))
@@ -510,14 +512,14 @@ struct daemon *read_opts (int argc, char **argv)
 		  {
 		    option = '?'; /* error */
 		    free(new);
-		    new = NULL;
+		    break;
 		  }
 		
-		if (new)
-		  daemon->if_addrs = new;
-		break;
-	      }
-	      
+		daemon->if_addrs = new;
+		optarg = comma;
+	      } while (optarg);
+	      break;
+	      	      
 	    case 'S':
 	    case 'A':
 	      {

@@ -549,11 +549,13 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 	       
 	       if (!match || (num_kids >= MAX_PROCS))
 		 close(confd);
+#ifndef NO_FORK
 	       else if (!(daemon->options & OPT_DEBUG) && fork())
 		 {
 		   num_kids++;
 		   close(confd);
 		 }
+#endif
 	       else
 		 {
 		   char *buff;

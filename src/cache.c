@@ -602,6 +602,8 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
   struct crec *cache, **up, *tmp;
   int i;
 
+  cache_inserted = cache_live_freed = 0;
+  
   for (i=0; i<hash_size; i++)
     for (cache = hash_table[i], up = &hash_table[i]; cache; cache = tmp)
       {
