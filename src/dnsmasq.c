@@ -206,7 +206,7 @@ int main (int argc, char **argv)
       if (c != 1)
 	die("must set exactly one interface on broken systems without IP_RECVIF", NULL);
 #endif
-      dhcp_init(&dhcpfd, &dhcp_raw_fd);
+      dhcp_init(&dhcpfd, &dhcp_raw_fd, dhcp_configs);
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
     }
 

@@ -230,6 +230,7 @@ struct frec {
   union mysockaddr source;
   struct all_addr dest;
   struct server *sentto;
+  unsigned int iface;
   unsigned short orig_id, new_id;
   int fd;
   time_t time;
@@ -412,7 +413,7 @@ struct irec *enumerate_interfaces(struct iname **names,
 struct listener *create_wildcard_listeners(int port);
 struct listener *create_bound_listeners(struct irec *interfaces, int port);
 /* dhcp.c */
-void dhcp_init(int *fdp, int* rfdp);
+void dhcp_init(int *fdp, int* rfdp, struct dhcp_config *configs);
 void dhcp_packet(struct dhcp_context *contexts, char *packet, 
 		 struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
 		 struct dhcp_vendor *vendors,
@@ -430,7 +431,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 struct dhcp_config *read_ethers(struct dhcp_config *configs, char *buff);
 void dhcp_update_configs(struct dhcp_config *configs);
 struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff);
-
+struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 /* lease.c */
 void lease_update_file(int force, time_t now);
 void lease_update_dns(void);

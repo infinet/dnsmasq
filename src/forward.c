@@ -36,7 +36,8 @@ void forward_init(int first)
 /* Send a UDP packet with it's source address set as "source" 
    unless nowild is true, when we just send it with the kernel default */
 static void send_from(int fd, int nowild, char *packet, int len, 
-		      union mysockaddr *to, struct all_addr *source)
+		      union mysockaddr *to, struct all_addr *source,
+		      unsigned int iface)
 {
   struct msghdr msg;
   struct iovec iov[1]; 
@@ -94,7 +95,7 @@ static void send_from(int fd, int nowild, char *packet, int len,
       {
 	struct cmsghdr *cmptr = CMSG_FIRSTHDR(&msg);
 	struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
-	pkt->ipi6_ifindex = 0;
+	pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
 	pkt->ipi6_addr = source->addr.addr6;
 	msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
 	cmptr->cmsg_type = IPV6_PKTINFO;
@@ -191,8 +192,8 @@ unsigned short search_servers(struct server *servers, unsigned int options, stru
 
 /* returns new last_server */	
 static struct server *forward_query(int udpfd, union mysockaddr *udpaddr, 
-				    struct all_addr *dst_addr, HEADER *header, 
-				    int plen, unsigned int options, char *dnamebuff, 
+				    struct all_addr *dst_addr, unsigned int dst_iface,
+				    HEADER *header, int plen, unsigned int options, char *dnamebuff, 
 				    struct server *servers, struct server *last_server,
 				    time_t now, unsigned long local_ttl)
 {
@@ -246,6 +247,7 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  forward->source = *udpaddr;
 	  forward->dest = *dst_addr;
+	  forward->iface = dst_iface;
 	  forward->new_id = get_id();
 	  forward->fd = udpfd;
 	  forward->orig_id = ntohs(header->id);
@@ -310,7 +312,7 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
   
   /* could not send on, return empty answer or address if known for whole domain */
   plen = setup_reply(header, (unsigned int)plen, addrp, flags, local_ttl);
-  send_from(udpfd, options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr);
+  send_from(udpfd, options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
   
   return last_server;
 }
@@ -405,7 +407,7 @@ struct server *reply_query(struct serverfd *sfd, int options, char *packet, time
 	return NULL;
       
       header->id = htons(forward->orig_id);
-      send_from(forward->fd, options & OPT_NOWILD, packet, n, &forward->source, &forward->dest);
+      send_from(forward->fd, options & OPT_NOWILD, packet, n, &forward->source, &forward->dest, forward->iface);
       forward->new_id = 0; /* cancel */
     }
   
@@ -564,9 +566,9 @@ struct server *receive_query(struct listener *listen, char *packet, struct mx_re
   m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, 
 		      mxnames, mxtarget, options, now, local_ttl, namebuff, edns_pcktsz);
   if (m >= 1)
-    send_from(listen->fd, options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr);
+    send_from(listen->fd, options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
-    last_server = forward_query(listen->fd, &source_addr, &dst_addr,
+    last_server = forward_query(listen->fd, &source_addr, &dst_addr, if_index,
 				header, n, options, namebuff, servers, 
 				last_server, now, local_ttl);
   return last_server;

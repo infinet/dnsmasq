@@ -14,12 +14,13 @@
 
 #include "dnsmasq.h"
 
-void dhcp_init(int *fdp, int* rfdp)
+void dhcp_init(int *fdp, int* rfdp, struct dhcp_config *configs)
 {
   int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   struct sockaddr_in saddr;
   int opt = 1;
-  
+  struct dhcp_config *cp;
+
   if (fd == -1)
     die ("cannot create DHCP socket : %s", NULL);
   
@@ -57,6 +58,14 @@ void dhcp_init(int *fdp, int* rfdp)
 #endif
   
   *rfdp = fd;
+
+  /* If the same IP appears in more than one host config, then DISCOVER
+     for one of the hosts will get the address, but REQUEST will be NAKed,
+     since the address is reserved by the other one -> protocol loop. */
+  for (; configs; configs = configs->next)
+    for (cp = configs->next; cp; cp = cp->next)
+      if ((configs->flags & cp->flags & CONFIG_ADDR) &&	configs->addr.s_addr == cp->addr.s_addr)
+	die("Duplicate IP address %s in dhcp-config directive.", inet_ntoa(cp->addr));
 }
 
 void dhcp_packet(struct dhcp_context *contexts, char *packet, 
@@ -370,6 +379,17 @@ int address_available(struct dhcp_context *context, struct in_addr taddr)
 
   return 1;
 }
+ 
+struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr)
+{
+  struct dhcp_config *config;
+  
+  for (config = configs; config; config = config->next)
+    if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == addr.s_addr)
+      return config;
+
+  return NULL;
+}
 
 int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
 		     struct in_addr *addrp, unsigned char *hwaddr)   
@@ -377,7 +397,6 @@ int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
   /* Find a free address: exclude anything in use and anything allocated to
      a particular hwaddr/clientid/hostname in our configuration */
 
-  struct dhcp_config *config;
   struct in_addr start, addr ;
   unsigned int i, j;
 
@@ -400,17 +419,10 @@ int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
       addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
 
     
-    if (!lease_find_by_addr(addr))
+    if (!lease_find_by_addr(addr) && !config_find_by_address(configs, addr))
       {
-	for (config = configs; config; config = config->next)
-	  if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == addr.s_addr)
-	    break;
-	
-	if (!config)
-	  {
-	    *addrp = addr;
-	    return 1;
-	  }
+	*addrp = addr;
+	return 1;
       }
   } while (addr.s_addr != start.s_addr);
   

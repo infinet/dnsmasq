@@ -263,7 +263,11 @@ static int create_ipv6_listener(struct listener **link, int port)
       setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
       (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
       fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+#ifdef IPV6_RECVPKTINFO
+      setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1 ||
+#else
       setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1 ||
+#endif
       bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
       listen(tcpfd, 5) == -1 ||
       bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1) 

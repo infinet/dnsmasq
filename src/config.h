@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.10"
+#define VERSION "2.11"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */

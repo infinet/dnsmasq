@@ -152,8 +152,9 @@ int dhcp_reply(struct dhcp_context *context,
       clid_len = 0;
     }
     
-  if ((config = find_config(dhcp_configs, context, clid, clid_len, mess->chaddr, NULL)) && 
-      have_config(config, CONFIG_NAME))
+  config = find_config(dhcp_configs, context, clid, clid_len, mess->chaddr, NULL);
+
+  if (have_config(config, CONFIG_NAME))
     hostname = config->hostname;
   else if ((opt = option_find(mess, sz, OPTION_HOSTNAME)))
     {
@@ -184,8 +185,16 @@ int dhcp_reply(struct dhcp_context *context,
 		    hostname = NULL; /* nothing left */
 		}
 	    }
-	  /* search again now we have a hostname */
-	  config = find_config(dhcp_configs, context, clid, clid_len, mess->chaddr, hostname);
+
+	  /* Search again now we have a hostname. 
+	     Only accept configs without CLID and HWADDR here, (they won't match)
+	     to avoid impersonation by name. */
+	  if (!config)
+	    {
+	      struct dhcp_config *new = find_config(dhcp_configs, context, NULL, 0, mess->chaddr, hostname);
+	      if (!have_config(new, CONFIG_CLID) && !have_config(new, CONFIG_HWADDR))
+		config = new;
+	    }
 	}
     }
   
@@ -347,7 +356,8 @@ int dhcp_reply(struct dhcp_context *context,
 	mess->yiaddr = config->addr;
       else if (lease && address_available(context, lease->addr))
 	mess->yiaddr = lease->addr;
-      else if (opt && address_available(context, addr) && !lease_find_by_addr(addr))
+      else if (opt && address_available(context, addr) && !lease_find_by_addr(addr) && 
+	       !config_find_by_address(dhcp_configs, addr))
 	mess->yiaddr = addr;
       else if (!address_allocate(context, dhcp_configs, &mess->yiaddr, mess->chaddr))
 	message = "no address available";      
@@ -400,12 +410,11 @@ int dhcp_reply(struct dhcp_context *context,
 	    
 	  if (!lease)
 	    { 
-	      if ((!address_available(context, mess->yiaddr) || lease_find_by_addr(mess->yiaddr)) && 
-		  (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
-		message = "address unavailable";
+	      if (lease_find_by_addr(mess->yiaddr))
+		message = "address in use";
 	      else if (!(lease = lease_allocate(clid, clid_len, mess->yiaddr)))
 		message = "no leases left";
-	    }
+	    } 
 	}
       else
 	{
@@ -424,29 +433,38 @@ int dhcp_reply(struct dhcp_context *context,
 	    fuzz = fuzz/2;
 	}
       
-      /* If a machine moves networks whilst it has a lease, we catch that here. */
-      if (!message && !is_same_net(mess->yiaddr, context->start, context->netmask))
-	message = "wrong network";
+      if (!message)
+	{
+	  struct dhcp_config *addr_config;
+	  /* If a machine moves networks whilst it has a lease, we catch that here. */
+	  if (!is_same_net(mess->yiaddr, context->start, context->netmask))
+	    message = "wrong network";
 
-      /* Check for renewal of a lease which is now outside the allowed range. */
-      if (!message && !address_available(context, mess->yiaddr) &&
-	  (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
-	message = "address no longer available";
+	  /* Check for renewal of a lease which is now outside the allowed range. */
+	  else if (!address_available(context, mess->yiaddr) &&
+		   (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
+	    message = "address no longer available";
 
-      /* Check if a new static address has been configured. Be very sure that
-	 when the client does DISCOVER, it will get the static address, otherwise
-	 an endless protocol loop will ensue. */
-      if (!message && have_config(config, CONFIG_ADDR) &&
-	  !have_config(config, CONFIG_DISABLE) &&
-	  !lease_find_by_addr(config->addr))
-	message = "static lease available";
-   
+	  /* Check if a new static address has been configured. Be very sure that
+	     when the client does DISCOVER, it will get the static address, otherwise
+	     an endless protocol loop will ensue. */
+
+	  else if (have_config(config, CONFIG_ADDR) && !lease_find_by_addr(config->addr))
+	    message = "static lease available";
+
+	  /* Check to see if the address is reserved as a static address for another host */
+	  else if ((addr_config = config_find_by_address(dhcp_configs, mess->yiaddr)) && addr_config != config)
+	    message ="address reserved";
+	}
+
       log_packet("REQUEST", &mess->yiaddr, mess->chaddr, iface_name, NULL);
       
       if (message)
 	{
 	  log_packet("NAK", &mess->yiaddr, mess->chaddr, iface_name, message);
 	  
+	  lease_prune(lease, now);
+
 	  mess->siaddr.s_addr = mess->yiaddr.s_addr = mess->ciaddr.s_addr = 0;
 	  bootp_option_put(mess, NULL, NULL);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);

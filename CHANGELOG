@@ -1123,4 +1123,23 @@ release 2.10
 	    support was added. Thanks to Michael Hamilton for
 	    assistance with this.
 
+version 2.11
+	    Fixed DHCP problem which could result in two leases in the
+            database with the same address. This looked much more
+            alarming then it was, since it could only happen when a
+            machine changes MAC address but kept the same name. The
+            old lease would persist until it timed out but things
+            would still work OK. 
+
+	    Check that IP addresses in all dhcp-host directives are
+	    unique and die horribly if they are not, since otherwise
+	    endless protocol loops can occur. 
+	    
+	    Use IPV6_RECVPKTINFO as socket option rather than
+	    IPV6_PKTINFO where available. This keeps late-model FreeBSD
+	    happy.
+
+	    Set source interface when replying to IPv6 UDP
+	    queries. This is needed to cope with link-local addresses.
+
 
