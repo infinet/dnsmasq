@@ -73,19 +73,29 @@ Print the version number.
 Listen on <port> instead of the standard DNS port (53). Useful mainly for
 debugging.
 .TP
+.B \-P, --edns-packet-max=<size>
+Specify the largest EDNS.0 UDP packet which is supported by the DNS
+forwarder. Defaults to 1280, which is the RFC2671-recommended maximum
+for ethernet.
+.TP
 .B \-Q, --query-port=<query_port>
 Send outbound DNS queries from, and listen for their replies on, the specific UDP port <query_port> instead of using one chosen at runtime.  Useful to simplify your
 firewall rules; without this, your firewall would have to allow connections from outside DNS servers to a range of UDP ports, or dynamically adapt to the
 port being used by the current dnsmasq instance.
 .TP
 .B \-i, --interface=<interface name>
-Listen only on the specified interface. More than one interface may be specified. Dnsmasq always listens on the loopback (local) interface. If no
-.B \-i
-flags are given, dnsmasq listens on all available interfaces unless overridden by 
-.B \-a
+Listen only on the specified interface(s). Dnsmasq automatically adds
+the loopback (local) interface to the list of interfaces to use when
+the
+.B \--interface
+option  is used. If no
+.B \--interface
 or
-.B \-I
-flags. If IP alias interfaces (eg "eth1:0") are used with
+.B \--listen-address
+options are given dnsmasq listens on all available interfaces except any
+given in
+.B \--except-interface
+options. If IP alias interfaces (eg "eth1:0") are used with
 .B --interface
 or
 .B --except-interface
@@ -95,21 +105,30 @@ option will be automatically set. This is required for deeply boring
 sockets-API reasons. 
 .TP
 .B \-I, --except-interface=<interface name>
-Do not listen on the specified interface.
+Do not listen on the specified interface. Note that the order of
+.B \--listen-address
+.B --interface
+and
+.B --except-interface
+options does not matter and that 
+.B --except-interface
+options always override the others.
 .TP 
 .B \-a, --listen-address=<ipaddr>
-Listen only on the given IP address. As with 
-.B \-i
-more than one address may be specified. Unlike 
-.B \-i
-the loopback interface is not special: if dnsmasq is to listen on the loopback interface, 
-it's IP, 127.0.0.1, must be explicitly given. If no 
-.B \-a
-flags are given, dnsmasq listens on all available interfaces unless overridden by 
-.B \-i
-or
-.B \-I
-flags.
+Listen on the given IP address(es). Both 
+.B \--interface
+and
+.B \--listen-address
+options may be given, in which case the set of both interfaces and
+addresses is used. Note that if no
+.B \--interface
+option is given, but 
+.B \--listen-address
+is, dnsmasq will not automatically listen on the loopback
+interface. To achieve this, its IP address, 127.0.0.1, must be
+explicitly given as a 
+.B \--listen-address
+option.
 .TP
 .B \-z, --bind-interfaces
 On systems which support it, dnsmasq binds the wildcard address,
@@ -126,7 +145,8 @@ broadcast packets.
 .TP
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
-which are not found in /etc/hosts or the DHCP leases file are resolved to the IP address in dotted-quad form.
+which are not found in /etc/hosts or the DHCP leases file are answered
+with "no such domain" rather than being forwarded upstream.
 .TP
 .B \-V, --alias=<old-ip>,<new-ip>[,<mask>]
 Modify IPv4 addresses returned from upstream nameservers; old-ip is

@@ -368,28 +368,25 @@ int address_available(struct dhcp_context *context, struct in_addr taddr)
   if (addr > end)
     return 0;
 
-  if (lease_find_by_addr(taddr))
-    return 0;
-  
   return 1;
 }
 
 int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
 		     struct in_addr *addrp, unsigned char *hwaddr)   
 {
-  /* Find a free address: exlude anything in use and anything allocated to
+  /* Find a free address: exclude anything in use and anything allocated to
      a particular hwaddr/clientid/hostname in our configuration */
 
   struct dhcp_config *config;
   struct in_addr start, addr ;
-  int i, j;
+  unsigned int i, j;
 
   /* start == end means no dynamic leases. */
   if (context->end.s_addr == context->start.s_addr)
     return 0;
   
   /* pick a seed based on hwaddr then iterate until we find a free address. */
-  for (j = 0, i = 0; i < ETHER_ADDR_LEN; i++)
+  for (j = context->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
     j += hwaddr[i] + (hwaddr[i] << 8) + (hwaddr[i] << 16);
   
   start.s_addr = addr.s_addr = 

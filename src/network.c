@@ -25,8 +25,12 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
   if (except)
     for (tmp = except; tmp; tmp = tmp->next)
       if (tmp->name && strcmp(tmp->name, name) == 0)
-	return list;
-  
+	{
+	  /* record address of named interfaces, for TCP access control */
+	  tmp->addr = *addr;
+	  return list;
+	}
+
   /* we may need to check the whitelist */
   if (names || addrs)
     { 
@@ -34,8 +38,11 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
 
       for (tmp = names; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
-	  found = tmp->used = 1;
-      
+	  {
+	    tmp->addr = *addr;
+	    found = tmp->used = 1;
+	  }
+
       for (tmp = addrs; tmp; tmp = tmp->next)
 	if (sockaddr_isequal(&tmp->addr, addr))
 	  found = tmp->used = 1;
@@ -220,46 +227,14 @@ struct irec *enumerate_interfaces(struct iname **names,
   return iface;
 }
 
-struct listener *create_wildcard_listeners(int port)
+#ifdef HAVE_IPV6
+static int create_ipv6_listener(struct listener **link, int port)
 {
-#if !(defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
-  return NULL;
-#else
   union mysockaddr addr;
+  int tcpfd, fd, flags, save;
+  struct listener *l;
   int opt = 1;
-  struct listener *listen;
-#ifdef HAVE_IPV6
-  int fd;
-#endif
 
-  addr.in.sin_family = AF_INET;
-  addr.in.sin_addr.s_addr = INADDR_ANY;
-  addr.in.sin_port = htons(port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
-  listen = safe_malloc(sizeof(struct listener));
-  if ((listen->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-    {
-      free(listen);
-      return NULL;
-    }
-  if (setsockopt(listen->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-#if defined(IP_PKTINFO) 
-      setsockopt(listen->fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
-#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
-      setsockopt(listen->fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
-      setsockopt(listen->fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
-#endif 
-      bind(listen->fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-    {
-      close(listen->fd);
-      free(listen);
-      return NULL;
-    }
-  listen->next = NULL;
-  listen->family = AF_INET;
-#ifdef HAVE_IPV6
   addr.in6.sin6_family = AF_INET6;
   addr.in6.sin6_addr = in6addr_any;
   addr.in6.sin6_port = htons(port);
@@ -267,65 +242,148 @@ struct listener *create_wildcard_listeners(int port)
 #ifdef HAVE_SOCKADDR_SA_LEN
   addr.in6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
+
+  /* No error of the kernel doesn't support IPv6 */
   if ((fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1)
+    return (errno == EPROTONOSUPPORT ||
+	    errno == EAFNOSUPPORT ||
+	    errno == EINVAL);
+  
+  if ((tcpfd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
     {
-      if (errno != EPROTONOSUPPORT &&
-	  errno != EAFNOSUPPORT &&
-	  errno != EINVAL)
-	{
-	  close(listen->fd);
-	  free(listen);
-	  return NULL;
-	}
+      save = errno;
+      close(fd);
+      errno = save;
+      return 0;
     }
-  else
+  
+  if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+      setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+      setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
+      setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
+      (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
+      fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+      setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1 ||
+      bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
+      listen(tcpfd, 5) == -1 ||
+      bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1) 
     {
-      listen->next = safe_malloc(sizeof(struct listener));
-      listen->next->fd = fd;
-      listen->next->family = AF_INET6;
-      listen->next->next = NULL;
-      if (setsockopt(listen->next->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  setsockopt(listen->next->fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1 ||
-	  bind(listen->next->fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-	{
-	  close(listen->next->fd);
-	  free(listen->next);
-	  close(listen->fd);
-	  free(listen);
-	  return NULL;
-	}
+      save = errno;
+      close(fd);
+      close(tcpfd);
+      errno = save;
+      return 0;
     }
+  
+  l = safe_malloc(sizeof(struct listener));
+  l->fd = fd;
+  l->tcpfd = tcpfd;
+  l->family = AF_INET6;
+  l->next = NULL;
+  *link = l;
+  
+  return 1;
+}
 #endif
+
+struct listener *create_wildcard_listeners(int port)
+{
+#if !(defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
+  return NULL;
+#else
+  union mysockaddr addr;
+  int opt = 1;
+  struct listener *l, *l6 = NULL;
+  int flags;
+  int tcpfd, fd;
+
+  addr.in.sin_family = AF_INET;
+  addr.in.sin_addr.s_addr = INADDR_ANY;
+  addr.in.sin_port = htons(port);
+#ifdef HAVE_SOCKADDR_SA_LEN
+  addr.in.sin_len = sizeof(struct sockaddr_in);
+#endif
+
+  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+    return NULL;
   
-  return listen;
+  if ((tcpfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+      close (fd);
+      return NULL;
+    }
   
+  if (setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+      bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
+      listen(tcpfd, 5) == -1 ||
+      (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
+      fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+#ifdef HAVE_IPV6
+      !create_ipv6_listener(&l6, port) ||
+#endif
+      setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+#if defined(IP_PKTINFO) 
+      setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
+#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
+      setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
+      setsockopt(fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
+#endif 
+      bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
+    {
+      close(fd);
+      close(tcpfd);
+      return NULL;
+    }
+  
+  l = safe_malloc(sizeof(struct listener));
+  l->family = AF_INET;
+  l->fd = fd;
+  l->tcpfd = tcpfd;
+  l->next = l6;
+
+  return l;
+
 #endif
 }
 
-struct listener *create_bound_listeners(struct irec *interfaces)
+struct listener *create_bound_listeners(struct irec *interfaces, int port)
 {
 
   struct listener *listeners = NULL;
   struct irec *iface;
-  int opt = 1;
+  int flags = port, opt = 1;
+  
+  /* Create bound listeners only for IPv4, IPv6 always binds the wildcard */
+
+#ifdef HAVE_IPV6
+  if (!create_ipv6_listener(&listeners, port))
+    die("failed to to create listening socket: %s", NULL);
+#endif
 
   for (iface = interfaces ;iface; iface = iface->next)
-    {
-      struct listener *new = safe_malloc(sizeof(struct listener));
-      new->family = iface->addr.sa.sa_family;
-      new->next = listeners;
-      listeners = new;
-      if ((new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1)
-	die("failed to create socket: %s", NULL);
-      if (setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
-	die("failed to bind socket: %s", NULL);
-    }
-
+    if (iface->addr.sa.sa_family == AF_INET)
+      {
+	struct listener *new = safe_malloc(sizeof(struct listener));
+	new->family = iface->addr.sa.sa_family;
+	new->next = listeners;
+	listeners = new;
+	if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
+	    (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
+	    setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	    setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	    /* See Stevens 16.6 */
+	    (flags = fcntl(new->tcpfd, F_GETFL, 0)) == -1 ||
+	    fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+	    bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
+	    bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
+	    listen(new->tcpfd, 5) == -1)
+	  die("failed to to create listening socket: %s", NULL);
+      }
+  
   return listeners;
 }
 
-static struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
+struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
 {
   struct serverfd *sfd;
   

@@ -11,7 +11,8 @@
 */
 
 /* Author's email: simon@thekelleys.org.uk */
- 
+
+#define COPYRIGHT "Copyright (C) 2000-2004 Simon Kelley" 
 
 #ifdef __linux__
 /* for pselect.... */
@@ -36,6 +37,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#include <sys/wait.h>
 #if defined(__sun) || defined(__sun__)
 #  include <sys/sockio.h>
 #endif
@@ -194,7 +196,7 @@ struct server {
   struct serverfd *sfd; /* non-NULL if this server has its own fd bound to
 			   a source port */
   char *domain; /* set if this server only handles a domain. */ 
-  int flags;
+  int flags, tcpfd;
   struct server *next; 
 };
 
@@ -204,7 +206,7 @@ struct irec {
 };
 
 struct listener {
-  int fd, family;
+  int fd, tcpfd, family;
   struct listener *next;
 };
 
@@ -285,7 +287,7 @@ struct dhcp_vendor {
 };
 
 struct dhcp_context {
-  unsigned int lease_time;
+  unsigned int lease_time, addr_epoch;
   struct in_addr netmask, broadcast;
   struct in_addr start, end; /* range of available addresses */
   struct dhcp_netid netid;
@@ -346,9 +348,10 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff,
 void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
 int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_record *mxnames,
 		   char *mxtarget, unsigned int options, time_t now, unsigned long local_ttl,
-		   char *namebuff);
+		   char *namebuff, unsigned short edns_pcktsz);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
+unsigned char *find_pseudoheader(HEADER *header, unsigned int plen);
 
 /* util.c */
 unsigned short rand16(void);
@@ -376,20 +379,30 @@ unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resol
 		       struct dhcp_context **dhcp, struct dhcp_config **dhcp_conf, 
 		       struct dhcp_opt **opts, struct dhcp_vendor **dhcp_vendors,
 		       char **dhcp_file, char **dhcp_sname, struct in_addr *dhcp_next_server,
-		       int *maxleases, unsigned int *min_leasetime, struct doctor **doctors);
+		       int *maxleases, unsigned int *min_leasetime, struct doctor **doctors,
+		       unsigned short *edns_pktsz);
 
 /* forward.c */
 void forward_init(int first);
 struct server *reply_query(struct serverfd *sfd, int options, char *packet, time_t now,
 			   char *dnamebuff, struct server *servers, struct server *last_server, 
-			   struct bogus_addr *bogus_nxdomain, struct doctor *doctors);
+			   struct bogus_addr *bogus_nxdomain, 
+			   struct doctor *doctors, unsigned short edns_pcktsz);
 
 struct server *receive_query(struct listener *listen, char *packet, struct mx_record *mxnames, 
 			     char *mxtarget, unsigned int options, time_t now, 
 			     unsigned long local_ttl, char *namebuff,
 			     struct iname *names, struct iname *addrs, struct iname *except,
-			     struct server *last_server, struct server *servers);
+			     struct server *last_server, struct server *servers, unsigned short edns_pcktsz);
+
+char *tcp_request(int confd, struct mx_record *mxnames, 
+		  char *mxtarget, unsigned int options, time_t now, 
+		  unsigned long local_ttl, char *namebuff,
+		  struct server *last_server, struct server *servers,
+		  struct bogus_addr *bogus_nxdomain, struct doctor *doctors,
+		  unsigned short edns_pcktsz);
 /* network.c */
+struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
 struct server *reload_servers(char *fname, char *buff, struct server *servers, int query_port);
 struct server *check_servers(struct server *new, struct irec *interfaces, struct serverfd **sfds);
 struct irec *enumerate_interfaces(struct iname **names,
@@ -397,7 +410,7 @@ struct irec *enumerate_interfaces(struct iname **names,
 				  struct iname *except,
 				  int port);
 struct listener *create_wildcard_listeners(int port);
-struct listener *create_bound_listeners(struct irec *interfaces);
+struct listener *create_bound_listeners(struct irec *interfaces, int port);
 /* dhcp.c */
 void dhcp_init(int *fdp, int* rfdp);
 void dhcp_packet(struct dhcp_context *contexts, char *packet, 
@@ -448,3 +461,4 @@ int dhcp_reply(struct dhcp_context *context,
 #ifdef HAVE_ISC_READER
 void load_dhcp(char *file, char *suffix, time_t now, char *hostname);
 #endif
+

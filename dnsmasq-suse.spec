@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.9
+Version: 2.10
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers
@@ -16,7 +16,7 @@ Provides: dns_daemon
 Conflicts: bind bind8 bind9
 PreReq: %fillup_prereq %insserv_prereq
 Autoreqprov: on
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}.tar.bz2
 BuildRoot: /var/tmp/%{name}-%{version}
 Summary: A lightweight caching nameserver
 
@@ -39,6 +39,8 @@ leases and BOOTP for network booting of diskless machines.
 
 %prep
 %setup -q
+patch -p0 <rpm/%{name}-SuSE.patch
+
 %build
 %{?suse_update_config:%{suse_update_config -f}}
 make

@@ -220,9 +220,6 @@ void lease_prune(struct dhcp_lease *target, time_t now)
   
 struct dhcp_lease *lease_find_by_client(unsigned char *clid, int clid_len)
 {
-  /* zero length means clid from hwaddr: never match am option clid to
-     a hardware-address derived clid */
-  
   struct dhcp_lease *lease;
 
   if (clid_len)
@@ -235,8 +232,7 @@ struct dhcp_lease *lease_find_by_client(unsigned char *clid, int clid_len)
   else
     {
       for (lease = leases; lease; lease = lease->next)	
-	if (!lease->clid &&
-	    memcmp(clid, lease->hwaddr, ETHER_ADDR_LEN) == 0)
+	if (memcmp(clid, lease->hwaddr, ETHER_ADDR_LEN) == 0)
 	  return lease;
     }
   

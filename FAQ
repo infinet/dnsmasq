@@ -20,12 +20,10 @@ A: The high ports that dnsmasq opens is for replies from the upstream
 Q: Why doesn't dnsmasq support DNS queries over TCP? Don't the RFC's specify
    that?
 
-A: Yes, they do, so technically dnsmasq is not RFC-compliant. In practice, the
-   sorts of queries which dnsmasq is used for are always sent via UDP. Adding 
-   TCP support would make dnsmasq much more heavyweight for no practical 
-   benefit. If you really want to do zone transfers, forward port 53 TCP 
-   using in-kernel port-forwarding or a port-fowarder like rinetd.
-
+A: Update: from version 2.10, it does. There are a few limitations:
+   data obtained via TCP is not cached, and dynamically-created
+   interfaces may break under certain circumstances. Source-address
+   or query-port specifications are ignored for TCP.
 
 Q: When I send SIGUSR1 to dump the contents of the cache, some entries have
    no IP address and are for names like mymachine.mydomain.com.mydomain.com.
@@ -74,6 +72,8 @@ A: Use the standard DNS convention of <reversed address>.in-addr.arpa.
    For instance to send reverse queries on the range 192.168.0.0 to 
    192.168.0.255 to a nameserver at 10.0.0.1 do
    server=/0.168.192.in-addr.arpa/10.0.0.1
+   Note that the "bogus-priv" option take priority over this option,
+   so the above will not work when the bogus-priv option is set.
 
 Q: Dnsmasq fails to start with an error like this: "dnsmasq: bind
    failed: Cannot assign requested address". What's the problem?

@@ -10,13 +10,11 @@
    GNU General Public License for more details.
 */
 
-/* See RFC1035 for details of the protocol this code talks. */
-
 /* Author's email: simon@thekelleys.org.uk */
 
 #include "dnsmasq.h"
 
-static int sigterm, sighup, sigusr1, sigalarm;
+static int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
 
 static void sig_handler(int sig)
 {
@@ -27,7 +25,22 @@ static void sig_handler(int sig)
   else if (sig == SIGUSR1)
     sigusr1 = 1;
   else if (sig == SIGALRM)
-    sigalarm = 1;
+    {
+      /* alarm is used to kill children after a fixed time. */
+      if (in_child)
+	exit(0);
+      else
+	sigalarm = 1;
+    }
+  else if (sig == SIGCHLD)
+    {
+      /* See Stevens 5.10 */
+      pid_t pid;
+      int stat;
+      
+      while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+	num_kids--;
+    }
 }
 
 int main (int argc, char **argv)
@@ -35,6 +48,7 @@ int main (int argc, char **argv)
   int cachesize = CACHESIZ;
   int port = NAMESERVER_PORT;
   int maxleases = MAXLEASES;
+  unsigned short edns_pktsz = EDNS_PKTSZ;
   int query_port = 0;
   int first_loop = 1;
   int bind_fallback = 0;
@@ -82,6 +96,8 @@ int main (int argc, char **argv)
 #else
   sigalarm = 0; /* or not */
 #endif
+  num_kids = 0;
+  in_child = 0;
  
   sigact.sa_handler = sig_handler;
   sigact.sa_flags = 0;
@@ -90,6 +106,11 @@ int main (int argc, char **argv)
   sigaction(SIGHUP, &sigact, NULL);
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGALRM, &sigact, NULL);
+  sigaction(SIGCHLD, &sigact, NULL);
+
+  /* ignore SIGPIPE */
+  sigact.sa_handler = SIG_IGN;
+  sigaction(SIGPIPE, &sigact, NULL);
 
   /* now block all the signals, they stay that way except
       during the call to pselect */
@@ -97,6 +118,7 @@ int main (int argc, char **argv)
   sigaddset(&sigact.sa_mask, SIGTERM);
   sigaddset(&sigact.sa_mask, SIGHUP);
   sigaddset(&sigact.sa_mask, SIGALRM);
+  sigaddset(&sigact.sa_mask, SIGCHLD);
   sigprocmask(SIG_BLOCK, &sigact.sa_mask, &sigmask); 
 
   /* These get allocated here to avoid overflowing the small stack
@@ -104,7 +126,6 @@ int main (int argc, char **argv)
      maximal sixed domain name and gets passed into all the processing
      code. We manage to get away with one buffer. */
   dnamebuff = safe_malloc(MAXDNAME);
-  packet = safe_malloc(DNSMASQ_PACKETSZ);
   
   dhcp_next_server.s_addr = 0;
   options = read_opts(argc, argv, dnamebuff, &resolv, &mxnames, &mxtarget, &lease_file,
@@ -113,7 +134,11 @@ int main (int argc, char **argv)
 		      &serv_addrs, &cachesize, &port, &query_port, &local_ttl, &addn_hosts,
 		      &dhcp, &dhcp_configs, &dhcp_options, &dhcp_vendors,
 		      &dhcp_file, &dhcp_sname, &dhcp_next_server, &maxleases, &min_leasetime,
-		      &doctors);
+		      &doctors, &edns_pktsz);
+
+  if (edns_pktsz < PACKETSZ)
+    edns_pktsz = PACKETSZ;
+  packet = safe_malloc(edns_pktsz > DNSMASQ_PACKETSZ ? edns_pktsz : DNSMASQ_PACKETSZ);
 
   if (!lease_file)
     {
@@ -136,7 +161,7 @@ int main (int argc, char **argv)
   if (options & OPT_NOWILD) 
     {
       struct iname *if_tmp;
-      listeners = create_bound_listeners(interfaces);
+      listeners = create_bound_listeners(interfaces, port);
 
       for (if_tmp = if_names; if_tmp; if_tmp = if_tmp->next)
 	if (if_tmp->name && !if_tmp->used)
@@ -184,6 +209,31 @@ int main (int argc, char **argv)
       dhcp_init(&dhcpfd, &dhcp_raw_fd);
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
     }
+
+  /* If query_port is set then create a socket now, before dumping root
+     for use to access nameservers without more specific source addresses.
+     This allows query_port to be a low port */
+  if (query_port)
+    {
+      union  mysockaddr addr;
+      addr.in.sin_family = AF_INET;
+      addr.in.sin_addr.s_addr = INADDR_ANY;
+      addr.in.sin_port = htons(query_port);
+#ifdef HAVE_SOCKADDR_SA_LEN
+      addr.in.sin_len = sizeof(struct sockaddr_in);
+#endif
+      allocate_sfd(&addr, &sfds);
+#ifdef HAVE_IPV6
+      addr.in6.sin6_family = AF_INET6;
+      addr.in6.sin6_addr = in6addr_any;
+      addr.in6.sin6_port = htons(query_port);
+      addr.in6.sin6_flowinfo = htonl(0);
+#ifdef HAVE_SOCKADDR_SA_LEN
+      addr.in6.sin6_len = sizeof(struct sockaddr_in6);
+#endif
+      allocate_sfd(&addr, &sfds);
+#endif
+    }
   
   setbuf(stdout, NULL);
 
@@ -221,8 +271,12 @@ int main (int argc, char **argv)
       for (i=0; i<64; i++)
 	{
 	  for (listener = listeners; listener; listener = listener->next)
-	    if (listener->fd == i)
-	      break;
+	    {
+	      if (listener->fd == i)
+		break;
+	      if (listener->tcpfd == i)
+		break;
+	    }
 	  if (listener)
 	    continue;
 
@@ -230,6 +284,12 @@ int main (int argc, char **argv)
 	      i == uptime_fd ||
 	      i == dhcpfd || 
 	      i == dhcp_raw_fd)
+	    continue;
+
+	  for (serverfdp = sfds; serverfdp; serverfdp = serverfdp->next)
+	    if (serverfdp->fd == i)
+	      break;
+	  if (serverfdp)
 	    continue;
 
 	  close(i);
@@ -256,13 +316,13 @@ int main (int argc, char **argv)
 	  DNSMASQ_LOG_OPT(options & OPT_DEBUG), 
 	  DNSMASQ_LOG_FAC(options & OPT_DEBUG));
   
-  if (cachesize)
+  if (cachesize != 0)
     syslog(LOG_INFO, "started, version %s cachesize %d", VERSION, cachesize);
   else
     syslog(LOG_INFO, "started, version %s cache disabled", VERSION);
   
   if (bind_fallback)
-    syslog(LOG_WARNING, "setting --bind-interfaces option because if OS limitations");
+    syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
   
   for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
     {
@@ -270,7 +330,15 @@ int main (int argc, char **argv)
       if (dhcp_tmp->lease_time == 0)
 	sprintf(packet, "infinite");
       else
-	sprintf(packet, "%ds", (int)dhcp_tmp->lease_time);
+	{
+	  unsigned int x, p = 0, t = (unsigned int)dhcp_tmp->lease_time;
+	  if ((x = t/3600))
+	    p += sprintf(&packet[p], "%dh", x);
+	  if ((x = (t/60)%60))
+	    p += sprintf(&packet[p], "%dm", x);
+	  if ((x = t%60))
+	    p += sprintf(&packet[p], "%ds", x);
+	}
       syslog(LOG_INFO, 
 	     dhcp_tmp->start.s_addr == dhcp_tmp->end.s_addr ? 
 	     "DHCP, static leases only on %.0s%s, lease time %s" :
@@ -282,9 +350,9 @@ int main (int argc, char **argv)
   if (dhcp)
     syslog(LOG_INFO, "DHCP, %s will be written every %ds", lease_file, min_leasetime/3);
 #endif
-
-  if (getuid() == 0 || geteuid() == 0)
-    syslog(LOG_WARNING, "failed to drop root privs");
+  
+  if (!(options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
+    syslog(LOG_WARNING, "running as root");
   
   servers = check_servers(serv_addrs, interfaces, &sfds);
   last_server = NULL;
@@ -350,6 +418,9 @@ int main (int argc, char **argv)
 	      FD_SET(listener->fd, &rset);
 	      if (listener->fd > maxfd)
 		maxfd = listener->fd;
+	      FD_SET(listener->tcpfd, &rset);
+	      if (listener->tcpfd > maxfd)
+		maxfd = listener->tcpfd;
 	    }
 	  
 	  if (dhcp)
@@ -428,7 +499,8 @@ int main (int argc, char **argv)
       for (serverfdp = sfds; serverfdp; serverfdp = serverfdp->next)
 	if (FD_ISSET(serverfdp->fd, &rset))
 	  last_server = reply_query(serverfdp, options, packet, now, 
-				    dnamebuff, servers, last_server, bogus_addr, doctors);
+				    dnamebuff, servers, last_server, 
+				    bogus_addr, doctors, edns_pktsz);
 
       if (dhcp && FD_ISSET(dhcpfd, &rset))
 	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs, dhcp_vendors,
@@ -437,10 +509,105 @@ int main (int argc, char **argv)
 		    if_names, if_addrs, if_except);
       
       for (listener = listeners; listener; listener = listener->next)
-	if (FD_ISSET(listener->fd, &rset))
-	  last_server = receive_query(listener, packet,
-			mxnames, mxtarget, options, now, local_ttl, dnamebuff,
-			if_names, if_addrs, if_except, last_server, servers);
+	{
+	  if (FD_ISSET(listener->fd, &rset))
+	    last_server = receive_query(listener, packet,
+					mxnames, mxtarget, options, now, local_ttl, dnamebuff,
+					if_names, if_addrs, if_except, last_server, servers, edns_pktsz);
+
+	  if (FD_ISSET(listener->tcpfd, &rset))
+	    {
+	      int confd;
+
+	      while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
+	      
+	      if (confd != -1)
+		{
+		  int match = 1;
+		  if (!(options & OPT_NOWILD)) 
+		    {
+		      /* Check for allowed interfaces when binding the wildcard address */
+		      /* Don't know how to get interface of a connection, so we have to
+			 check by address. This will break when interfaces change address */
+		      union mysockaddr tcp_addr;
+		      socklen_t tcp_len = sizeof(union mysockaddr);
+		      struct iname *tmp;
+		      
+		      if (getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) != -1)
+			{
+#ifdef HAVE_IPV6
+			  if (tcp_addr.sa.sa_family == AF_INET6)
+			    tcp_addr.in6.sin6_flowinfo =  htonl(0);
+#endif
+			  for (match = 1, tmp = if_except; tmp; tmp = tmp->next)
+			    if (sockaddr_isequal(&tmp->addr, &tcp_addr))
+			      match = 0;
+			  
+			  if (match && (if_names || if_addrs))
+			    {
+			      match = 0;
+			      for (tmp = if_names; tmp; tmp = tmp->next)
+				if (sockaddr_isequal(&tmp->addr, &tcp_addr))
+				  match = 1;
+			      for (tmp = if_addrs; tmp; tmp = tmp->next)
+				if (sockaddr_isequal(&tmp->addr, &tcp_addr))
+				  match = 1;  
+			    }
+			}
+		    }			  
+
+		  if (!match || (num_kids >= MAX_PROCS))
+		    close(confd);
+		  else if (!(options & OPT_DEBUG) && fork())
+		    {
+		      num_kids++;
+		      close(confd);
+		    }
+		  else
+		    {
+		      char *buff;
+		      struct server *s; 
+		      int flags;
+		      
+		      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
+			 terminate the process. */
+		      if (!(options & OPT_DEBUG))
+			{
+			  sigemptyset(&sigact.sa_mask);
+			  sigaddset(&sigact.sa_mask, SIGALRM);
+			  sigprocmask(SIG_UNBLOCK, &sigact.sa_mask, NULL);
+			  alarm(CHILD_LIFETIME);
+			  in_child = 1;
+			}
+		      
+		      /* start with no upstream connections. */
+		      for (s = servers; s; s = s->next)
+			s->tcpfd = -1; 
+
+		      /* The connected socket inherits non-blocking
+			 attribute from the listening socket. 
+			 Reset that here. */
+		      if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
+			fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
+		      
+		      buff = tcp_request(confd, mxnames, mxtarget, options, now, 
+					 local_ttl, dnamebuff, last_server, servers,
+					 bogus_addr, doctors, edns_pktsz);
+		      
+		      
+		      if (!(options & OPT_DEBUG))
+			exit(0);
+		      
+		      close(confd);
+		      if (buff)
+			free(buff);
+		      for (s = servers; s; s = s->next)
+			if (s->tcpfd != -1)
+			  close(s->tcpfd);
+		    }
+		}
+	    }
+	}
     }
   
   syslog(LOG_INFO, "exiting on receipt of SIGTERM");

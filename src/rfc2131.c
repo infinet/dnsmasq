@@ -105,9 +105,7 @@ int dhcp_reply(struct dhcp_context *context,
   struct in_addr addr;
   unsigned short fuzz = 0;
 
-  if (mess->op != BOOTREQUEST || 
-      mess->hlen != ETHER_ADDR_LEN ||
-      mess->cookie != htonl(DHCP_COOKIE))
+  if (mess->op != BOOTREQUEST || mess->cookie != htonl(DHCP_COOKIE))
     return 0;
   
   /* Token ring is supported when we have packet sockets
@@ -116,14 +114,19 @@ int dhcp_reply(struct dhcp_context *context,
      token ring hwaddrs are the same size as ethernet hwaddrs. */
 
 #ifdef HAVE_BPF
-  if (mess->htype != ARPHRD_ETHER)
-    return 0;	
+  if (mess->htype != ARPHRD_ETHER)	
 #else
-  if (mess->htype != ARPHRD_ETHER && 
-      mess->htype != ARPHRD_IEEE802)
-    return 0;	
+  if (mess->htype != ARPHRD_ETHER && mess->htype != ARPHRD_IEEE802)
 #endif
+    {
+      syslog(LOG_WARNING, "DHCP request for unsupported hardware type (%d) recieved on %s", 
+	     mess->htype, iface_name);
+      return 0;
+    }	
     
+  if (mess->hlen != ETHER_ADDR_LEN)
+    return 0;
+
   mess->op = BOOTREPLY;
 
   if ((opt = option_find(mess, sz, OPTION_MAXMESSAGE)))
@@ -317,6 +320,9 @@ int dhcp_reply(struct dhcp_context *context,
 	  syslog(LOG_WARNING, "disabling DHCP static address %s", inet_ntoa(config->addr));
 	  config->flags &= ~CONFIG_ADDR ;
 	}
+      else
+	/* make sure this host gets a different address next time. */
+	context->addr_epoch++;
       
       return 0;
 
@@ -335,18 +341,16 @@ int dhcp_reply(struct dhcp_context *context,
     case DHCPDISCOVER:
       if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP)))	 
 	addr = option_addr(opt);
-      
       if (have_config(config, CONFIG_DISABLE))
 	message = "ignored";
       else if (have_config(config, CONFIG_ADDR) && !lease_find_by_addr(config->addr))
 	mess->yiaddr = config->addr;
-      else if (lease && is_same_net(lease->addr, context->start, context->netmask))
+      else if (lease && address_available(context, lease->addr))
 	mess->yiaddr = lease->addr;
-      else if (opt && address_available(context, addr))
+      else if (opt && address_available(context, addr) && !lease_find_by_addr(addr))
 	mess->yiaddr = addr;
       else if (!address_allocate(context, dhcp_configs, &mess->yiaddr, mess->chaddr))
-	message = "no address available";
-      
+	message = "no address available";      
       log_packet("DISCOVER", opt ? &addr : NULL, mess->chaddr, iface_name, message);          
       
       if (message)
@@ -393,12 +397,10 @@ int dhcp_reply(struct dhcp_context *context,
 	      lease_prune(lease, now);
 	      lease = NULL;
 	    }
-	  
-	  /* accept addresses in the dynamic range or ones allocated statically to
-	     particular hosts or an address which the host already has. */
+	    
 	  if (!lease)
 	    { 
-	      if (!address_available(context, mess->yiaddr) && 
+	      if ((!address_available(context, mess->yiaddr) || lease_find_by_addr(mess->yiaddr)) && 
 		  (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
 		message = "address unavailable";
 	      else if (!(lease = lease_allocate(clid, clid_len, mess->yiaddr)))
@@ -425,7 +427,20 @@ int dhcp_reply(struct dhcp_context *context,
       /* If a machine moves networks whilst it has a lease, we catch that here. */
       if (!message && !is_same_net(mess->yiaddr, context->start, context->netmask))
 	message = "wrong network";
-      
+
+      /* Check for renewal of a lease which is now outside the allowed range. */
+      if (!message && !address_available(context, mess->yiaddr) &&
+	  (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
+	message = "address no longer available";
+
+      /* Check if a new static address has been configured. Be very sure that
+	 when the client does DISCOVER, it will get the static address, otherwise
+	 an endless protocol loop will ensue. */
+      if (!message && have_config(config, CONFIG_ADDR) &&
+	  !have_config(config, CONFIG_DISABLE) &&
+	  !lease_find_by_addr(config->addr))
+	message = "static lease available";
+   
       log_packet("REQUEST", &mess->yiaddr, mess->chaddr, iface_name, NULL);
       
       if (message)

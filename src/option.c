@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:"
+#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -72,6 +72,7 @@ static struct myoption opts[] = {
   {"alias", 1, 0, 'V' },
   {"dhcp-vendorclass", 1, 0, 'U'},
   {"dhcp-userclass", 1, 0, 'j'},
+  {"edns-packet-max", 1, 0, 'P'},
   {0, 0, 0, 0}
 };
 
@@ -132,6 +133,7 @@ static char *usage =
 "-o, --strict-order                  Use nameservers strictly in the order given in " RESOLVFILE ".\n"
 "-O, --dhcp-option=<optspec>         Set extra options to be set to DHCP clients.\n"
 "-p, --port=number                   Specify port to listen for DNS requests on (defaults to 53).\n"
+"-P, --edns-packet-max=<size>        Maximum supported UDP packet size for EDNS.0 (defaults to %d).\n"
 "-q, --log-queries                   Log queries.\n"
 "-Q, --query-port=number             Force the originating port for upstream queries.\n"
 "-R, --no-resolv                     Do NOT read resolv.conf.\n"
@@ -143,7 +145,7 @@ static char *usage =
 "-T, --local-ttl=time                Specify time-to-live in seconds for replies from /etc/hosts.\n"
 "-u, --user=username                 Change to this user after startup. (defaults to " CHUSER ").\n" 
 "-U, --dhcp-vendorclass=<id>,<class> Map DHCP vendor class to option set.\n"
-"-v, --version                       Display dnsmasq version.\n"
+"-v, --version                       Display dnsmasq version and copyright information.\n"
 "-V, --alias=addr,addr,mask          Translate IPv4 addresses from upstream servers.\n"
 "-w, --help                          Display this message.\n"
 "-x, --pid-file=path                 Specify path of PID file. (defaults to " RUNFILE ").\n"
@@ -161,7 +163,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			int *query_port, unsigned long *local_ttl, char **addn_hosts, struct dhcp_context **dhcp,
 			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, struct dhcp_vendor **dhcp_vendors, char **dhcp_file,
 			char **dhcp_sname, struct in_addr *dhcp_next_server, int *dhcp_max, 
-			unsigned int *min_leasetime, struct doctor **doctors)
+			unsigned int *min_leasetime, struct doctor **doctors, unsigned short *edns_pktsz)
 {
   int option = 0, i;
   unsigned int flags = 0;
@@ -256,13 +258,16 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
      
       if (!f && option == 'w')
 	{
-	  fprintf (stderr, usage,  CACHESIZ, MAXLEASES);
+	  fprintf (stderr, usage,  CACHESIZ, EDNS_PKTSZ, MAXLEASES);
 	  exit(0);
 	}
 
       if (!f && option == 'v')
         {
-          fprintf(stderr, "dnsmasq version %s\n", VERSION);
+          fprintf(stderr, "Dnsmasq version %s  %s\n\n", VERSION, COPYRIGHT);
+	  fprintf(stderr, "This software comes with ABSOLUTELY NO WARRANTY.\n");
+	  fprintf(stderr, "Dnsmasq is free software, and you are welcome to redistribute it\n");
+	  fprintf(stderr, "under the terms of the GNU General Public License, version 2.\n");
           exit(0);
         }
       
@@ -658,6 +663,15 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		option = '?';
 	      break;
 	      
+	    case 'P':
+	      {
+		int i;
+		if (!atoi_check(optarg, &i))
+		  option = '?';
+		*edns_pktsz = (unsigned short)i;	
+		break;
+	      }
+
 	    case 'Q':
 	      if (!atoi_check(optarg, query_port))
 		option = '?';
@@ -685,7 +699,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		struct dhcp_context *new = safe_malloc(sizeof(struct dhcp_context));
 		
 		new->next = *dhcp;
-		new->lease_time = DEFLEASE; 
+		new->lease_time = DEFLEASE;
+		new->addr_epoch = 0;
 		new->netmask.s_addr = 0;
 		new->broadcast.s_addr = 0;
 		new->netid.net = NULL;

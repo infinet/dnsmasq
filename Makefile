@@ -10,7 +10,7 @@ all :
 	@cd $(SRC); $(MAKE) dnsmasq 
 
 clean :
-	rm -f *~ */*~ $(SRC)/*.o $(SRC)/dnsmasq core build
+	rm -f *~ contrib/*/*~ */*~ $(SRC)/*.o $(SRC)/dnsmasq core build
 
 install : all
 	install -d $(DESTDIR)$(BINDIR) -d $(DESTDIR)$(MANDIR)/man8

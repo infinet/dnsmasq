@@ -12,10 +12,13 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.9"
+#define VERSION "2.10"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
-#define TIMEOUT 20 /* drop queries after TIMEOUT seconds */
+#define MAX_PROCS 20 /* max no children for TCP requests */
+#define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
+#define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
+#define TIMEOUT 20 /* drop UDP queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
 #define CACHESIZ 150 /* default cache size */
 #define MAXTOK 50 /* token in DHCP leases */
@@ -31,9 +34,12 @@
 #define RUNFILE "/var/run/dnsmasq.pid"
 #if defined(__FreeBSD__) || defined (__OpenBSD__)
 #   define LEASEFILE "/var/db/dnsmasq.leases"
-#   define CONFFILE "/usr/local/etc/dnsmasq.conf"
 #else
 #   define LEASEFILE "/var/lib/misc/dnsmasq.leases"
+#endif
+#if defined(__FreeBSD__)
+#   define CONFFILE "/usr/local/etc/dnsmasq.conf"
+#else
 #   define CONFFILE "/etc/dnsmasq.conf"
 #endif
 #define DEFLEASE 3600 /* default lease time, 1 hour */
@@ -63,7 +69,7 @@
 /* We assume that systems which don't have IPv6
    headers don't have ntop and pton either */
 
-#if defined(INET6_ADDRSTRLEN) && !defined(NO_IPV6)
+#if defined(INET6_ADDRSTRLEN) && defined(IPV6_V6ONLY) && !defined(NO_IPV6)
 #  define HAVE_IPV6
 #  define ADDRSTRLEN INET6_ADDRSTRLEN
 #  if defined(SOL_IPV6)
@@ -88,7 +94,6 @@
 /* Follows system specific switches. If you run on a 
    new system, you may want to edit these. 
    May replace this with Autoconf one day. 
-
 
 HAVE_LINUX_IPV6_PROC
    define this to do IPv6 interface discovery using
