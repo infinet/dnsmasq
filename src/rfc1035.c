@@ -620,7 +620,7 @@ int setup_reply(HEADER *header, unsigned int qlen,
   header->ancount = htons(0); /* no answers unless changed below*/
   if (flags == F_NEG)
     header->rcode = SERVFAIL; /* couldn't get memory */
-  else if (flags == F_NOERR)
+  else if (flags == F_NOERR || flags == F_QUERY)
     header->rcode = NOERROR; /* empty domain */
   else if (flags == F_NXDOMAIN)
     header->rcode = NXDOMAIN;

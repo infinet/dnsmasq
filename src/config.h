@@ -12,21 +12,23 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.2"
+#define VERSION "2.3"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
-#define TIMEOUT 40 /* drop queries after TIMEOUT seconds */
+#define TIMEOUT 20 /* drop queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
 #define CACHESIZ 150 /* default cache size */
+#define MAXLEASES 150 /* maximum number of DHCP leases */
 #define SMALLDNAME 40 /* most domain names are smaller than this */
 #define HOSTSFILE "/etc/hosts"
+#define ETHERSFILE "/etc/ethers"
 #ifdef __uClinux__
 #  define RESOLVFILE "/etc/config/resolv.conf"
 #else
 #  define RESOLVFILE "/etc/resolv.conf"
 #endif
 #define RUNFILE "/var/run/dnsmasq.pid"
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined (__OpenBSD__)
 #   define LEASEFILE "/var/db/dnsmasq.leases"
 #   define CONFFILE "/usr/local/etc/dnsmasq.conf"
 #else
@@ -37,6 +39,7 @@
 #define CHUSER "nobody"
 #define CHGRP "dip"
 #define IP6INTERFACES "/proc/net/if_inet6"
+#define UPTIME "/proc/uptime"
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 
@@ -55,13 +58,29 @@
 #endif
 
 
+/* determine if we can find the destination address of recieved packets
+   and set the source address of sent ones. If so, we can use one socket
+   bound to INADDR_ANY and cope with dynamically created interfaces.
+   Linux does this differently to FreeBSD. */
+
+#if defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR))
+#  define HAVE_UDP_SRC_DST
+#else
+#  undef HAVE_UDP_SRC_DST
+#endif
+
 /* Decide if we're going to support IPv6 */
 /* We assume that systems which don't have IPv6
    headers don't have ntop and pton either */
 
-#if defined(INET6_ADDRSTRLEN)
+#if defined(INET6_ADDRSTRLEN) && !defined(NO_IPV6)
 #  define HAVE_IPV6
 #  define ADDRSTRLEN INET6_ADDRSTRLEN
+#  if defined(SOL_IPV6)
+#    define IPV6_LEVEL SOL_IPV6
+#  else
+#    define IPV6_LEVEL IPPROTO_IPV6
+#  endif
 #elif defined(INET_ADDRSTRLEN)
 #  undef HAVE_IPV6
 #  define ADDRSTRLEN INET_ADDRSTRLEN
@@ -84,6 +103,23 @@
 HAVE_LINUX_IPV6_PROC
    define this to do IPv6 interface discovery using
    proc/net/if_inet6 ala LINUX. 
+
+HAVE_BROKEN_RTC
+   define this on embeded systems which don't have an RTC
+   which keeps time over reboots. Causes dnsmasq to use uptime()
+   for timing, and keep relative time values in its leases file.
+   Also enables "Flash disk mode". Normally, dnsmasq tries very hard to 
+   keep the on-disk leases file up-to-date: rewriting it after every change.
+   When HAVE_BROKEN_RTC is in effect, a different regime is used:
+   The leases file is written when dnsmasq terminates, when it receives
+   SIGALRM, when a brand new lease is allocated, or every n seconds, 
+   where n is one third  of the smallest time configured for leases 
+   in a --dhcp-range or --dhcp-host option.
+   NOTE: when enabling or disabling this, be sure to delete any old
+   leases file, otherwise dnsmasq may get very confused.
+   This configuration currently only works on Linux, but could be made to
+   work on other systems by teaching dnsmasq_time() in utils.c how to
+   read the system uptime.
 
 HAVE_GETOPT_LONG
    define this if you have GNU libc or GNU getopt. 
@@ -111,9 +147,6 @@ HAVE_SOCKADDR_SA_LEN
 HAVE_PSELECT
    If your C library implements pselect, define this.
 
-HAVE_PF_PACKET
-   If your OS implements packet sockets, define this. 
-
 HAVE_BPF
    If your OS implements Berkeley PAcket filter, define this.
 
@@ -124,8 +157,7 @@ NOTES:
       HAVE_RANDOM
       HAVE_DEV_RANDOM
       HAVE_DEV_URANDOM
-      HAVE_PF_PACKET
-   you should NOT define 
+  you should NOT define 
       HAVE_ARC4RANDOM
       HAVE_SOCKADDR_SA_LEN
 
@@ -151,7 +183,6 @@ NOTES:
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM
 #define HAVE_DEV_RANDOM
-#define HAVE_PF_PACKET
 #undef HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 /* Don't fork into background on uClinux */
@@ -175,7 +206,6 @@ NOTES:
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM
 #define HAVE_DEV_RANDOM
-#undef HAVE_PF_PACKET
 #undef HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 /* Fix various misfeatures of libc5 headers */
@@ -193,7 +223,6 @@ typedef size_t socklen_t;
 #define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #define HAVE_PSELECT
-#define HAVE_PF_PACKET
 /* glibc < 2.2  has broken Sockaddr_in6 so we have to use our own. */
 /* glibc < 2.2 doesn't define in_addr_t */
 #if defined(__GLIBC__) && (__GLIBC__ == 2) && \
@@ -204,6 +233,9 @@ typedef unsigned long in_addr_t;
 #endif
 #endif
 
+/* #elif defined(__OpenBSD__)
+#error The sockets API in OpenBSD does not provide facilities required by dnsmasq
+*/
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #undef HAVE_LINUX_IPV6_PROC
 #undef HAVE_GETOPT_LONG

@@ -11,23 +11,24 @@
 */
 
 /* Author's email: simon@thekelleys.org.uk */
+ 
 
+#ifdef __linux__
 /* for pselect.... */
-#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE 600 
 /* but then DNS headers don't compile without.... */
 #define _BSD_SOURCE
-/* and also, on FreeBSD 5.0 ..... */
-#define __BSD_VISIBLE 1
-
+#endif
+ 
 /* get these before config.h  for IPv6 stuff... */
-#include <sys/types.h>
+#include <sys/types.h> 
 #include <netinet/in.h>
 
 /* get this before config.h too. */
 #include <syslog.h>
 
 #include "config.h"
-
+ 
 #include <arpa/nameser.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
@@ -36,7 +37,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #if defined(__sun) || defined(__sun__)
-#include <sys/sockio.h>
+#  include <sys/sockio.h>
 #endif
 #include <sys/time.h>
 #include <net/if.h>
@@ -54,18 +55,25 @@
 #include <errno.h>
 #include <pwd.h>
 #include <grp.h>
-#include <net/ethernet.h>
+#if defined(__OpenBSD__)
+#  include <netinet/if_ether.h>
+#else
+#  include <net/ethernet.h>
+#endif
 #include <net/if_arp.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
-#ifdef HAVE_PF_PACKET
-#include <netpacket/packet.h>
-#endif
 #ifdef HAVE_BPF
-#include <net/bpf.h>
-#include <net/if_dl.h>
+#  include <net/bpf.h>
+#  include <net/if_dl.h>
+#else
+#  include <netpacket/packet.h>
 #endif
 #include <sys/uio.h>
+
+/* Size: we check after adding each record, so there must be 
+     memory for the largest packet, and the largest record */
+#define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
 
 #define OPT_BOGUSPRIV      1
 #define OPT_FILTER         2
@@ -80,6 +88,8 @@
 #define OPT_LOCALMX        1024
 #define OPT_NO_NEG         2048
 #define OPT_NODOTS_LOCAL   4096
+#define OPT_NOWILD         8192
+#define OPT_ETHERS         16384
 
 struct all_addr {
   union {
@@ -175,20 +185,20 @@ struct server {
   struct server *next; 
 };
 
-/* linked list of all the interfaces in the system and 
-   the sockets we have bound to each one. */
 struct irec {
   union mysockaddr addr;
-  int fd;
-  int valid;
   struct irec *next;
+};
+
+struct listener {
+  int fd, family;
+  struct listener *next;
 };
 
 /* interface and address parms from command line. */
 struct iname {
   char *name;
   union mysockaddr addr;
-  int found;
   struct iname *next;
 };
 
@@ -202,6 +212,7 @@ struct resolvc {
 
 struct frec {
   union mysockaddr source;
+  struct all_addr dest;
   struct server *sentto;
   unsigned short orig_id, new_id;
   int fd;
@@ -232,16 +243,15 @@ struct dhcp_config {
 struct dhcp_opt {
   int opt, len, is_addr;
   unsigned char *val;
+  char *netid;
   struct dhcp_opt *next;
  };
 
 struct dhcp_context {
-  int fd, rawfd, ifindex;
-  char *iface;
-  unsigned char hwaddr[ETHER_ADDR_LEN];
   unsigned int lease_time;
-  struct in_addr serv_addr, netmask, broadcast;
+  struct in_addr netmask, broadcast;
   struct in_addr start, end, last; /* range of available addresses */
+  char *netid;
   struct dhcp_context *next;
 };
 
@@ -313,7 +323,7 @@ char *safe_string_alloc(char *cp);
 int sa_len(union mysockaddr *addr);
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
 int hostname_isequal(unsigned char *a, unsigned char *b);
-
+time_t dnsmasq_time(int fd);
 /* option.c */
 unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resolv_file, 
 		       char **mxname, char **mxtarget, char **lease_file, 
@@ -323,35 +333,37 @@ unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resol
 		       struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, 
 		       int *port, int *query_port, unsigned long *local_ttl, char **addn_hosts,
 		       struct dhcp_context **dhcp, struct dhcp_config **dhcp_conf, struct dhcp_opt **opts,
-		       char **dhcp_file, char **dhcp_sname, struct in_addr *dhcp_next_server);
+		       char **dhcp_file, char **dhcp_sname, struct in_addr *dhcp_next_server,
+		       int *maxleases, unsigned int *min_leasetime);
 
 /* forward.c */
 void forward_init(int first);
-void reap_forward(int fd);
-struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *header, 
-			     int plen, unsigned int options, char *dnamebuff, 
-			     struct server *servers, struct server *last_server,
-			     time_t now, unsigned long local_ttl);
 struct server *reply_query(int fd, int options, char *packet, time_t now,
 			   char *dnamebuff, struct server *last_server, 
 			   struct bogus_addr *bogus_nxdomain);
 
+struct server *receive_query(struct listener *listen, char *packet, char *mxname, 
+			     char *mxtarget, unsigned int options, time_t now, 
+			     unsigned long local_ttl, char *namebuff,
+			     struct iname *names, struct iname *addrs, struct iname *except,
+			     struct server *last_server, struct server *servers);
 /* network.c */
 struct server *reload_servers(char *fname, char *buff, struct server *servers, int query_port);
 struct server *check_servers(struct server *new, struct irec *interfaces, struct serverfd **sfds);
-char *enumerate_interfaces(struct irec **interfaces,
-			   struct iname *names, 
-			   struct iname *addrs, 
-			   struct iname *except,
-			   struct dhcp_context *dhcp,
-			   int port);
-
+struct irec *enumerate_interfaces(struct iname *names,
+				  struct iname *addrs,
+				  struct iname *except,
+				  int port);
+struct listener *create_wildcard_listeners(int port);
+struct listener *create_bound_listeners(struct irec *interfaces);
 /* dhcp.c */
-void dhcp_packet(struct dhcp_context *context, char *packet,
-		 struct dhcp_opt *dhcp_opts,
-		 struct dhcp_config *dhcp_configs,  
+void dhcp_init(int *fdp, int* rfdp);
+void dhcp_packet(struct dhcp_context *contexts, char *packet, 
+		 struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
 		 time_t now, char *namebuff, char *domain_suffix,
-		 char *dhcp_file, char *dhcp_sname, struct in_addr dhcp_next_server);
+		 char *dhcp_file, char *dhcp_sname, 
+		 struct in_addr dhcp_next_server, int dhcp_fd, int raw_fd,
+		 struct iname *names, struct iname *addrs, struct iname *except);
 int address_available(struct dhcp_context *context, struct in_addr addr);
 int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
 		     struct in_addr *addrp);
@@ -359,12 +371,14 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,
 				unsigned char *hwaddr, char *hostname);
-
-void set_configs_from_cache(struct dhcp_config *configs);
+struct dhcp_config *read_ethers(struct dhcp_config *configs, char *buff);
+void dhcp_update_configs(struct dhcp_config *configs);
+struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff);
 /* lease.c */
-void lease_update_dns(int force_dns);
+void lease_update_file(int force, time_t now);
+void lease_update_dns(void);
 int lease_init(char *lease_file, char *domain, char *buff, 
-	       char *buff2, time_t now, struct dhcp_config *dhcp_configs);
+	       char *buff2, time_t now, int maxleases);
 struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_addr addr);
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix);
@@ -372,10 +386,15 @@ void lease_set_expires(struct dhcp_lease *lease, time_t exp);
 struct dhcp_lease *lease_find_by_client(unsigned char *clid, int clid_len);
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
 void lease_prune(struct dhcp_lease *target, time_t now);
-
+void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain);
 /* rfc2131.c */
-int dhcp_reply(struct dhcp_context *context, struct dhcp_packet *mess,
+int dhcp_reply(struct dhcp_context *context, 
+	       struct in_addr iface_addr,
+	       char *iface_name,
+	       int iface_mtu,
+	       struct udp_dhcp_packet *rawpacket,
 	       unsigned int sz, time_t now, char *namebuff, 
-	       struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs,
+	       struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
 	       char *domain_suffix, char *dhcp_file, char *dhcp_sname, 
 	       struct in_addr dhcp_next_server);
+

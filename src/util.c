@@ -61,17 +61,15 @@ unsigned short rand16(void)
       else
 	{
 	  s = (char *) &seed;
-	  while ( (c < sizeof(seed)) &&
-		  ((n = read(fd, sbuf, sizeof(seed)) > 0)) ) 
+	  while ((c < sizeof(seed)) &&
+		 ((n = read(fd, sbuf, sizeof(seed)) > 0))) 
 	    {
 	      memcpy(s, sbuf, n);
 	      s += n;
 	      c += n;
 	    }
 	  if (n < 0)
-	    {
-	      seed = badseed;
-	    }
+	    seed = badseed;
 	  close(fd);
 	}
 
@@ -215,3 +213,18 @@ int hostname_isequal(unsigned char *a, unsigned char *b)
   return 1;
 }
     
+time_t dnsmasq_time(int fd)
+{
+#ifdef HAVE_BROKEN_RTC
+  /* we use uptime as a time-base, rather than epoch time
+     because epoch time can break when a machine contacts
+     a nameserver and updates it. */
+  char buf[30];
+  lseek(fd, 0, SEEK_SET);
+  read(fd, buf, 30);
+  return (time_t)atol(buf);
+#else
+  fd = 0; /* stop warning */
+  return time(NULL);
+#endif
+}

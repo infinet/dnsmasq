@@ -76,6 +76,15 @@ filterwin2k
 # you use this.)
 #listen-address=
 
+# On systems which support it, dnsmasq binds the wildcard address,
+# even when it is listening on only some interfaces. It then discards
+# requests that it shouldn't reply to. This has the advantage of 
+# working even when interfaces come and go and change address. If you
+# want dnsmasq to really bind only the interfaces it is listening on,
+# uncomment this option. About the only time you may need this is when 
+# running another nameserver on the same machine.
+#bind-interfaces 
+
 # If you don't want dnsmasq to read /etc/hosts, uncomment the
 # following line.
 #no-hosts
@@ -87,12 +96,31 @@ filterwin2k
 # automatically added to simple names in a hosts-file.
 #expand-hosts
 
+# Set the domain for dnsmasq. this is optional, but if it is set, it
+# does the following things.
+# 1) Allows DHCP hosts to have fully qualified domain names, as long
+#     as the domain part matches this setting.
+# 2) Sets the "domain" DHCP option thereby potentially setting the
+#    domain of all systems configured by DHCP
+# 3) Provides the domain part for "expand-hosts"
+#domain=thekelleys.org.uk
+  
 # Uncomment this to enable the integrated DHCP server, you need
 # to supply the range of addresses available for lease and optionally 
-# a lease time. If you have more than one interface, you will need to
-# repeat this for each interface on which you want to supply DHCP
+# a lease time. If you have more than one network, you will need to
+# repeat this for each network on which you want to supply DHCP
 # service.
 #dhcp-range=192.168.0.50,192.168.0.150,12h
+
+# This is an example of a DHCP range where the netmask is given. This
+# is needed for networks we reach the dnsmasq DHCP server via a relay 
+# agent. If you don't know what a DHCP relay agent is, you probably
+# don't need to worry about this.
+#dhcp-range=192.168.0.50,192.168.0.150,255.255.255.0,12h
+
+# This is an example of a DHCP range with a network-id, so that
+# some DHCP options may be set only for this network.
+#dhcp-range=red,192.168.0.50,192.168.0.150
 
 # Supply parameters for specified hosts using DHCP. There are lots
 # of valid alternatives, so we will give examples of each. Note that
@@ -129,6 +157,12 @@ filterwin2k
 # it asks for a DHCP lease.
 #dhcp-host=judge
 
+# If this line is uncommented, dnsmasq will read /etc/ethers and act
+# on the ethernet-address/IP pairs found there just as if they had
+# been given as --dhcp-host options. Useful if you keep
+# MAC-address/host mappings there for other purposes.
+#read-ethers
+
 # Send options to hosts which ask for a DHCP lease.
 # See RFC 2132 for details of available options.
 # Note that all the common settings, such as netmask and
@@ -159,6 +193,10 @@ filterwin2k
 # Set the "all subnets are local" flag
 #dhcp-option=27,1
 
+# Specify an option which will only be sent to the "red" network 
+# (see dhcp-range for the declaration of the "red" network)
+#dhcp-option=red,42,192.168.1.1
+
 # The following DHCP options set up dnsmasq in the same way as is specified
 # for the ISC dhcpcd in 
 # http://www.samba.org/samba/ftp/docs/textdocs/DHCP-Server-Configuration.txt
@@ -176,6 +214,9 @@ filterwin2k
 # for BOOTP. You will only need this is you want to
 # boot machines over the network.
 #dhcp-boot=/var/ftpd/pxelinux.0,boothost,192.168.0.3
+
+# Set the limit on DHCP leases, the default is 150
+#dhcp-lease-max=150
 
 # The DHCP server needs somewhere on disk to keep its lease database.
 # This defaults to a sane location, but if you want to change it, use

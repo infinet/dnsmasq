@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "DNLERowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:"
+#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -66,6 +66,8 @@ static struct myoption opts[] = {
   {"query-port", 1, 0, 'Q'},
   {"except-interface", 1, 0, 'I'},
   {"domain-needed", 0, 0, 'D'},
+  {"dhcp-lease-max", 1, 0, 'X' },
+  {"read-ethers", 0, 0, 'Z' },
   {0, 0, 0, 0}
 };
 
@@ -85,9 +87,11 @@ static struct optflags optmap[] = {
   { 'o', OPT_ORDER },
   { 'R', OPT_NO_RESOLV },
   { 'E', OPT_EXPAND },
-  { 'L', OPT_LOCALMX},
-  { 'N', OPT_NO_NEG},
-  { 'D', OPT_NODOTS_LOCAL},
+  { 'L', OPT_LOCALMX },
+  { 'N', OPT_NO_NEG },
+  { 'D', OPT_NODOTS_LOCAL },
+  { 'z', OPT_NOWILD },
+  { 'Z', OPT_ETHERS },
   { 'v', 0},
   { 'w', 0},
   { 0, 0 }
@@ -136,6 +140,9 @@ static char *usage =
 "-v, --version                       Display dnsmasq version.\n"
 "-w, --help                          Display this message.\n"
 "-x, --pid-file=path                 Specify path of PID file. (defaults to " RUNFILE ").\n"
+"-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
+"-z, --bind-interfaces               Bind only to interfaces in use.\n"
+"-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
 "\n";
 
 
@@ -146,15 +153,19 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, int *port, 
 			int *query_port, unsigned long *local_ttl, char **addn_hosts, struct dhcp_context **dhcp,
 			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, char **dhcp_file,
-			char **dhcp_sname, struct in_addr *dhcp_next_server)
+			char **dhcp_sname, struct in_addr *dhcp_next_server, int *dhcp_max, 
+			unsigned int *min_leasetime)
 {
   int option = 0, i;
   unsigned int flags = 0;
   FILE *f = NULL;
   char *conffile = CONFFILE;
   int conffile_set = 0;
+  int lineno = 0;
 
   opterr = 0;
+  
+  *min_leasetime = UINT_MAX;
 
   while (1)
     {
@@ -175,6 +186,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	  else
 	    {
 	      char *p;
+	      lineno++;
 	      /* dump comments */
 	      for (p = buff; *p; p++)
 		if (*p == '#')
@@ -200,7 +212,11 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if (strcmp(opts[i].name, buff) == 0)
 		  option = opts[i].val;
 	      if (!option)
-		die("bad option %s", buff);
+		{
+		  sprintf(buff, "bad option at line %d of %s ", lineno, conffile);
+		  complain(buff, NULL);
+		  continue;
+		}
 	    }
 	}
       
@@ -220,7 +236,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
      
       if (!f && option == 'w')
 	{
-	  fprintf (stderr, usage,  CACHESIZ);
+	  fprintf (stderr, usage,  CACHESIZ, MAXLEASES);
 	  exit(0);
 	}
 
@@ -236,15 +252,22 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	    flags |= optmap[i].flag;
 	    option = 0;
 	    if (f && optarg)
-	      die("extraneous parameter for %s in config file.", buff);
+	      {
+		sprintf(buff, "extraneous parameter at line %d of %s ", lineno, conffile);
+		complain(buff, NULL);
+	      }
 	    break;
 	  }
       
       if (option && option != '?')
 	{
 	  if (f && !optarg)
-            die("missing parameter for %s in config file.", buff);
-          
+	    {
+	      sprintf(buff, "missing parameter at line %d of %s ", lineno, conffile);
+	      complain(buff, NULL);
+	      continue;
+	    }
+	               
 	  switch (option)
 	    { 
 	     case 'C': 
@@ -332,7 +355,6 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		/* new->name may be NULL if someone does
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(optarg);
-		new->found = 0;
 		break;
 	      }
 	      
@@ -364,8 +386,6 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      {
 		struct iname *new = safe_malloc(sizeof(struct iname));
 		new->next = *if_addrs;
-		*if_addrs = new;
-		new->found = 0;
 #ifdef HAVE_IPV6
 		if (inet_pton(AF_INET, optarg, &new->addr.in.sin_addr))
 		  {
@@ -392,7 +412,14 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  }
 #endif
 		else
-		  option = '?'; /* error */
+		  {
+		    option = '?'; /* error */
+		    free(new);
+		    new = NULL;
+		  }
+		
+		if (new)
+		  *if_addrs = new;
 		break;
 	      }
 	      
@@ -410,10 +437,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			char *domain;
 			*end = 0;
 			if (!canonicalise(optarg))
-			  {
-			    option = '?';
-			    break;
-			  }
+			  option = '?';
 			domain = safe_string_alloc(optarg); /* NULL if strlen is zero */
 			serv = safe_malloc(sizeof(struct server));
 			serv->next = newlist;
@@ -443,20 +467,14 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  {
 		    newlist->flags |= SERV_LITERAL_ADDRESS;
 		    if (!(newlist->flags & SERV_TYPE))
-		      {
-			option = '?';
-		        break;
-		      }
+		      option = '?';
 		  }
 		
 		if (!*optarg)
 		  {
 		    newlist->flags |= SERV_NO_ADDR; /* no server */
 		    if (newlist->flags & SERV_LITERAL_ADDRESS)
-		      {
-			option = '?';
-		        break;
-		      }
+		      option = '?';
 		  }
 		else
 		  {
@@ -531,16 +549,26 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    
 		  }
 		
-		serv = newlist;
-		while (serv->next)
+		if (option == '?')
+		  while (newlist)
+		    { 
+		      serv = newlist;
+		      newlist = newlist->next;
+		      free(serv);
+		    }
+		else
 		  {
-		    serv->next->flags = serv->flags;
-		    serv->next->addr = serv->addr;
-		    serv->next->source_addr = serv->source_addr;
-		    serv = serv->next;
+		    serv = newlist;
+		    while (serv->next)
+		      {
+			serv->next->flags = serv->flags;
+			serv->next->addr = serv->addr;
+			serv->next->source_addr = serv->source_addr;
+			serv = serv->next;
+		      }
+		    serv->next = *serv_addrs;
+		    *serv_addrs = newlist;
 		  }
-		serv->next = *serv_addrs;
-		*serv_addrs = newlist;
 		break;
 	      }
 	      
@@ -570,34 +598,73 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      *local_ttl = (unsigned long)atoi(optarg);
 	      break;
 
+	    case 'X':
+	      *dhcp_max = atoi(optarg);
+	      break;
+
 	    case 'F':
 	      {
-		char *comma;
+		int k, leasepos = 2;
+		char *cp, *comma, *a[5] = { NULL, NULL, NULL, NULL, NULL };
 		struct dhcp_context *new = safe_malloc(sizeof(struct dhcp_context));
 		
 		new->next = *dhcp;
-		*dhcp = new;
 		new->lease_time = DEFLEASE; 
+		new->netmask.s_addr = 0;
+		new->broadcast.s_addr = 0;
+		new->netid = NULL;
 		
-		if (!(comma = strchr(optarg, ',')) || (*comma = 0) ||
-		    ((new->start.s_addr = inet_addr(optarg)) == (in_addr_t)-1))
-		  { 
-		    option  = '?';
+		
+		for (cp = optarg; *cp; cp++)
+		  if (!(*cp == ' ' || *cp == '.' ||  (*cp >='0' && *cp <= '9')))
+		    break;
+
+		if (*cp != ',' && (comma = strchr(optarg, ',')))
+		  {
+		    *comma = 0;
+		    new->netid = safe_string_alloc(optarg);
+		    a[0] = comma + 1;
+		  }
+		else
+		  a[0] = optarg;
+
+		
+		for (k = 1; k < 5; k++)
+		  {
+		    if (!(a[k] = strchr(a[k-1], ',')))
+		      break;
+		    *(a[k]++) = 0;
+		  }
+		  
+		if ((k < 2) ||
+		    ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1) ||
+		    ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1))
+		  {
+		    option = '?';
+		    free(new);
 		    break;
 		  }
+		else
+		  *dhcp = new;
 		
-		optarg = comma + 1;
-		if ((comma = strchr(optarg, ',')))
+		if (k >= 3 && strchr(a[2], '.') &&  
+		    ((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
+		  leasepos = 3;
+		
+		if (k >= 4 && strchr(a[3], '.') &&  
+		    ((new->broadcast.s_addr = inet_addr(a[3])) != (in_addr_t)-1))
+		  leasepos = 4;
+
+		if (k >= leasepos+1)
 		  {
-		    *(comma++) = 0;
-		    if (strcmp(comma, "infinite") == 0)
+		    if (strcmp(a[leasepos], "infinite") == 0)
 		      new->lease_time = 0xffffffff;
 		    else
 		      {
 			int fac = 1;
-			if (strlen(comma) > 0)
+			if (strlen(a[leasepos]) > 0)
 			  {
-			    switch (comma[strlen(comma) - 1])
+			    switch (a[leasepos][strlen(a[leasepos]) - 1])
 			      {
 			      case 'h':
 			      case 'H':
@@ -606,24 +673,21 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			      case 'm':
 			      case 'M':
 				fac *= 60;
-				
-				comma[strlen(comma) - 1] = 0;
+				/* fall through */
+			      case 's':
+			      case 'S':
+				a[leasepos][strlen(a[leasepos]) - 1] = 0;
 			      }
 			    
-			    new->lease_time = atoi(comma) * fac;
+			    new->lease_time = atoi(a[leasepos]) * fac;
+			    if (new->lease_time < *min_leasetime)
+			      *min_leasetime = new->lease_time;
 			  }
 		      }
 		  }
-		
-		if ((new->end.s_addr = inet_addr(optarg)) == (in_addr_t)-1)
-		  { 
-		    option  = '?';
-		    break;
-		  }
-		
+				
 		new->last = new->start;
-		new->iface = NULL;
-
+		
 		break;
 	      }
 
@@ -636,8 +700,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		struct in_addr in;
 
 		new->next = *dhcp_conf;
-		*dhcp_conf = new;
-		  
+				  
 		memset(new->hwaddr, 0, ETHER_ADDR_LEN);
 		new->clid_len = 0;
 		new->clid = NULL;
@@ -715,7 +778,9 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			    case 'm':
 			    case 'M':
 			      fac *= 60;
-			      
+			      /* fall through */
+			    case 's':
+			    case 'S':
 			      *lastp = 0;
 			    }
 			}
@@ -734,32 +799,60 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			    new->hostname = safe_string_alloc(a[j]);
 			}
 		      else
-			new->lease_time = atoi(a[j]) * fac;
+			{
+			  new->lease_time = atoi(a[j]) * fac;  
+			  if (new->lease_time < *min_leasetime)
+			    *min_leasetime = new->lease_time;
+			}
 		    }
+
+		if (option == '?')
+		  free(new);
+		else
+		  *dhcp_conf = new;
 		break;
 	      }
 	      
 	    case 'O':
 	      {
 		struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
-		char *cp, *comma = strchr(optarg, ',');
+		char *cp, *comma;
 		int addrs, is_addr;
 		
 		new->next = *dhcp_opts;
 		new->len = 0;
 		new->is_addr = 0;
-		*dhcp_opts = new;
+		new->netid = NULL;
+				
+		if ((comma = strchr(optarg, ',')))
+		  {
+		    *comma = 0;
+		
+		    for (cp = optarg; *cp; cp++)
+		      if (!(*cp == ' ' || (*cp >='0' && *cp <= '9')))
+			break;
+
+		    if (*cp)
+		      {
+			new->netid = safe_string_alloc(optarg);
+			optarg = comma + 1;
+			if ((comma = strchr(optarg, ',')))
+			  *comma = 0;
+		      }
+		  }
 		
 		if ((new->opt = atoi(optarg)) == 0)
 		  {
 		    option = '?';
+		    free(new);
 		    break;
 		  }
-		
+
 		if (!comma)
-		  break;
-		
-		*comma = 0;
+		  {
+		    *dhcp_opts = new;
+		    break;
+		  }
 
 		/* check for non-address list characters */
 		for (addrs = 1, is_addr = 0, cp = comma+1; *cp; cp++)
@@ -805,6 +898,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			  }
 		      }
 		  }
+		*dhcp_opts = new;
 		break;
 	      }
 
@@ -832,7 +926,10 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
       if (option == '?')
 	{
 	  if (f)
-	    die("bad argument for option %s", buff);
+	    {
+	      sprintf(buff, "error at line %d of %s ", lineno, conffile);
+	      complain(buff, NULL);
+	    }
 	  else
 	    die("bad command line options: try --help.", NULL);
 	}

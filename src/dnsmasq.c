@@ -16,7 +16,7 @@
 
 #include "dnsmasq.h"
 
-static int sigterm, sighup, sigusr1, sigusr2;
+static int sigterm, sighup, sigusr1, sigalarm;
 
 static void sig_handler(int sig)
 {
@@ -26,23 +26,24 @@ static void sig_handler(int sig)
     sighup = 1;
   else if (sig == SIGUSR1)
     sigusr1 = 1;
-  else if (sig == SIGUSR2)
-    sigusr2 = 1;
+  else if (sig == SIGALRM)
+    sigalarm = 1;
 }
 
 int main (int argc, char **argv)
 {
-  char *int_err_string;
   int cachesize = CACHESIZ;
   int port = NAMESERVER_PORT;
+  int maxleases = MAXLEASES;
   int query_port = 0;
   int first_loop = 1;
   unsigned long local_ttl = 0;
-  unsigned int options;
+  unsigned int options, min_leasetime;
   char *runfile = RUNFILE;
   time_t resolv_changed = 0;
   time_t now, last = 0;
-  struct irec *iface, *interfaces = NULL;
+  struct irec *interfaces = NULL;
+  struct listener *listener, *listeners;
   char *mxname = NULL;
   char *mxtarget = NULL;
   char *lease_file = NULL;
@@ -53,9 +54,9 @@ int main (int argc, char **argv)
   struct iname *if_names = NULL;
   struct iname *if_addrs = NULL;
   struct iname *if_except = NULL;
-  struct iname *if_tmp;
   struct server *serv_addrs = NULL;
   char *dnamebuff, *packet;
+  int uptime_fd = -1;
   struct server *servers, *last_server;
   struct resolvc default_resolv = { NULL, 1, 0, RESOLVFILE };
   struct resolvc *resolv = &default_resolv;
@@ -66,29 +67,33 @@ int main (int argc, char **argv)
   struct dhcp_opt *dhcp_options = NULL;
   char *dhcp_file = NULL, *dhcp_sname = NULL;
   struct in_addr dhcp_next_server;
-  int leasefd = 0;
+  int leasefd = -1, dhcpfd = -1, dhcp_raw_fd = -1;
   struct sigaction sigact;
   sigset_t sigmask;
   
   sighup = 1; /* init cache the first time through */
   sigusr1 = 0; /* but don't dump */
-  sigusr2 = 0; /* or rescan interfaces */
   sigterm = 0; /* or die */
+#ifdef HAVE_BROKEN_RTC
+  sigalarm = 1; /* need regular lease dumps */
+#else
+  sigalarm = 0; /* or not */
+#endif
  
   sigact.sa_handler = sig_handler;
   sigact.sa_flags = 0;
   sigemptyset(&sigact.sa_mask);
   sigaction(SIGUSR1, &sigact, NULL);
-  sigaction(SIGUSR2, &sigact, NULL);
   sigaction(SIGHUP, &sigact, NULL);
   sigaction(SIGTERM, &sigact, NULL);
+  sigaction(SIGALRM, &sigact, NULL);
 
   /* now block all the signals, they stay that way except
       during the call to pselect */
   sigaddset(&sigact.sa_mask, SIGUSR1);
-  sigaddset(&sigact.sa_mask, SIGUSR2);
   sigaddset(&sigact.sa_mask, SIGTERM);
   sigaddset(&sigact.sa_mask, SIGHUP);
+  sigaddset(&sigact.sa_mask, SIGALRM);
   sigprocmask(SIG_BLOCK, &sigact.sa_mask, &sigmask); 
 
   /* These get allocated here to avoid overflowing the small stack
@@ -96,17 +101,21 @@ int main (int argc, char **argv)
      maximal sixed domain name and gets passed into all the processing
      code. We manage to get away with one buffer. */
   dnamebuff = safe_malloc(MAXDNAME);
-  /* Size: we check after adding each record, so there must be 
-     memory for the largest packet, and the largest record */
-  packet = safe_malloc(PACKETSZ+MAXDNAME+RRFIXEDSZ);
+  packet = safe_malloc(DNSMASQ_PACKETSZ);
   
   dhcp_next_server.s_addr = 0;
   options = read_opts(argc, argv, dnamebuff, &resolv, &mxname, &mxtarget, &lease_file,
 		      &username, &groupname, &domain_suffix, &runfile, 
 		      &if_names, &if_addrs, &if_except, &bogus_addr, 
 		      &serv_addrs, &cachesize, &port, &query_port, &local_ttl, &addn_hosts,
-		      &dhcp, &dhcp_configs, &dhcp_options, 
-		      &dhcp_file, &dhcp_sname, &dhcp_next_server);
+		      &dhcp, &dhcp_configs, &dhcp_options,
+		      &dhcp_file, &dhcp_sname, &dhcp_next_server, &maxleases, &min_leasetime);
+
+  /* if we cannot support binding the wildcard address, set the "bind only
+     interfaces in use" option */
+#ifndef  HAVE_UDP_SRC_DST
+  options |= OPT_NOWILD;
+#endif
 
   if (!lease_file)
     lease_file = LEASEFILE;
@@ -121,46 +130,32 @@ int main (int argc, char **argv)
 	}
     }
   
-  if ((int_err_string = enumerate_interfaces(&interfaces, if_names, if_addrs, if_except, dhcp, port)))
-    die(int_err_string, NULL);
-  
-  for (if_tmp = if_names; if_tmp; if_tmp = if_tmp->next)
-    if (if_tmp->name && !if_tmp->found)
-      die("unknown interface %s", if_tmp->name);
-  
-  for (if_tmp = if_addrs; if_tmp; if_tmp = if_tmp->next)
-    if (!if_tmp->found)
-      {
-#ifdef HAVE_IPV6
-     	if (if_tmp->addr.sa.sa_family == AF_INET)
-	  inet_ntop(AF_INET, &if_tmp->addr.in.sin_addr,
-		    dnamebuff, MAXDNAME);
-	else
-	  inet_ntop(AF_INET6, &if_tmp->addr.in6.sin6_addr,
-		    dnamebuff, MAXDNAME);
-	die("no interface with address %s", dnamebuff);
-#else
-	die("no interface with address %s", inet_ntoa(if_tmp->addr.in.sin_addr));
-#endif
-      }
+  interfaces = enumerate_interfaces(if_names, if_addrs, if_except, port);
+  if (options & OPT_NOWILD)
+    listeners = create_bound_listeners(interfaces);
+  else
+    listeners = create_wildcard_listeners(port);
     
   forward_init(1);
   cache_init(cachesize, options & OPT_LOG);
+
+#ifdef HAVE_BROKEN_RTC
+  if ((uptime_fd = open(UPTIME, O_RDONLY)) == -1)
+    die("cannot open " UPTIME ":%s", NULL);
+#endif
+ 
+  now = dnsmasq_time(uptime_fd);
   
   if (dhcp)
     {
-
-#if !defined(HAVE_PF_PACKET) && !defined(HAVE_BPF)
-      die("no DHCP support available on this OS.", NULL);
-#endif
-
-      for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
-	if (!dhcp_tmp->iface)
-	  die("No suitable interface for DHCP service at address %s", inet_ntoa(dhcp_tmp->start));
-            
-      set_configs_from_cache(dhcp_configs);
-      leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, time(NULL), dhcp_configs);
-      lease_update_dns(1); /* must follow cache_init and lease_init */
+      dhcp_init(&dhcpfd, &dhcp_raw_fd);
+      leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
+      if (options & OPT_ETHERS)
+	dhcp_configs = dhcp_read_ethers(dhcp_configs, dnamebuff);
+      dhcp_update_configs(dhcp_configs);
+      lease_update_from_configs(dhcp_configs, domain_suffix); /* must follow cache_init and lease_init */
+      lease_update_file(0, now); 
+      lease_update_dns();
     }
   
   setbuf(stdout, NULL);
@@ -198,19 +193,16 @@ int main (int argc, char **argv)
 
       for (i=0; i<64; i++)
 	{
-	  for (iface = interfaces; iface; iface = iface->next)
-	    if (iface->fd == i)
+	  for (listener = listeners; listener; listener = listener->next)
+	    if (listener->fd == i)
 	      break;
-	  if (iface)
+	  if (listener)
 	    continue;
 
-	  for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
-	    if (dhcp_tmp->fd == i || dhcp_tmp->rawfd == i)
-	      break;
-	  if (dhcp_tmp)
-	    continue;
-
-	  if (dhcp && (i == leasefd))
+	  if (i == leasefd || 
+	      i == uptime_fd ||
+	      i == dhcpfd || 
+	      i == dhcp_raw_fd)
 	    continue;
 
 	  close(i);
@@ -255,9 +247,14 @@ int main (int argc, char **argv)
 	sprintf(packet, "infinite");
       else
 	sprintf(packet, "%ds", (int)dhcp_tmp->lease_time);
-      syslog(LOG_INFO, "DHCP on %s, IP range %s -- %s, lease time %s", 
-	     dhcp_tmp->iface, dnamebuff, inet_ntoa(dhcp_tmp->end), packet);
+      syslog(LOG_INFO, "DHCP, IP range %s -- %s, lease time %s", 
+	     dnamebuff, inet_ntoa(dhcp_tmp->end), packet);
     }
+
+#ifdef HAVE_BROKEN_RTC
+  if (dhcp)
+    syslog(LOG_INFO, "DHCP, %s will be written every %ds", lease_file, min_leasetime/3);
+#endif
 
   if (getuid() == 0 || geteuid() == 0)
     syslog(LOG_WARNING, "failed to drop root privs");
@@ -271,8 +268,13 @@ int main (int argc, char **argv)
       if (sighup)
 	{
 	  cache_reload(options, dnamebuff, domain_suffix, addn_hosts);
-	  set_configs_from_cache(dhcp_configs);
-	  lease_update_dns(1);
+	  if (dhcp)
+	    {
+	      dhcp_update_configs(dhcp_configs);
+	      lease_update_from_configs(dhcp_configs, domain_suffix); 
+	      lease_update_file(0, now); 
+	      lease_update_dns();
+	    }
 	  if (resolv && (options & OPT_NO_POLL))
 	    servers = last_server = 
 	      check_servers(reload_servers(resolv->name, dnamebuff, servers, query_port), 
@@ -286,18 +288,16 @@ int main (int argc, char **argv)
 	  sigusr1 = 0;
 	}
       
-      if (sigusr2)
+      if (sigalarm)
 	{
-	  if (getuid() != 0 && port <= 1024)
-	    syslog(LOG_ERR, "cannot re-scan interfaces unless --user=root");
-	  else
-	   {
-	     syslog(LOG_INFO, "rescanning network interfaces");
-	     int_err_string = enumerate_interfaces(&interfaces, if_names, if_addrs, if_except, NULL, port);
-	     if (int_err_string)
-	       syslog(LOG_ERR, int_err_string, strerror(errno));
-	   }
-	  sigusr2 = 0;
+	  if (dhcp)
+	    {
+	      lease_update_file(1, now);
+#ifdef HAVE_BROKEN_RTC
+	      alarm(min_leasetime/3);
+#endif
+	    } 
+	  sigalarm  = 0;
 	}
       
       FD_ZERO(&rset);
@@ -313,19 +313,20 @@ int main (int argc, char **argv)
 		maxfd = serverfdp->fd;
 	    }
 	  
-	  for (iface = interfaces; iface; iface = iface->next)
+	  for (listener = listeners; listener; listener = listener->next)
 	    {
-	      FD_SET(iface->fd, &rset);
-	      if (iface->fd > maxfd)
-		maxfd = iface->fd;
+	      FD_SET(listener->fd, &rset);
+	      if (listener->fd > maxfd)
+		maxfd = listener->fd;
 	    }
 	  
-	  for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
+	  if (dhcp)
 	    {
-	      FD_SET(dhcp_tmp->fd, &rset);
-	      if (dhcp_tmp->fd > maxfd)
-		maxfd = dhcp_tmp->fd;
+	      FD_SET(dhcpfd, &rset);
+	      if (dhcpfd > maxfd)
+		maxfd = dhcpfd;
 	    }
+
 #ifdef HAVE_PSELECT
 	  if (pselect(maxfd+1, &rset, NULL, NULL, NULL, &sigmask) < 0)
 	    FD_ZERO(&rset); /* rset otherwise undefined after error */ 
@@ -342,7 +343,7 @@ int main (int argc, char **argv)
 	}
 
       first_loop = 0;
-      now = time(NULL);
+      now = dnsmasq_time(uptime_fd);
 
       /* Check for changes to resolv files once per second max. */
       if (last == 0 || difftime(now, last) > 1.0)
@@ -391,62 +392,28 @@ int main (int argc, char **argv)
 	  last_server = reply_query(serverfdp->fd, options, packet, now, 
 				    dnamebuff, last_server, bogus_addr);
 
-      for (dhcp_tmp = dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
-	if (FD_ISSET(dhcp_tmp->fd, &rset))
-	  dhcp_packet(dhcp_tmp, packet, dhcp_options, dhcp_configs,
-		      now, dnamebuff, domain_suffix, dhcp_file,
-		      dhcp_sname, dhcp_next_server);
+      if (dhcp && FD_ISSET(dhcpfd, &rset))
+	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs,
+		    now, dnamebuff, domain_suffix, dhcp_file,
+		    dhcp_sname, dhcp_next_server, dhcpfd, dhcp_raw_fd,
+		    if_names, if_addrs, if_except);
       
-      for (iface = interfaces; iface; iface = iface->next)
-	{
-	  if (FD_ISSET(iface->fd, &rset))
-	    {
-	      /* request packet, deal with query */
-	      union mysockaddr udpaddr;
-	      socklen_t udplen = sizeof(udpaddr);
-	      HEADER *header = (HEADER *)packet;
-	      int m, n = recvfrom(iface->fd, packet, PACKETSZ, 0, &udpaddr.sa, &udplen); 
-	      udpaddr.sa.sa_family = iface->addr.sa.sa_family;
-#ifdef HAVE_IPV6
-	      if (udpaddr.sa.sa_family == AF_INET6)
-		udpaddr.in6.sin6_flowinfo = htonl(0);
-#endif	      
-	      if (n >= (int)sizeof(HEADER) && !header->qr)
-		{
-		  if (extract_request(header, (unsigned int)n, dnamebuff))
-		    {
-		      if (udpaddr.sa.sa_family == AF_INET) 
-			log_query(F_QUERY | F_IPV4 | F_FORWARD, dnamebuff, 
-				  (struct all_addr *)&udpaddr.in.sin_addr);
-#ifdef HAVE_IPV6
-		      else
-			log_query(F_QUERY | F_IPV6 | F_FORWARD, dnamebuff, 
-				  (struct all_addr *)&udpaddr.in6.sin6_addr);
-#endif
-		    }
-		  
-		  m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, 
-				      mxname, mxtarget, options, now, local_ttl, dnamebuff);
-		  if (m >= 1)
-		    {
-		      /* answered from cache, send reply */
-		      sendto(iface->fd, (char *)header, m, 0, 
-			     &udpaddr.sa, sa_len(&udpaddr));
-		    }
-		  else 
-		    {
-		      /* cannot answer from cache, send on to real nameserver */
-		      last_server = forward_query(iface->fd, &udpaddr, header, n, 
-						  options, dnamebuff, servers, 
-						  last_server, now, local_ttl);
-		    }
-		}
-	      
-	    }
-	}
+      for (listener = listeners; listener; listener = listener->next)
+	if (FD_ISSET(listener->fd, &rset))
+	  last_server = receive_query(listener, packet,
+			mxname, mxtarget, options, now, local_ttl, dnamebuff,
+			if_names, if_addrs, if_except, last_server, servers);
     }
   
   syslog(LOG_INFO, "exiting on receipt of SIGTERM");
+
+#ifdef HAVE_BROKEN_RTC
+  if (dhcp)
+    lease_update_file(1, now);
+#endif
+
+  if (leasefd != -1)
+    close(leasefd);
   return 0;
 }
 

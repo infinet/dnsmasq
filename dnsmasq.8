@@ -87,7 +87,7 @@ flags.
 .B \-I, --except-interface=<interface name>
 Do not listen on the specified interface.
 .TP 
-.B \-a, --listen-address
+.B \-a, --listen-address=<ipaddr>
 Listen only on the given IP address. As with 
 .B \-i
 more than one address may be specified. Unlike 
@@ -100,6 +100,15 @@ flags are given, dnsmasq listens on all available interfaces unless overridden b
 or
 .B \-I
 flags.
+.TP
+.B \-z, --bind-interfaces
+On systems which support it, dnsmasq binds the wildcard address,
+even when it is listening on only some interfaces. It then discards
+requests that it shouldn't reply to. This has the advantage of 
+working even when interfaces come and go and change address. This
+option forces dnsmasq to really bind only the interfaces it is
+listening on. About the only time when this is useful is when 
+running another nameserver on the same machine.
 .TP
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
@@ -226,15 +235,26 @@ Disable negative caching. Negative caching allows dnsmasq to remember
 identical queries without forwarding them again. This flag disables
 negative caching.
 .TP
-.B \-F, --dhcp-range=<start-addr>,<end-addr>[,<default lease time>]
+.B \-F, --dhcp-range=[network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<default lease time>]
 Enable the DHCP server. Addresses will be given out from the range
-<start-addr> to <end-addr>, both of which must be on the network
-attached to a local interface. If the lease time is given, then leases
+<start-addr> to <end-addr> and from statically defined addresses given
+in 
+.B dhcp-host
+options. If the lease time is given, then leases
 will be given for that length of time. The lease time is on seconds,
 or minutes (eg 45m) or hours (eg 1h) or the literal "infinite". This
 option may be repeated, with different addresses, to enable DHCP
-service on more than one local interface. (Use of more than one
-interface currently only works under Linux.)
+service to more than one network. For directly connected networks (ie,
+networks on which the machine running dnsmasq has an interface) the
+netmask is optional. It is, however, required for networks which
+recieve DHCP service via a relay agent. The broadcast address is
+always optional. On some broken systems, dnsmasq can listen on only
+one interface when using DHCP, and the name of that interface must be
+given using the
+.B interface
+option. This limitation currently affects OpenBSD. The optional
+network-id is a alphanumeric label which marks this network so that
+dhcp options may be specified on a per-network basis.
 .TP
 .B \-G, --dhcp-host=[[<hwaddr>]|[id:<client_id>]][,<ipaddr>][,<hostname>][,<lease_time>]
 Specify per host parameters for the DHCP server. This allows a machine
@@ -263,8 +283,16 @@ If a name appears in /etc/hosts, the associated address can be
 allocated to a DHCP lease, but only if a 
 .B --dhcp-host
 option specifying the name also exists.
+.TP 
+.B \-Z, --read-ethers
+Read /etc/ethers for information about hosts for the DHCP server. The
+format of /etc/ethers is a hardware address, followed by either a
+hostname or dotted-quad IP address. When read by dnsmasq these lines
+have exactly the same effect as
+.B --dhcp-host
+options containing the same information.
 .TP
-.B \-O, --dhcp-option=<opt>,[<value>[,<value>]]
+.B \-O, --dhcp-option=[network-id,]<opt>,[<value>[,<value>]]
 Specfify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -278,7 +306,9 @@ specfied in RFC2132. For example, to set the default route option to
 and to set the time-server address to 192.168.0.4, do
 .B dhcp-option=42,192.168.0.4
 The special address 0.0.0.0 is taken to mean "the address of the
-machine running dnsmasq".
+machine running dnsmasq". If the optional network-id is given then
+this option is only sent to machines on the network whose dhcp-range
+contains a matching network-id.
 Be careful: no checking is done that the correct type of data for the
 option number is sent, and there are option numbers for which it is not
 possible to generate the correct data type; it is quite possible to
@@ -290,6 +320,12 @@ Set BOOTP options to be returned by the DHCP server. These are needed
 for machines which network boot, and tell the machine where to collect
 its initial configuration.
 .TP  
+.B \-X, --dhcp-lease-max=<number>
+Limits dnsmasq to the specified maximum number of DHCP leases. The
+default is 150. This limit is to prevent DoS attacks from hosts which
+create thousands of leases and use lots of memory in the dnsmasq
+process.
+.TP
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information.
 .TP
@@ -331,14 +367,6 @@ they expired in order to make room for new names and the total number
 of names that have been inserted into the cache. In 
 .B --no-daemon
 mode or when full logging is enabled (-q), a complete dump of the contents of the cache is made.
-.PP
-When it receives a SIGUSR2,
-.B dnsmasq
-re-scans network interfaces. This is required if it is to listen for
-queries on newly created interfaces or interfaces which have changed IP
-address. For this facility to work, dnsmasq must be told to continue
-running as user root, using 
-.B --user=root
 .PP
 Dnsmasq is a DNS query forwarder: it it not capable of recursively
 answering arbitrary queries starting from the root servers but

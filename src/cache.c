@@ -710,7 +710,12 @@ void dump_cache(int debug, int cache_size)
             else 
 	      strcpy(addrbuff, inet_ntoa(cache->addr.addr.addr4));
 #endif
-	    syslog(LOG_DEBUG, "%-40.40s %-30.30s %s%s%s%s%s%s%s%s%s%s  %s",
+	    syslog(LOG_DEBUG, 
+#ifdef HAVE_BROKEN_RTC
+		   "%-40.40s %-30.30s %s%s%s%s%s%s%s%s%s%s  %ld\n",
+#else
+		   "%-40.40s %-30.30s %s%s%s%s%s%s%s%s%s%s  %s",
+#endif
 		   cache_get_name(cache), addrbuff,
 		   cache->flags & F_IPV4 ? "4" : "",
 		   cache->flags & F_IPV6 ? "6" : "",
@@ -722,7 +727,11 @@ void dump_cache(int debug, int cache_size)
 		   cache->flags & F_NXDOMAIN ? "X" : " ",
 		   cache->flags & F_HOSTS ? "H" : " ",
 		   cache->flags & F_ADDN ? "A" : " ",
+#ifdef HAVE_BROKEN_RTC
+		   cache->flags & F_IMMORTAL ? 0: (unsigned long)cache->ttd) ;
+#else
 		   cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd))) ;
+#endif
 	  }
       
     }
@@ -749,14 +758,14 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr)
 #endif
 	      
       if (flags & F_NXDOMAIN)
-	strcpy(addrbuff, "<NXDOMAIN>-");
+	strcpy(addrbuff, "<NXDOMAIN>");
       else
-	strcpy(addrbuff, "<NODATA>-");
+	strcpy(addrbuff, "<NODATA>");
       
       if (flags & F_IPV4)
-	strcat(addrbuff, "IPv4");
-      else
-	strcat(addrbuff, "IPv6");
+	strcat(addrbuff, "-IPv4");
+      else if (flags & F_IPV6)
+	strcat(addrbuff, "-IPv6");
     }
   else
 #ifdef HAVE_IPV6

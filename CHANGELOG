@@ -667,6 +667,9 @@ release 2.0
 	     helping to track that one down.
 
 release 2.1  
+             Thanks to Matt Swift and Dag Wieers for many suggestions 
+	     which went into this release.
+	    
 	     Tweak include files to allow compilation on FreeBSD 5
              
              Fix unaligned access warnings on BSD/Alpha.
@@ -687,10 +690,11 @@ release 2.1
 
 	     Fixed long-existing strangeness in Linux IPv6 interface
 	     discovery code. The flags field in /proc/net/if_inet6 is
-	     _not_ the interface flags.
+	     _not_ the interface flags. 
 
 	     Fail gracefully when getting an ENODEV error when trying
-	     to bind an IPv6 socket, rather than bailing out.
+	     to bind an IPv6 socket, rather than bailing out. Thanks
+	     to Jan Ischebeck for feedback on that.
 
 	     Allow the name->address mapping for static DHCP leases to
 	     be set by /etc/hosts. It's now possible to have
@@ -710,12 +714,112 @@ release 2.1
              Fix lease time spec when specified in dhcp-range and not
 	     in dhcp-host, previously this was always one hour.
 
-             Fix problem with setting domains as "local only".
+             Fix problem with setting domains as "local only". -
+             thanks to Chris Schank.
 
 	     Added support for max message size DHCP option.
 
 release 2.2
              Fix total lack for DHCP functionality on
-	     Linux systems with IPv6 enabled.
+	     Linux systems with IPv6 enabled. - thanks to
+	     Jonathon Hudson for spotting that.
 
-	     Move default config file under FreeBSD.
+	     Move default config file under FreeBSD - patch from
+	     Steven Honson 
+
+release 2.3
+             Fix "install" makefile target. (reported by Rob Stevens)
+
+	     Ensure that "local=/domain/" flag is obeyed for all
+	     queries on a domain, not just A and AAAA. (Reported by
+	     Peter Fichtner.)
+
+	     Handle DHCPDECLINE messages and provide an error message
+	     in DHCPNAK messages.
+	     
+	     Add "domain" setting example to
+	     dnsmasq.conf.example. Thanks to K P Kirchdorfer for
+	     spotting that it was missing.
+
+	     Subtle change to the DHCPREQUEST handling code to work
+	     around a bug in the DHCP client in HP Jetdirect printers.
+	     Thanks to Marko Stolle for finding this problem.
+
+	     Return DHCP T1 and T2 times, with "fuzz" to desychronise lease
+	     renewals, as specified in the RFC.
+	     
+	     Ensure that the END option is always present in DHCP
+	     packets , even if the packet is too small to fit all 
+	     the requested options.
+
+	     Handle larger-than-default DHCP packets if required, up
+	     to the ethernet MTU.
+
+	     Fix a couple of places where the return code from
+	     malloc() was not checked.
+
+	     Cope with a machine taking a DHCP lease and then moving
+	     network so that the lease address is no longer valid.
+
+	     The DHCP server will now work via a BOOTP relay - remote
+	     networks are configured with the dhcp-range option the
+	     same as directly connected ones, but they need an
+	     additional netmask parameter. Eg
+	     --dhcp-range=192.168.4.10,192.168.4.50,255.255,255.0
+             will enable DHCP service via a BOOTP relay on the
+	     192.168.4.0 network. 
+
+	     Add a limit on the number of available DHCP leases,
+	     otherwise the daemon could be DOSed by a malicious
+	     host. The default is 150, but it can be changed by the 
+	     dhcp-lease-max option.
+
+	     Fixed compilation on OpenBSD (thanks to Frederic Brodbeck
+	     for help with that.)
+	     
+	     Reworked the DHCP network handling code for two good
+	     effects: (1) The limit of one network only for DHCP on
+	     FreeBSD is now gone, (2) The DHCP server copes with
+	     dynamically created interfaces. The one-interface
+	     limitation remains for OpenBSD, which is missing
+	     extensions to the socket API which have been in Linux
+	     since version 2.2 and FreeBSD since version 4.8.
+
+	     Reworked the DNS network code to also cope with
+	     dynamically created interfaces. dnsmasq will now listen
+	     to the wildcard address and port 53 by default, so if no
+	     --interface or --address options are given it will handle
+	     dynamically created interfaces. The old behaviour can be
+	     restored with --bind-interfaces for people running BIND
+	     on one interface and dnsmasq on another. Note that
+	     --interface and --address options still work, but the
+	     filtering is done by dnsmasq, rather then the kernel.
+	     This works on Linux, and FreeBSD>=5.0. On systems which
+	     don't support the required API extensions, the old 
+	     behaviour is used, just as if --bind-interfaces had been set.
+
+	     Allow IPv6 support to be disabled at compile time. To do
+	     that, add -DNO_IPV6 to the CFLAGS. Thanks to Oleg
+	     I. Vdovikin for the suggestion to do that.
+
+	     Add ability to set DHCP options per network. This is done
+	     by giving a network an identifier like this:
+	     dhcp-range=red-net,192.168.0.10,192.168.0.50
+	     and then labeling options intended for that network only
+	     like this:
+	     dhcp-option=red-net,6,1.1.1.1
+	     Thanks to Oleg Vdovikin for arguing that one through.
+
+	     Made errors in the configuration file non-fatal: dnsmasq
+	     will now complain bitterly, but continue.
+
+	     Added --read-ethers option, to allow dnsmasq to pull
+	     static DHCP information from that file. 
+	     Thanks to Andi Cambeis for that suggestion.
+
+	     Added HAVE_BROKEN_RTC compilation option to support
+	     embedded systems without a stable RTC. Oleg Vdovikin
+	     helped work out how to make that work.
+
+
+

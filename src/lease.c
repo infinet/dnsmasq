@@ -16,10 +16,11 @@
 
 static struct dhcp_lease *leases;
 FILE *lease_file;
-int dns_dirty, file_dirty;
+int dns_dirty, file_dirty, new_lease;
+int leases_left;
 
 int lease_init(char *filename, char *domain, char *buff, 
-	       char *buff2, time_t now, struct dhcp_config *dhcp_configs)
+	       char *buff2, time_t now, int maxleases)
 {
   unsigned int e0, e1, e2, e3, e4, e5, a0, a1, a2, a3;
   unsigned long ei;
@@ -27,20 +28,24 @@ int lease_init(char *filename, char *domain, char *buff,
   unsigned char hwaddr[ETHER_ADDR_LEN];
   struct in_addr addr;
   struct dhcp_lease *lease;
-  struct dhcp_config *config;
   int clid_len = 0;
   int has_old = 0;
 
   leases = NULL;
-  
-  if (!(lease_file = fopen(filename, "a+")))
+  leases_left = maxleases;
+
+  if (!(lease_file = fopen(filename, "r+")))
     die("cannot open or create leases file: %s", NULL);
-  
-  rewind(lease_file); /* file opened with mode a+ which sets pointer at end. */
-  
+    
   while (fscanf(lease_file, "%lu %x:%x:%x:%x:%x:%x %d.%d.%d.%d %256s %500s",
 		&ei, &e0, &e1, &e2, &e3, &e4, &e5, &a0, &a1, &a2, &a3, buff, buff2) == 13)
     {
+#ifdef HAVE_BROKEN_RTC
+      if (ei)
+	expires = (time_t)ei + now;
+      else
+	expires = (time_t)0;
+#else 
       /* strictly time_t is opaque, but this hack should work on all sane systems,
 	 even when sizeof(time_t) == 8 */
       expires = (time_t)ei;
@@ -50,6 +55,7 @@ int lease_init(char *filename, char *domain, char *buff,
 	  has_old = 1;
 	  continue; /* expired */
 	}
+#endif
 
       hwaddr[0] = e0;
       hwaddr[1] = e1;
@@ -74,7 +80,7 @@ int lease_init(char *filename, char *domain, char *buff,
 	}
       
       if (!(lease = lease_allocate(buff2, clid_len, addr)))
-	die ("cannot get memory", NULL);
+	die ("too many stored leases", NULL);
       
       lease->expires = expires;
       memcpy(lease->hwaddr, hwaddr, ETHER_ADDR_LEN);
@@ -85,32 +91,54 @@ int lease_init(char *filename, char *domain, char *buff,
   
   dns_dirty = 1;
   file_dirty = has_old;
+  new_lease = 0;
+
+  return fileno(lease_file);
+}
+
+void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain)
+{
+  /* changes to the config may change current leases. */
   
-  /* Deal with edits to the config file which may have changed the hostname
-     associated with a hardware address. Do this after the main loop so that 
-     changes get written back out */
+  struct dhcp_lease *lease;
+  struct dhcp_config *config;
+  
   for (lease = leases; lease; lease = lease->next)
     if ((config = find_config(dhcp_configs, NULL, lease->clid, lease->clid_len, lease->hwaddr, NULL)) && 
 	(config->hostname))
       lease_set_hostname(lease, config->hostname, domain);
-  
-  return fileno(lease_file);
 }
 
-void lease_update_dns(int force_dns)
+void lease_update_file(int force, time_t now)
 {
   struct dhcp_lease *lease;
-  int i;
+  int i = force; /* avoid warning */
+  unsigned long expires;
 
+#ifdef HAVE_BROKEN_RTC
+  if (force || new_lease)
+    {
+      lease_prune(NULL, now);
+#else
   if (file_dirty)
     {
+#endif
       rewind(lease_file);
       ftruncate(fileno(lease_file), 0);
       
       for (lease = leases; lease; lease = lease->next)
 	{
+#ifdef HAVE_BROKEN_RTC
+	  if (lease->expires)
+	    expires = (unsigned long) difftime(lease->expires, now);
+	  else
+	    expires = 0;
+#else
+	  expires = now; /* eliminate warning */
+	  expires = (unsigned long)lease->expires;
+#endif
 	  fprintf(lease_file, "%lu %.2x:%.2x:%.2x:%.2x:%.2x:%.2x %s %s ", 
-		  (unsigned long)lease->expires, lease->hwaddr[0], lease->hwaddr[1],
+		  expires, lease->hwaddr[0], lease->hwaddr[1],
 		  lease->hwaddr[2], lease->hwaddr[3], lease->hwaddr[4],
 		  lease->hwaddr[5], inet_ntoa(lease->addr),
 		  lease->hostname ? lease->hostname : "*");
@@ -129,13 +157,18 @@ void lease_update_dns(int force_dns)
       fflush(lease_file);
       fsync(fileno(lease_file));
       file_dirty = 0;
-      
+      new_lease = 0;
     }
+}
 
-  if (dns_dirty || force_dns)
+void lease_update_dns(void)
+{
+  struct dhcp_lease *lease;
+  
+  if (dns_dirty)
     {
       cache_unhash_dhcp();
-
+      
       for (lease = leases; lease; lease = lease->next)
 	{
 	  if (lease->fqdn)
@@ -173,6 +206,7 @@ void lease_prune(struct dhcp_lease *target, time_t now)
 	  if (lease->clid)
 	    free(lease->clid);
 	  free(lease);
+	  leases_left++;
 	}
       else
 	up = &lease->next;
@@ -220,7 +254,7 @@ struct dhcp_lease *lease_find_by_addr(struct in_addr addr)
 struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_addr addr)
 {
   struct dhcp_lease *lease;
-  if (!(lease = malloc(sizeof(struct dhcp_lease))))
+  if (!leases_left || !(lease = malloc(sizeof(struct dhcp_lease))))
     return NULL;
 
   lease->clid = NULL;
@@ -245,6 +279,8 @@ struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_a
   leases = lease;
   
   file_dirty = 1;
+  new_lease = 1;
+  leases_left--;
 
   return lease;
 }
@@ -294,14 +330,12 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix)
 		lease_tmp->fqdn = NULL;
 	      }
 	  }
-      if (!new_name)
+     
+      if (!new_name && (new_name = malloc(strlen(name) + 1)))
+	strcpy(new_name, name);
+      
+      if (suffix && !new_fqdn && (new_fqdn = malloc(strlen(name) + strlen(suffix) + 2)))
 	{
-	  new_name = malloc(strlen(name) + 1);
-	  strcpy(new_name, name);
-	}
-      if (suffix && !new_fqdn)
-	{
-	  new_fqdn = malloc(strlen(name) + strlen(suffix) + 2);
 	  strcpy(new_fqdn, name);
 	  strcat(new_fqdn, ".");
 	  strcat(new_fqdn, suffix);

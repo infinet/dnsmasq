@@ -33,21 +33,91 @@ void forward_init(int first)
     f->new_id = 0;
 }
 
-/* delete all forward records recieved from socket fd */
-void reap_forward(int fd)
+/* Send a UDP packet with it's source address set as "source" 
+   unless nowild is true, when we just send it with the kernel default */
+static void send_from(int fd, int nowild, char *packet, int len, 
+		      union mysockaddr *to, struct all_addr *source)
 {
-   struct frec *f;
-
-   for (f = frec_list; f; f = f->next)
-     if (f->fd == fd)
-       f->new_id = 0;
-}
+  struct msghdr msg;
+  struct iovec iov[1]; 
+  struct cmsghdr *cmptr;
+  union {
+    struct cmsghdr align; /* this ensures alignment */
+#if defined(IP_PKTINFO)
+    char control[CMSG_SPACE(sizeof(struct in_pktinfo))];
+#elif defined(IP_SENDSRCADDR)
+    char control[CMSG_SPACE(sizeof(struct in_addr))];
+#endif
+#ifdef HAVE_IPV6
+    char control6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+#endif
+  } control_u;
  
+  iov[0].iov_base = packet;
+  iov[0].iov_len = len;
+
+  if (nowild)
+    {
+      msg.msg_control = NULL;
+      msg.msg_controllen = 0;
+      }
+  else
+    {
+      msg.msg_control = &control_u;
+      msg.msg_controllen = sizeof(control_u);
+    }
+  msg.msg_flags = 0;
+  msg.msg_name = to;
+  msg.msg_namelen = sa_len(to);
+  msg.msg_iov = iov;
+  msg.msg_iovlen = 1;
+
+  cmptr = CMSG_FIRSTHDR(&msg);
+
+#if defined(IP_PKTINFO)
+  if (!nowild && to->sa.sa_family == AF_INET)
+    {
+      struct in_pktinfo *pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
+      pkt->ipi_ifindex = 0;
+      pkt->ipi_spec_dst = source->addr.addr4;
+      msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
+      cmptr->cmsg_level = SOL_IP;
+      cmptr->cmsg_type = IP_PKTINFO;
+    }
+#elif defined(IP_SENDSRCADDR)
+  if (!nowild && to->sa.sa_family == AF_INET)
+    {
+      struct in_addr *a = (struct in_addr *)CMSG_DATA(cmptr);
+      *a = source->addr.addr4;
+      msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
+      cmptr->cmsg_level = IPPROTO_IP;
+      cmptr->cmsg_type = IP_SENDSRCADDR;
+    }
+#endif
+
+#ifdef HAVE_IPV6
+  if (!nowild && to->sa.sa_family == AF_INET6)
+    {
+      struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
+      pkt->ipi6_ifindex = 0;
+      pkt->ipi6_addr = source->addr.addr6;
+      msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+      cmptr->cmsg_type = IPV6_PKTINFO;
+      cmptr->cmsg_level = IPV6_LEVEL;
+      cmptr->cmsg_level = IPPROTO_IPV6;
+    }
+#endif
+
+  sendmsg(fd, &msg, 0);
+}
+          
+
 /* returns new last_server */	
-struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *header, 
-			     int plen, unsigned int options, char *dnamebuff, 
-			     struct server *servers, struct server *last_server,
-			     time_t now, unsigned long local_ttl)
+static struct server *forward_query(int udpfd, union mysockaddr *udpaddr, 
+				    struct all_addr *dst_addr, HEADER *header, 
+				    int plen, unsigned int options, char *dnamebuff, 
+				    struct server *servers, struct server *last_server,
+				    time_t now, unsigned long local_ttl)
 {
   struct frec *forward;
   char *domain = NULL;
@@ -113,10 +183,10 @@ struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *heade
 		    if (serv->flags & SERV_LITERAL_ADDRESS)
 		      { /* flags gets set if server is in fact an answer */
 			unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
-			if (sflag & gotname) /* only OK if addrfamily == query */
+			if ((sflag | F_QUERY ) & gotname) /* only OK if addrfamily == query */
 			  {
 			    type = SERV_HAS_DOMAIN;
-			    flags = sflag;
+			    flags = gotname;
 			    domain = serv->domain;
 			    matchlen = domainlen; 
 			    if (serv->addr.sa.sa_family == AF_INET) 
@@ -139,7 +209,12 @@ struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *heade
 	}
       
       if (flags) /* flags set here means a literal found */
-	log_query(F_CONFIG | F_FORWARD | flags, dnamebuff, addrp);
+	{
+	  if (flags & F_QUERY)
+	    log_query(F_CONFIG | F_FORWARD | F_NEG, dnamebuff, NULL);
+	  else
+	    log_query(F_CONFIG | F_FORWARD | flags, dnamebuff, addrp);
+	}
       else
 	{
 	  /* we may by policy not forward names without a domain part */
@@ -162,6 +237,7 @@ struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *heade
 	    forward->sentto = last_server;
 	  
 	  forward->source = *udpaddr;
+	  forward->dest = *dst_addr;
 	  forward->new_id = get_id();
 	  forward->fd = udpfd;
 	  forward->orig_id = ntohs(header->id);
@@ -228,8 +304,8 @@ struct server *forward_query(int udpfd, union mysockaddr *udpaddr, HEADER *heade
   
   /* could not send on, return empty answer or address if known for whole domain */
   plen = setup_reply(header, (unsigned int)plen, addrp, flags, local_ttl);
-  sendto(udpfd, (char *)header, plen, 0, &udpaddr->sa, sa_len(udpaddr));
- 
+  send_from(udpfd, options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr);
+  
   if (flags & (F_NOERR | F_NXDOMAIN))
     log_query(F_CONFIG | F_FORWARD | F_NEG | gotname | (flags & F_NXDOMAIN), dnamebuff, NULL);
   
@@ -273,15 +349,161 @@ struct server *reply_query(int fd, int options, char *packet, time_t now,
 	     since that will prod the resolver into moving to TCP - which we
 	     don't support. */
 	  header->tc = 0; /* goodbye truncate */
-	  sendto(forward->fd, packet, n, 0, 
-		 &forward->source.sa, sa_len(&forward->source));
+	  send_from(forward->fd, options & OPT_NOWILD, packet, n, &forward->source, &forward->dest);
 	  forward->new_id = 0; /* cancel */
 	}
     }
 
   return last_server;
 }
+
+struct server *receive_query(struct listener *listen, char *packet, char *mxname, 
+			     char *mxtarget, unsigned int options, time_t now, 
+			     unsigned long local_ttl, char *namebuff,
+			     struct iname *names, struct iname *addrs, struct iname *except,
+			     struct server *last_server, struct server *servers)
+{
+  HEADER *header = (HEADER *)packet;
+  union mysockaddr source_addr;
+  struct iname *tmp;
+  struct all_addr dst_addr;
+  int m, n, gotit = 0;
+  struct iovec iov[1];
+  struct msghdr msg;
+  struct cmsghdr *cmptr;
+  char if_name[IF_NAMESIZE];
+  union {
+    struct cmsghdr align; /* this ensures alignment */
+#ifdef HAVE_IPV6
+    char control6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+#endif
+#if defined(IP_PKTINFO)
+    char control[CMSG_SPACE(sizeof(struct in_pktinfo))];
+#elif defined(IP_RECVDSTADDR)
+    char control[CMSG_SPACE(sizeof(struct in_addr)) +
+		 CMSG_SPACE(sizeof(struct sockaddr_dl))];
+#endif
+  } control_u;
+  
+  iov[0].iov_base = packet;
+  iov[0].iov_len = PACKETSZ;
+    
+  msg.msg_control = control_u.control;
+  msg.msg_controllen = sizeof(control_u);
+  msg.msg_flags = 0;
+  msg.msg_name = &source_addr;
+  msg.msg_namelen = sizeof(source_addr);
+  msg.msg_iov = iov;
+  msg.msg_iovlen = 1;
+  
+  n = recvmsg(listen->fd, &msg, 0);
+  
+  source_addr.sa.sa_family = listen->family;
+#ifdef HAVE_IPV6
+  if (listen->family == AF_INET6)
+    source_addr.in6.sin6_flowinfo = htonl(0);
+#endif
+  
+  if (!(options & OPT_NOWILD) && msg.msg_controllen < sizeof(struct cmsghdr))
+    return last_server;
+
+#if defined(IP_PKTINFO)
+  if (!(options & OPT_NOWILD) && listen->family == AF_INET)
+    for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+      if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+	{
+	  dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
+	  if_indextoname(((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex, if_name);
+	  gotit = 1;
+	}
+#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
+  if (!(options & OPT_NOWILD) && listen->family == AF_INET)
+    {
+      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
+	  {
+	    dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
+	    gotit = 1;
+	  }
+	else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
+	  if_indextoname(((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index, if_name);
+    }
+#endif
+
+#ifdef HAVE_IPV6
+  if (!(options & OPT_NOWILD) && listen->family == AF_INET6)
+    {
+      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == IPV6_PKTINFO)
+	  {
+	    dst_addr.addr.addr6 = ((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_addr;
+	    if_indextoname(((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex, if_name);
+	    gotit = 1;
+	  }
+    }
+#endif
+  
+  if (n < (int)sizeof(HEADER) || header->qr)
+    return last_server;
+  
+  /* enforce available interface configuration */
+  if (!(options & OPT_NOWILD))
+    {
+      if (!gotit)
+	return last_server;
       
+      for (tmp = except; tmp; tmp = tmp->next)
+	if (tmp->name && (strcmp(tmp->name, if_name) == 0))
+	  return last_server;
+      
+      if (names || addrs)
+	{
+	  for (tmp = names; tmp; tmp = tmp->next)
+	    if (tmp->name && (strcmp(tmp->name, if_name) == 0))
+	      break;
+	  if (!tmp)
+	    for (tmp = addrs; tmp; tmp = tmp->next)
+	      if (tmp->addr.sa.sa_family == listen->family)
+		{
+		  if (tmp->addr.sa.sa_family == AF_INET &&
+		      tmp->addr.in.sin_addr.s_addr == dst_addr.addr.addr4.s_addr)
+		    break;
+#ifdef HAVE_IPV6
+		  else if (tmp->addr.sa.sa_family == AF_INET6 &&
+			   memcmp(&tmp->addr.in6.sin6_addr, 
+				  &dst_addr.addr.addr6, 
+				  sizeof(struct in6_addr)) == 0)
+		    break;
+#endif
+		}
+	  if (!tmp)
+	    return last_server; 
+	}
+    }
+  
+  if (extract_request(header, (unsigned int)n, namebuff))
+    {
+      if (listen->family == AF_INET) 
+	log_query(F_QUERY | F_IPV4 | F_FORWARD, namebuff, 
+		  (struct all_addr *)&source_addr.in.sin_addr);
+#ifdef HAVE_IPV6
+      else
+	log_query(F_QUERY | F_IPV6 | F_FORWARD, namebuff, 
+		  (struct all_addr *)&source_addr.in6.sin6_addr);
+#endif
+    }
+
+  m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, 
+		      mxname, mxtarget, options, now, local_ttl, namebuff);
+  if (m >= 1)
+    send_from(listen->fd, options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr);
+  else
+    last_server = forward_query(listen->fd, &source_addr, &dst_addr,
+				header, n, options, namebuff, servers, 
+				last_server, now, local_ttl);
+  return last_server;
+}
+
 static struct frec *get_new_frec(time_t now)
 {
   struct frec *f = frec_list, *oldest = NULL;
