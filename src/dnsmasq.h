@@ -322,7 +322,7 @@ struct udp_dhcp_packet {
 
 /* cache.c */
 void cache_init(int cachesize, int log);
-void log_query(unsigned short flags, char *name, struct all_addr *addr);
+void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
 				unsigned short prot);
@@ -333,14 +333,14 @@ void cache_start_insert(void);
 void cache_insert(char *name, struct all_addr *addr,
 		  time_t now, unsigned long ttl, unsigned short flags);
 void cache_reload(int opts, char *buff, char *domain_suffix, char *addn_hosts);
-void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, 
-			  time_t ttd, unsigned short flags);
+void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd);
 void cache_unhash_dhcp(void);
 void dump_cache(int debug, int size);
 char *cache_get_name(struct crec *crecp);
 
 /* rfc1035.c */
-unsigned short extract_request(HEADER *header, unsigned int qlen, char *name);
+unsigned short extract_request(HEADER *header, unsigned int qlen, 
+			       char *name, unsigned short *typep);
 int setup_reply(HEADER *header, unsigned int qlen,
 		struct all_addr *addrp, unsigned short flags,
 		unsigned long local_ttl);

@@ -1142,4 +1142,19 @@ version 2.11
 	    Set source interface when replying to IPv6 UDP
 	    queries. This is needed to cope with link-local addresses.
 
+version 2.12
+            Added extra checks to ensure that DHCP created DNS entries 
+	    cannot generate multiple DNS address->name entries. Thanks to 
+	    Stefan Monnier for finding the exact set of configuration
+            options which could create this.
+
+	    Don't set the the filterwin2k option in the example config
+	    file and add warnings that is breaks Kerberos. Thanks to
+	    Simon Josefsson and Timothy Folks for pointing that out.
+	    
+	    Log types of incoming queries as well as source and domain.
+
+	    Log NODATA replies generated as a result of the
+	    finlterwin2k option.
+
 

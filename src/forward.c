@@ -135,7 +135,7 @@ unsigned short search_servers(struct server *servers, unsigned int options, stru
 	*type = SERV_FOR_NODOTS;
 	flags = 0;
 	if (serv->flags & SERV_NO_ADDR)
-	  flags = F_NOERR; 
+	  flags = F_NXDOMAIN; 
 	else if ((serv->flags & SERV_LITERAL_ADDRESS) && (sflag & qtype))
 	  {
 	    flags = sflag;
@@ -160,7 +160,7 @@ unsigned short search_servers(struct server *servers, unsigned int options, stru
 	    matchlen = domainlen;
 	    flags = 0;
 	    if (serv->flags & SERV_NO_ADDR)
-	      flags = F_NOERR; 
+	      flags = F_NXDOMAIN; 
 	    else if ((serv->flags & SERV_LITERAL_ADDRESS) && ((sflag | F_QUERY ) & qtype))
 	      {
 		flags = qtype;
@@ -174,18 +174,18 @@ unsigned short search_servers(struct server *servers, unsigned int options, stru
 	  } 
       }
 
-  if (flags & ~F_NOERR) /* flags set here means a literal found */
+  if (flags & ~F_NXDOMAIN) /* flags set here means a literal found */
     {
       if (flags & F_QUERY)
-	log_query(F_CONFIG | F_FORWARD | F_NEG, qdomain, NULL);
+	log_query(F_CONFIG | F_FORWARD | F_NEG, qdomain, NULL, 0);
       else
-	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp);
+	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp, 0);
     }
   else if (qtype && (options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.'))
-    flags = F_NXDOMAIN;
+    flags = F_NOERR;
 
   if (flags & (F_NOERR | F_NXDOMAIN))
-    log_query(F_CONFIG | F_FORWARD | F_NEG | qtype | (flags & F_NXDOMAIN), qdomain, NULL);
+    log_query(F_CONFIG | F_FORWARD | F_NEG | qtype | (flags & F_NXDOMAIN), qdomain, NULL, 0);
 
   return  flags;
 }
@@ -202,7 +202,7 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
   int forwardall = 0, type = 0;
   struct all_addr *addrp = NULL;
   unsigned short flags = 0;
-  unsigned short gotname = extract_request(header, (unsigned int)plen, dnamebuff);
+  unsigned short gotname = extract_request(header, (unsigned int)plen, dnamebuff, NULL);
   struct server *start = NULL;
   
   /* may be  recursion not speced or no servers available. */
@@ -282,11 +282,11 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 		    strcpy(dnamebuff, "query");
 		  if (start->addr.sa.sa_family == AF_INET)
 		    log_query(F_SERVER | F_IPV4 | F_FORWARD, dnamebuff, 
-			      (struct all_addr *)&start->addr.in.sin_addr); 
+			      (struct all_addr *)&start->addr.in.sin_addr, 0); 
 #ifdef HAVE_IPV6
 		  else
 		    log_query(F_SERVER | F_IPV6 | F_FORWARD, dnamebuff, 
-			      (struct all_addr *)&start->addr.in6.sin6_addr);
+			      (struct all_addr *)&start->addr.in6.sin6_addr, 0);
 #endif 
 		  forwarded = 1;
 		  forward->sentto = start;
@@ -422,6 +422,7 @@ struct server *receive_query(struct listener *listen, char *packet, struct mx_re
 {
   HEADER *header = (HEADER *)packet;
   union mysockaddr source_addr;
+  unsigned short type;
   struct iname *tmp;
   struct all_addr dst_addr;
   int check_dst = !(options & OPT_NOWILD);
@@ -551,15 +552,15 @@ struct server *receive_query(struct listener *listen, char *packet, struct mx_re
 	}
     }
   
-  if (extract_request(header, (unsigned int)n, namebuff))
+  if (extract_request(header, (unsigned int)n, namebuff, &type))
     {
       if (listen->family == AF_INET) 
 	log_query(F_QUERY | F_IPV4 | F_FORWARD, namebuff, 
-		  (struct all_addr *)&source_addr.in.sin_addr);
+		  (struct all_addr *)&source_addr.in.sin_addr, type);
 #ifdef HAVE_IPV6
       else
 	log_query(F_QUERY | F_IPV6 | F_FORWARD, namebuff, 
-		  (struct all_addr *)&source_addr.in6.sin6_addr);
+		  (struct all_addr *)&source_addr.in6.sin6_addr, type);
 #endif
     }
 
@@ -619,6 +620,7 @@ char *tcp_request(int confd, struct mx_record *mxnames,
 		  unsigned short edns_pktsz)
 {
   int size = 0, m;
+  unsigned short qtype, gotname;
   unsigned char c1, c2;
   /* Max TCP packet + slop */
   char *packet = malloc(65536 + MAXDNAME + RRFIXEDSZ);
@@ -637,7 +639,7 @@ char *tcp_request(int confd, struct mx_record *mxnames,
       
       header = (HEADER *)packet;
       
-      if (extract_request(header, (unsigned int)size, namebuff))
+      if ((gotname = extract_request(header, (unsigned int)size, namebuff, &qtype)))
 	{
 	  union mysockaddr peer_addr;
 	  socklen_t peer_len = sizeof(union mysockaddr);
@@ -646,11 +648,11 @@ char *tcp_request(int confd, struct mx_record *mxnames,
 	    {
 	      if (peer_addr.sa.sa_family == AF_INET) 
 		log_query(F_QUERY | F_IPV4 | F_FORWARD, namebuff, 
-			  (struct all_addr *)&peer_addr.in.sin_addr);
+			  (struct all_addr *)&peer_addr.in.sin_addr, qtype);
 #ifdef HAVE_IPV6
 	      else
 		log_query(F_QUERY | F_IPV6 | F_FORWARD, namebuff, 
-			  (struct all_addr *)&peer_addr.in6.sin6_addr);
+			  (struct all_addr *)&peer_addr.in6.sin6_addr, qtype);
 #endif
 	    }
 	}
@@ -662,7 +664,6 @@ char *tcp_request(int confd, struct mx_record *mxnames,
       if (m == 0)
 	{
 	  unsigned short flags = 0;
-	  unsigned short gotname = extract_request(header, (unsigned int)size, namebuff);
 	  struct all_addr *addrp = NULL;
 	  int type = 0;
 	  char *domain = NULL;
@@ -731,11 +732,11 @@ char *tcp_request(int confd, struct mx_record *mxnames,
 		    strcpy(namebuff, "query");
 		  if (last_server->addr.sa.sa_family == AF_INET)
 		    log_query(F_SERVER | F_IPV4 | F_FORWARD, namebuff, 
-			      (struct all_addr *)&last_server->addr.in.sin_addr); 
+			      (struct all_addr *)&last_server->addr.in.sin_addr, 0); 
 #ifdef HAVE_IPV6
 		  else
 		    log_query(F_SERVER | F_IPV6 | F_FORWARD, namebuff, 
-			      (struct all_addr *)&last_server->addr.in6.sin6_addr);
+			      (struct all_addr *)&last_server->addr.in6.sin6_addr, 0);
 #endif 
 		  
 		  /* There's no point in updating the cache, since this process will exit and

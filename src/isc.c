@@ -236,12 +236,8 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
   for (lease = leases; lease; lease = lease->next)
     {
       if (lease->fqdn)
-	{
-	  cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires, F_REVERSE);
-	  cache_add_dhcp_entry(lease->name, &lease->addr, lease->expires, 0);
-	}
-      else 
-	cache_add_dhcp_entry(lease->name, &lease->addr, lease->expires, F_REVERSE);
+	cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
+      cache_add_dhcp_entry(lease->name, &lease->addr, lease->expires);
     }
 }
 

@@ -176,12 +176,8 @@ void lease_update_dns(void)
       for (lease = leases; lease; lease = lease->next)
 	{
 	  if (lease->fqdn)
-	    {
-	      cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires, F_REVERSE);
-	      cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires, 0);
-	    }
-	  else if (lease->hostname)
-	    cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires, F_REVERSE);
+	    cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
+	  cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires);
 	}
       
       dns_dirty = 0;

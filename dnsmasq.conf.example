@@ -12,7 +12,7 @@
 #selfmx
 #localmx
 
-# The following three options make you a better netizen, since they 
+# The following two options make you a better netizen, since they 
 # tell dnsmasq to filter out queries which the public DNS cannot
 # answer, and which load the servers (especially the root servers) 
 # uneccessarily. If you have a dial-on-demand link they also stop
@@ -20,12 +20,15 @@
 
 # Never forward plain names (with a dot or domain part)
 domain-needed
-# Reply to reverse queries for addresses in the non-routed address
-# space with the dotted.quad address
+# Never forward addresses in the non-routed address spaces.
 bogus-priv
-# Filter useless windows-originated DNS requests
-filterwin2k
 
+
+# Uncomment this to filter useless windows-originated DNS requests
+# which can trigger dial-on-demand links needlessly.
+# Note that (amongst other things) this blocks all SRV requests, 
+# so don't use it if you use eg Kerberos.
+#filterwin2k
 
 # Change this line if you want dns to get its upstream servers from
 # somewhere other that /etc/resolv.conf 

@@ -650,10 +650,13 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name,
 /* If the packet holds exactly one query
    return 1 and leave the name from the query in name. */
 
-unsigned short extract_request(HEADER *header,unsigned int qlen, char *name)
+unsigned short extract_request(HEADER *header,unsigned int qlen, char *name, unsigned short *typep)
 {
   unsigned char *p = (unsigned char *)(header+1);
   int qtype, qclass;
+
+  if (typep)
+    *typep = 0;
 
   if (ntohs(header->qdcount) != 1 || header->opcode != QUERY)
     return 0; /* must be exactly one query. */
@@ -666,6 +669,9 @@ unsigned short extract_request(HEADER *header,unsigned int qlen, char *name)
 
   if (qclass == C_IN)
     {
+      if (typep)
+	*typep = qtype;
+
       if (qtype == T_A)
 	return F_IPV4;
       if (qtype == T_AAAA)
@@ -885,7 +891,10 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 	{
 	  if ((options & OPT_FILTER) && 
 	      (qtype == T_SOA || qtype == T_SRV || (qtype == T_ANY && strchr(name, '_'))))
-	    ans = 1;
+	    {
+	      ans = 1;
+	      log_query(F_CONFIG | F_NEG, name, &addr, 0);
+	    }
 	  else 
 	    {
 	      if (qtype == T_PTR || qtype == T_ANY)
@@ -898,7 +907,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			  ans = 1;
 			  if (!dryrun)
 			    {
-			      log_query(F_CONFIG | F_REVERSE | F_IPV4 | F_NEG | F_NXDOMAIN, name, &addr);
+			      log_query(F_CONFIG | F_REVERSE | F_IPV4 | F_NEG | F_NXDOMAIN, name, &addr, 0);
 			      nxdomain = 1;
 			    }
 			}
@@ -914,7 +923,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			  ans = 1;
 			  if (!dryrun)
 			    {
-			      log_query(crecp->flags & ~F_FORWARD, name, &addr);
+			      log_query(crecp->flags & ~F_FORWARD, name, &addr, 0);
 			      auth = 0;
 			      if (crecp->flags & F_NXDOMAIN)
 				nxdomain = 1;
@@ -939,7 +948,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			      ansp = add_text_record(nameoffset, ansp, ttl, 0, T_PTR, 
 						     cache_get_name(crecp));
 			      
-			      log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr);
+			      log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr, 0);
 			      anscount++;
 			      
 			      /* if last answer exceeded packet size, give up */
@@ -981,7 +990,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			  ans = 1;
 			  if (!dryrun)
 			    {
-			      log_query(crecp->flags, name, NULL);
+			      log_query(crecp->flags, name, NULL, 0);
 			      auth = 0;
 			      if (crecp->flags & F_NXDOMAIN)
 				nxdomain = 1;
@@ -1001,7 +1010,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			      
 			      if (!(crecp->flags & (F_HOSTS | F_DHCP)))
 				auth = 0;
-			      log_query(crecp->flags & ~F_REVERSE, name, &crecp->addr);
+			      log_query(crecp->flags & ~F_REVERSE, name, &crecp->addr, 0);
 			      
 			      /* copy question as first part of answer (use compression) */
 			      PUTSHORT(nameoffset | 0xc000, ansp); 

@@ -226,7 +226,7 @@ void cache_insert(char *name, struct all_addr *addr,
   union bigname *big_name = NULL;
   int freed_all = flags & F_REVERSE;
 
-  log_query(flags | F_UPSTREAM, name, addr);
+  log_query(flags | F_UPSTREAM, name, addr, 0);
 
   /* name is needed as workspace by log_query in this case */
   if ((flags & F_NEG) && (flags & F_REVERSE))
@@ -633,36 +633,42 @@ void cache_unhash_dhcp(void)
   dhcp_inuse = NULL;
 }
 
-void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd, unsigned short flags) 
+void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd) 
 {
   struct crec *crec;
-  
+  unsigned short flags =  F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
+
   if ((crec = cache_find_by_name(NULL, host_name, 0, F_IPV4)))
     {
       if (crec->flags & F_HOSTS)
 	{
 	  if (crec->addr.addr.addr4.s_addr != host_address->s_addr)
 	    syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
+	  return;
 	}
       else if (!(crec->flags & F_DHCP))
 	{
-	  if (crec->flags & F_NEG)
+	  if (!(crec->flags & F_NEG))
 	    {
-	      /* name may have been searched for before being allocated to DHCP and 
-		 therefore got a negative cache entry. If so delete it and continue. */
-	      cache_scan_free(host_name, NULL, 0, F_IPV4 | F_FORWARD);
-	      goto newrec;
+	      syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with a cached name.", host_name);
+	      return;
 	    }
-	  else
-	    syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with a cached name.", cache_get_name(crec));
+		
+	  /* name may have been searched for before being allocated to DHCP and 
+	     therefore got a negative cache entry. If so delete it and continue. */
+	  cache_scan_free(host_name, NULL, 0, F_IPV4 | F_FORWARD);
 	}
-      return;
     }
  
-  if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, F_IPV4)) && (crec->flags & F_NEG))
-    cache_scan_free(NULL, (struct all_addr *)host_address, 0, F_IPV4 | F_REVERSE);
-  
- newrec:
+  if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, F_IPV4)))
+    {
+      if (crec->flags & F_NEG)
+	cache_scan_free(NULL, (struct all_addr *)host_address, 0, F_IPV4 | F_REVERSE);
+      else
+	/* avoid multiple reverse mappings */
+	flags &= ~F_REVERSE;
+    }
+
   if ((crec = dhcp_spare))
     dhcp_spare = dhcp_spare->prev;
   else /* need new one */
@@ -670,7 +676,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
   
   if (crec) /* malloc may fail */
     {
-      crec->flags = F_DHCP | F_FORWARD | F_IPV4 | flags;
+      crec->flags = flags;
       if (ttd == 0)
 	crec->flags |= F_IMMORTAL;
       else
@@ -734,20 +740,23 @@ void dump_cache(int debug, int cache_size)
 		   cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd))) ;
 #endif
 	  }
-      
-    }
+     }
 }
 
 
-void log_query(unsigned short flags, char *name, struct all_addr *addr)
+
+void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned short type)
 {
   char *source;
   char *verb = "is";
+  char types[20];
   char addrbuff[ADDRSTRLEN];
-  
+
   if (!log_queries)
     return;
   
+  strcpy(types, " ");
+
   if (flags & F_NEG)
     {
       if (flags & F_REVERSE)
@@ -796,6 +805,47 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr)
     }
   else if (flags & F_QUERY)
     {
+      unsigned int i;
+      static struct {
+	unsigned int type;
+	char *name;
+      } typestr[] = {
+	{ 1,   "A" },
+	{ 2,   "NS" },
+	{ 5,   "CNAME" },
+	{ 6,   "SOA" },
+	{ 10,  "NULL" },
+	{ 11,  "WKS" },
+	{ 12,  "PTR" },
+	{ 13,  "HINFO" },	
+        { 15,  "MX" },
+	{ 16,  "TXT" },
+	{ 22,  "NSAP" },
+	{ 23,  "NSAP_PTR" },
+	{ 24,  "SIG" },
+	{ 25,  "KEY" },
+	{ 28,  "AAAA" },
+ 	{ 33,  "SRV" },
+        { 36,  "KX" },
+        { 37,  "CERT" },
+        { 38,  "A6" },
+        { 39,  "DNAME" },
+	{ 41,  "OPT" },
+	{ 250, "TSIG" },
+	{ 251, "IXFR" },
+	{ 252, "AXFR" },
+        { 253, "MAILB" },
+	{ 254, "MAILA" },
+	{ 255, "ANY" }
+      };
+      
+      if (type != 0)
+        {
+          sprintf(types, "[type=%d] ", type); 
+          for (i = 0; i < (sizeof(typestr)/sizeof(typestr[0])); i++)
+	    if (typestr[i].type == type)
+	      sprintf(types,"[%s] ", typestr[i].name);
+	}
       source = "query";
       verb = "from";
     }
@@ -803,7 +853,7 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr)
     source = "cached";
   
   if ((flags & F_FORWARD) | (flags & F_NEG))
-    syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, addrbuff);
+    syslog(LOG_DEBUG, "%s %s%s%s %s", source, name, types, verb, addrbuff);
   else if (flags & F_REVERSE)
     syslog(LOG_DEBUG, "%s %s is %s", source, addrbuff, name);
 }

@@ -268,4 +268,13 @@ A: The DNS spec says that the reply to a DNS query must come from the
    (address,port) pair when dnsmasq has bound (wildcard,port), hence
    the ability to explicitly turn off wildcard binding.
 
+Q: Why doesn't Kerberos work/why can't I get sensible answers to
+   queries for SRV records.
 
+A: Probably because you have the "filterwin2k" option set. Note that
+   it was on by default in example configuration files included in 
+   versions before 2.12, so you might have it set on without
+   realising.
+
+
+	      
