@@ -209,9 +209,19 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	    iface_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
 	  
 	  if (iface_netmask.s_addr &&
-	      is_same_net(iface_addr, context->start, iface_netmask) &&
-	      is_same_net(iface_addr, context->end, iface_netmask))
-	    context->netmask = iface_netmask; 
+	      (is_same_net(iface_addr, context->start, iface_netmask) ||
+	       is_same_net(iface_addr, context->end, iface_netmask)))
+	    {
+	      context->netmask = iface_netmask; 
+	      if (!(is_same_net(iface_addr, context->start, iface_netmask) &&
+		    is_same_net(iface_addr, context->end, iface_netmask)))
+		{
+		   strcpy(daemon->dhcp_buff, inet_ntoa(context->start));
+		   strcpy(daemon->dhcp_buff2, inet_ntoa(context->end));
+		   syslog(LOG_WARNING, "DHCP range %s -- %s is not consistent with netmask %s",
+			  daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(iface_netmask));
+		}
+	    }
 	}    
 	 
       /* Determine "default" default routes. These are to this server or the relay agent.
@@ -226,7 +236,8 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 		{
 		  if (!iface_broadcast.s_addr && ioctl(daemon->dhcpfd, SIOCGIFBRDADDR, &ifr) != -1)
 		    iface_broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-		  if (iface_broadcast.s_addr)
+		  if (iface_broadcast.s_addr && 
+		      is_same_net(iface_broadcast, context->start, context->netmask))
 		    context->broadcast = iface_broadcast;
 		  else 
 		    context->broadcast.s_addr  = context->start.s_addr | ~context->netmask.s_addr;
@@ -361,26 +372,23 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 
 int address_available(struct dhcp_context *context, struct in_addr taddr)
 {
-  /* Check is an address is OK for this network, ie
-     within allowable range and not in an existing lease */
+  /* Check is an address is OK for this network, check all
+     possible ranges. */
   
-  unsigned int addr, start, end;
+  unsigned int start, end, addr = ntohl(taddr.s_addr);
   
-  /* static leases only. */
-  if (context->static_only)
-    return 0;
+  for (; context; context = context->current)
+    {
+      start = ntohl(context->start.s_addr);
+      end = ntohl(context->end.s_addr);
 
-  addr = ntohl(taddr.s_addr);
-  start = ntohl(context->start.s_addr);
-  end = ntohl(context->end.s_addr);
+      if (!context->static_only &&
+	  addr >= start &&
+	  addr <= end)
+	return 1;
+    }
 
-  if (addr < start)
-    return 0;
-
-  if (addr > end)
-    return 0;
-
-  return 1;
+  return 0;
 }
  
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr)
@@ -402,41 +410,40 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 
   struct in_addr start, addr ;
   unsigned int i, j;
-
-  /* check if no dynamic leases. */
-  if (context->static_only)
-    return 0;
   
-  /* pick a seed based on hwaddr then iterate until we find a free address. */
-  for (j = context->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
-    j += hwaddr[i] + (hwaddr[i] << 8) + (hwaddr[i] << 16);
-  
-  start.s_addr = addr.s_addr = 
-    htonl(ntohl(context->start.s_addr) + 
-	  (j % (1 + ntohl(context->end.s_addr) - ntohl(context->start.s_addr))));
-
-  do {
-    if (!lease_find_by_addr(addr) && 
-	!config_find_by_address(daemon->dhcp_conf, addr))
+  for (; context; context = context->current)
+    if (!context->static_only)
       {
-	if (icmp_ping(daemon, addr))
-	  /* perturb address selection so that we are
-	     less likely to try this address again. */
-	  context->addr_epoch++;
-	else
-	  {
-	    *addrp = addr;
-	    return 1;
-	  }
-      }
+	/* pick a seed based on hwaddr then iterate until we find a free address. */
+	for (j = context->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
+	  j += hwaddr[i] + (hwaddr[i] << 8) + (hwaddr[i] << 16);
+	
+	start.s_addr = addr.s_addr = 
+	  htonl(ntohl(context->start.s_addr) + 
+		(j % (1 + ntohl(context->end.s_addr) - ntohl(context->start.s_addr))));
+	
+	do {
+	  if (!lease_find_by_addr(addr) && 
+	      !config_find_by_address(daemon->dhcp_conf, addr))
+	    {
+	      if (icmp_ping(daemon, addr))
+		/* perturb address selection so that we are
+		   less likely to try this address again. */
+		context->addr_epoch++;
+	      else
+		{
+		  *addrp = addr;
+		  return 1;
+		}
+	    }
 
-     addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
-     
-     if (addr.s_addr == htonl(ntohl(context->end.s_addr) + 1))
-       addr = context->start;
- 
-  } while (addr.s_addr != start.s_addr);
-  
+	  addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
+	  
+	  if (addr.s_addr == htonl(ntohl(context->end.s_addr) + 1))
+	    addr = context->start;
+	  
+	} while (addr.s_addr != start.s_addr);
+      }
   return 0;
 }
 

@@ -114,8 +114,8 @@ static void send_from(int fd, int nowild, char *packet, int len,
     }
 }
           
-unsigned short search_servers(struct daemon *daemon, struct all_addr **addrpp,
-			      unsigned short qtype, char *qdomain, int *type, char **domain)
+static unsigned short search_servers(struct daemon *daemon, time_t now, struct all_addr **addrpp, 
+				     unsigned short qtype, char *qdomain, int *type, char **domain)
 			      
 {
   /* If the query ends in the domain in one of our servers, set
@@ -133,19 +133,23 @@ unsigned short search_servers(struct daemon *daemon, struct all_addr **addrpp,
       {
 	unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
 	*type = SERV_FOR_NODOTS;
-	flags = 0;
 	if (serv->flags & SERV_NO_ADDR)
-	  flags = F_NXDOMAIN; 
-	else if ((serv->flags & SERV_LITERAL_ADDRESS) && (sflag & qtype))
-	  {
-	    flags = sflag;
-	    if (serv->addr.sa.sa_family == AF_INET) 
-	      *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
+	  flags = F_NXDOMAIN;
+	else if (serv->flags & SERV_LITERAL_ADDRESS) 
+	  { 
+	    if (sflag & qtype)
+	      {
+		flags = sflag;
+		if (serv->addr.sa.sa_family == AF_INET) 
+		  *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
 #ifdef HAVE_IPV6
-	    else
-	      *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+		else
+		  *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
 #endif 
-	  }
+	      }
+	    else if (!flags)
+	      flags = F_NOERR;
+	  } 
       }
     else if (serv->flags & SERV_HAS_DOMAIN)
       {
@@ -158,23 +162,27 @@ unsigned short search_servers(struct daemon *daemon, struct all_addr **addrpp,
 	    *type = SERV_HAS_DOMAIN;
 	    *domain = serv->domain;
 	    matchlen = domainlen;
-	    flags = 0;
 	    if (serv->flags & SERV_NO_ADDR)
-	      flags = F_NXDOMAIN; 
-	    else if ((serv->flags & SERV_LITERAL_ADDRESS) && ((sflag | F_QUERY ) & qtype))
+	      flags = F_NXDOMAIN;
+	    else if (serv->flags & SERV_LITERAL_ADDRESS)
 	      {
-		flags = qtype;
-		if (serv->addr.sa.sa_family == AF_INET) 
-		  *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
+		if ((sflag | F_QUERY ) & qtype)
+		  {
+		    flags = qtype;
+		    if (serv->addr.sa.sa_family == AF_INET) 
+		      *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
 #ifdef HAVE_IPV6
-		else
-		  *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+		    else
+		      *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
 #endif
+		  }
+		else if (!flags)
+		  flags = F_NOERR;
 	      }
 	  } 
       }
 
-  if (flags & ~F_NXDOMAIN) /* flags set here means a literal found */
+  if (flags & ~(F_NOERR | F_NXDOMAIN)) /* flags set here means a literal found */
     {
       if (flags & F_QUERY)
 	log_query(F_CONFIG | F_FORWARD | F_NEG, qdomain, NULL, 0);
@@ -182,9 +190,12 @@ unsigned short search_servers(struct daemon *daemon, struct all_addr **addrpp,
 	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp, 0);
     }
   else if (qtype && (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.'))
+    flags = F_NXDOMAIN;
+    
+  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now, daemon->mxnames))
     flags = F_NOERR;
 
-  if (flags & (F_NOERR | F_NXDOMAIN))
+  if (flags == F_NXDOMAIN || flags == F_NOERR)
     log_query(F_CONFIG | F_FORWARD | F_NEG | qtype | (flags & F_NXDOMAIN), qdomain, NULL, 0);
 
   return  flags;
@@ -223,7 +234,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   else 
     {
       if (gotname)
-	flags = search_servers(daemon, &addrp, gotname, daemon->namebuff, &type, &domain);
+	flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
       
       if (!flags && !(forward = get_new_frec(now)))
 	/* table full - server failure. */
@@ -316,20 +327,21 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 }
 
 static int process_reply(struct daemon *daemon, HEADER *header, time_t now, 
-			 union mysockaddr *serveraddr, int n)
+			 union mysockaddr *serveraddr, unsigned int n)
 {
-  unsigned char *pheader;
+  unsigned char *pheader, *sizep;
+  unsigned int plen;
    
   /* If upstream is advertising a larger UDP packet size
 	 than we allow, trim it so that we don't get overlarge
 	 requests for the client. */
 
-  if ((pheader = find_pseudoheader(header, n)))
+  if ((pheader = find_pseudoheader(header, n, &plen, &sizep)))
     {
       unsigned short udpsz;
-      unsigned char *psave = pheader;
+      unsigned char *psave = sizep;
       
-      GETSHORT(udpsz, pheader);
+      GETSHORT(udpsz, sizep);
       if (udpsz > daemon->edns_pktsz)
 	PUTSHORT(daemon->edns_pktsz, psave);
     }
@@ -350,20 +362,52 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
       return 0;
     }
   
-  if ((header->rcode == NOERROR || header->rcode == NXDOMAIN) && header->opcode == QUERY)
+  if (header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
+    return n;
+  
+  if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
     {
       if (!(daemon->bogus_addr && 
-	    header->rcode == NOERROR && 
-	    check_for_bogus_wildcard(header, (unsigned int)n, daemon->namebuff, daemon->bogus_addr, now)))
+	    check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now)))
+	extract_addresses(header, n, daemon->namebuff, now, daemon->doctors);
+    }
+  else
+    {
+      unsigned short flags = F_NEG;
+      int munged = 0;
+
+      if (header->rcode == NXDOMAIN)
 	{
-	  if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
-	    extract_addresses(header, (unsigned int)n, daemon->namebuff, now, daemon->doctors);
-	  else if (!(daemon->options & OPT_NO_NEG))
-	    extract_neg_addrs(header, (unsigned int)n, daemon->namebuff, now);
+	  /* if we forwarded a query for a locally known name (because it was for 
+	     an unknown type) and the answer is NXDOMAIN, convert that to NODATA,
+	     since we know that the domain exists, even if upstream doesn't */
+	  if (extract_request(header, n, daemon->namebuff, NULL) &&
+	      check_for_local_domain(daemon->namebuff, now, daemon->mxnames))
+	    {
+	      munged = 1;
+	      header->rcode = NOERROR;
+	    }
+	  else
+	    flags |= F_NXDOMAIN;
+	}
+      
+      if (!(daemon->options & OPT_NO_NEG))
+	extract_neg_addrs(header, n, daemon->namebuff, now, flags);
+	  
+      /* do this after extract_neg_addrs. Ensure NODATA reply and remove
+	 nameserver info. */
+      if (munged)
+	{
+	  header->ancount = htons(0);
+	  header->nscount = htons(0);
+	  header->arcount = htons(0);
 	}
     }
-  
-  return 1;
+
+  /* the bogus-nxdomain stuff, doctor and NXDOMAIN->NODATA munging can all elide
+     sections of the packet. Find the new length here and put back pseudoheader
+     if it was removed. */
+  return resize_packet(header, n, pheader, plen);
 }
 
 /* sets new last_server */
@@ -401,7 +445,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 	      }
 	}
       
-      if (process_reply(daemon, header, now, &serveraddr, n))
+      if ((n = process_reply(daemon, header, now, &serveraddr, (unsigned int)n)))
 	{
 	  header->id = htons(forward->orig_id);
 	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
@@ -654,7 +698,7 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 	  char *domain = NULL;
 	  
 	  if (gotname)
-	    flags = search_servers(daemon, &addrp, gotname, daemon->namebuff, &type, &domain);
+	    flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
 	  
 	  if (type != 0  || (daemon->options & OPT_ORDER) || !daemon->last_server)
 	    last_server = daemon->servers;
@@ -729,7 +773,7 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 		  /* There's no point in updating the cache, since this process will exit and
 		     lose the information after one query. We make this call for the alias and 
 		     bogus-nxdomain side-effects. */
-		  process_reply(daemon, header, now, &last_server->addr, m);
+		  m = process_reply(daemon, header, now, &last_server->addr, (unsigned int)m);
 		  
 		  break;
 		}

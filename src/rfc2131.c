@@ -80,7 +80,7 @@ static int have_config(struct dhcp_config *config, unsigned int mask)
 
 int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_name, unsigned int sz, time_t now)
 {
-  struct dhcp_context *context;
+  struct dhcp_context *context, *context_tmp;
   unsigned char *opt, *clid;
   struct dhcp_lease *lease, *ltmp;
   struct dhcp_vendor *vendor;
@@ -148,12 +148,25 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     subnet_addr.s_addr ? subnet_addr : 
     (mess->giaddr.s_addr ? mess->giaddr : 
      (mess->ciaddr.s_addr ? mess->ciaddr : iface_addr));
-  
-  for (context = daemon->dhcp; context; context = context->next)
-    if (context->netmask.s_addr  && 
-	is_same_net(addr, context->start, context->netmask) &&
-	is_same_net(addr, context->end, context->netmask))
-      break;
+
+  /* More than one context may match, we build a chain of them all on ->current
+     Note that if netmasks, netid or lease times don't match, odd things may happen. */
+    
+  for (context = NULL, context_tmp = daemon->dhcp; context_tmp; context_tmp = context_tmp->next)
+    if (context_tmp->netmask.s_addr  && 
+	is_same_net(addr, context_tmp->start, context_tmp->netmask) &&
+	is_same_net(addr, context_tmp->end, context_tmp->netmask))
+      {
+	context_tmp->current = context;
+	context = context_tmp;
+	
+	/* start to build netid chain */
+	if (context_tmp->netid.net)
+	  {
+	    context_tmp->netid.next = netid;
+	    netid = &context_tmp->netid;
+	  }
+      }
   
   if (!context)
     {
@@ -164,14 +177,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     }
   
   mess->op = BOOTREPLY;
-  
-  /* start to build netid chain */
-  if (context->netid.net)
-    {
-      context->netid.next = netid;
-      netid = &context->netid;
-    }
-  
+    
   if (mess_type == 0)
     {
       /* BOOTP request */
@@ -268,14 +274,12 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	}
     }
   
-  def_time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
-  
   if (have_config(config, CONFIG_NETID))
     {
       config->netid.next = netid;
       netid = &config->netid;
     }
-
+  
   /* Theres a chance that carefully chosen data could match the same
      vendor/user option twice and make a loop in the netid chain. */
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
@@ -326,10 +330,12 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   /* do we have a lease in store? */
   lease = lease_find_by_client(clid, clid_len);
   
+  def_time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
+  
   if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
     {
       unsigned int req_time = option_uint(opt, 4);
-        
+      
       if (def_time == 0xffffffff || 
 	  (req_time != 0xffffffff && req_time < def_time))
 	expires_time = renewal_time = req_time;
@@ -392,7 +398,8 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	}
       else
 	/* make sure this host gets a different address next time. */
-	context->addr_epoch++;
+	for (; context; context = context->current)
+	  context->addr_epoch++;
       
       return 0;
 

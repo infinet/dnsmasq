@@ -161,7 +161,7 @@ static char *usage =
 struct daemon *read_opts (int argc, char **argv)
 {
   struct daemon *daemon = safe_malloc(sizeof(struct daemon));
-  char *buff = safe_malloc(MAXDNAME);
+  char *problem = NULL, *buff = safe_malloc(MAXDNAME);
   int option = 0, i;
   FILE *file_save = NULL, *f = NULL;
   char *file_name_save = NULL, *conffile = CONFFILE;
@@ -187,6 +187,8 @@ struct daemon *read_opts (int argc, char **argv)
   
   while (1)
     {
+      problem = NULL;
+
       if (!f)
 #ifdef HAVE_GETOPT_LONG
 	option = getopt_long(argc, argv, OPTSTRING, (struct option *)opts, NULL);
@@ -302,7 +304,7 @@ struct daemon *read_opts (int argc, char **argv)
 	      complain(buff, NULL);
 	      continue;
 	    }
-	               
+	      	  
 	  switch (option)
 	    { 
 	     case 'C': 
@@ -366,7 +368,10 @@ struct daemon *read_opts (int argc, char **argv)
 		if (comma)
 		  *(comma++) = 0;
 		if (!canonicalise(optarg) || (comma && !canonicalise(comma)))
-		  option = '?';
+		  {
+		    option = '?';
+		    problem = "bad MX name";
+		  }
 		else 
 		  {
 		    struct mx_record *new = safe_malloc(sizeof(struct mx_record));
@@ -380,7 +385,10 @@ struct daemon *read_opts (int argc, char **argv)
 	      
 	    case 't':
 	      if (!canonicalise(optarg))
-		option = '?';
+		{
+		  option = '?';
+		  problem = "bad MX target";
+		}
 	      else
 		daemon->mxtarget = safe_string_alloc(optarg);
 	      break;
@@ -391,7 +399,10 @@ struct daemon *read_opts (int argc, char **argv)
 	      
 	    case 'H':
 	      if (daemon->addn_hosts)
-		option = '?';
+		{
+		  option = '?';
+		  problem = "only one addn hosts file allowed";
+		}
 	      else
 		daemon->addn_hosts = safe_string_alloc(optarg);
 	      break;
@@ -563,7 +574,10 @@ struct daemon *read_opts (int argc, char **argv)
 			  { 
 			    *portno = 0;
 			    if (!atoi_check(portno+1, &source_port))
-			      option = '?';
+			      {
+				option = '?';
+				problem = "bad port";
+			      }
 			  }
 		      }
 		    
@@ -571,7 +585,10 @@ struct daemon *read_opts (int argc, char **argv)
 		      {
 			*portno = 0;
 			if (!atoi_check(portno+1, &serv_port))
-			  option = '?';
+			  {
+			    option = '?';
+			    problem = "bad port";
+			  }
 		      }
 
 #ifdef HAVE_IPV6
@@ -717,6 +734,8 @@ struct daemon *read_opts (int argc, char **argv)
 		new->netid.net = NULL;
 		new->static_only = 0;
 		
+		problem = "bad dhcp-range";
+
 		for (cp = optarg; *cp; cp++)
 		  if (!(*cp == ' ' || *cp == '.' ||  (*cp >='0' && *cp <= '9')))
 		    break;
@@ -755,6 +774,17 @@ struct daemon *read_opts (int argc, char **argv)
 		    new->end = tmp;
 		  }
 		    
+		if (option != '?' && k >= 3 && strchr(a[2], '.') &&  
+		    ((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
+		  {
+		    leasepos = 3;
+		    if (!is_same_net(new->start, new->end, new->netmask))
+		      {
+			problem = "inconsistent DHCP range";
+			option = '?';
+		      }
+		  }
+
 		if (option == '?')
 		  {
 		    free(new);
@@ -762,11 +792,7 @@ struct daemon *read_opts (int argc, char **argv)
 		  }
 		else
 		  daemon->dhcp = new;
-		
-		if (k >= 3 && strchr(a[2], '.') &&  
-		    ((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
-		  leasepos = 3;
-		
+
 		if (k >= 4 && strchr(a[3], '.') &&  
 		    ((new->broadcast.s_addr = inet_addr(a[3])) != (in_addr_t)-1))
 		  leasepos = 4;
@@ -955,6 +981,7 @@ struct daemon *read_opts (int argc, char **argv)
 
 		if (option == '?')
 		  {
+		    problem = "bad dhcp-host";
 		    if (new->flags & CONFIG_NAME)
 		      free(new->hostname);
 		    if (new->flags & CONFIG_CLID)
@@ -1003,6 +1030,7 @@ struct daemon *read_opts (int argc, char **argv)
 		if ((new->opt = atoi(optarg)) == 0)
 		  {
 		    option = '?';
+		    problem = "bad dhcp-opt";
 		    if (new->netid)
 		      free(new->netid);
 		    free(new);
@@ -1203,11 +1231,12 @@ struct daemon *read_opts (int argc, char **argv)
 	{
 	  if (f)
 	    {
-	      sprintf(buff, "error at line %d of %s ", lineno, conffile);
+	      sprintf(buff, "%s at line %d of %s ", 
+		      problem ? problem : "error", lineno, conffile);
 	      complain(buff, NULL);
 	    }
 	  else
-	    die("bad command line options: try --help.", NULL);
+	    die("bad command line options: %s.", problem ? problem : "try --help");
 	}
     }
       

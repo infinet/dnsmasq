@@ -306,9 +306,44 @@ static unsigned char *skip_questions(HEADER *header, unsigned int plen)
   return ansp;
 }
 
-unsigned char *find_pseudoheader(HEADER *header, unsigned int plen)
+int resize_packet(HEADER *header, unsigned int plen, unsigned char *pheader, unsigned int hlen)
 {
-  /* See if packet has an RFC2671 pseudoheader, and if so return a pointer to it. */
+  int i;
+  unsigned char *ansp = skip_questions(header, plen);
+  unsigned short rdlen;
+  
+  if (!ansp)
+    return 0;
+  
+  for (i = 0; 
+       i < (ntohs(header->ancount) + ntohs(header->nscount) + ntohs(header->arcount)); 
+       i++)
+    {
+      if (!(ansp = skip_name(ansp, header, plen)))
+	return 0; 
+      ansp += 8; /* type, class, TTL */
+      GETSHORT(rdlen, ansp);
+      if ((unsigned int)(ansp + rdlen - (unsigned char *)header) > plen) 
+	return 0;
+      ansp += rdlen;
+    }
+
+  /* restore pseudoheader */
+  if (pheader && ntohs(header->arcount) == 0)
+    {
+      /* must use memmove, may overlap */
+      memmove(ansp, pheader, hlen);
+      header->arcount = htons(1);
+      ansp += hlen;
+    }
+
+  return ansp - (unsigned char *)header;
+}
+
+unsigned char *find_pseudoheader(HEADER *header, unsigned int plen, unsigned int *len, unsigned char **p)
+{
+  /* See if packet has an RFC2671 pseudoheader, and if so return a pointer to it. 
+     also return length of pseudoheader in *len and pointer to the UDP size in *p */
   
   int i, arcount = ntohs(header->arcount);
   unsigned char *ansp;
@@ -330,7 +365,7 @@ unsigned char *find_pseudoheader(HEADER *header, unsigned int plen)
 
   for (i = 0; i < arcount; i++)
     {
-      unsigned char *save;
+      unsigned char *save, *start = ansp;
       if (!(ansp = skip_name(ansp, header, plen)))
 	return NULL; 
 
@@ -340,9 +375,15 @@ unsigned char *find_pseudoheader(HEADER *header, unsigned int plen)
       GETSHORT(rdlen, ansp);
       if ((unsigned int)(ansp + rdlen - (unsigned char *)header) > plen) 
 	return NULL;
-      if (type == T_OPT)
-	return save;
-      ansp += rdlen;
+       ansp += rdlen;
+       if (type == T_OPT)
+	{
+	  if (len)
+	    *len = ansp - start;
+	  if (p)
+	    *p = save;
+	  return start;
+	}
     }
   
   return NULL;
@@ -397,17 +438,13 @@ static unsigned char *add_text_record(unsigned int nameoffset, unsigned char *p,
 
 /* On receiving an NXDOMAIN or NODATA reply, determine which names are known
    not to exist for negative caching. name if a working buffer passed in. */
-void extract_neg_addrs(HEADER *header, unsigned int qlen, char *name, time_t now) 
+void extract_neg_addrs(HEADER *header, unsigned int qlen, char *name, time_t now, unsigned short flags) 
 {
   unsigned char *p;
   int i, found_soa = 0;
   int qtype, qclass, rdlen;
   unsigned long ttl, minttl = 0;
-  unsigned short flags = F_NEG;
-
-  if (header->rcode == NXDOMAIN)
-    flags |= F_NXDOMAIN;
-  
+   
   /* there may be more than one question with some questions
      answered. We don't generate negative entries from those. */
   if (ntohs(header->ancount) != 0)
@@ -555,7 +592,7 @@ void extract_addresses(HEADER *header, unsigned int qlen, char *name,
 #endif
       else if (qtype == T_PTR)
 	{
-	  /* PTR record */
+  /* PTR record */
 	  struct all_addr addr;
 	  int name_encoding = in_arpa_name_2_addr(name, &addr);
 	  if (name_encoding)
@@ -735,7 +772,22 @@ int setup_reply(HEADER *header, unsigned int qlen,
  
   return p - (unsigned char *)header;
 }
-	
+
+/* check if name matches local names ie from /etc/hosts or DHCP or local mx names. */
+int check_for_local_domain(char *name, time_t now, struct mx_record *mx)
+{
+  struct crec *crecp;
+  
+  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4|F_IPV6)) &&
+      (crecp->flags & (F_HOSTS | F_DHCP)))
+    return 1;
+  
+  for (; mx; mx = mx->next)
+    if (hostname_isequal(name, mx->mxname))
+      return 1;
+  
+  return 0;
+}
 
 /* Is the packet a reply with the answer address equal to addr?
    If so mung is into an NXDOMAIN reply and also put that information
@@ -811,7 +863,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
      forward rather than answering from the cache, which doesn't include
      security information. */
 
-  if ((pheader = find_pseudoheader(header, qlen)))
+  if (find_pseudoheader(header, qlen, NULL, &pheader))
     { 
       unsigned short udpsz, ext_rcode, flags;
       unsigned char *psave = pheader;

@@ -1190,3 +1190,27 @@ version 2.14
 
 	    Added "keep-in-foreground" option. Thanks to Sean
 	    MacLennan for the patch.
+
+version 2.15
+            Fixed NXDOMAIN/NODATA confusion for locally known
+            names. We now return a NODATA reponse for names which are
+            locally known. Now a query for (eg AAAA or MX) for a name
+	    with an IPv4 address in /etc/hosts which fails upstream
+            will generate a NODATA response. Note that the query 
+	    is still tried upstream, but a NXDOMAIN reply gets
+            converted to NODATA. Thanks to Eric de Thouars, Eric
+            Spakman and Mike Mestnik for bug reports/testing.
+
+	    Allow multiple dhcp-ranges within the same network. The
+	    original intention was that there would be a dhcp-range
+	    option for each network served, but there's no real reason
+	    not to allow discontinuous ranges within a network so this
+	    release adds support for that.
+
+	    Check for dhcp-ranges which are inconsistent with their 
+	    netmask, and generate errors or warnings.
+	    
+	    Improve error messages when there are problems with
+	    configuration.
+
+ 

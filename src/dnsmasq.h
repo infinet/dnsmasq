@@ -294,7 +294,7 @@ struct dhcp_context {
   struct in_addr start, end; /* range of available addresses */
   int static_only;
   struct dhcp_netid netid;
-  struct dhcp_context *next;
+  struct dhcp_context *next, *current;
 };
 
 typedef unsigned char u8;
@@ -393,11 +393,15 @@ int setup_reply(HEADER *header, unsigned int qlen,
 		unsigned long local_ttl);
 void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
 		       time_t now, struct doctor *doctors);
-void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
+void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now, unsigned short flags);
 int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, time_t now);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
-unsigned char *find_pseudoheader(HEADER *header, unsigned int plen);
+unsigned char *find_pseudoheader(HEADER *header, unsigned int plen,
+				 unsigned int *len, unsigned char **p);
+int check_for_local_domain(char *name, time_t now, struct mx_record *mx);
+int resize_packet(HEADER *header, unsigned int plen, 
+		  unsigned char *pheader, unsigned int hlen);
 
 /* util.c */
 unsigned short rand16(void);
