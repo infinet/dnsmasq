@@ -18,6 +18,10 @@
 #define BOOTREPLY                2
 #define DHCP_COOKIE              0x63825363
 
+/* The Linux in-kernel DHCP client silently ignores any packet 
+   smaller than this. Sigh...........   */
+#define MIN_PACKETSZ             300
+
 #define OPTION_PAD               0
 #define OPTION_NETMASK           1
 #define OPTION_ROUTER            3
@@ -37,6 +41,7 @@
 #define OPTION_T2                59
 #define OPTION_VENDOR_ID         60
 #define OPTION_CLIENT_ID         61
+#define OPTION_USER_CLASS        77
 #define OPTION_END               255
 
 #define DHCPDISCOVER             1
@@ -49,6 +54,7 @@
 #define DHCPINFORM               8
 
 static unsigned char *option_put(unsigned char *p, unsigned char *end, int opt, int len, unsigned int val);
+static unsigned char *option_end(unsigned char *p, unsigned char *end, struct dhcp_packet *start);
 static unsigned char *option_put_string(unsigned char *p, unsigned char *end, int opt, char *string);
 static void bootp_option_put(struct dhcp_packet *mess, char *filename, char *sname);
 static int option_len(unsigned char *opt);
@@ -64,7 +70,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     char *domainname, char *hostname,
 				     struct in_addr router,
 				     struct in_addr iface_addr,
-				     int iface_mtu, char *netid);
+				     int iface_mtu, struct dhcp_netid *netid);
 
 static int have_config(struct dhcp_config *config, unsigned int mask)
 {
@@ -84,6 +90,7 @@ int dhcp_reply(struct dhcp_context *context,
 {
   unsigned char *opt, *clid;
   struct dhcp_lease *lease;
+  struct dhcp_vendor *vendor;
   int clid_len;
   struct dhcp_packet *mess = &rawpacket->data;
   unsigned char *p = mess->options;
@@ -94,7 +101,7 @@ int dhcp_reply(struct dhcp_context *context,
   char *message = NULL;
   unsigned int renewal_time, expires_time, def_time;
   struct dhcp_config *config;
-  char *netid;
+  struct dhcp_netid *netid = NULL;
   struct in_addr addr;
   unsigned short fuzz = 0;
 
@@ -168,7 +175,11 @@ int dhcp_reply(struct dhcp_context *context,
 		  hostname = NULL;
 		}
 	      else
-		*dot = 0; /* truncate */
+		{
+		  *dot = 0; /* truncate */
+		  if (strlen(hostname) == 0)
+		    hostname = NULL; /* nothing left */
+		}
 	    }
 	  /* search again now we have a hostname */
 	  config = find_config(dhcp_configs, context, clid, clid_len, mess->chaddr, hostname);
@@ -177,18 +188,58 @@ int dhcp_reply(struct dhcp_context *context,
   
   def_time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
   
-  netid = context->netid;
-  if (have_config(config, CONFIG_NETID))
-    netid = config->netid;
-  else if ((opt = option_find(mess, sz, OPTION_VENDOR_ID)))
+  if (context->netid.net)
     {
-      struct dhcp_vendor *vendor;
-      for (vendor = vendors; vendor; vendor = vendor->next)
-	if (vendor->len == option_len(opt) &&
-	    memcmp(vendor->data, option_ptr(opt), vendor->len) == 0)
-	  netid = vendor->net;
+      context->netid.next = netid;
+      netid = &context->netid;
     }
   
+  if (have_config(config, CONFIG_NETID))
+    {
+      config->netid.next = netid;
+      netid = &config->netid;
+    }
+
+  /* Theres a chance that carefully chosen data could match the same
+     vendor/user option twice and make a loop in the netid chain. */
+  for (vendor = vendors; vendor; vendor = vendor->next)
+    vendor->used = 0;
+
+  if ((opt = option_find(mess, sz, OPTION_VENDOR_ID)))
+    for (vendor = vendors; vendor; vendor = vendor->next)
+      if (vendor->is_vendor && !vendor->used)
+	{
+	  int i;
+	  for (i = 0; i <= (option_len(opt) - vendor->len); i++)
+	    if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
+	      {
+		vendor->used = 1;
+		vendor->netid.next = netid;
+		netid = &vendor->netid;
+		break;
+	      }
+	}
+  
+  if ((opt = option_find(mess, sz, OPTION_USER_CLASS)))
+    {
+      unsigned char *ucp =  option_ptr(opt);
+      int j;
+      for (j = 0; j < option_len(opt); j += ucp[j] + 1)
+	for (vendor = vendors; vendor; vendor = vendor->next)
+	  if (!vendor->is_vendor && !vendor->used)
+	    {
+	      int i;
+	      for (i = 0; i <= (ucp[j] - vendor->len); i++)
+		if (memcmp(vendor->data, &ucp[j+i+1], vendor->len) == 0)
+		  {
+		    vendor->used = 1;
+		    vendor->netid.next = netid;
+		    netid = &vendor->netid;
+		    break;
+		  }
+	    }
+    }
+     
   /* Can have setting to ignore the client ID for a particular MAC address or hostname */
   if (have_config(config, CONFIG_NOCLID))
     {
@@ -316,7 +367,7 @@ int dhcp_reply(struct dhcp_context *context,
 	}
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
 			 NULL, router, iface_addr, iface_mtu, netid);
-      p = option_put(p, end, OPTION_END, 0, 0);
+      p = option_end(p, end, mess);
       
       log_packet("OFFER" , &mess->yiaddr, mess->chaddr, iface_name, NULL);
       return p - (unsigned char *)mess;
@@ -385,7 +436,7 @@ int dhcp_reply(struct dhcp_context *context,
 	  bootp_option_put(mess, NULL, NULL);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
 	  p = option_put_string(p, end, OPTION_MESSAGE, message);
-	  p = option_put(p, end, OPTION_END, 0, 0);
+	  p = option_end(p, end, mess);
 	  mess->flags |= htons(0x8000); /* broadcast */
 	  return p - (unsigned char *)mess;
 	}
@@ -393,7 +444,8 @@ int dhcp_reply(struct dhcp_context *context,
       log_packet("ACK", &mess->yiaddr, mess->chaddr, iface_name, hostname);
       
       lease_set_hwaddr(lease, mess->chaddr);
-      lease_set_hostname(lease, hostname, domain_suffix);
+      if (hostname)
+	lease_set_hostname(lease, hostname, domain_suffix);
       lease_set_expires(lease, renewal_time == 0xffffffff ? 0 : now + (time_t)renewal_time);
       
       bootp_option_put(mess, dhcp_file, dhcp_sname);
@@ -408,7 +460,7 @@ int dhcp_reply(struct dhcp_context *context,
 	}
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
 			 hostname, router, iface_addr, iface_mtu, netid);
-      p = option_put(p, end, OPTION_END, 0, 0);
+      p = option_end(p, end, mess);
       return p - (unsigned char *)mess; 
       
     case DHCPINFORM:
@@ -424,7 +476,7 @@ int dhcp_reply(struct dhcp_context *context,
       p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
       p = do_req_options(context, p, end, req_options, dhcp_opts, domain_suffix, 
 			 hostname, router, iface_addr, iface_mtu, netid);
-      p = option_put(p, end, OPTION_END, 0, 0);
+      p = option_end(p, end, mess);
       
       log_packet("ACK", &mess->ciaddr, mess->chaddr, iface_name, hostname);
       return p - (unsigned char *)mess; 
@@ -494,17 +546,23 @@ static unsigned char *option_put(unsigned char *p, unsigned char *end, int opt, 
   int i;
   
   /* always keep one octet space for the END option. */ 
-  if ((opt == OPTION_END) || (p + len + 3 < end))
+  if (p + len + 3 < end)
     {
       *(p++) = opt;
-      if (opt != OPTION_END)
-	{
-	  *(p++) = len;
-	  
-	  for (i = 0; i < len; i++)
-	    *(p++) = val >> (8 * (len - (i + 1)));
-	}
+      *(p++) = len;
+      
+      for (i = 0; i < len; i++)
+	*(p++) = val >> (8 * (len - (i + 1)));
     }
+  return p;
+}
+
+static unsigned char *option_end(unsigned char *p, unsigned char *end, struct dhcp_packet *start)
+{
+  *(p++) = OPTION_END;
+  while ((p < end) && (p - ((unsigned char *)start) < MIN_PACKETSZ))
+    *p++ = 0;
+  
   return p;
 }
 
@@ -587,16 +645,25 @@ static int in_list(unsigned char *list, int opt)
   return 0;
 }
 
-static struct dhcp_opt *option_find2(char *netid, struct dhcp_opt *opts, int opt)
+static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *opts, int opt)
 {
   struct dhcp_opt *tmp;
+  struct dhcp_netid *tmp1;
   
   for (tmp = opts; tmp; tmp = tmp->next)
-    if (tmp->opt == opt && 
-	((!netid && !tmp->netid) || 
-	 (netid && tmp->netid && strcmp(tmp->netid, netid) == 0)))
-      return tmp;
-
+    if (tmp->opt == opt)
+      {
+	if (netid)
+	  {
+	    if (tmp->netid)
+	      for (tmp1 = netid; tmp1; tmp1 = tmp1->next)
+		if (strcmp(tmp->netid, tmp1->net) == 0)
+		  return tmp;
+	  }
+	else if (!tmp->netid)
+	  return tmp;
+      }
+	      
   return netid ? option_find2(NULL, opts, opt) : NULL;
 }
 
@@ -607,7 +674,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     char *domainname, char *hostname,
 				     struct in_addr router, 
 				     struct in_addr iface_addr,
-				     int iface_mtu, char *netid)
+				     int iface_mtu, struct dhcp_netid *netid)
 {
   struct dhcp_opt *opt;
     

@@ -237,12 +237,18 @@ struct dhcp_lease {
   struct dhcp_lease *next;
 };
 
+struct dhcp_netid {
+  char *net;
+  struct dhcp_netid *next;
+};
+
 struct dhcp_config {
   unsigned int flags;
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
   unsigned char hwaddr[ETHER_ADDR_LEN]; 
-  char *hostname, *netid;
+  char *hostname;
+  struct dhcp_netid netid;
   struct in_addr addr;
   unsigned int lease_time;
   struct dhcp_config *next;
@@ -265,8 +271,9 @@ struct dhcp_opt {
 };
 
 struct dhcp_vendor {
-  int len;
-  char *data, *net;
+  int len, is_vendor, used;
+  char *data;
+  struct dhcp_netid netid;
   struct dhcp_vendor *next;
 };
 
@@ -274,7 +281,7 @@ struct dhcp_context {
   unsigned int lease_time;
   struct in_addr netmask, broadcast;
   struct in_addr start, end; /* range of available addresses */
-  char *netid;
+  struct dhcp_netid netid;
   struct dhcp_context *next;
 };
 
@@ -340,6 +347,7 @@ int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name,
 unsigned short rand16(void);
 int legal_char(char c);
 int canonicalise(char *s);
+int atoi_check(char *a, int *res);
 void die(char *message, char *arg1);
 void complain(char *message, char *arg1);
 void *safe_malloc(int size);

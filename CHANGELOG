@@ -962,3 +962,44 @@ release 2.7
 	     ancient IBM LANMAN DHCP clients. Thanks to Jim Louvau for
 	     help with this.
 
+release 2.8
+	     Pad DHCP packets to a minimum size of 300 bytes. This
+	     fixes interoperability problems with the Linux in-kernel
+	     DHCP/BOOTP client. Thanks to Richard Musil for
+	     diagnosing this and supplying a patch.
+
+	     Fixed option-parsing bug and potential memory leak. Patch
+	     from Richard Musil.
+
+	     Improved vendor class configuration and added user class
+	     configuration. Specifically: (1) options are matched on
+	     the netids from dhcp-range, dhcp-host, vendor class and
+	     user class(es). Multiple net-ids are allowed and options
+	     are searched on them all. (2) matches agains vendor class
+	     and user class are now on a substring, if the given
+	     string is a substring of the vendor/user class, then a
+	     match occurs. Thanks again to Richard Musil for prompting
+	     this.
+
+	     Make "#" match any domain on --address and --server
+	     flags. --address=/#/1.2.3.4 will return 1.2.3.4 for _any_
+	     domain not otherwise matched. Of course
+	     --server=/#/1.2.3.4 is exactly equivalent to
+	     --server=1.2.3.4. Special request from Josh Howlett.
+	
+	     Fixed a nasty bug which would cause dnsmasq to lose track
+	     of leases for hosts which had a --dhcp-host flag without
+	     a name specification. The mechanism for this was that
+	     the hostname could get erroneously set as a zero-length
+	     string and then written to the leases file as a
+	     mal-formed line. Restarting dnsmasq would then lose the lease.
+	     Alex Hermann's work helped chase down this problem.
+
+	     Add checks against DHCP clients which return zero-length
+	     hostnames. This avoids the potential lease-loss problems
+	     reffered to above. Also, if a client sends a hostname when
+	     it creates a lease but subsequently sends no or a
+	     zero-length hostname whilst renewing, continue to use the
+	     existing hostname, don't wipe it out. 
+	     
+	     Tweaked option parsing to flag some parameter errors.

@@ -11,7 +11,7 @@
 */
 
 
-/* Code in this file contributed by Rob Funk. */
+/* Some code in this file contributed by Rob Funk. */
 
 #include "dnsmasq.h"
 
@@ -85,6 +85,18 @@ unsigned short rand16(void)
   return( (unsigned short) (rand() >> 15) );
 }
 
+int atoi_check(char *a, int *res)
+{
+  char *p;
+
+  for (p = a; *p; p++)
+     if (*p < '0' || *p > '9')
+       return 0;
+
+  *res = atoi(a);
+  return 1;
+}
+
 int legal_char(char c)
 {
   /* check for legal char a-z A-Z 0-9 - 
@@ -100,12 +112,18 @@ int legal_char(char c)
   
 int canonicalise(char *s)
 {
-  /* check for legal chars ans remove trailing . */
+  /* check for legal chars and remove trailing . 
+     also fail empty string. */
   int l = strlen(s);
   char c;
 
-  if (l>0 && s[l-1] == '.')
-    s[l-1] = 0;
+  if (l == 0) return 0;
+
+  if (s[l-1] == '.')
+    {
+      if (l == 1) return 0;
+      s[l-1] = 0;
+    }
 
   while ((c = *s++))
     if (c != '.' && !legal_char(c))

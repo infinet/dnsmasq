@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:"
+#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -71,6 +71,7 @@ static struct myoption opts[] = {
   {"read-ethers", 0, 0, 'Z' },
   {"alias", 1, 0, 'V' },
   {"dhcp-vendorclass", 1, 0, 'U'},
+  {"dhcp-userclass", 1, 0, 'j'},
   {0, 0, 0, 0}
 };
 
@@ -121,6 +122,7 @@ static char *usage =
 "-H, --addn-hosts=path               Specify a hosts file to be read in addition to " HOSTSFILE ".\n"
 "-i, --interface=interface           Specify interface(s) to listen on.\n"
 "-I, --except-interface=int          Specify interface(s) NOT to listen on.\n"
+"-j, --dhcp-userclass=<id>,<class>   Map DHCP user class to option set.\n"
 "-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
 "-L, --localmx                       Return MX records for local hosts.\n"
 "-m, --mx-host=host_name             Specify the MX name to reply to.\n"
@@ -474,11 +476,15 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    optarg++;
 		    while ((end = strchr(optarg, '/')))
 		      {
-			char *domain;
+			char *domain = NULL;
 			*end = 0;
-			if (!canonicalise(optarg))
+			/* # matches everything and becomes a zero length domain string */
+			if (strcmp(optarg, "#") == 0)
+			  domain = "";
+			else if (!canonicalise(optarg))
 			  option = '?';
-			domain = safe_string_alloc(optarg); /* NULL if strlen is zero */
+			else
+			  domain = safe_string_alloc(optarg); /* NULL if strlen is zero */
 			serv = safe_malloc(sizeof(struct server));
 			serv->next = newlist;
 			newlist = serv;
@@ -527,14 +533,16 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			if ((portno = strchr(source+1, '#')))
 			  { 
 			    *portno = 0;
-			    source_port = atoi(portno+1);
+			    if (!atoi_check(portno+1, &source_port))
+			      option = '?';
 			  }
 		      }
 		    
 		    if ((portno = strchr(optarg, '#'))) /* is there a port no. */
 		      {
 			*portno = 0;
-			serv_port = atoi(portno+1);
+			if (!atoi_check(portno+1, &serv_port))
+			  option = '?';
 		      }
 
 #ifdef HAVE_IPV6
@@ -614,32 +622,46 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      
 	    case 'c':
 	      {
-		int size = atoi(optarg);
-		/* zero is OK, and means no caching. */
-		
-		if (size < 0)
-		  size = 0;
-		else if (size > 10000)
-		  size = 10000;
-		
-		*cachesize = size;
+		int size;
+		if (!atoi_check(optarg, &size))
+		  option = '?';
+		else
+		  {
+		    /* zero is OK, and means no caching. */
+		    
+		    if (size < 0)
+		      size = 0;
+		    else if (size > 10000)
+		      size = 10000;
+		    
+		    *cachesize = size;
+		  }
 		break;
 	      }
 	      
 	    case 'p':
-	      *port = atoi(optarg);
+	      if (!atoi_check(optarg, port))
+		option = '?';
 	      break;
 	      
 	    case 'Q':
-	      *query_port = atoi(optarg);
+	      if (!atoi_check(optarg, query_port))
+		option = '?';
 	      break;
 
 	    case 'T':
-	      *local_ttl = (unsigned long)atoi(optarg);
-	      break;
+	      {
+		int ttl;
+		if (!atoi_check(optarg, &ttl))
+		  option = '?';
+		else
+		  *local_ttl = (unsigned long)ttl;
+		break;
+	      }
 
 	    case 'X':
-	      *dhcp_max = atoi(optarg);
+	      if (!atoi_check(optarg, dhcp_max))
+		option = '?';
 	      break;
 
 	    case 'F':
@@ -652,7 +674,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		new->lease_time = DEFLEASE; 
 		new->netmask.s_addr = 0;
 		new->broadcast.s_addr = 0;
-		new->netid = NULL;
+		new->netid.net = NULL;
 		
 		
 		for (cp = optarg; *cp; cp++)
@@ -662,7 +684,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if (*cp != ',' && (comma = strchr(optarg, ',')))
 		  {
 		    *comma = 0;
-		    new->netid = safe_string_alloc(optarg);
+		    new->netid.net = safe_string_alloc(optarg);
 		    a[0] = comma + 1;
 		  }
 		else
@@ -807,7 +829,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			       arg[3] == ':')
 			{
 			  new->flags |= CONFIG_NETID;
-			  new->netid = safe_string_alloc(arg+4);
+			  new->netid.net = safe_string_alloc(arg+4);
 			}
 		      else if (sscanf(a[j], "%x:%x:%x:%x:%x:%x",
 				      &e0, &e1, &e2, &e3, &e4, &e5) == 6)
@@ -888,7 +910,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    if (new->flags & CONFIG_CLID)
 		      free(new->clid);
 		    if (new->flags & CONFIG_NETID)
-		      free(new->netid);
+		      free(new->netid.net);
 		    free(new);
 		  }
 		else
@@ -931,6 +953,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if ((new->opt = atoi(optarg)) == 0)
 		  {
 		    option = '?';
+		    if (new->netid)
+		      free(new->netid);
 		    free(new);
 		    break;
 		  }
@@ -960,7 +984,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		      {
 			is_dec = is_addr = 0;
 			if (!((*cp >='A' && *cp <= 'F') ||
-			      (*cp >='a' && *cp <= 'F')))
+			      (*cp >='a' && *cp <= 'f')))
 			  is_hex = 0;
 		      }
 		
@@ -1064,6 +1088,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      }
 
 	    case 'U':
+	    case 'j':
 	      {
 		char *comma;
 		
@@ -1073,10 +1098,11 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  {
 		    struct dhcp_vendor *new = safe_malloc(sizeof(struct dhcp_vendor));
 		    *comma = 0;
-		    new->net = safe_string_alloc(optarg);
+		    new->netid.net = safe_string_alloc(optarg);
 		    new->len = strlen(comma+1);
 		    new->data = safe_malloc(new->len);
 		    memcpy(new->data, comma+1, new->len);
+		    new->is_vendor = (option == 'U');
 		    new->next = *dhcp_vendors;
 		    *dhcp_vendors = new;
 		  }

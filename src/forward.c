@@ -177,7 +177,7 @@ static struct server *forward_query(int udpfd, union mysockaddr *udpaddr,
 		unsigned int domainlen = strlen(serv->domain);
 		if (namelen >= domainlen &&
 		    hostname_isequal(dnamebuff + namelen - domainlen, serv->domain) &&
-		    domainlen > matchlen)
+		    domainlen >= matchlen)
 		  {
 		    if (serv->flags & SERV_LITERAL_ADDRESS)
 		      { /* flags gets set if server is in fact an answer */

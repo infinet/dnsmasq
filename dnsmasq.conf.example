@@ -171,6 +171,14 @@ filterwin2k
 # the machine with ethernet address 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,net:red
 
+# Send extra options which are tagged as "red" to any machine whose
+# DHCP vendorclass string includes the substring "Linux"
+#dhcp-vendorclass=red,Linux
+
+# Send extra options which are tagged as "red" to any machine one 
+# of whose DHCP userclass strings includes the substring "accounts"
+#dhcp-userclass=red,accounts
+
 # If this line is uncommented, dnsmasq will read /etc/ethers and act
 # on the ethernet-address/IP pairs found there just as if they had
 # been given as --dhcp-host options. Useful if you keep

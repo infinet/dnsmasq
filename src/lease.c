@@ -109,7 +109,7 @@ void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain)
   
   for (lease = leases; lease; lease = lease->next)
     if ((config = find_config(dhcp_configs, NULL, lease->clid, lease->clid_len, lease->hwaddr, NULL)) && 
-	(config->hostname))
+	(config->flags & CONFIG_NAME))
       lease_set_hostname(lease, config->hostname, domain);
 }
 
@@ -145,7 +145,7 @@ void lease_update_file(int force, time_t now)
 		  expires, lease->hwaddr[0], lease->hwaddr[1],
 		  lease->hwaddr[2], lease->hwaddr[3], lease->hwaddr[4],
 		  lease->hwaddr[5], inet_ntoa(lease->addr),
-		  lease->hostname ? lease->hostname : "*");
+		  lease->hostname && strlen(lease->hostname) != 0 ? lease->hostname : "*");
 	  
 	  if (lease->clid_len)
 	    {
@@ -311,7 +311,7 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix)
   struct dhcp_lease *lease_tmp;
   char *new_name = NULL, *new_fqdn = NULL;
 
-  if (lease->hostname && name && strcmp(lease->hostname, name) == 0)
+  if (lease->hostname && name && hostname_isequal(lease->hostname, name))
     return;
 
   if (!name && !lease->hostname)
