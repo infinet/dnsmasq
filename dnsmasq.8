@@ -15,12 +15,13 @@ contents of /etc/hosts so that local hostnames
 which do not appear in the global DNS can be resolved and also answers
 DNS queries for DHCP configured hosts.
 .PP
-.BR dnsmasq 
-supports IPv6.
+The dnsmasq DHCP server supports static address assignments, multiple
+networks, DHCP-relay and RFC3011 subnet specifiers. It automatically
+sends a sensible default set of DHCP options, and can be configured to
+send any desired set of DHCP options. It also supports BOOTP.
 .PP
-.BR dnsmasq
-is lightweight and easy to configure. It is intended as be run on
-small router/firewalls and  provide a DNS (and optionally, DHCP) service to a LAN.
+Dnsmasq 
+supports IPv6.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
 functions, for instance "--pid-file=" disables writing a PID file. On
@@ -45,10 +46,15 @@ time-to-live (in seconds) to be given for these replies. This will
 reduce the load on the server at the expense of clients using stale
 data under some circumstances.
 .TP
+.B \-k, --keep-in-foreground
+Do not go into the background at startup but otherwise run as
+normal. This is intended for use when dnsmasq is run under daemontools.
+.TP
 .B \-d, --no-daemon
 Debug mode: don't fork to the background, don't write a pid file,
 don't change user id, generate a complete cache dump on receipt on
-SIGUSR1, log to stderr as well as syslog.
+SIGUSR1, log to stderr as well as syslog, don't fork new processes
+to handle TCP queries.
 .TP
 .B \-q, --log-queries
 Log the results of DNS queries handled by dnsmasq. Enable a full cache dump on receipt of SIGUSR1.
@@ -441,8 +447,12 @@ in /etc/resolv.conf (or equivalent).
 Add the domain-suffix to simple names (without a period) in /etc/hosts
 in the same way as for DHCP-derived names.
 .SH CONFIG FILE
-At startup, dnsmasq reads /etc/dnsmasq.conf, if it exists. (On
-FreeBSD and OpenBSD, the file is /usr/local/etc/dnsmasq.conf) The format of this
+At startup, dnsmasq reads
+.I /etc/dnsmasq.conf,
+if it exists. (On
+FreeBSD, the file is 
+.I /usr/local/etc/dnsmasq.conf
+) The format of this
 file consists of one option per line, exactly as the long options detailed 
 in the OPTIONS section but without the leading "--". Lines starting with # are comments and ignored. For
 options which may only be specified once, the configuration file overrides 
@@ -453,10 +463,14 @@ level of nesting is allowed.
 .SH NOTES
 When it receives a SIGHUP, 
 .B dnsmasq 
-clears its cache and then re-loads /etc/hosts. If 
+clears its cache and then re-loads 
+.I /etc/hosts.
+If 
 .B
 --no-poll
-is set SIGHUP also re-reads /etc/resolv.conf. SIGHUP
+is set SIGHUP also re-reads
+.I /etc/resolv.conf.
+SIGHUP
 does NOT re-read the configuration file.
 .PP
 When it receives a SIGUSR1,
@@ -472,25 +486,34 @@ Dnsmasq is a DNS query forwarder: it it not capable of recursively
 answering arbitrary queries starting from the root servers but
 forwards such queries to a fully recursive upstream DNS server which is
 typically provided by an ISP. By default, dnsmasq reads
-/etc/resolv.conf to discover the IP
+.I /etc/resolv.conf
+to discover the IP
 addresses of the upstream nameservers it should use, since the
 information is typically stored there. Unless
 .B --no-poll
 is used,
 .B dnsmasq
-checks the modification time of /etc/resolv.conf (or 
-equivalent if 
+checks the modification time of
+.I /etc/resolv.conf
+(or equivalent if 
 .B \--resolv-file 
 is used) and re-reads it if it changes. This allows the DNS servers to
 be set dynamically by PPP or DHCP since both protocols provide the
 information.
-Absence of /etc/resolv.conf is not an error
+Absence of
+.I /etc/resolv.conf
+is not an error
 since it may not have been created before a PPP connection exists. Dnsmasq 
-simply keeps checking in case /etc/resolv.conf is created at any
+simply keeps checking in case
+.I /etc/resolv.conf 
+is created at any
 time. Dnsmasq can be told to parse more than one resolv.conf
 file. This is useful on a laptop, where both PPP and DHCP may be used:
-dnsmasq can be set to poll both /etc/ppp/resolv.conf and
-/etc/dhcpc/resolv.conf and will use the contents of whichever changed
+dnsmasq can be set to poll both 
+.I /etc/ppp/resolv.conf 
+and
+.I /etc/dhcpc/resolv.conf 
+and will use the contents of whichever changed
 last, giving automatic switching between DNS servers.
 .PP
 Upstream servers may also be specified on the command line or in
@@ -510,6 +533,22 @@ and run dnsmasq with the
 .B \-r /etc/resolv.dnsmasq
 option. This second technique allows for dynamic update of the server
 addresses by PPP or DHCP.
+.PP
+The DHCP server in dnsmasq will function as a BOOTP server also,
+provided that the MAC address and IP address for clients are given,
+either using 
+.B dhcp-host 
+configurations or in
+.I /etc/ethers
+, and a
+.B dhcp-range 
+configuration option is present to activate the DHCP server
+on a particular network. The filename
+parameter in a BOOTP request is matched against netids in
+.B  dhcp-option 
+configurations, allowing some control over the options returned to
+different classes of hosts.
+
 .SH FILES
 .IR /etc/dnsmasq.conf 
 
@@ -518,6 +557,8 @@ addresses by PPP or DHCP.
 .IR /etc/resolv.conf
 
 .IR /etc/hosts
+
+.IR /etc/ethers
 
 .IR /var/lib/misc/dnsmasq.leases 
 

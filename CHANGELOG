@@ -1160,3 +1160,33 @@ version 2.12
 version 2.13
 	    Fixed crash with un-named DHCP hosts introduced in 2.12.
 	    Thanks to Nicolo Wojewoda and Gregory Gathy for bug reports.
+
+version 2.14
+	    Fix DHCP network detection for hosts which talk via a
+	    relay. This makes lease renewal for such hosts work
+	    correctly.
+
+	    Support RFC3011 subnet selectors in the DHCP server.
+
+	    Fix DHCP code to generate RFC-compliant responses
+            to hosts in the INIT-REBOOT state.
+
+	    In the DHCP server, set the receive buffer size on 
+	    the transmit-only packet socket to zero, to avoid 
+	    waste of kernel buffers.
+
+	    Fix DHCP address allocation code to use the whole of
+	    the DHCP range, including the start and end addresses.
+	    
+	    Attempt an ICMP "ping" on new addresses before allocating 
+	    them to leases, to avoid allocating addresses which are in use.
+
+	    Handle rfc951 BOOTP as well as DHCP for hosts which have
+	    MAC address to IP address mapping defined.
+
+	    Fix compilation under MacOS X. Thanks to Chris Tomlinson.
+
+	    Fix compilation under NetBSD. Thanks to Felix Deichmann.
+
+	    Added "keep-in-foreground" option. Thanks to Sean
+	    MacLennan for the patch.

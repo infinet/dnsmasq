@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
+#define OPTSTRING "ZDNLERzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -73,6 +73,7 @@ static struct myoption opts[] = {
   {"dhcp-vendorclass", 1, 0, 'U'},
   {"dhcp-userclass", 1, 0, 'j'},
   {"edns-packet-max", 1, 0, 'P'},
+  {"keep-in-foreground", 0, 0, 'k'},
   {0, 0, 0, 0}
 };
 
@@ -89,6 +90,7 @@ static struct optflags optmap[] = {
   { 'h', OPT_NO_HOSTS },
   { 'n', OPT_NO_POLL },
   { 'd', OPT_DEBUG },
+  { 'k', OPT_NO_FORK },
   { 'o', OPT_ORDER },
   { 'R', OPT_NO_RESOLV },
   { 'E', OPT_EXPAND },
@@ -124,6 +126,7 @@ static char *usage =
 "-i, --interface=interface           Specify interface(s) to listen on.\n"
 "-I, --except-interface=int          Specify interface(s) NOT to listen on.\n"
 "-j, --dhcp-userclass=<id>,<class>   Map DHCP user class to option set.\n"
+"-k, --keep-in-foreground            Do NOT fork into the background, do NOT run in debug mode.\n"
 "-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
 "-L, --localmx                       Return MX records for local hosts.\n"
 "-m, --mx-host=host_name             Specify the MX name to reply to.\n"
@@ -155,26 +158,33 @@ static char *usage =
 "\n";
 
 
-unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **resolv_files, 
-			struct mx_record **mxnames, char **mxtarget, char **lease_file, 
-			char **username, char **groupname, char **domain_suffix, char **runfile, 
-			struct iname **if_names, struct iname **if_addrs, struct iname **if_except,
-			struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, int *port, 
-			int *query_port, unsigned long *local_ttl, char **addn_hosts, struct dhcp_context **dhcp,
-			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, struct dhcp_vendor **dhcp_vendors, char **dhcp_file,
-			char **dhcp_sname, struct in_addr *dhcp_next_server, int *dhcp_max, 
-			unsigned int *min_leasetime, struct doctor **doctors, unsigned short *edns_pktsz)
+struct daemon *read_opts (int argc, char **argv)
 {
+  struct daemon *daemon = safe_malloc(sizeof(struct daemon));
+  char *buff = safe_malloc(MAXDNAME);
   int option = 0, i;
-  unsigned int flags = 0;
   FILE *file_save = NULL, *f = NULL;
   char *file_name_save = NULL, *conffile = CONFFILE;
   int conffile_set = 0;
   int line_save = 0, lineno = 0;
   opterr = 0;
   
-  *min_leasetime = UINT_MAX;
+  memset(daemon, 0, sizeof(struct daemon));
+  daemon->namebuff = buff;
 
+  /* Set defaults - everything else is zero or NULL */
+  daemon->min_leasetime = UINT_MAX;
+  daemon->cachesize = CACHESIZ;
+  daemon->port = NAMESERVER_PORT;
+  daemon->default_resolv.is_default = 1;
+  daemon->default_resolv.name = RESOLVFILE;
+  daemon->resolv_files = &daemon->default_resolv;
+  daemon->username = CHUSER;
+  daemon->groupname = CHGRP;
+  daemon->runfile =  RUNFILE;
+  daemon->dhcp_max = MAXLEASES;
+  daemon->edns_pktsz = EDNS_PKTSZ;
+  
   while (1)
     {
       if (!f)
@@ -274,7 +284,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
       for (i=0; optmap[i].c; i++)
 	if (option == optmap[i].c)
 	  {
-	    flags |= optmap[i].flag;
+	    daemon->options |= optmap[i].flag;
 	    option = 0;
 	    if (f && optarg)
 	      {
@@ -319,13 +329,13 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	       goto fileopen;
 	      
 	    case 'x': 
-	      *runfile = safe_string_alloc(optarg);
+	      daemon->runfile = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'r':
 	      {
 		char *name = safe_string_alloc(optarg);
-		struct resolvc *new, *list = *resolv_files;
+		struct resolvc *new, *list = daemon->resolv_files;
 		if (list && list->is_default)
 		  {
 		    /* replace default resolv file - possibly with nothing */
@@ -346,7 +356,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    new->logged = 0;
 		    list = new;
 		  }
-		*resolv_files = list;
+		daemon->resolv_files = list;
 		break;
 	      }
 
@@ -360,8 +370,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		else 
 		  {
 		    struct mx_record *new = safe_malloc(sizeof(struct mx_record));
-		    new->next = *mxnames;
-		    *mxnames = new;
+		    new->next = daemon->mxnames;
+		    daemon->mxnames = new;
 		    new->mxname = safe_string_alloc(optarg);
 		    new->mxtarget = safe_string_alloc(comma); /* may be NULL */
 		  }
@@ -372,59 +382,59 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      if (!canonicalise(optarg))
 		option = '?';
 	      else
-		*mxtarget = safe_string_alloc(optarg);
+		daemon->mxtarget = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'l':
-	      *lease_file = safe_string_alloc(optarg);
+	      daemon->lease_file = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'H':
-	      if (*addn_hosts)
+	      if (daemon->addn_hosts)
 		option = '?';
 	      else
-		*addn_hosts = safe_string_alloc(optarg);
+		daemon->addn_hosts = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 's':
 	      if (strcmp (optarg, "#") == 0)
-		flags |= OPT_RESOLV_DOMAIN;
+		daemon->options |= OPT_RESOLV_DOMAIN;
 	      else if (!canonicalise(optarg))
 		option = '?';
 	      else
-		*domain_suffix = safe_string_alloc(optarg);
+		daemon->domain_suffix = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'u':
-	      *username = safe_string_alloc(optarg);
+	      daemon->username = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'g':
-	      *groupname = safe_string_alloc(optarg);
+	      daemon->groupname = safe_string_alloc(optarg);
 	      break;
 	      
 	    case 'i':
 	      {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		new->next = *if_names;
-		*if_names = new;
+		new->next = daemon->if_names;
+		daemon->if_names = new;
 		/* new->name may be NULL if someone does
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(optarg);
 		new->isloop = new->used = 0;
 		if (strchr(optarg, ':'))
-		  flags |= OPT_NOWILD;
+		  daemon->options |= OPT_NOWILD;
 		break;
 	      }
 	      
 	    case 'I':
 	      {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		new->next = *if_except;
-		*if_except = new;
+		new->next = daemon->if_except;
+		daemon->if_except = new;
 		new->name = safe_string_alloc(optarg);
 		if (strchr(optarg, ':'))
-		   flags |= OPT_NOWILD;
+		   daemon->options |= OPT_NOWILD;
 		break;
 	      }
 	      
@@ -434,8 +444,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if ((addr.s_addr = inet_addr(optarg)) != (in_addr_t)-1)
 		  {
 		    struct bogus_addr *baddr = safe_malloc(sizeof(struct bogus_addr));
-		    baddr->next = *bogus_addr;
-		    *bogus_addr = baddr;
+		    baddr->next = daemon->bogus_addr;
+		    daemon->bogus_addr = baddr;
 		    baddr->addr = addr;
 		  }
 		else
@@ -446,7 +456,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	    case 'a':
 	      {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		new->next = *if_addrs;
+		new->next = daemon->if_addrs;
 #ifdef HAVE_IPV6
 		if (inet_pton(AF_INET, optarg, &new->addr.in.sin_addr))
 		  {
@@ -480,7 +490,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  }
 		
 		if (new)
-		  *if_addrs = new;
+		  daemon->if_addrs = new;
 		break;
 	      }
 	      
@@ -633,8 +643,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			serv->next->source_addr = serv->source_addr;
 			serv = serv->next;
 		      }
-		    serv->next = *serv_addrs;
-		    *serv_addrs = newlist;
+		    serv->next = daemon->servers;
+		    daemon->servers = newlist;
 		  }
 		break;
 	      }
@@ -653,13 +663,13 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    else if (size > 10000)
 		      size = 10000;
 		    
-		    *cachesize = size;
+		    daemon->cachesize = size;
 		  }
 		break;
 	      }
 	      
 	    case 'p':
-	      if (!atoi_check(optarg, port))
+	      if (!atoi_check(optarg, &daemon->port))
 		option = '?';
 	      break;
 	      
@@ -668,12 +678,12 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		int i;
 		if (!atoi_check(optarg, &i))
 		  option = '?';
-		*edns_pktsz = (unsigned short)i;	
+		daemon->edns_pktsz = (unsigned short)i;	
 		break;
 	      }
 
 	    case 'Q':
-	      if (!atoi_check(optarg, query_port))
+	      if (!atoi_check(optarg, &daemon->query_port))
 		option = '?';
 	      break;
 
@@ -683,12 +693,12 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if (!atoi_check(optarg, &ttl))
 		  option = '?';
 		else
-		  *local_ttl = (unsigned long)ttl;
+		  daemon->local_ttl = (unsigned long)ttl;
 		break;
 	      }
 
 	    case 'X':
-	      if (!atoi_check(optarg, dhcp_max))
+	      if (!atoi_check(optarg, &daemon->dhcp_max))
 		option = '?';
 	      break;
 
@@ -698,13 +708,14 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		char *cp, *comma, *a[5] = { NULL, NULL, NULL, NULL, NULL };
 		struct dhcp_context *new = safe_malloc(sizeof(struct dhcp_context));
 		
-		new->next = *dhcp;
+		new->next = daemon->dhcp;
 		new->lease_time = DEFLEASE;
 		new->addr_epoch = 0;
 		new->netmask.s_addr = 0;
 		new->broadcast.s_addr = 0;
+		new->router.s_addr = 0;
 		new->netid.net = NULL;
-		
+		new->static_only = 0;
 		
 		for (cp = optarg; *cp; cp++)
 		  if (!(*cp == ' ' || *cp == '.' ||  (*cp >='0' && *cp <= '9')))
@@ -730,17 +741,27 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		if ((k < 2) || ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1))
 		  option = '?';
 		else if (strcmp(a[1], "static") == 0)
-		  new->end = new->start;
+		  {
+		    new->end = new->start;
+		    new->static_only = 1;
+		  }
 		else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
 		  option = '?';
 		  
+		if (ntohl(new->start.s_addr) > ntohl(new->end.s_addr))
+		  {
+		    struct in_addr tmp = new->start;
+		    new->start = new->end;
+		    new->end = tmp;
+		  }
+		    
 		if (option == '?')
 		  {
 		    free(new);
 		    break;
 		  }
 		else
-		  *dhcp = new;
+		  daemon->dhcp = new;
 		
 		if (k >= 3 && strchr(a[2], '.') &&  
 		    ((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
@@ -779,8 +800,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		      }
 		  }
 				
-		if (new->lease_time < *min_leasetime)
-		  *min_leasetime = new->lease_time;
+		if (new->lease_time < daemon->min_leasetime)
+		  daemon->min_leasetime = new->lease_time;
 		break;
 	      }
 
@@ -792,7 +813,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		struct dhcp_config *new = safe_malloc(sizeof(struct dhcp_config));
 		struct in_addr in;
 
-		new->next = *dhcp_conf;
+		new->next = daemon->dhcp_conf;
 		new->flags = 0;		  
 		
 		
@@ -944,9 +965,9 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  }
 		else
 		  {
-		    if ((new->flags & CONFIG_TIME) && new->lease_time < *min_leasetime)
-		      *min_leasetime = new->lease_time;
-		    *dhcp_conf = new;
+		    if ((new->flags & CONFIG_TIME) && new->lease_time < daemon->min_leasetime)
+		      daemon->min_leasetime = new->lease_time;
+		    daemon->dhcp_conf = new;
 		  }
 		break;
 	      }
@@ -957,7 +978,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		char *cp, *comma;
 		int addrs, digs, is_addr, is_hex, is_dec;
 		
-		new->next = *dhcp_opts;
+		new->next = daemon->dhcp_opts;
 		new->len = 0;
 		new->is_addr = 0;
 		new->netid = NULL;
@@ -988,7 +1009,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    break;
 		  }
 		
-		*dhcp_opts = new;
+		daemon->dhcp_opts = new;
 		
 		if (!comma)
 		  break;
@@ -1045,7 +1066,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		else if (is_dec)
 		  {
 		    /* Given that we don't know the length,
-		       this applaing hack is the best available */
+		       this appaling hack is the best available */
 		    unsigned int val = atoi(comma+1);
 		    if (val < 256)
 		      {
@@ -1103,14 +1124,14 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		
 		if ((comma = strchr(optarg, ',')))
 		  *comma = 0;
-		*dhcp_file = safe_string_alloc(optarg);
+		daemon->dhcp_file = safe_string_alloc(optarg);
 		if (comma)
 		  {
 		    optarg = comma+1;
 		    if ((comma = strchr(optarg, ',')))
 		      *comma = 0;
-		    *dhcp_sname = safe_string_alloc(optarg);
-		    if (comma && (dhcp_next_server->s_addr = inet_addr(comma+1)) == (in_addr_t)-1)
+		    daemon->dhcp_sname = safe_string_alloc(optarg);
+		    if (comma && (daemon->dhcp_next_server.s_addr = inet_addr(comma+1)) == (in_addr_t)-1)
 		      option = '?';
 		  }
 		break;
@@ -1132,8 +1153,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    new->data = safe_malloc(new->len);
 		    memcpy(new->data, comma+1, new->len);
 		    new->is_vendor = (option == 'U');
-		    new->next = *dhcp_vendors;
-		    *dhcp_vendors = new;
+		    new->next = daemon->dhcp_vendors;
+		    daemon->dhcp_vendors = new;
 		  }
 		break;
 	      }
@@ -1170,8 +1191,8 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		new->in = in;
 		new->out = out;
 		new->mask = mask;
-		new->next = *doctors;
-		*doctors = new;
+		new->next = daemon->doctors;
+		daemon->doctors = new;
 		
 		break;
 	      }
@@ -1191,66 +1212,66 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
     }
       
   /* port might no be known when the address is parsed - fill in here */
-  if (*serv_addrs)
+  if (daemon->servers)
     {
       struct server *tmp;
-      for (tmp = *serv_addrs; tmp; tmp = tmp->next)
+      for (tmp = daemon->servers; tmp; tmp = tmp->next)
 	if (!(tmp->flags & SERV_HAS_SOURCE))
 	  {
 	    if (tmp->source_addr.sa.sa_family == AF_INET)
-	      tmp->source_addr.in.sin_port = htons(*query_port);
+	      tmp->source_addr.in.sin_port = htons(daemon->query_port);
 #ifdef HAVE_IPV6
 	    else if (tmp->source_addr.sa.sa_family == AF_INET6)
-	      tmp->source_addr.in6.sin6_port = htons(*query_port);
+	      tmp->source_addr.in6.sin6_port = htons(daemon->query_port);
 #endif  
 	  }
     }
   
-  if (*if_addrs)
+  if (daemon->if_addrs)
     {  
       struct iname *tmp;
-      for(tmp = *if_addrs; tmp; tmp = tmp->next)
+      for(tmp = daemon->if_addrs; tmp; tmp = tmp->next)
 	if (tmp->addr.sa.sa_family == AF_INET)
-	  tmp->addr.in.sin_port = htons(*port);
+	  tmp->addr.in.sin_port = htons(daemon->port);
 #ifdef HAVE_IPV6
 	else if (tmp->addr.sa.sa_family == AF_INET6)
-	  tmp->addr.in6.sin6_port = htons(*port);
+	  tmp->addr.in6.sin6_port = htons(daemon->port);
 #endif /* IPv6 */
     }
 		      
   /* only one of these need be specified: the other defaults to the
      host-name */
-  if ((flags & OPT_LOCALMX) || *mxnames || *mxtarget)
+  if ((daemon->options & OPT_LOCALMX) || daemon->mxnames || daemon->mxtarget)
     {
       if (gethostname(buff, MAXDNAME) == -1)
 	die("cannot get host-name: %s", NULL);
 	      
-      if (!*mxnames)
+      if (!daemon->mxnames)
 	{
-	  *mxnames = safe_malloc(sizeof(struct mx_record));
-	  (*mxnames)->next = NULL;
-	  (*mxnames)->mxtarget = NULL;
-	  (*mxnames)->mxname = safe_string_alloc(buff);
-	}
+	  daemon->mxnames = safe_malloc(sizeof(struct mx_record));
+	  daemon->mxnames->next = NULL;
+	  daemon->mxnames->mxtarget = NULL;
+	  daemon->mxnames->mxname = safe_string_alloc(buff);
+}
       
-      if (!*mxtarget)
-	*mxtarget = safe_string_alloc(buff);
+      if (!daemon->mxtarget)
+	daemon->mxtarget = safe_string_alloc(buff);
     }
   
-  if (flags & OPT_NO_RESOLV)
-    *resolv_files = 0;
-  else if (*resolv_files && (*resolv_files)->next && (flags & OPT_NO_POLL))
+  if (daemon->options & OPT_NO_RESOLV)
+    daemon->resolv_files = 0;
+  else if (daemon->resolv_files && (daemon->resolv_files)->next && (daemon->options & OPT_NO_POLL))
     die("only one resolv.conf file allowed in no-poll mode.", NULL);
   
-  if (flags & OPT_RESOLV_DOMAIN)
+  if (daemon->options & OPT_RESOLV_DOMAIN)
     {
       char *line;
       
-      if (!*resolv_files || (*resolv_files)->next)
+      if (!daemon->resolv_files || (daemon->resolv_files)->next)
 	die("must have exactly one resolv.conf to read domain from.", NULL);
       
-      if (!(f = fopen((*resolv_files)->name, "r")))
-	die("failed to read %s: %m", (*resolv_files)->name);
+      if (!(f = fopen((daemon->resolv_files)->name, "r")))
+	die("failed to read %s: %m", (daemon->resolv_files)->name);
       
       while ((line = fgets(buff, MAXDNAME, f)))
 	{
@@ -1261,17 +1282,17 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	  
 	  if ((token = strtok(NULL, " \t\n\r")) &&  
 	      canonicalise(token) &&
-	      (*domain_suffix = safe_string_alloc(token)))
+	      (daemon->domain_suffix = safe_string_alloc(token)))
 	    break;
 	}
-      
+
       fclose(f);
 
-      if (!*domain_suffix)
-	die("no search directive found in %s", (*resolv_files)->name);
+      if (!daemon->domain_suffix)
+	die("no search directive found in %s", (daemon->resolv_files)->name);
     }
       
-  return flags;
+  return daemon;
 }
       
       

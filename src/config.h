@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.13"
+#define VERSION "2.14"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -64,6 +64,15 @@
 #  define DNSMASQ_LOG_FAC(debug)  LOG_DAEMON
 #endif
 
+/* A small collection of RR-types which are missing on some platforms */
+
+#ifndef T_SRV
+#  define T_SRV 33
+#endif
+
+#ifndef T_OPT
+#  define T_OPT 41
+#endif
 
 /* Decide if we're going to support IPv6 */
 /* We assume that systems which don't have IPv6
@@ -218,7 +227,6 @@ NOTES:
 #undef HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 /* Fix various misfeatures of libc5 headers */
-#define T_SRV 33 
 typedef unsigned long in_addr_t; 
 typedef size_t socklen_t;
 
@@ -267,9 +275,8 @@ typedef unsigned long in_addr_t;
 #define BIND_8_COMPAT
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
-/* The two below are not defined in Mac OS X arpa/nameserv.h */
+/* The three below are not defined in Mac OS X arpa/nameserv.h */
 #define IN6ADDRSZ 16
-#define T_SRV 33
  
 #elif defined(__NetBSD__)
 #undef HAVE_LINUX_IPV6_PROC

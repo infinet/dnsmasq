@@ -15,12 +15,11 @@
 #include "dnsmasq.h"
 
 static struct dhcp_lease *leases;
-FILE *lease_file;
-int dns_dirty, file_dirty, new_lease;
-int leases_left;
+static FILE *lease_file;
+static int dns_dirty, file_dirty, new_lease;
+static int leases_left;
 
-int lease_init(char *filename, char *domain, char *buff, 
-	       char *buff2, time_t now, int maxleases)
+void lease_init(struct daemon *daemon, time_t now)
 {
   unsigned int e0, e1, e2, e3, e4, e5, a0, a1, a2, a3;
   unsigned long ei;
@@ -30,19 +29,22 @@ int lease_init(char *filename, char *domain, char *buff,
   struct dhcp_lease *lease;
   int clid_len = 0;
   int has_old = 0;
-
+  char *buff = daemon->dhcp_buff;
+  char *buff2 = daemon->dhcp_buff2;
+  
   leases = NULL;
-  leases_left = maxleases;
+  leases_left = daemon->dhcp_max;
 
   /* NOTE: need a+ mode to create file if it doesn't exist */
-  if (!(lease_file = fopen(filename, "a+")))
+  if (!(lease_file = fopen(daemon->lease_file, "a+")))
     die("cannot open or create leases file: %s", NULL);
     
   /* a+ mode lease pointer at end. */
   rewind(lease_file);
 
-  while (fscanf(lease_file, "%lu %x:%x:%x:%x:%x:%x %d.%d.%d.%d %256s %500s",
-		&ei, &e0, &e1, &e2, &e3, &e4, &e5, &a0, &a1, &a2, &a3, buff, buff2) == 13)
+  while (fscanf(lease_file, "%lu %x:%x:%x:%x:%x:%x %d.%d.%d.%d %257s %257s",
+		&ei, &e0, &e1, &e2, &e3, &e4, &e5, &a0, &a1, &a2, &a3, 
+		buff, buff2) == 13)
     {
 #ifdef HAVE_BROKEN_RTC
       if (ei)
@@ -90,14 +92,14 @@ int lease_init(char *filename, char *domain, char *buff,
       memcpy(lease->hwaddr, hwaddr, ETHER_ADDR_LEN);
 
       if (strcmp(buff, "*") !=  0)
-	  lease_set_hostname(lease, buff, domain);
+	  lease_set_hostname(lease, buff, daemon->domain_suffix);
     }
   
   dns_dirty = 1;
   file_dirty = has_old;
   new_lease = 0;
 
-  return fileno(lease_file);
+  daemon->lease_fd = fileno(lease_file);
 }
 
 void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain)

@@ -27,14 +27,13 @@
 
 /* get this before config.h too. */
 #include <syslog.h>
+#include <arpa/nameser.h>
 
 #include "config.h"
  
-#include <arpa/nameser.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/wait.h>
@@ -66,6 +65,7 @@
 #include <net/if_arp.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
 #ifdef HAVE_BPF
 #  include <net/bpf.h>
 #  include <net/if_dl.h>
@@ -94,6 +94,7 @@
 #define OPT_NOWILD         8192
 #define OPT_ETHERS         16384
 #define OPT_RESOLV_DOMAIN  32768
+#define OPT_NO_FORK        65536
 
 struct all_addr {
   union {
@@ -289,8 +290,9 @@ struct dhcp_vendor {
 
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
-  struct in_addr netmask, broadcast;
+  struct in_addr netmask, broadcast, router;
   struct in_addr start, end; /* range of available addresses */
+  int static_only;
   struct dhcp_netid netid;
   struct dhcp_context *next;
 };
@@ -314,11 +316,56 @@ struct udp_dhcp_packet {
 	  u16 secs, flags;
 	  struct in_addr ciaddr, yiaddr, siaddr, giaddr;
 	  u8 chaddr[16], sname[64], file[128];
-	  u32 cookie;
-	  u8 options[308];
+	  u8 options[312];
 	} data;
 };
 
+
+struct daemon {
+  /* datastuctures representing the command-line and 
+     config file arguments. All set (including defaults)
+     in option.c */
+
+  unsigned int options;
+  struct resolvc default_resolv, *resolv_files;
+  struct mx_record *mxnames;
+  char *mxtarget;
+  char *lease_file; 
+  char *username, *groupname;
+  char *domain_suffix;
+  char *runfile; 
+  struct iname *if_names, *if_addrs, *if_except;
+  struct bogus_addr *bogus_addr;
+  struct server *servers;
+  int cachesize;
+  int port, query_port;
+  unsigned long local_ttl;
+  char *addn_hosts;
+  struct dhcp_context *dhcp;
+  struct dhcp_config *dhcp_conf;
+  struct dhcp_opt *dhcp_opts;
+  struct dhcp_vendor *dhcp_vendors;
+  char *dhcp_file;
+  char *dhcp_sname;
+  struct in_addr dhcp_next_server;
+  int dhcp_max; 
+  unsigned int min_leasetime;
+  struct doctor *doctors;
+  unsigned short edns_pktsz;
+
+  /* globally used stuff for DNS */
+  char *packet; /* packet buffer */
+  char *namebuff; /* MAXDNAME size buffer */
+  struct serverfd *sfds;
+  struct listener *listeners;
+  struct server *last_server;
+  int uptime_fd;
+  
+  /* DHCP state */
+  int dhcpfd, dhcp_raw_fd, dhcp_icmp_fd, lease_fd;
+  struct udp_dhcp_packet *dhcp_packet;
+  char *dhcp_buff, *dhcp_buff2;
+};
 
 /* cache.c */
 void cache_init(int cachesize, int log);
@@ -347,9 +394,7 @@ int setup_reply(HEADER *header, unsigned int qlen,
 void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
 		       time_t now, struct doctor *doctors);
 void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now);
-int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_record *mxnames,
-		   char *mxtarget, unsigned int options, time_t now, unsigned long local_ttl,
-		   char *namebuff, unsigned short edns_pcktsz);
+int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, time_t now);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(HEADER *header, unsigned int plen);
@@ -370,73 +415,41 @@ time_t dnsmasq_time(int fd);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 
 /* option.c */
-unsigned int read_opts(int argc, char **argv, char *buff, struct resolvc **resolv_file, 
-		       struct mx_record **mxnames, char **mxtarget, char **lease_file, 
-		       char **username, char **groupname, 
-		       char **domain_suffix, char **runfile, 
-		       struct iname **if_names, struct iname **if_addrs, struct iname **if_except, 
-		       struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, 
-		       int *port, int *query_port, unsigned long *local_ttl, char **addn_hosts,
-		       struct dhcp_context **dhcp, struct dhcp_config **dhcp_conf, 
-		       struct dhcp_opt **opts, struct dhcp_vendor **dhcp_vendors,
-		       char **dhcp_file, char **dhcp_sname, struct in_addr *dhcp_next_server,
-		       int *maxleases, unsigned int *min_leasetime, struct doctor **doctors,
-		       unsigned short *edns_pktsz);
+struct daemon *read_opts (int argc, char **argv);
 
 /* forward.c */
 void forward_init(int first);
-struct server *reply_query(struct serverfd *sfd, int options, char *packet, time_t now,
-			   char *dnamebuff, struct server *servers, struct server *last_server, 
-			   struct bogus_addr *bogus_nxdomain, 
-			   struct doctor *doctors, unsigned short edns_pcktsz);
+void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
+void receive_query(struct listener *listen, struct daemon *daemon, time_t now);
+char *tcp_request(struct daemon *daemon, int confd, time_t now);
 
-struct server *receive_query(struct listener *listen, char *packet, struct mx_record *mxnames, 
-			     char *mxtarget, unsigned int options, time_t now, 
-			     unsigned long local_ttl, char *namebuff,
-			     struct iname *names, struct iname *addrs, struct iname *except,
-			     struct server *last_server, struct server *servers, unsigned short edns_pcktsz);
-
-char *tcp_request(int confd, struct mx_record *mxnames, 
-		  char *mxtarget, unsigned int options, time_t now, 
-		  unsigned long local_ttl, char *namebuff,
-		  struct server *last_server, struct server *servers,
-		  struct bogus_addr *bogus_nxdomain, struct doctor *doctors,
-		  unsigned short edns_pcktsz);
 /* network.c */
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
-struct server *reload_servers(char *fname, char *buff, struct server *servers, int query_port);
-struct server *check_servers(struct server *new, struct irec *interfaces, struct serverfd **sfds);
-struct irec *enumerate_interfaces(struct iname **names,
-				  struct iname **addrs,
-				  struct iname *except,
-				  int port);
+void reload_servers(char *fname, struct daemon *daemon);
+void check_servers(struct daemon *daemon, struct irec *interfaces);
+struct irec *enumerate_interfaces(struct daemon *daemon);
 struct listener *create_wildcard_listeners(int port);
 struct listener *create_bound_listeners(struct irec *interfaces, int port);
+
 /* dhcp.c */
-void dhcp_init(int *fdp, int* rfdp, struct dhcp_config *configs);
-void dhcp_packet(struct dhcp_context *contexts, char *packet, 
-		 struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
-		 struct dhcp_vendor *vendors,
-		 time_t now, char *namebuff, char *domain_suffix,
-		 char *dhcp_file, char *dhcp_sname, 
-		 struct in_addr dhcp_next_server, int dhcp_fd, int raw_fd,
-		 struct iname *names, struct iname *addrs, struct iname *except);
+void dhcp_init(struct daemon *daemon);
+void dhcp_packet(struct daemon *daemon, time_t now);
+
 int address_available(struct dhcp_context *context, struct in_addr addr);
-int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
+int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 		     struct in_addr *addrp, unsigned char *hwaddr);
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,
 				unsigned char *hwaddr, char *hostname);
-struct dhcp_config *read_ethers(struct dhcp_config *configs, char *buff);
 void dhcp_update_configs(struct dhcp_config *configs);
-struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff);
+void dhcp_read_ethers(struct daemon *daemon);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
+
 /* lease.c */
 void lease_update_file(int force, time_t now);
 void lease_update_dns(void);
-int lease_init(char *lease_file, char *domain, char *buff, 
-	       char *buff2, time_t now, int maxleases);
+void lease_init(struct daemon *daemon, time_t now);
 struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_addr addr);
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix);
@@ -447,16 +460,10 @@ void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain);
 
 /* rfc2131.c */
-int dhcp_reply(struct dhcp_context *context, 
-	       struct in_addr iface_addr,
-	       char *iface_name,
-	       int iface_mtu,
-	       struct udp_dhcp_packet *rawpacket,
-	       unsigned int sz, time_t now, char *namebuff, 
-	       struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
-	       struct dhcp_vendor *vendors,
-	       char *domain_suffix, char *dhcp_file, char *dhcp_sname, 
-	       struct in_addr dhcp_next_server, struct in_addr router);
+int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_name, unsigned int sz, time_t now);
+
+/* dnsmasq.c */
+int icmp_ping(struct daemon *daemon, struct in_addr addr);
 
 /* isc.c */
 #ifdef HAVE_ISC_READER

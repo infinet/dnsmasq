@@ -340,7 +340,7 @@ unsigned char *find_pseudoheader(HEADER *header, unsigned int plen)
       GETSHORT(rdlen, ansp);
       if ((unsigned int)(ansp + rdlen - (unsigned char *)header) > plen) 
 	return NULL;
-      if (type == ns_t_opt)
+      if (type == T_OPT)
 	return save;
       ansp += rdlen;
     }
@@ -788,10 +788,9 @@ int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name,
 }
 
 /* return zero if we can't answer from cache, or packet size if we can */
-int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_record *mxnames, 
-		   char *mxtarget, unsigned int options, time_t now, 
-		   unsigned long local_ttl, char *name, unsigned short edns_pcktsz)
+int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, time_t now) 
 {
+  char *name = daemon->namebuff;
   unsigned char *p, *ansp, *pheader;
   int qtype, qclass, is_arpa;
   struct all_addr addr;
@@ -827,8 +826,8 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 	 than we allow, trim it so that we don't get an overlarge
 	 response from upstream */
 
-      if (udpsz > edns_pcktsz)
-	PUTSHORT(edns_pcktsz, psave); 
+      if (udpsz > daemon->edns_pktsz)
+	PUTSHORT(daemon->edns_pktsz, psave); 
 
       dryrun = 1;
     }
@@ -889,7 +888,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 	  }
       else if (qclass == C_IN)
 	{
-	  if ((options & OPT_FILTER) && 
+	  if ((daemon->options & OPT_FILTER) && 
 	      (qtype == T_SOA || qtype == T_SRV || (qtype == T_ANY && strchr(name, '_'))))
 	    {
 	      ans = 1;
@@ -901,7 +900,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 		{
 		  if (!(crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
 		    { 
-		      if (is_arpa == F_IPV4 && (options & OPT_BOGUSPRIV) && private_net(&addr))
+		      if (is_arpa == F_IPV4 && (daemon->options & OPT_BOGUSPRIV) && private_net(&addr))
 			{
 			  /* if not in cache, enabled and private IPV4 address, return NXDOMAIN */
 			  ans = 1;
@@ -938,7 +937,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			      /* Return 0 ttl for DHCP entries, which might change
 				 before the lease expires. */
 			      if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-				ttl = local_ttl;
+				ttl = daemon->local_ttl;
 			      else
 				ttl = crecp->ttd - now;
 			      
@@ -1004,7 +1003,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 			      unsigned long ttl;
 			      
 			      if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-				ttl = local_ttl;
+				ttl = daemon->local_ttl;
 			      else
 				ttl = crecp->ttd - now;
 			      
@@ -1033,7 +1032,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 	      if (qtype == T_MX || qtype == T_ANY)
 		{
 		  struct mx_record *mx;
-		  for (mx = mxnames; mx; mx = mx->next)
+		  for (mx = daemon->mxnames; mx; mx = mx->next)
 		    if (hostname_isequal(name, mx->mxname))
 		      break;
 		  if (mx)
@@ -1041,19 +1040,19 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct mx_rec
 		      ans = 1;
 		      if (!dryrun)
 			{
-			  ansp = add_text_record(nameoffset, ansp, local_ttl, 1, T_MX, 
-						 mx->mxtarget ? mx->mxtarget : mxtarget);
+			  ansp = add_text_record(nameoffset, ansp, daemon->local_ttl, 1, T_MX, 
+						 mx->mxtarget ? mx->mxtarget : daemon->mxtarget);
 			  anscount++;
 			}
 		    }
-		  else if ((options & (OPT_SELFMX | OPT_LOCALMX)) && 
+		  else if ((daemon->options & (OPT_SELFMX | OPT_LOCALMX)) && 
 			   cache_find_by_name(NULL, name, now, F_HOSTS | F_DHCP))
 		    { 
 		      ans = 1;
 		      if (!dryrun)
 			{
-			  ansp = add_text_record(nameoffset, ansp, local_ttl, 1, T_MX,  
-						 (options & OPT_SELFMX) ? name : mxtarget);
+			  ansp = add_text_record(nameoffset, ansp, daemon->local_ttl, 1, T_MX,  
+						 (daemon->options & OPT_SELFMX) ? name : daemon->mxtarget);
 			  anscount++;
 			}
 		    }

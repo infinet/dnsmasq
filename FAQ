@@ -190,7 +190,8 @@ A: By default, none of the DHCP clients send the host-name when asking
    send with the "hostname" keyword in /etc/network/interfaces. (See
    "man interfaces" for details.) That doesn't work for dhclient, were
    you have to add something like "send host-name daisy" to
-   /etc/dhclient.conf
+   /etc/dhclient.conf [Update: the lastest dhcpcd packages _do_ send
+   the hostname by default.
 
 Q: I'm network booting my machines, and trying to give them static
    DHCP-assigned addresses. The machine gets its correct address
@@ -275,6 +276,14 @@ A: Probably because you have the "filterwin2k" option set. Note that
    it was on by default in example configuration files included in 
    versions before 2.12, so you might have it set on without
    realising.
+
+Q: Can I get email notification when a new version of dnsmasq is
+   released?
+
+A: Yes, new releases of dnsmasq are always announced through
+   freshmeat.net, and they allow you to subcribe to email alerts when
+   new versions of particular projects are released.
+
 
 
 	      
