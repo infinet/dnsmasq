@@ -340,7 +340,8 @@ static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *heade
    We ignore case in the names for the same reason. */
 unsigned int questions_crc(HEADER *header, unsigned int plen, char *name)
 {
-  unsigned int q, crc = 0xffffffff;
+  int q;
+  unsigned int crc = 0xffffffff;
   unsigned char *p1, *p = (unsigned char *)(header+1);
 
   for (q = 0; q < ntohs(header->qdcount); q++) 

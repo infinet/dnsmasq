@@ -1422,3 +1422,25 @@ version 2.21
 	    Added wildcard matching for MAC addresses in dhcp-host
 	    options. A sensible suggestion by Nathaniel McCallum.
 
+version 2.22
+            Fixed build problems on (many) systems with older libc
+            headers where <linux/types.h> is required before
+            <linux/netlink.h>. Enabled HAVE_RTNETLINK under uclibc now
+            that this fix is in place.
+
+	    Added support for encapsulated vendor-class-specific DHCP
+	    options. Thanks to Eric Shattow for help with this.
+
+	    Fix regression in 2.21 which broke commas in filenames and
+	    corrupted argv. Thanks to Eric Scott for the bugreport.
+
+	    Fixed stupid thinko which caused dnsmasq to wedge during
+	    startup with certain MX-record options. Another 2.21 regression.
+
+	    Fixed broken-ness when reading /etc/ethers. 2.21 broke
+	    this too.
+
+	    Fixed wedge with certain DHCP options. Yet another 2.21
+	    regression. Rob Holland and Roy Marples chased this one
+	    down.
+

@@ -29,6 +29,7 @@
 #define OPTION_HOSTNAME          12
 #define OPTION_DOMAINNAME        15
 #define OPTION_BROADCAST         28
+#define OPTION_VENDOR_CLASS_OPT  43
 #define OPTION_REQUESTED_IP      50 
 #define OPTION_LEASE_TIME        51
 #define OPTION_OVERLOAD          52
@@ -807,8 +808,7 @@ static int in_list(unsigned char *list, int opt)
 
 static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *opts, int opt)
 {
-  struct dhcp_opt *tmp;
-  
+  struct dhcp_opt *tmp;  
   for (tmp = opts; tmp; tmp = tmp->next)
     if (tmp->opt == opt)
       {
@@ -824,6 +824,40 @@ static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *
   return netid ? option_find2(NULL, opts, opt) : NULL;
 }
 
+static unsigned char *do_opt(struct dhcp_opt *opt, unsigned char *p, unsigned char *end,  struct in_addr local)
+{
+  if (p + opt->len + 3 >= end)
+    return p;
+  
+  *(p++) = opt->opt;
+  *(p++) = opt->len;
+  
+  if (opt->len == 0)
+    return p;
+      
+  if (opt->is_addr && !opt->vendor_class)
+    {
+      int j;
+      struct in_addr *a = (struct in_addr *)opt->val;
+      for (j = 0; j < opt->len; j+=INADDRSZ, a++)
+	{
+	  /* zero means "self" (but not in vendorclass options.) */
+	  if (a->s_addr == 0)
+	    memcpy(p, &local, INADDRSZ);
+	  else
+	    memcpy(p, a, INADDRSZ);
+	  p += INADDRSZ;
+	}
+    }
+  else
+    {
+      memcpy(p, opt->val, opt->len);
+      p += opt->len;
+    }
+
+  return p;
+}  
+
 static unsigned char *do_req_options(struct dhcp_context *context,
 				     unsigned char *p, unsigned char *end, 
 				     unsigned char *req_options,
@@ -833,6 +867,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     struct in_addr subnet_addr)
 {
   struct dhcp_opt *opt, *config_opts = daemon->dhcp_opts;
+  char *vendor_class = NULL;
 
   if (in_list(req_options, OPTION_MAXMESSAGE))
     p = option_put(p, end, OPTION_MAXMESSAGE, 2, end - (unsigned char *)daemon->dhcp_packet);
@@ -877,8 +912,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
       if (opt->opt == OPTION_HOSTNAME ||
 	  opt->opt == OPTION_MAXMESSAGE ||
 	  !in_list(req_options, opt->opt) ||
-	  opt != option_find2(netid, config_opts, opt->opt) ||
-	  p + opt->len + 3 >= end)
+	  opt != option_find2(netid, config_opts, opt->opt))
 	continue;
       
       /* For the options we have default values on
@@ -890,32 +924,54 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 	   opt->opt == OPTION_ROUTER ||
 	   opt->opt == OPTION_DNSSERVER))
 	continue;
-      
-      *(p++) = opt->opt;
-      *(p++) = opt->len;
-      if (opt->len == 0)
-	continue;
-      
-      if (opt->is_addr)
+
+      /* opt->val has terminating zero */
+      if (opt->opt == OPTION_VENDOR_ID)
+	vendor_class = opt->val; 
+      else
+	p = do_opt(opt, p, end, context->local);
+    }  
+
+  if (in_list(req_options, OPTION_VENDOR_ID))
+    {      
+      for (opt = daemon->vendor_opts; opt; opt = opt->next)
+	if (!opt->netid || match_netid(opt->netid, netid))
+	  {
+	    if (vendor_class && strcmp(vendor_class, opt->vendor_class) != 0)
+	      syslog(LOG_WARNING, "More than one vendor class matches, using %s", vendor_class);
+	    else
+	      vendor_class = opt->vendor_class;
+	  }
+
+      if (vendor_class)
 	{
-	  int j;
-	  struct in_addr *a = (struct in_addr *)opt->val;
-	  for (j = 0; j < opt->len; j+=INADDRSZ, a++)
+	  p = option_put_string(p, end, OPTION_VENDOR_ID, vendor_class);
+	  
+	  if (in_list(req_options, OPTION_VENDOR_CLASS_OPT))
 	    {
-	      /* zero means "self" */
-	      if (a->s_addr == 0)
-		memcpy(p, &context->local, INADDRSZ);
-	      else
-		memcpy(p, a, INADDRSZ);
-	      p += INADDRSZ;
+	      unsigned char *plen, *oend = end;
+
+	      /* encapsulated options can only be 256 bytes,
+		 even of the packet is larger */
+	      if (p + 256 < end)
+		oend = p + 256;
+
+	      if (p + 3 >= oend)
+		return p;
+	      
+	      *(p++) = OPTION_VENDOR_CLASS_OPT;
+	      plen = p++; /* fill in later */
+	      
+	      for (opt = daemon->vendor_opts; opt; opt = opt->next)
+		if ((!opt->netid || match_netid(opt->netid, netid)) && 
+		    strcmp(vendor_class, opt->vendor_class) == 0)
+		  p = do_opt(opt, p, oend, context->local);
+	      
+	      *plen = p - plen - 1;
 	    }
 	}
-      else
-	{
-	  memcpy(p, opt->val, opt->len);
-	  p += opt->len;
-	}
-    }     
+    }
+  
   return p;
 }
 

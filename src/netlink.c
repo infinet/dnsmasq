@@ -16,6 +16,7 @@
 
 #ifdef HAVE_RTNETLINK
 
+#include <linux/types.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 

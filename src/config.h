@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.21"
+#define VERSION "2.22"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -207,7 +207,7 @@ NOTES:
 #if defined(__uClinux__) || defined(__UCLIBC__)
 #undef HAVE_LINUX_IPV6_PROC
 #define HAVE_GETOPT_LONG
-#undef HAVE_RTNETLINK /* headers broken */
+#define HAVE_RTNETLINK
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM

@@ -20,7 +20,7 @@
  #define IP6INTERFACES "/proc/net/if_inet6"
  #define UPTIME "/proc/uptime"
  #define DHCP_SERVER_PORT 67
-@@ -187,7 +187,7 @@
+@@ -195,7 +195,7 @@
  
  /* platform independent options. */
  #undef HAVE_BROKEN_RTC

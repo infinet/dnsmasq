@@ -239,6 +239,13 @@ bogus-priv
 # probably doesn't support this......
 #dhcp-option=119,eng.apple.com,marketing.apple.com 
 
+# Send encapsulated vendor-class specific options. The vendor-class
+# is sent as DHCP option 60, and all the options marked with the
+# vendor class are send encapsulated in DHCP option 43. The meaning of
+# the options is defined by the vendor-class. This example sets the 
+# mtftp address to 0.0.0.0 for PXEClients
+#dhcp-option=vendor:PXEClient,1,0.0.0.0
+
 # Set the boot filename and tftpd server name and address
 # for BOOTP. You will only need this is you want to
 # boot machines over the network.

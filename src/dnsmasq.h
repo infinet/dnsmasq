@@ -321,7 +321,7 @@ struct dhcp_config {
 
 struct dhcp_opt {
   int opt, len, is_addr;
-  unsigned char *val;
+  unsigned char *val, *vendor_class;
   struct dhcp_netid *netid;
   struct dhcp_opt *next;
 };
@@ -403,7 +403,7 @@ struct daemon {
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp;
   struct dhcp_config *dhcp_conf;
-  struct dhcp_opt *dhcp_opts;
+  struct dhcp_opt *dhcp_opts, *vendor_opts;
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_boot *boot_config;
   struct dhcp_netid_list *dhcp_ignore;

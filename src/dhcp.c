@@ -206,8 +206,9 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	return; 
     }
   
+  /* unlinked contexts are marked by context->current == context */
   for (context = daemon->dhcp; context; context = context->next)
-    context->current = NULL;
+    context->current = context;
   
 #ifdef HAVE_RTNETLINK
   if (!netlink_process(daemon, iface_index, mess->giaddr, iface_addr, &context))
@@ -381,7 +382,8 @@ struct dhcp_context *complete_context(struct daemon *daemon, struct in_addr loca
 	  if (is_same_net(local, context->start, context->netmask) &&
 	      is_same_net(local, context->end, context->netmask))
 	    {
-	      if (!context->current)
+	      /* link it onto the current chain if we've not seen it before */
+	      if (context->current == context)
 		{
 		  context->router = local;
 		  context->local = local;
@@ -684,6 +686,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 	{ 
 	  for (config = configs; config; config = config->next)
 	    if ((config->flags & CONFIG_HWADDR) && 
+		config->wildcard_mask == 0 &&
 		memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
 	      break;
 	  
@@ -692,6 +695,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 	      if (!(config = malloc(sizeof(struct dhcp_config))))
 		continue;
 	      config->flags = 0;
+	      config->wildcard_mask = 0;
 	      config->next = configs;
 	      configs = config;
 	    }

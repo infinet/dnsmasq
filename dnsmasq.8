@@ -408,7 +408,7 @@ have exactly the same effect as
 .B --dhcp-host
 options containing the same information.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]]<opt>,[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:<vendor-class>]<opt>,[<value>[,<value>]]
 Specfify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -426,10 +426,23 @@ machine running dnsmasq". Data types allowed are comma separated
 dotted-quad IP addresses, a decimal number, colon-separated hex digits
 and a text string. If the optional network-ids are given then
 this option is only sent when all the network-ids are matched.
+
 Be careful: no checking is done that the correct type of data for the
 option number is sent, it is quite possible to
 persuade dnsmasq to generate illegal DHCP packets with injudicious use
-of this flag.
+of this flag. When the value is a decimal number, dnsmasq must determine how 
+large the data item is. It does this by examining the option number and/or the
+value, but can be overriden by appending a single letter flag as follows:
+b = one byte, s = two bytes, i = four bytes. This is mainly useful with 
+encapsulated vendor class options (see below) where dnsmasq cannot determine data size from the  option number.
+
+Encapsulated Vendor-class options may also be specified using
+--dhcp-option: for instance 
+.B --dhcp-option=vendor:PXEClient,1,0.0.0.0
+sends the vendor class "PXEClient" and the encapsulated vendor class-specific option "mftp-address=0.0.0.0" Only one vendor class is allowed for any
+host, but multiple options are allowed, provided they all have
+the same vendor class. The address 0.0.0.0 is not treated specially in
+encapsulated vendor class options.
 .TP
 .B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
 Map from a vendor-class string to a network id. Most DHCP clients provide a 
