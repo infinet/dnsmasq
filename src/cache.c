@@ -638,6 +638,9 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
   struct crec *crec;
   unsigned short flags =  F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
 
+  if (!host_name)
+    return;
+
   if ((crec = cache_find_by_name(NULL, host_name, 0, F_IPV4)))
     {
       if (crec->flags & F_HOSTS)

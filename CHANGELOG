@@ -1155,6 +1155,8 @@ version 2.12
 	    Log types of incoming queries as well as source and domain.
 
 	    Log NODATA replies generated as a result of the
-	    finlterwin2k option.
+	    filterwin2k option.
 
-
+version 2.13
+	    Fixed crash with un-named DHCP hosts introduced in 2.12.
+	    Thanks to Nicolo Wojewoda and Gregory Gathy for bug reports.

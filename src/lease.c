@@ -175,8 +175,7 @@ void lease_update_dns(void)
       
       for (lease = leases; lease; lease = lease->next)
 	{
-	  if (lease->fqdn)
-	    cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
+	  cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
 	  cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires);
 	}
       

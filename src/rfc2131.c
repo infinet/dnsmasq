@@ -89,7 +89,7 @@ int dhcp_reply(struct dhcp_context *context,
 	       struct in_addr dhcp_next_server, struct in_addr router)
 {
   unsigned char *opt, *clid;
-  struct dhcp_lease *lease;
+  struct dhcp_lease *lease, *ltmp;
   struct dhcp_vendor *vendor;
   int clid_len;
   struct dhcp_packet *mess = &rawpacket->data;
@@ -352,7 +352,8 @@ int dhcp_reply(struct dhcp_context *context,
 	addr = option_addr(opt);
       if (have_config(config, CONFIG_DISABLE))
 	message = "ignored";
-      else if (have_config(config, CONFIG_ADDR) && !lease_find_by_addr(config->addr))
+      else if (have_config(config, CONFIG_ADDR) && 
+	       (!(ltmp = lease_find_by_addr(config->addr)) || ltmp == lease))
 	mess->yiaddr = config->addr;
       else if (lease && address_available(context, lease->addr))
 	mess->yiaddr = lease->addr;
