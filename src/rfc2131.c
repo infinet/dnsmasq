@@ -59,13 +59,13 @@ static unsigned char *option_end(unsigned char *p, unsigned char *end, struct dh
 static unsigned char *option_put_string(unsigned char *p, unsigned char *end, int opt, char *string);
 static void bootp_option_put(struct dhcp_packet *mess, 
 			     struct dhcp_boot *boot_opts, struct dhcp_netid *netids);
-static int option_len(unsigned char *opt);
+static unsigned int option_len(unsigned char *opt);
 static void *option_ptr(unsigned char *opt);
 static struct in_addr option_addr(unsigned char *opt);
 static unsigned int option_uint(unsigned char *opt, int size);
 static void log_packet(char *type, struct in_addr *addr, unsigned char *hwaddr, char *interface, char *string);
 static int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool);
-static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type);
+static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, unsigned int minsize);
 static unsigned char *do_req_options(struct dhcp_context *context,
 				     unsigned char *p, unsigned char *end, 
 				     unsigned char *req_options, 
@@ -126,7 +126,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     return 0;
   
   /* check for DHCP rather than BOOTP */
-  if ((opt = option_find(mess, sz, OPTION_MESSAGE_TYPE)))
+  if ((opt = option_find(mess, sz, OPTION_MESSAGE_TYPE, 1)))
     {
       mess_type = option_uint(opt, 1);
 
@@ -136,18 +136,18 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 
       /* Some buggy clients set ciaddr when they shouldn't, so clear that here since
 	 it can affect the context-determination code. */
-      if ((option_find(mess, sz, OPTION_REQUESTED_IP) || mess_type == DHCPDISCOVER))
+      if ((option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ) || mess_type == DHCPDISCOVER))
 	mess->ciaddr.s_addr = 0;
 
       /* Check for RFC3011 subnet selector */
-      if ((opt = option_find(mess, sz, OPTION_SUBNET_SELECT)))
+      if ((opt = option_find(mess, sz, OPTION_SUBNET_SELECT, INADDRSZ)))
 	subnet_addr = option_addr(opt);
       
       /* If there is no client identifier option, use the hardware address */
-      if ((opt = option_find(mess, sz, OPTION_CLIENT_ID)))
+      if ((opt = option_find(mess, sz, OPTION_CLIENT_ID, 1)))
 	{
-	  clid = option_ptr(opt);
 	  clid_len = option_len(opt);
+	  clid = option_ptr(opt);
 	}
       else
 	clid =  mess->chaddr;
@@ -253,9 +253,9 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   
   if (have_config(config, CONFIG_NAME))
     hostname = config->hostname;
-  else if ((opt = option_find(mess, sz, OPTION_HOSTNAME)))
+  else if ((opt = option_find(mess, sz, OPTION_HOSTNAME, 1)))
     {
-      int len = option_len(opt);
+      unsigned int len = option_len(opt);
       hostname = daemon->dhcp_buff;
       memcpy(hostname, option_ptr(opt), len);
       /* May not be zero terminated */
@@ -263,33 +263,14 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       /* ensure there are no strange chars in there */
       if (!canonicalise(hostname))
 	hostname = NULL;
-      else
+      else if ((hostname = strip_hostname(daemon, hostname)) && !config)
 	{
-	  char *dot = strchr(hostname, '.');
-	  if (dot)
-	    {
-	      if (!daemon->domain_suffix || !hostname_isequal(dot+1, daemon->domain_suffix))
-		{
-		  syslog(LOG_WARNING, "Ignoring DHCP host name %s because it has an illegal domain part", hostname);
-		  hostname = NULL;
-		}
-	      else
-		{
-		  *dot = 0; /* truncate */
-		  if (strlen(hostname) == 0)
-		    hostname = NULL; /* nothing left */
-		}
-	    }
-
 	  /* Search again now we have a hostname. 
 	     Only accept configs without CLID and HWADDR here, (they won't match)
 	     to avoid impersonation by name. */
-	  if (!config)
-	    {
-	      struct dhcp_config *new = find_config(daemon->dhcp_conf, context, NULL, 0, mess->chaddr, hostname);
-	      if (!have_config(new, CONFIG_CLID) && !have_config(new, CONFIG_HWADDR))
-		config = new;
-	    }
+	  struct dhcp_config *new = find_config(daemon->dhcp_conf, context, NULL, 0, mess->chaddr, hostname);
+	  if (!have_config(new, CONFIG_CLID) && !have_config(new, CONFIG_HWADDR))
+	    config = new;
 	}
     }
   
@@ -307,10 +288,10 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
      assume that the option is a single string and non RFC3004 compliant 
      and just do the substring match. dhclient provides these broken options. */
 
-  if ((opt = option_find(mess, sz, OPTION_USER_CLASS)))
+  if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
     {
       unsigned char *ucp = option_ptr(opt);
-      int tmp, j;
+      unsigned int tmp, j;
       for (j = 0; j < option_len(opt); j += ucp[j] + 1);
       if (j == option_len(opt))
 	for (j = 0; j < option_len(opt); j = tmp)
@@ -321,9 +302,9 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     }
   
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
-    if ((opt = option_find(mess, sz, vendor->is_vendor ? OPTION_VENDOR_ID : OPTION_USER_CLASS)))
+    if ((opt = option_find(mess, sz, vendor->is_vendor ? OPTION_VENDOR_ID : OPTION_USER_CLASS, 1)))
       {
-	int i;
+	unsigned int i;
 	for (i = 0; i <= (option_len(opt) - vendor->len); i++)
 	  if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
 	    {
@@ -348,23 +329,22 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   /* do we have a lease in store? */
   lease = lease_find_by_client(clid, clid_len);
   
-  if ((opt = option_find(mess, sz, OPTION_REQUESTED_OPTIONS)))
+  if ((opt = option_find(mess, sz, OPTION_REQUESTED_OPTIONS, 0)))
     {
-      int len = option_len(opt);
       req_options = daemon->dhcp_buff2;
-      memcpy(req_options, option_ptr(opt), len);
-      req_options[len] = OPTION_END;
+      memcpy(req_options, option_ptr(opt), option_len(opt));
+      req_options[option_len(opt)] = OPTION_END;
     }
   
   switch (mess_type)
     {
     case DHCPDECLINE:
-      if (!(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER)) ||
+      if (!(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)) ||
 	  (iface_addr.s_addr != option_addr(opt).s_addr))
 	return 0;
 
       /* sanitise any message. Paranoid? Moi? */
-      if ((opt = option_find(mess, sz, OPTION_MESSAGE)))
+      if ((opt = option_find(mess, sz, OPTION_MESSAGE, 1)))
 	{ 
 	  char *p = option_ptr(opt), *q = daemon->dhcp_buff;
 	  int i;
@@ -379,7 +359,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  message = daemon->dhcp_buff;
 	}
       
-      if (!(opt = option_find(mess, sz, OPTION_REQUESTED_IP)))
+      if (!(opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))
 	return 0;
       
       log_packet("DECLINE", option_ptr(opt), mess->chaddr, iface_name, message);
@@ -401,7 +381,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       return 0;
 
     case DHCPRELEASE:
-      if (!(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER)) ||
+      if (!(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)) ||
 	  (iface_addr.s_addr != option_addr(opt).s_addr))
 	return 0;
       
@@ -415,7 +395,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       return 0;
       
     case DHCPDISCOVER:
-      if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP)))	 
+      if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))	 
 	addr = option_addr(opt);
       if (ignore || have_config(config, CONFIG_DISABLE))
 	message = "ignored";
@@ -442,7 +422,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	}
        
       time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
-      if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
+      if ((opt = option_find(mess, sz, OPTION_LEASE_TIME, 4)))
 	{
 	  unsigned int req_time = option_uint(opt, 4);
 	  if (time == 0xffffffff || (req_time != 0xffffffff && req_time < time))
@@ -472,12 +452,12 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     case DHCPREQUEST:
       if (ignore || have_config(config, CONFIG_DISABLE))
 	return 0;
-      if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP)))
+      if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))
 	{
 	  /* SELECTING  or INIT_REBOOT */
 	  mess->yiaddr = option_addr(opt);
 	  
-	  if ((opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER)))
+	  if ((opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)))
 	    {
 	      /* SELECTING */
 	      if (iface_addr.s_addr != option_addr(opt).s_addr)
@@ -569,7 +549,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	    }
 	
 	  time = have_config(config, CONFIG_TIME) ? config->lease_time : context->lease_time;
-	  if ((opt = option_find(mess, sz, OPTION_LEASE_TIME)))
+	  if ((opt = option_find(mess, sz, OPTION_LEASE_TIME, 4)))
 	    {
 	      unsigned int req_time = option_uint(opt, 4);
 	      if (time == 0xffffffff || (req_time != 0xffffffff && req_time < time))
@@ -577,6 +557,8 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	    }
 	  
 	  lease_set_hwaddr(lease, mess->chaddr);
+	  if (!hostname)
+	    hostname = host_from_dns(daemon, mess->yiaddr);
 	  if (hostname)
 	    lease_set_hostname(lease, hostname, daemon->domain_suffix);
 	  lease_set_expires(lease, time == 0xffffffff ? 0 : now + (time_t)time);
@@ -620,6 +602,8 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       bootp_option_put(mess, daemon->boot_config, netid);
       p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
       p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
+      if (!hostname)
+	hostname = host_from_dns(daemon, mess->yiaddr);
       p = do_req_options(context, p, end, req_options, daemon, 
 			 hostname, iface_addr, netid, subnet_addr);
       p = option_end(p, end, mess);
@@ -644,7 +628,7 @@ static void log_packet(char *type, struct in_addr *addr, unsigned char *hwaddr, 
 	 string ? string : "");
 }
 
-static int option_len(unsigned char *opt)
+static unsigned int option_len(unsigned char *opt)
 {
   return opt[1];
 }
@@ -756,13 +740,13 @@ static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt
   
   while (*p != OPTION_END) 
     {
-      if (end && (p >= end))
+      if (p >= end)
 	return 0; /* malformed packet */
       else if (*p == OPTION_PAD)
 	p++;
       else if (*p == OPTION_OVERLOAD)
 	{
-	  if (end && (p >= end - 3))
+	  if (p >= end - 3)
 	    return 0; /* malformed packet */
 	  if (overload) 
 	    *overload = *(p+2);
@@ -771,10 +755,10 @@ static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt
       else 
 	{ 
 	  int opt_len;;
-	  if (end && (p >= end - 2))
+	  if (p >= end - 2)
 	    return 0; /* malformed packet */
 	  opt_len = option_len(p);
-	  if (end && (p >= end - (2 + opt_len)))
+	  if (p >= end - (2 + opt_len))
 	    return 0; /* malformed packet */
 	  if (*p == opt)
 	    return p;
@@ -785,7 +769,7 @@ static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt
   return NULL;
 }
  
-static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type)
+static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, unsigned int minsize)
 {
   int overload = 0; 
   unsigned char *ret;
@@ -798,7 +782,11 @@ static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_ty
 
   if (!ret && (overload & 2))
     ret = option_find1(&mess->sname[0], &mess->file[64], opt_type, &overload);
-
+  
+  /* Check the option field is big enough */
+  if (ret && (option_len(ret) < minsize))
+    ret = NULL;
+  
   return ret;
 }
 

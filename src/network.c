@@ -178,7 +178,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
       unsigned int plen, scope, flags, if_idx;
       char devname[20], addrstring[32];
       
-      while (fscanf(f, "%32s %02x %02x %02x %02x %20s\n",
+      while (fscanf(f, "%32s %x %x %x %x %20s\n",
 		    addrstring, &if_idx, &plen, &scope, &flags, devname) != EOF) 
 	{
 	  int i;
@@ -199,9 +199,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 	  strncpy(sifr.ifr_name, devname, IF_NAMESIZE);
 	  if (ioctl(fd, SIOCGIFFLAGS, &sifr) < 0)
 	    die("ioctl error getting interface flags: %m", NULL);
-	  
 	  iface = add_iface(daemon, iface, sifr.ifr_name, sifr.ifr_flags & IFF_LOOPBACK, &addr);
-	  
 	}	    
       fclose(f);
     }

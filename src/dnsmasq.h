@@ -478,6 +478,8 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 void dhcp_update_configs(struct dhcp_config *configs);
 void dhcp_read_ethers(struct daemon *daemon);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
+char *strip_hostname(struct daemon *daemon, char *hostname);
+char *host_from_dns(struct daemon *daemon, struct in_addr addr);
 
 /* lease.c */
 void lease_update_file(int force, time_t now);

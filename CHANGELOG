@@ -1307,8 +1307,22 @@ version 2.18
 	    Enable long command line options on FreeBSD when the
 	    C library supports them.
 
+version 2.19 
+            Tweaked the Linux-only interface discovery code to cope 
+	    with interface-indexes larger than 8 bits in
+            /proc/net/if_inet6. This only affects Linux, obviously.  
+	    Thanks to Richard Atterer for the bug report.
 
+	    Check for under-length option fields in DHCP packets, a
+	    zero length client-id, in particluar, could seriously
+	    confuse dnsmasq 'till now. Thanks to Will Murname for help
+	    with that.
 
+	    If a DHCP-allocated address has an associated name in
+	    /etc/hosts, and the client does not provide a hostname
+	    parameter and there is no hostname in a matching dhcp-host
+	    option, send the /etc/hosts name as the hostname in 
+	    the DHCP lease. Thanks to Will Murname for the suggestion.
 
  
 		

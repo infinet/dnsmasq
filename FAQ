@@ -115,7 +115,7 @@ A: Resolver code sometime does strange things when given names without
    --expand-hosts and --domain-suffix options.
 
 Q: Can I get dnsmasq to save the contents of its cache to disk when
-   I shut my machine down and re-load when it starts again.
+   I shut my machine down and re-load when it starts again?
 
 A: No, that facility is not provided. Very few names in the DNS have
    their time-to-live set for longer than a few hours so most of the
@@ -299,7 +299,22 @@ A: Because when a Gentoo box shuts down, it releases its lease with
    dnsmasq ignores it until is times out and restarts the process.
    To fix this, set the dhcp-authoritative flag in dnsmasq.
 
+Q: My laptop has two network interfaces, a wired one and a wireless
+   one. I never use both interfaces at the same time, and I'd like the
+   same IP and configuration to be used irrespcetive of which
+   interface is in use. How can I do that.
 
+A: By default, the identity of a machine is determined by using the
+   MAC address, which is associated with interface hardware. Once an
+   IP is bound to the MAC address of one interface, it cannot be
+   associated with another MAC address until after the DHCP lease
+   expires. The solution to this is to use a client-id as the machine
+   identity rather than the MAC address. If you arrange for the same
+   client-id to sent when either interface is in use, the DHCP server
+   will recognise the same machine, and use the same address. The
+   method for setting the client-id varies with DHCP client software,
+   dhcpcd uses the "-I" flag. Windows uses a registry setting,
+   see http://www.jsiinc.com/SUBF/TIP2800/rh2845.htm
 
 
 	      

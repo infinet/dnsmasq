@@ -656,3 +656,41 @@ void dhcp_update_configs(struct dhcp_config *configs)
       }
 }
 
+/* If we've not found a hostname any other way, try and see if there's one in /etc/hosts
+   for this address. If it has a domain part, that must match the set domain and
+   it gets stripped. */
+char *host_from_dns(struct daemon *daemon, struct in_addr addr)
+{
+  struct crec *lookup = cache_find_by_addr(NULL, (struct all_addr *)&addr, 0, F_IPV4);
+  char *hostname = NULL;
+  
+  if (lookup && (lookup->flags & F_HOSTS))
+    {
+      hostname = daemon->dhcp_buff;
+      hostname[256] = 0;
+      strncpy(hostname, cache_get_name(lookup), 256);
+      hostname = strip_hostname(daemon, hostname);
+    }
+
+  return hostname;
+}
+
+char *strip_hostname(struct daemon *daemon, char *hostname)
+{
+  char *dot = strchr(hostname, '.');
+  if (dot)
+    {
+      if (!daemon->domain_suffix || !hostname_isequal(dot+1, daemon->domain_suffix))
+	{
+	  syslog(LOG_WARNING, "Ignoring DHCP host name %s because it has an illegal domain part", hostname);
+	  hostname = NULL;
+	}
+      else
+	{
+	  *dot = 0; /* truncate */
+	  if (strlen(hostname) == 0)
+	    hostname = NULL; /* nothing left */
+	}
+    }
+  return hostname;
+}
