@@ -9,17 +9,6 @@
  /etc/ppp/resolv.conf which is not normally world readable.
  .TP
  .B \-v, --version
---- dnsmasq.conf.example	2004-08-08 21:18:26.000000000 +0200
-+++ dnsmasq.conf.example	2004-08-12 00:40:01.000000000 +0200
-@@ -65,7 +65,7 @@
- 
- # You no longer (as of version 1.7) need to set these to enable 
- # dnsmasq to read /etc/ppp/resolv.conf since dnsmasq now uses the
--# "dip" group to achieve this.
-+# "dialout" group to achieve this.
- #user=
- #group=
- 
 --- src/config.h	2004-08-11 11:39:18.000000000 +0200
 +++ src/config.h	2004-08-12 00:40:01.000000000 +0200
 @@ -44,7 +44,7 @@

@@ -34,6 +34,13 @@ void dhcp_init(struct daemon *daemon)
       setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &oneopt, sizeof(oneopt)) == -1)  
     die("failed to set options on DHCP socket: %s", NULL);
   
+  /* When bind-interfaces is set, there might be more than one dnmsasq
+     instance binding port 67. That's Ok if they serve different networks.
+     Need to set REUSEADDR to make this posible. */
+  if ((daemon->options & OPT_NOWILD) &&
+      setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &oneopt, sizeof(oneopt)) == -1)
+    die("failed to set SO_REUSEADDR on DHCP socket: %s", NULL);
+  
   saddr.sin_family = AF_INET;
   saddr.sin_port = htons(DHCP_SERVER_PORT);
   saddr.sin_addr.s_addr = INADDR_ANY;
@@ -429,17 +436,52 @@ struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct i
   return NULL;
 }
 
+/* Is every member of check matched by a member of pool? */
+int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool)
+{
+  struct dhcp_netid *tmp1;
+  
+  if (!check)
+    return 0;
+
+  for (; check; check = check->next)
+    {
+      if (check->net[0] != '#')
+	{
+	  for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
+	    if (strcmp(check->net, tmp1->net) == 0)
+	      break;
+	  if (!tmp1)
+	    return 0;
+	}
+      else
+	for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
+	  if (strcmp((check->net)+1, tmp1->net) == 0)
+	    return 0;
+    }
+  return 1;
+}
+
 int address_allocate(struct dhcp_context *context, struct daemon *daemon,
-		     struct in_addr *addrp, unsigned char *hwaddr)   
+		     struct in_addr *addrp, unsigned char *hwaddr, struct dhcp_netid *netids)   
 {
   /* Find a free address: exclude anything in use and anything allocated to
-     a particular hwaddr/clientid/hostname in our configuration */
+     a particular hwaddr/clientid/hostname in our configuration.
+     Try to return from contexts which mathc netis first. */
 
   struct in_addr start, addr ;
   unsigned int i, j;
   
   for (; context; context = context->current)
-    if (!context->static_only)
+    if (context->static_only)
+      continue;
+    else if (netids && !context->filter_netid)
+      continue;
+    else if (!netids && context->filter_netid)
+      continue;
+    else if (netids && context->filter_netid && !match_netid(&context->netid, netids))
+      continue;
+    else
       {
 	/* pick a seed based on hwaddr then iterate until we find a free address. */
 	for (j = context->addr_epoch, i = 0; i < ETHER_ADDR_LEN; i++)
@@ -471,6 +513,10 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 	  
 	} while (addr.s_addr != start.s_addr);
       }
+
+  if (netids)
+    return address_allocate(context, daemon, addrp, hwaddr, NULL);
+
   return 0;
 }
 

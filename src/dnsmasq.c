@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2004 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -82,8 +82,9 @@ int main (int argc, char **argv)
     die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
 #endif
   
-  interfaces = enumerate_interfaces(daemon);
-    
+  if (!enumerate_interfaces(daemon, &interfaces, NULL, NULL))
+    die("failed to find list of interfaces: %s", NULL);
+
   if (!(daemon->options & OPT_NOWILD) && 
       !(daemon->listeners = create_wildcard_listeners(daemon->port)))
     {
@@ -509,45 +510,25 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
        if (FD_ISSET(listener->tcpfd, set))
 	 {
 	   int confd;
+	   struct in_addr netmask, dst_addr_4;
 	   
 	   while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
 	      
 	   if (confd != -1)
 	     {
-	       int match = 1;
-	       if (!(daemon->options & OPT_NOWILD)) 
-		 {
-		   /* Check for allowed interfaces when binding the wildcard address */
-		   /* Don't know how to get interface of a connection, so we have to
-		      check by address. This will break when interfaces change address */
-		   union mysockaddr tcp_addr;
-		   socklen_t tcp_len = sizeof(union mysockaddr);
-		   struct iname *tmp;
-		   
-		   if (getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) != -1)
-		     {
-#ifdef HAVE_IPV6
-		       if (tcp_addr.sa.sa_family == AF_INET6)
-			 tcp_addr.in6.sin6_flowinfo =  htonl(0);
-#endif
-		       for (match = 1, tmp = daemon->if_except; tmp; tmp = tmp->next)
-			 if (sockaddr_isequal(&tmp->addr, &tcp_addr))
-			   match = 0;
-		       
-		       if (match && (daemon->if_names || daemon->if_addrs))
-			 {
-			   match = 0;
-			   for (tmp = daemon->if_names; tmp; tmp = tmp->next)
-			     if (sockaddr_isequal(&tmp->addr, &tcp_addr))
-			       match = 1;
-			   for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
-			     if (sockaddr_isequal(&tmp->addr, &tcp_addr))
-			       match = 1;  
-			 }
-		     }
-		 }			  
-	       
-	       if (!match || (num_kids >= MAX_PROCS))
+	       union mysockaddr tcp_addr;
+	       socklen_t tcp_len = sizeof(union mysockaddr);
+	   	       
+	       /* Check for allowed interfaces when binding the wildcard address:
+		  we do this by looking for an interface with the same address as 
+		  the local address of the TCP connection, then looking to see if that's
+		  an allowed interface. As a side effect, we get the netmask of the
+		  interface too, for localisation. */
+
+	       if ((num_kids >= MAX_PROCS) ||
+		   (!(daemon->options & OPT_NOWILD) &&
+		    (getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1 ||
+		     !enumerate_interfaces(daemon, NULL, &tcp_addr, &netmask)))) 
 		 close(confd);
 #ifndef NO_FORK
 	       else if (!(daemon->options & OPT_DEBUG) && fork())
@@ -584,7 +565,21 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 		   if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
 		     fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
 		   
-		   buff = tcp_request(daemon, confd, now);
+		   if (listener->family == AF_INET)
+		     {
+		       if (daemon->options & OPT_NOWILD)
+			 {
+			   netmask = listener->iface->netmask;
+			   dst_addr_4 = listener->iface->addr.in.sin_addr;
+			 }
+		       else
+			 /* netmask already set by enumerate_interfaces */
+			 dst_addr_4 = tcp_addr.in.sin_addr;
+		     }
+		   else
+		     dst_addr_4.s_addr = 0;
+		   
+		   buff = tcp_request(daemon, confd, now, dst_addr_4, netmask);
 		   
 		   if (!(daemon->options & OPT_DEBUG))
 		     exit(0);

@@ -4,14 +4,6 @@
 # as the long options legal on the command line. See
 # "/usr/sbin/dnsmasq --help" or "man 8 dnsmasq" for details.
 
-# Change these lines if you want dnsmasq to serve MX records.
-# Only one of mx-host and mx-target need be set, the other defaults
-# to the name of the host  running dnsmasq.
-#mx-host=
-#mx-target=
-#selfmx
-#localmx
-
 # The following two options make you a better netizen, since they 
 # tell dnsmasq to filter out queries which the public DNS cannot
 # answer, and which load the servers (especially the root servers) 
@@ -28,6 +20,8 @@ bogus-priv
 # which can trigger dial-on-demand links needlessly.
 # Note that (amongst other things) this blocks all SRV requests, 
 # so don't use it if you use eg Kerberos.
+# This option only affects forwarding, SRV records originating for
+# dnsmasq (via srv-host= lines) are not suppressed by it.
 #filterwin2k
 
 # Change this line if you want dns to get its upstream servers from
@@ -63,9 +57,8 @@ bogus-priv
 # webserver.
 #address=/doubleclick.net/127.0.0.1
 
-# You no longer (as of version 1.7) need to set these to enable 
-# dnsmasq to read /etc/ppp/resolv.conf since dnsmasq now uses the
-# "dip" group to achieve this.
+# If you want dnsmasq to change uid and gid to something other
+# than the default, edit the following lines.
 #user=
 #group=
 
@@ -291,6 +284,50 @@ bogus-priv
 #alias=1.2.3.4,5.6.7.8
 # and this maps 1.2.3.x to 5.6.7.x
 #alias=1.2.3.0,5.6.7.0,255.255.255.0
+
+
+# Change these lines if you want dnsmasq to serve MX records.
+
+# Return an MX record named "maildomain.com" with target
+# servermachine.com and preference 50
+#mx-host=maildomain.com,servermachine.com,50
+
+# Set the default target for MX records created using the localmx option.
+#mx-target=servermachine.com
+
+# Return an MX record pointing to the mx-target for all local
+# machines.
+#localmx
+
+# Return an MX record pointing to itself for all local machines.
+#selfmx
+
+# Change the following lines if you want dnsmasq to serve SRV 
+# records.  These are useful if you want to serve ldap requests for
+# Active Directory and other windows-originated DNS requests.
+# See RFC 2782.
+# You may add multiple srv-host lines. 
+# The fields are <name>,<target>,<port>,<priority>,<weight>
+# If the domain part if missing from the name (so that is just has the
+# service and protocol sections) then the domain given by the domain=
+# config option is used.
+
+# A SRV record sending LDAP for the example.com domain to
+# ldapserver.example.com port 289
+#srv-host=_ldap._tcp.example.com,ldapserver.example.com,389
+
+# A SRV record sending LDAP for the example.com domain to
+# ldapserver.example.com port 289 (using domain=)
+#domain=example.com
+#srv-host=_ldap._tcp,ldapserver.example.com,389
+
+# Two SRV records for LDAP, each with different priorities
+#srv-host=_ldap._tcp.example.com,ldapserver.example.com,389,1
+#srv-host=_ldap._tcp.example.com,ldapserver.example.com,389,2
+
+# A SRV record indicating that there is no LDAP server for the domain
+# example.com 
+#srv-host=_ldap._tcp.example.com
 
 # For debugging purposes, log each DNS query as it passes through
 # dnsmasq.

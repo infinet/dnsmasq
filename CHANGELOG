@@ -1267,7 +1267,7 @@ version 2.17
 	    already a fatal error when bind-interfaces is set.)
 
 	    Allow the --interface and --except-interface options to
-	    take a comma-seperated list of interfaces.
+	    take a comma-separated list of interfaces.
 
 	    Tweak --dhcp-userclass matching code to work with the
 	    ISC dhclient which violates RFC3004 unless its
@@ -1324,7 +1324,50 @@ version 2.19
 	    option, send the /etc/hosts name as the hostname in 
 	    the DHCP lease. Thanks to Will Murname for the suggestion.
 
- 
-		
+version 2.20
+	    Allow more than one instance of dnsmasq to run on a
+	    machine, each providing DHCP service on a different
+	    interface, provided that --bind-interfaces is set. This
+	    configuration used to work, but regressed in version 2.14
 
+	    Fix compilation on Mac OS X. Thanks to Kevin Bullock.
+	
+	    Protect against overlong names and overlong
+	    labels in configuration and from DHCP.
+
+	    Fix interesting corner case in CNAME handling. This occurs
+	    when a CNAME has a target which "shadowed" by a name in
+	    /etc/hosts or from DHCP. Resolving the CNAME would sneak
+	    the upstream value of the CNAME's target into the cache,
+	    alongside the local value. Now that doesn't happen, though
+	    resolving the CNAME still gives the unshadowed value. This
+	    is arguably wrong but rather difficult to fix. The main
+	    thing is to avoid getting strange results for the target
+	    due to the cache pollution when resolving the
+	    CNAME. Thanks to Pierre Habouzit for exploring the corner
+	    and submitting a very clear bug report.
+
+	    Fix subtle bug in the DNS packet parsing code. It's almost
+	    impossible to describe this succinctly, but the one known
+	    manifestation is the inability to cache the A record for
+	    www.apple.com. Thanks to Bob Alexander for spotting that.
+
+	    Support SRV records. Thanks to Robert Kean for the patches
+	    for this.
+
+	    Fixed sign confusion in the vendor-id matching code which
+	    could cause crashes sometimes. (Credit to Mark Wiater for
+	    help finding this.)
+
+	    Added the ability to match the netid tag in a
+	    dhcp-range. Combined with the ability to have multiple
+	    ranges in a single subnet, this provides a means to
+	    segregate hosts on different address ranges based on
+	    vendorclass or userclass. Thanks to Mark Wiater for
+	    prompting this enhancement.    
+
+	    Added preference values for MX records.
+
+	    Added the --localise-queries option.
+	    
 	    

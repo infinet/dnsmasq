@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2004 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.19"
+#define VERSION "2.20"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -278,7 +278,6 @@ typedef unsigned long in_addr_t;
 #define HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 #define HAVE_BPF
-#define BIND_8_COMPAT
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
 /* This is not defined in Mac OS X arpa/nameserv.h */

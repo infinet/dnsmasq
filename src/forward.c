@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 - 2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -197,7 +197,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
   else if (qtype && (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.'))
     flags = F_NXDOMAIN;
     
-  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now, daemon->mxnames))
+  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now, daemon))
     flags = F_NOERR;
 
   if (flags == F_NXDOMAIN || flags == F_NOERR)
@@ -390,7 +390,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
     {
       if (header->rcode == NXDOMAIN && 
 	  extract_request(header, n, daemon->namebuff, NULL) &&
-	  check_for_local_domain(daemon->namebuff, now, daemon->mxnames))
+	  check_for_local_domain(daemon->namebuff, now, daemon))
 	{
 	  /* if we forwarded a query for a locally known name (because it was for 
 	     an unknown type) and the answer is NXDOMAIN, convert that to NODATA,
@@ -474,6 +474,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
   unsigned short type;
   struct iname *tmp;
   struct all_addr dst_addr;
+  struct in_addr netmask, dst_addr_4;
   int m, n, if_index = 0;
   struct iovec iov[1];
   struct msghdr msg;
@@ -491,6 +492,14 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 #endif
   } control_u;
   
+  if (listen->family == AF_INET && (daemon->options & OPT_NOWILD))
+    {
+      dst_addr_4 = listen->iface->addr.in.sin_addr;
+      netmask = listen->iface->netmask;
+    }
+  else
+    dst_addr_4.s_addr = 0;
+
   iov[0].iov_base = daemon->packet;
   iov[0].iov_len = daemon->edns_pktsz;
     
@@ -526,7 +535,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
 	  if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
 	    {
-	      dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
+	      dst_addr_4 = dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
 	      if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
 	    }
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
@@ -534,7 +543,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 	{
 	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
 	    if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
-	      dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
+	      dst_addr_4 = dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
 	    else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
 	      if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
 	}
@@ -557,7 +566,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
       if (if_index == 0)
 	return;
       
-      if (daemon->if_except || daemon->if_names)
+      if (daemon->if_except || daemon->if_names || (daemon->options & OPT_LOCALISE))
 	{
 #ifdef SIOCGIFNAME
 	  ifr.ifr_ifindex = if_index;
@@ -567,6 +576,13 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 	  if (!if_indextoname(if_index, ifr.ifr_name))
 	    return;
 #endif
+
+	  if (listen->family == AF_INET &&
+	      (daemon->options & OPT_LOCALISE) &&
+	      ioctl(listen->fd, SIOCGIFNETMASK, &ifr) == -1)
+	    return;
+
+	  netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
 	}
 
       for (tmp = daemon->if_except; tmp; tmp = tmp->next)
@@ -610,7 +626,8 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 #endif
     }
 
-  m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, daemon, now);
+  m = answer_request (header, ((char *) header) + PACKETSZ, (unsigned int)n, daemon, 
+		      dst_addr_4, netmask, now);
   if (m >= 1)
     send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
@@ -647,7 +664,8 @@ static int read_write(int fd, char *packet, int size, int rw)
    blocking as neccessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
    done by the caller. */
-char *tcp_request(struct daemon *daemon, int confd, time_t now)
+char *tcp_request(struct daemon *daemon, int confd, time_t now,
+		  struct in_addr local_addr, struct in_addr netmask)
 {
   int size = 0, m;
   unsigned short qtype, gotname;
@@ -689,7 +707,8 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 	}
       
       /* m > 0 if answered from cache */
-      m = answer_request(header, ((char *) header) + 65536, (unsigned int)size, daemon, now);
+      m = answer_request(header, ((char *) header) + 65536, (unsigned int)size, daemon, 
+			 local_addr, netmask, now);
       
       if (m == 0)
 	{

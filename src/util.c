@@ -113,20 +113,22 @@ int legal_char(char c)
 int canonicalise(char *s)
 {
   /* check for legal chars and remove trailing . 
-     also fail empty string. */
-  int l = strlen(s);
+     also fail empty string and label > 63 chars */
+  int dotgap = 0, l = strlen(s);
   char c;
 
-  if (l == 0) return 0;
+  if (l == 0 || l > MAXDNAME) return 0;
 
   if (s[l-1] == '.')
     {
       if (l == 1) return 0;
       s[l-1] = 0;
     }
-
+  
   while ((c = *s++))
-    if (c != '.' && !legal_char(c))
+    if (c == '.')
+      dotgap = 0;
+    else if (!legal_char(c) || (++dotgap > MAXLABEL))
       return 0;
   
   return 1;

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,11 +12,11 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define COPYRIGHT "Copyright (C) 2000-2004 Simon Kelley" 
+#define COPYRIGHT "Copyright (C) 2000-2005 Simon Kelley" 
 
 #ifdef __linux__
 /* for pselect.... */
-#define _XOPEN_SOURCE 600 
+#  define _XOPEN_SOURCE 600 
 /* but then DNS headers don't compile without.... */
 #define _BSD_SOURCE
 #endif
@@ -27,6 +27,10 @@
 
 /* get this before config.h too. */
 #include <syslog.h>
+#ifdef __APPLE__
+/* need this before arpa/nameser.h */
+#  define BIND_8_COMPAT
+#endif
 #include <arpa/nameser.h>
 
 /* and this. */
@@ -57,6 +61,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <grp.h>
+#include <stdarg.h>
 #if defined(__OpenBSD__) || defined(__NetBSD__)
 #  include <netinet/if_ether.h>
 #else
@@ -96,6 +101,7 @@
 #define OPT_RESOLV_DOMAIN  32768
 #define OPT_NO_FORK        65536
 #define OPT_AUTHORITATIVE  131072
+#define OPT_LOCALISE       262144
 
 struct all_addr {
   union {
@@ -119,7 +125,14 @@ struct doctor {
 
 struct mx_record {
   char *mxname, *mxtarget;
+  int preference;
   struct mx_record *next;
+};
+
+struct srv_record {
+  char *srvname, *srvtarget;
+  int srvport, priority, weight;
+  struct srv_record *next;
 };
 
 union bigname {
@@ -211,11 +224,13 @@ struct server {
 
 struct irec {
   union mysockaddr addr;
+  struct in_addr netmask; /* only valid for IPv4 */
   struct irec *next;
 };
 
 struct listener {
   int fd, tcpfd, family;
+  struct irec *iface; /* only valid for non-wildcard */
   struct listener *next;
 };
 
@@ -319,7 +334,7 @@ struct dhcp_context {
   unsigned int lease_time, addr_epoch;
   struct in_addr netmask, broadcast, router;
   struct in_addr start, end; /* range of available addresses */
-  int static_only;
+  int static_only, filter_netid;
   struct dhcp_netid netid;
   struct dhcp_context *next, *current;
 };
@@ -360,6 +375,7 @@ struct daemon {
   char *lease_file; 
   char *username, *groupname;
   char *domain_suffix;
+  struct srv_record *srvnames;
   char *runfile; 
   struct iname *if_names, *if_addrs, *if_except;
   struct bogus_addr *bogus_addr;
@@ -420,12 +436,13 @@ int setup_reply(HEADER *header, unsigned int qlen,
 		unsigned long local_ttl);
 void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
 		       time_t now, struct daemon *daemon);
-int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, time_t now);
+int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, 
+		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(HEADER *header, unsigned int plen,
 				 unsigned int *len, unsigned char **p);
-int check_for_local_domain(char *name, time_t now, struct mx_record *mx);
+int check_for_local_domain(char *name, time_t now, struct daemon *daemon);
 unsigned int questions_crc(HEADER *header, unsigned int plen);
 int resize_packet(HEADER *header, unsigned int plen, 
 		  unsigned char *pheader, unsigned int hlen);
@@ -453,13 +470,15 @@ struct daemon *read_opts (int argc, char **argv);
 void forward_init(int first);
 void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
 void receive_query(struct listener *listen, struct daemon *daemon, time_t now);
-char *tcp_request(struct daemon *daemon, int confd, time_t now);
+char *tcp_request(struct daemon *daemon, int confd, time_t now,
+		  struct in_addr local_addr, struct in_addr netmask);
 
 /* network.c */
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
 void reload_servers(char *fname, struct daemon *daemon);
 void check_servers(struct daemon *daemon, struct irec *interfaces);
-struct irec *enumerate_interfaces(struct daemon *daemon);
+int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
+			 union mysockaddr *test_addrp, struct in_addr *netmaskp);
 struct listener *create_wildcard_listeners(int port);
 struct listener *create_bound_listeners(struct irec *interfaces, int port);
 
@@ -469,8 +488,10 @@ void dhcp_packet(struct daemon *daemon, time_t now);
 
 struct dhcp_context *address_available(struct dhcp_context *context, struct in_addr addr);
 struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr taddr);
+int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool);
 int address_allocate(struct dhcp_context *context, struct daemon *daemon,
-		     struct in_addr *addrp, unsigned char *hwaddr);
+		     struct in_addr *addrp, unsigned char *hwaddr,
+		     struct dhcp_netid *netids);
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,

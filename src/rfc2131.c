@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,13 +59,12 @@ static unsigned char *option_end(unsigned char *p, unsigned char *end, struct dh
 static unsigned char *option_put_string(unsigned char *p, unsigned char *end, int opt, char *string);
 static void bootp_option_put(struct dhcp_packet *mess, 
 			     struct dhcp_boot *boot_opts, struct dhcp_netid *netids);
-static unsigned int option_len(unsigned char *opt);
+static int option_len(unsigned char *opt);
 static void *option_ptr(unsigned char *opt);
 static struct in_addr option_addr(unsigned char *opt);
 static unsigned int option_uint(unsigned char *opt, int size);
 static void log_packet(char *type, struct in_addr *addr, unsigned char *hwaddr, char *interface, char *string);
-static int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool);
-static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, unsigned int minsize);
+static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, int minsize);
 static unsigned char *do_req_options(struct dhcp_context *context,
 				     unsigned char *p, unsigned char *end, 
 				     unsigned char *req_options, 
@@ -211,7 +210,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       if (have_config(config, CONFIG_NAME))
 	hostname = config->hostname;
       
-      if (context->netid.net)
+      if (context->netid.net && !context->filter_netid)
 	{
 	  context->netid.next = netid;
 	  netid = &context->netid;
@@ -255,7 +254,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
     hostname = config->hostname;
   else if ((opt = option_find(mess, sz, OPTION_HOSTNAME, 1)))
     {
-      unsigned int len = option_len(opt);
+      int len = option_len(opt);
       hostname = daemon->dhcp_buff;
       memcpy(hostname, option_ptr(opt), len);
       /* May not be zero terminated */
@@ -291,7 +290,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
     {
       unsigned char *ucp = option_ptr(opt);
-      unsigned int tmp, j;
+      int tmp, j;
       for (j = 0; j < option_len(opt); j += ucp[j] + 1);
       if (j == option_len(opt))
 	for (j = 0; j < option_len(opt); j = tmp)
@@ -304,7 +303,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
     if ((opt = option_find(mess, sz, vendor->is_vendor ? OPTION_VENDOR_ID : OPTION_USER_CLASS, 1)))
       {
-	unsigned int i;
+	int i;
 	for (i = 0; i <= (option_len(opt) - vendor->len); i++)
 	  if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
 	    {
@@ -407,7 +406,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
       else if (opt && address_available(context, addr) && !lease_find_by_addr(addr) && 
 	       !config_find_by_address(daemon->dhcp_conf, addr))
 	mess->yiaddr = addr;
-      else if (!address_allocate(context, daemon, &mess->yiaddr, mess->chaddr))
+      else if (!address_allocate(context, daemon, &mess->yiaddr, mess->chaddr, netid))
 	message = "no address available";      
       log_packet("DISCOVER", opt ? &addr : NULL, mess->chaddr, iface_name, message);          
       
@@ -415,7 +414,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	return 0;
       
       context = narrow_context(context, mess->yiaddr);
-      if (context->netid.net)
+      if (context->netid.net && !context->filter_netid)
 	{
 	  context->netid.next = netid;
 	  netid = &context->netid;
@@ -542,7 +541,7 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  log_packet("ACK", &mess->yiaddr, mess->chaddr, iface_name, hostname);
       
 	  context = narrow_context(context, mess->yiaddr);
-	  if (context->netid.net)
+	  if (context->netid.net && !context->filter_netid)
 	    {
 	      context->netid.next = netid;
 	      netid = &context->netid;
@@ -628,7 +627,7 @@ static void log_packet(char *type, struct in_addr *addr, unsigned char *hwaddr, 
 	 string ? string : "");
 }
 
-static unsigned int option_len(unsigned char *opt)
+static int option_len(unsigned char *opt)
 {
   return opt[1];
 }
@@ -769,7 +768,7 @@ static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt
   return NULL;
 }
  
-static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, unsigned int minsize)
+static unsigned char *option_find(struct dhcp_packet *mess, int size, int opt_type, int minsize)
 {
   int overload = 0; 
   unsigned char *ret;
@@ -803,32 +802,6 @@ static int in_list(unsigned char *list, int opt)
       return 1;
 
   return 0;
-}
-
-/* Is every member of check matched by a member of pool? */
-static int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool)
-{
-  struct dhcp_netid *tmp1;
-  
-  if (!check)
-    return 0;
-
-  for (; check; check = check->next)
-    {
-      if (check->net[0] != '#')
-	{
-	  for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	    if (strcmp(check->net, tmp1->net) == 0)
-	      break;
-	  if (!tmp1)
-	    return 0;
-	}
-      else
-	for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	  if (strcmp((check->net)+1, tmp1->net) == 0)
-	    return 0;
-    }
-  return 1;
 }
 
 static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *opts, int opt)

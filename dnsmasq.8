@@ -143,11 +143,21 @@ requests that it shouldn't reply to. This has the advantage of
 working even when interfaces come and go and change address. This
 option forces dnsmasq to really bind only the interfaces it is
 listening on. About the only time when this is useful is when 
-running another nameserver on the same machine or using IP
+running another nameserver (or another instance of dnsmasq) on the
+same machine or when using IP
 alias. Specifying interfaces with IP alias automatically turns this
-option on. Note that this only applies to the DNS part of dnsmasq, the
-DHCP server always binds the wildcard address in order to receive
-broadcast packets.
+option on. Setting this option also enables multiple instances of
+dnsmasq which provide DHCP service to run in the same machine.
+.TP
+.B \-y, --localise-queries
+Return answers to DNS queries from /etc/hosts which depend on the interface over which the query was
+recieved. If a name in /etc/hosts has more than one address associated with
+it, and at least one of those addresses is on the same subnet as the
+interface to which the query was sent, then return only the
+address(es) on that subnet. This allows for a server  to have multiple
+addresses in /etc/hosts corresponding to each of its interfaces, and
+hosts will get the correct address based on which network they are
+attached to. Currently this facility is limited to IPv4.
 .TP
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
@@ -214,7 +224,7 @@ and they are queried only using the specified server. This is
 intended for private nameservers: if you have a nameserver on your
 network which deals with names of the form
 xxx.internal.thekelleys.org.uk at 192.168.1.1 then giving  the flag 
-.B -S /internal.thekelleys.org.uk/192.168.1.1 
+.B -S /.internal.thekelleys.org.uk/192.168.1.1 
 will send all queries for
 internal machines to that nameserver, everything else will go to the
 servers in /etc/resolv.conf. An empty domain specification,
@@ -258,18 +268,20 @@ additional facility that /#/ matches any domain. Thus
 answered from /etc/hosts or DHCP and not sent to an upstream
 nameserver by a more specific --server directive.
 .TP
-.B \-m, --mx-host=<mx name>[,<hostname>]
+.B \-m, --mx-host=<mx name>[[,<hostname>],<preference>]
 Return an MX record named <mx name> pointing to the given hostname (if
 given), or
 the host specified in the --mx-target switch
 or, if that switch is not given, the host on which dnsmasq 
-is running. This is useful for directing mail from systems on a LAN
-to a central server.
+is running. The default is useful for directing mail from systems on a LAN
+to a central server. The preference value is optional, and defaults to
+1 if not given. More than one MX record may be given for a host.
 .TP 
 .B \-t, --mx-target=<hostname>
-Specify target for the MX record returned by dnsmasq. See --mx-host. Note that to turn on the MX function, 
-at least one of --mx-host and --mx-target must be set. If only one of --mx-host and --mx-target 
-is set, the other defaults to the hostname of the machine on which dnsmasq is running.
+Specify the default target for the MX record returned by dnsmasq. See
+--mx-host.  If --mx-target is given, but not --mx-host, then dnsmasq
+returns a MX record containing the MX target for MX queries on the 
+hostname of the machine on which dnsmasq is running.
 .TP
 .B \-e, --selfmx
 Return an MX record pointing to itself for each local
@@ -280,6 +292,23 @@ Return an MX record pointing to the host given by mx-target (or the
 machine on which dnsmasq is running) for each
 local machine. Local machines are those in /etc/hosts or with DHCP
 leases.
+.TP
+.B \-W, --srv-host=<_service>.<_prot>.[<domain>],[<target>[,<port>[,<priority>[,<weight>]]]]
+Return a SRV DNS record. See RFC2782 for details. If not supplied, the
+domain defaults to that given by
+.B --domain.
+The default for the target domain is empty, and the default for port
+is one and the defaults for 
+weight and priority are zero. Be careful if transposing data from BIND
+zone files: the port, weight and priority numbers are in a different
+order. More than one SRV record for a given service/domain is allowed,
+all that match are returned. Specifying at least one 
+.B --srv-host
+option also turns on replies to SOA queries for the
+domain given by the
+.B --domain 
+option. The data in these is stereotyped, but is enough for resolvers
+to deduce that the domain is a valid one for resolving SRV records.
 .TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.
@@ -307,7 +336,8 @@ always optional. On some broken systems, dnsmasq can listen on only
 one interface when using DHCP, and the name of that interface must be
 given using the
 .B interface
-option. This limitation currently affects OpenBSD. The optional
+option. This limitation currently affects OpenBSD. It is always
+allowed to have more than one dhcp-range in a single subnet. The optional
 network-id is a alphanumeric label which marks this network so that
 dhcp options may be specified on a per-network basis. The end address
 may be replaced by the keyword 
@@ -380,8 +410,8 @@ specfied in RFC2132. For example, to set the default route option to
 and to set the time-server address to 192.168.0.4, do
 .B --dhcp-option=42,192.168.0.4
 The special address 0.0.0.0 is taken to mean "the address of the
-machine running dnsmasq". Data types allowed are comma seperated
-dotted-quad IP addresses, a decimal number, colon-seperated hex digits
+machine running dnsmasq". Data types allowed are comma separated
+dotted-quad IP addresses, a decimal number, colon-separated hex digits
 and a text string. If the optional network-ids are given then
 this option is only sent when all the network-ids are matched.
 Be careful: no checking is done that the correct type of data for the
@@ -545,6 +575,17 @@ and run dnsmasq with the
 option. This second technique allows for dynamic update of the server
 addresses by PPP or DHCP.
 .PP
+Addresses in /etc/hosts will "shadow" different addresses for the same
+names in the upstream DNS, so "mycompany.com 1.2.3.4" in /etc/hosts will ensure that
+queries for "mycompany.com" always return 1.2.3.4 even if queries in
+the upstream DNS would otherwise return a different address. There is
+one exception to this: if the upstream DNS contains a CNAME which
+points to a shadowed name, then looking up the CNAME through dnsmasq
+will result in the unshadowed address associated with the target of
+the CNAME. To work around this, add the CNAME to /etc/hosts so that
+the CNAME is shadowed too.
+
+.PP
 The network-id system works as follows: For each DHCP request, dnsmasq
 collects a set of valid network-id tags, one from the 
 .B dhcp-range
@@ -560,6 +601,14 @@ set collected as described above. The prefix '#' on a tag means 'not'
 so --dhcp=option=#purple,3,1.2.3.4 sends the option when the
 network-id tag purple is not in the set of valid tags.
 .PP
+If the network-id in a
+.B dhcp-range 
+is prefixed with 'net:' then its meaning changes from setting a
+tag to matching it. Thus if there is more than dhcp-range on a subnet,
+and one is tagged with a network-id which is set (for instance
+from a vendorclass option) then hosts which set the netid tag will be 
+allocated addresses in the tagged range.
+.PP 
 The DHCP server in dnsmasq will function as a BOOTP server also,
 provided that the MAC address and IP address for clients are given,
 either using 

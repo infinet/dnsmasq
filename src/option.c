@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 - 2004 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:"
+#define OPTSTRING "yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -76,6 +76,8 @@ static struct myoption opts[] = {
   {"edns-packet-max", 1, 0, 'P'},
   {"keep-in-foreground", 0, 0, 'k'},
   {"dhcp-authoritative", 0, 0, 'K'},
+  {"srv-host", 1, 0, 'W'},
+  {"localise-queries", 0, 0, 'y'},
   {0, 0, 0, 0}
 };
 
@@ -102,6 +104,7 @@ static struct optflags optmap[] = {
   { 'D', OPT_NODOTS_LOCAL },
   { 'z', OPT_NOWILD },
   { 'Z', OPT_ETHERS },
+  { 'y', OPT_LOCALISE },
   { 'v', 0},
   { 'w', 0},
   { 0, 0 }
@@ -137,7 +140,7 @@ static char *usage =
 "-K, --dhcp-authoritative            Assume we are the only DHCP server on the local network.\n"
 "-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
 "-L, --localmx                       Return MX records for local hosts.\n"
-"-m, --mx-host=host_name             Specify the MX name to reply to.\n"
+"-m, --mx-host=host_name,target,pref Specify an MX record.\n"
 "-M, --dhcp-boot=<bootp opts>        Specify BOOTP options to DHCP server.\n"
 "-n, --no-poll                       Do NOT poll " RESOLVFILE " file, reload only on SIGHUP.\n"
 "-N, --no-negcache                   Do NOT cache failed search results.\n"
@@ -152,15 +155,17 @@ static char *usage =
 "-S, --server=/domain/ipaddr         Specify address(es) of upstream servers with optional domains.\n"
 "    --local=/domain/                Never forward queries to specified domains.\n"
 "-s, --domain=domain                 Specify the domain to be assigned in DHCP leases.\n"
-"-t, --mx-target=host_name           Specify the host in an MX reply.\n"
+"-t, --mx-target=host_name           Specify default target in an MX record.\n"
 "-T, --local-ttl=time                Specify time-to-live in seconds for replies from /etc/hosts.\n"
 "-u, --user=username                 Change to this user after startup. (defaults to " CHUSER ").\n" 
 "-U, --dhcp-vendorclass=<id>,<class> Map DHCP vendor class to option set.\n"
 "-v, --version                       Display dnsmasq version and copyright information.\n"
 "-V, --alias=addr,addr,mask          Translate IPv4 addresses from upstream servers.\n"
+"-W, --srv-host=name,port,pri,weight Specify a SRV record.\n"
 "-w, --help                          Display this message.\n"
 "-x, --pid-file=path                 Specify path of PID file. (defaults to " RUNFILE ").\n"
 "-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
+"-y, --localise-queries              Answer DNS queries based on the interface a query was sent to."
 "-z, --bind-interfaces               Bind only to interfaces in use.\n"
 "-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
 "\n";
@@ -372,24 +377,41 @@ struct daemon *read_opts (int argc, char **argv)
 
 	    case 'm':
 	      {
+		int pref = 1;
+		struct mx_record *new;
+
 		if ((comma = strchr(optarg, ',')))
-		  *(comma++) = 0;
+		  {
+		    char *prefstr;
+		    *(comma++) = 0;
+		    if ((prefstr=strchr(comma, ',')))
+		      {
+			*(prefstr++) = 0;
+			if (!atoi_check(prefstr, &pref))
+			  {
+			    option = '?';
+			    problem = "bad MX preference";
+			    break;
+			  }
+		      }
+		  }
+
 		if (!canonicalise(optarg) || (comma && !canonicalise(comma)))
 		  {
 		    option = '?';
 		    problem = "bad MX name";
+		    break;
 		  }
-		else 
-		  {
-		    struct mx_record *new = safe_malloc(sizeof(struct mx_record));
-		    new->next = daemon->mxnames;
-		    daemon->mxnames = new;
-		    new->mxname = safe_string_alloc(optarg);
-		    new->mxtarget = safe_string_alloc(comma); /* may be NULL */
-		  }
+
+		new = safe_malloc(sizeof(struct mx_record));
+		new->next = daemon->mxnames;
+		daemon->mxnames = new;
+		new->mxname = safe_string_alloc(optarg);
+		new->mxtarget = safe_string_alloc(comma); /* may be NULL */
+		new->preference = pref;
 		break;
 	      }
-	      
+
 	    case 't':
 	      if (!canonicalise(optarg))
 		{
@@ -747,7 +769,7 @@ struct daemon *read_opts (int argc, char **argv)
 		new->broadcast.s_addr = 0;
 		new->router.s_addr = 0;
 		new->netid.net = NULL;
-		new->static_only = 0;
+		new->static_only = new->filter_netid = 0;
 		
 		problem = "bad dhcp-range";
 
@@ -758,7 +780,14 @@ struct daemon *read_opts (int argc, char **argv)
 		if (*cp != ',' && (comma = strchr(optarg, ',')))
 		  {
 		    *comma = 0;
-		    new->netid.net = safe_string_alloc(optarg);
+		    if (strstr(optarg, "net:") == optarg)
+		      {
+			new->netid.net = safe_string_alloc(optarg+4);
+			new->netid.next = NULL;
+			new->filter_netid = 1;
+		      }
+		    else
+		      new->netid.net = safe_string_alloc(optarg);
 		    a[0] = comma + 1;
 		  }
 		else
@@ -1363,6 +1392,84 @@ struct daemon *read_opts (int argc, char **argv)
 		
 		break;
 	      }
+
+	    case 'W':
+	      {
+		int port = 1, priority = 0, weight = 0;
+		char *name, *target = NULL;
+		struct srv_record *new;
+		
+		if ((comma = strchr(optarg, ',')))
+		  *(comma++) = 0;
+
+		if (!canonicalise(optarg))
+		  {
+		    option = '?';
+		    problem = "bad SRV record";
+		    break;
+		  }
+		name = safe_string_alloc(optarg);
+		
+		if (comma)
+		  {
+		    optarg = comma;
+		    if ((comma = strchr(optarg, ',')))
+		      *(comma++) = 0;
+		    if (!canonicalise(optarg))
+		      {
+			option = '?';
+			problem = "bad SRV target";
+			break;
+		      }
+		    target = safe_string_alloc(optarg);
+		    if (comma)
+		      {
+			optarg = comma;
+			if ((comma = strchr(optarg, ',')))
+			  *(comma++) = 0;
+			if (!atoi_check(optarg, &port))
+			  {
+			    option = '?';
+			    problem = "invalid port number";
+			    break;
+			  }
+			if (comma)
+			  {
+			    optarg = comma;
+			    if ((comma = strchr(optarg, ',')))
+			      *(comma++) = 0;
+			    if (!atoi_check(optarg, &priority))
+			      {
+				option = '?';
+				problem = "invalid priority";
+				break;
+			      }
+			    if (comma)
+			      {
+				optarg = comma;
+				if ((comma = strchr(optarg, ',')))
+				  *(comma++) = 0;
+				if (!atoi_check(optarg, &weight))
+				  {
+				    option = '?';
+				    problem = "invalid weight";
+				    break;
+				  }
+			      }
+			  }
+		      }
+		  }
+		
+		new = safe_malloc(sizeof(struct srv_record));
+		new->next = daemon->srvnames;
+		daemon->srvnames = new;
+		new->srvname = name;
+		new->srvtarget = target;
+		new->srvport = port;
+		new->priority = priority;
+		new->weight = weight;
+		break;
+	      }
 	    }
 	}
       
@@ -1411,23 +1518,38 @@ struct daemon *read_opts (int argc, char **argv)
 #endif /* IPv6 */
     }
 		      
-  /* only one of these need be specified: the other defaults to the
-     host-name */
+  /* only one of these need be specified: the other defaults to the host-name */
   if ((daemon->options & OPT_LOCALMX) || daemon->mxnames || daemon->mxtarget)
     {
       if (gethostname(buff, MAXDNAME) == -1)
 	die("cannot get host-name: %s", NULL);
-	      
+      
       if (!daemon->mxnames)
 	{
 	  daemon->mxnames = safe_malloc(sizeof(struct mx_record));
 	  daemon->mxnames->next = NULL;
 	  daemon->mxnames->mxtarget = NULL;
 	  daemon->mxnames->mxname = safe_string_alloc(buff);
-}
+	}
       
       if (!daemon->mxtarget)
 	daemon->mxtarget = safe_string_alloc(buff);
+    }
+
+  if (daemon->domain_suffix)
+    {
+       /* add domain for any srv record without one. */
+      struct srv_record *srv;
+      
+      for (srv = daemon->srvnames; srv; srv = srv->next)
+	if (strchr(srv->srvname, '.') && strchr(srv->srvname, '.') == strrchr(srv->srvname, '.'))
+	  {
+	    strcpy(buff, srv->srvname);
+	    strcat(buff, ".");
+	    strcat(buff, daemon->domain_suffix);
+	    free(srv->srvname);
+	    srv->srvname = safe_string_alloc(buff);
+	  }
     }
   
   if (daemon->options & OPT_NO_RESOLV)

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -156,32 +156,52 @@ static int is_outdated_cname_pointer(struct crec *crecp)
   return 1;
 }
 
-static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsigned short flags)
+static int is_expired(time_t now, struct crec *crecp)
+{
+  if (crecp->flags & F_IMMORTAL)
+    return 0;
+
+  if (difftime(now, crecp->ttd) < 0)
+    return 0;
+
+  return 1;
+}
+
+static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsigned short flags)
 {
   /* Scan and remove old entries.
      If (flags & F_FORWARD) then remove any forward entries for name and any expired
      entries but only in the same hash bucket as name.
      If (flags & F_REVERSE) then remove any reverse entries for addr and any expired
      entries in the whole cache.
-     If (flags == 0) remove any expired entries in the whole cache. */
+     If (flags == 0) remove any expired entries in the whole cache. 
+
+     In the flags & F_FORWARD case, the return code is valid, and returns zero if the
+     name exists in the cache as a HOSTS or DHCP entry (these are never deleted) */
   
-#define F_CACHESTATUS (F_HOSTS | F_DHCP | F_FORWARD | F_REVERSE | F_IPV4 | F_IPV6 | F_CNAME)
   struct crec *crecp, **up;
-  flags &= (F_FORWARD | F_REVERSE | F_IPV6 | F_IPV4 | F_CNAME);
 
   if (flags & F_FORWARD)
     {
       for (up = hash_bucket(name), crecp = *up; crecp; crecp = crecp->hash_next)
-	if ((!(crecp->flags & F_IMMORTAL) && difftime(now, crecp->ttd) > 0) ||
-	    is_outdated_cname_pointer(crecp) || 
-	    ((flags == (crecp->flags & F_CACHESTATUS)) && hostname_isequal(cache_get_name(crecp), name)))
-	  {
+	if (is_expired(now, crecp) || is_outdated_cname_pointer(crecp))
+	  { 
 	    *up = crecp->hash_next;
 	    if (!(crecp->flags & (F_HOSTS | F_DHCP)))
-	      { 
+	      {
 		cache_unlink(crecp);
 		cache_free(crecp);
 	      }
+	  } 
+	else if ((crecp->flags & F_FORWARD) && 
+		 ((flags & crecp->flags & (F_IPV4 | F_IPV6)) || (crecp->flags & F_CNAME)) &&
+		 hostname_isequal(cache_get_name(crecp), name))
+	  {
+	    if (crecp->flags & (F_HOSTS | F_DHCP))
+	      return 0;
+	    *up = crecp->hash_next;
+	    cache_unlink(crecp);
+	    cache_free(crecp);
 	  }
 	else
 	  up = &crecp->hash_next;
@@ -196,8 +216,7 @@ static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsig
 #endif 
       for (i = 0; i < hash_size; i++)
 	for (crecp = hash_table[i], up = &hash_table[i]; crecp; crecp = crecp->hash_next)
-	  if ((!(crecp->flags & F_IMMORTAL) && difftime(now, crecp->ttd) > 0) ||
-	      ((flags == (crecp->flags & F_CACHESTATUS)) && memcmp(&crecp->addr.addr, addr, addrlen) == 0))
+	  if (is_expired(now, crecp))
 	    {
 	      *up = crecp->hash_next;
 	      if (!(crecp->flags & (F_HOSTS | F_DHCP)))
@@ -206,9 +225,20 @@ static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsig
 		  cache_free(crecp);
 		}
 	    }
+	  else if (!(crecp->flags & (F_HOSTS | F_DHCP)) &&
+		   (flags & crecp->flags & F_REVERSE) && 
+		   (flags & crecp->flags & (F_IPV4 | F_IPV6)) &&
+		   memcmp(&crecp->addr.addr, addr, addrlen) == 0)
+	    {
+	      *up = crecp->hash_next;
+	      cache_unlink(crecp);
+	      cache_free(crecp);
+	    }
 	  else
 	    up = &crecp->hash_next;
     }
+  
+  return 1;
 }
 
 /* Note: The normal calling sequence is
@@ -260,8 +290,13 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
     return NULL;
 
   /* First remove any expired entries and entries for the name/address we
-     are currently inserting. */
-  cache_scan_free(name, addr, now, flags);
+     are currently inserting. Fail is we attempt to delete a name from
+     /etc/hosts or DHCP. */
+  if (!cache_scan_free(name, addr, now, flags))
+    {
+      insert_error = 1;
+      return NULL;
+    }
   
   /* Now get a cache entry from the end of the LRU list */
   while (1) {
@@ -376,8 +411,7 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
 	{
 	  next = crecp->hash_next;
 	  
-	  if (!is_outdated_cname_pointer(crecp) &&
-	      ((crecp->flags & F_IMMORTAL) || difftime(now, crecp->ttd) < 0))
+	  if (!is_expired(now, crecp) && !is_outdated_cname_pointer(crecp))
 	    {
 	      if ((crecp->flags & F_FORWARD) && 
 		  (crecp->flags & prot) &&
@@ -458,7 +492,7 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
        
        for(i=0; i<hash_size; i++)
 	 for (crecp = hash_table[i], up = &hash_table[i]; crecp; crecp = crecp->hash_next)
-	   if ((crecp->flags & F_IMMORTAL) || difftime(now, crecp->ttd) < 0)
+	   if (!is_expired(now, crecp))
 	     {      
 	       if ((crecp->flags & F_REVERSE) && 
 		   (crecp->flags & prot) &&
@@ -835,7 +869,15 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
 	strcat(addrbuff, "-IPv6");
     }
   else if (flags & F_CNAME)
-    strcpy(addrbuff, "<CNAME>");
+    {
+      /* nasty abuse of IPV4 and IPV6 flags */
+      if (flags & F_IPV4)
+	strcpy(addrbuff, "<MX>");
+      else if (flags & F_IPV6)
+	strcpy(addrbuff, "<SRV>");
+      else
+	strcpy(addrbuff, "<CNAME>");
+    }
   else
 #ifdef HAVE_IPV6
     inet_ntop(flags & F_IPV4 ? AF_INET : AF_INET6,

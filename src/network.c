@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 - 2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,10 +14,9 @@
 
 #include "dnsmasq.h"
 
-static struct irec *add_iface(struct daemon *daemon, struct irec *list, 
-			      char *name, int is_loopback, union mysockaddr *addr) 
+static int iface_allowed(struct daemon *daemon, struct irec *iface, 
+			 char *name, int is_loopback, union mysockaddr *addr) 
 {
-  struct irec *iface;
   struct iname *tmp;
   
   /* If we are restricting the set of interfaces to use, make
@@ -45,12 +44,8 @@ static struct irec *add_iface(struct daemon *daemon, struct irec *list,
   if (daemon->if_except)
     for (tmp = daemon->if_except; tmp; tmp = tmp->next)
       if (tmp->name && strcmp(tmp->name, name) == 0)
-	{
-	  /* record address of named interfaces, for TCP access control */
-	  tmp->addr = *addr;
-	  return list;
-	}
-
+	return 0;
+	
   /* we may need to check the whitelist */
   if (daemon->if_names || daemon->if_addrs)
     { 
@@ -58,36 +53,39 @@ static struct irec *add_iface(struct daemon *daemon, struct irec *list,
 
       for (tmp = daemon->if_names; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
-	  {
-	    tmp->addr = *addr;
-	    found = tmp->used = 1;
-	  }
-
+	  found = tmp->used = 1;
+	  
       for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
 	if (sockaddr_isequal(&tmp->addr, addr))
 	  found = tmp->used = 1;
       
       if (!found) 
-	return list;
+	return 0;
     }
   
   /* check whether the interface IP has been added already 
      it is possible to have multiple interfaces with the same address */
-  for (iface = list; iface; iface = iface->next) 
+  for (; iface; iface = iface->next) 
     if (sockaddr_isequal(&iface->addr, addr))
       break;
   if (iface)
-    return list;
+    return 0;
   
-  /* If OK, add it to the head of the list */
-  iface = safe_malloc(sizeof(struct irec));
-  iface->addr = *addr;
-  iface->next = list;
-  return iface;
+  return 1;
 }
 
+/* This does two different jobs: if chainp is non-NULL, it puts
+   a list of all the interfaces allowed by config into *chainp.
+   If chainp is NULL, it returns 1 if addr is  an address of an interface
+   allowed by config and if that address is IPv4, it fills in the
+   netmask of the interface. 
+   
+   If chainp is non-NULL, a zero return indicates a fatal error.
 
-struct irec *enumerate_interfaces(struct daemon *daemon)
+   If chainp is NULL, errors result in a match failure and zero return.
+*/
+int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
+			 union mysockaddr *test_addrp, struct in_addr *netmaskp)
 {
 #if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
   FILE *f;
@@ -100,9 +98,16 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
   int lastlen = 0;
   int len = 20 * sizeof(struct ifreq);
   int fd = socket(PF_INET, SOCK_DGRAM, 0);
+  struct in_addr netmask;
+  int ret = 0;
 
   if (fd == -1)
-    die ("cannot create socket to enumerate interfaces: %s", NULL);
+    return 0;
+
+#ifdef HAVE_IPV6
+  if (test_addrp && test_addrp->sa.sa_family == AF_INET6)
+    test_addrp->in6.sin6_flowinfo = htonl(0);
+#endif
         
   while (1)
      {
@@ -113,7 +118,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
        if (ioctl(fd, SIOCGIFCONF, &ifc) < 0)
 	 {
 	   if (errno != EINVAL || lastlen != 0)
-	     die ("ioctl error while enumerating interfaces: %s", NULL);
+	     goto exit;
 	 }
        else
 	 {
@@ -133,7 +138,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 	 unaligned accesses. */
       int ifr_len = ((struct ifreq *)ptr)->ifr_addr.sa_len + IF_NAMESIZE;
       if (!(ifr = realloc(ifr, ifr_len)))
-	die("cannot allocate buffer", NULL);
+	goto exit;
       
       memcpy(ifr, ptr, ifr_len);
       ptr += ifr_len;
@@ -147,6 +152,9 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 	{
 	  addr.in = *((struct sockaddr_in *) &ifr->ifr_addr);
 	  addr.in.sin_port = htons(daemon->port);
+	  if (ioctl(fd, SIOCGIFNETMASK, ifr) == -1)
+	    goto exit;
+	  netmask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr;
 	}
 #ifdef HAVE_IPV6
       else if (ifr->ifr_addr.sa_family == AF_INET6)
@@ -164,9 +172,25 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 	continue; /* unknown address family */
       
       if (ioctl(fd, SIOCGIFFLAGS, ifr) < 0)
-	die("ioctl error getting interface flags: %m", NULL);
+	goto exit;
 
-      iface = add_iface(daemon, iface, ifr->ifr_name, ifr->ifr_flags & IFF_LOOPBACK, &addr);
+      if (iface_allowed(daemon, iface, ifr->ifr_name, ifr->ifr_flags & IFF_LOOPBACK, &addr))
+	{
+	  if (chainp)
+	    {
+	      struct irec *new = safe_malloc(sizeof(struct irec));
+	      new->addr = addr;
+	      new->netmask = netmask;
+	      new->next = iface;
+	      iface = new;
+	    }
+	  else if (sockaddr_isequal(&addr, test_addrp))
+	    {
+	      *netmaskp = netmask;
+	      ret = 1;
+	      goto exit;
+	    }
+	}
     }
 
 #if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
@@ -198,13 +222,35 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 	  
 	  strncpy(sifr.ifr_name, devname, IF_NAMESIZE);
 	  if (ioctl(fd, SIOCGIFFLAGS, &sifr) < 0)
-	    die("ioctl error getting interface flags: %m", NULL);
-	  iface = add_iface(daemon, iface, sifr.ifr_name, sifr.ifr_flags & IFF_LOOPBACK, &addr);
+	    goto exit;
+	  
+	  if (iface_allowed(daemon, iface, sifr.ifr_name, sifr.ifr_flags & IFF_LOOPBACK, &addr))
+	    {
+	      if (chainp)
+		{
+		  struct irec *new = safe_malloc(sizeof(struct irec));
+		  new->addr = addr;
+		  new->next = iface;
+		  iface = new;
+		}
+	      else if (sockaddr_isequal(&addr, test_addrp))
+		{
+		  ret = 1;
+		  goto exit;
+		}
+	    }
 	}	    
       fclose(f);
     }
 #endif /* LINUX */
-   
+  
+  if (chainp)
+    {
+      *chainp = iface;
+      ret = 1;
+    }
+ 
+ exit:  
   if (buf)
     free(buf);
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -213,7 +259,7 @@ struct irec *enumerate_interfaces(struct daemon *daemon)
 #endif
   close(fd);
 
-  return iface;
+  return ret;
 }
 
 #ifdef HAVE_IPV6
@@ -354,6 +400,7 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
     {
       struct listener *new = safe_malloc(sizeof(struct listener));
       new->family = iface->addr.sa.sa_family;
+      new->iface = iface;
       new->next = listeners;
       if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
 	  (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
