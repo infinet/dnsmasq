@@ -17,11 +17,12 @@ static struct crec *dhcp_inuse, *dhcp_spare, *new_chain;
 static int cache_inserted, cache_live_freed, insert_error;
 static union bigname *big_free;
 static int bignames_left, log_queries, cache_size, hash_size;
-static char *addn_file;
+static int index;
 
 static void cache_free(struct crec *crecp);
 static void cache_unlink(struct crec *crecp);
 static void cache_link(struct crec *crecp);
+static char *record_source(struct hostsfile *add_hosts, int index);
 
 void cache_init(int size, int logq)
 {
@@ -35,7 +36,7 @@ void cache_init(int size, int logq)
   cache_size = size;
   big_free = NULL;
   bignames_left = size/10;
-  addn_file = NULL;
+  index = 0;
 
   cache_inserted = cache_live_freed = 0;
 
@@ -47,6 +48,7 @@ void cache_init(int size, int logq)
 	{
 	  cache_link(crecp);
 	  crecp->flags = 0;
+	  crecp->uid = index++;
 	}
     }
   
@@ -83,7 +85,8 @@ static void cache_free(struct crec *crecp)
 {
   crecp->flags &= ~F_FORWARD;
   crecp->flags &= ~F_REVERSE;
-
+  crecp->uid = index++; /* invalidate CNAMES pointing to this. */
+  
   if (cache_tail)
     cache_tail->next = crecp;
   else
@@ -137,6 +140,22 @@ char *cache_get_name(struct crec *crecp)
   return crecp->name.sname;
 }
 
+static int is_outdated_cname_pointer(struct crec *crecp)
+{
+  struct crec *target = crecp->addr.cname.cache;
+
+  if (!(crecp->flags & F_CNAME))
+    return 0;
+
+  if (!target)
+    return 1;
+
+  if (crecp->addr.cname.uid == target->uid)
+    return 0;
+
+  return 1;
+}
+
 static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsigned short flags)
 {
   /* Scan and remove old entries.
@@ -146,14 +165,15 @@ static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsig
      entries in the whole cache.
      If (flags == 0) remove any expired entries in the whole cache. */
   
-#define F_CACHESTATUS (F_HOSTS | F_DHCP | F_FORWARD | F_REVERSE | F_IPV4 | F_IPV6)
+#define F_CACHESTATUS (F_HOSTS | F_DHCP | F_FORWARD | F_REVERSE | F_IPV4 | F_IPV6 | F_CNAME)
   struct crec *crecp, **up;
-  flags &= (F_FORWARD | F_REVERSE | F_IPV6 | F_IPV4);
+  flags &= (F_FORWARD | F_REVERSE | F_IPV6 | F_IPV4 | F_CNAME);
 
   if (flags & F_FORWARD)
     {
       for (up = hash_bucket(name), crecp = *up; crecp; crecp = crecp->hash_next)
 	if ((!(crecp->flags & F_IMMORTAL) && difftime(now, crecp->ttd) > 0) ||
+	    is_outdated_cname_pointer(crecp) || 
 	    ((flags == (crecp->flags & F_CACHESTATUS)) && hostname_isequal(cache_get_name(crecp), name)))
 	  {
 	    *up = crecp->hash_next;
@@ -177,7 +197,7 @@ static void cache_scan_free(char *name, struct all_addr *addr, time_t now, unsig
       for (i = 0; i < hash_size; i++)
 	for (crecp = hash_table[i], up = &hash_table[i]; crecp; crecp = crecp->hash_next)
 	  if ((!(crecp->flags & F_IMMORTAL) && difftime(now, crecp->ttd) > 0) ||
-	      ((flags == (crecp->flags & F_CACHESTATUS)) && memcmp(&crecp->addr, addr, addrlen) == 0))
+	      ((flags == (crecp->flags & F_CACHESTATUS)) && memcmp(&crecp->addr.addr, addr, addrlen) == 0))
 	    {
 	      *up = crecp->hash_next;
 	      if (!(crecp->flags & (F_HOSTS | F_DHCP)))
@@ -214,8 +234,8 @@ void cache_start_insert(void)
   insert_error = 0;
 }
  
-void cache_insert(char *name, struct all_addr *addr, 
-		  time_t now,  unsigned long ttl, unsigned short flags)
+struct crec *cache_insert(char *name, struct all_addr *addr, 
+			  time_t now,  unsigned long ttl, unsigned short flags)
 {
 #ifdef HAVE_IPV6
   int addrlen = (flags & F_IPV6) ? IN6ADDRSZ : INADDRSZ;
@@ -226,7 +246,7 @@ void cache_insert(char *name, struct all_addr *addr,
   union bigname *big_name = NULL;
   int freed_all = flags & F_REVERSE;
 
-  log_query(flags | F_UPSTREAM, name, addr, 0);
+  log_query(flags | F_UPSTREAM, name, addr, 0, NULL, 0);
 
   /* name is needed as workspace by log_query in this case */
   if ((flags & F_NEG) && (flags & F_REVERSE))
@@ -237,7 +257,7 @@ void cache_insert(char *name, struct all_addr *addr,
 
   /* if previous insertion failed give up now. */
   if (insert_error)
-    return;
+    return NULL;
 
   /* First remove any expired entries and entries for the name/address we
      are currently inserting. */
@@ -248,7 +268,7 @@ void cache_insert(char *name, struct all_addr *addr,
     if (!(new = cache_tail)) /* no entries left - cache is too small, bail */
       {
 	insert_error = 1;
-	return;
+	return NULL;
       }
     
     /* End of LRU list is still in use: if we didn't scan all the hash
@@ -259,7 +279,7 @@ void cache_insert(char *name, struct all_addr *addr,
       { 
 	if (freed_all)
 	  {
-	    cache_scan_free(cache_get_name(new), &new->addr, now, new->flags);
+	    cache_scan_free(cache_get_name(new), &new->addr.addr, now, new->flags);
 	    cache_live_freed++;
 	  }
 	else
@@ -283,7 +303,7 @@ void cache_insert(char *name, struct all_addr *addr,
 		 !(big_name = (union bigname *)malloc(sizeof(union bigname))))
 	  {
 	    insert_error = 1;
-	    return;
+	    return NULL;
 	  }
 	else
 	  bignames_left--;
@@ -306,10 +326,15 @@ void cache_insert(char *name, struct all_addr *addr,
   else
     *cache_get_name(new) = 0;
   if (addr)
-    memcpy(&new->addr, addr, addrlen);
+    memcpy(&new->addr.addr, addr, addrlen);
+  else
+    new->addr.cname.cache = NULL;
+  
   new->ttd = now + (time_t)ttl;
   new->next = new_chain;
   new_chain = new;
+
+  return new;
 }
 
 /* after end of insertion, commit the new entries */
@@ -321,10 +346,16 @@ void cache_end_insert(void)
   while (new_chain)
     { 
       struct crec *tmp = new_chain->next;
-      cache_hash(new_chain);
-      cache_link(new_chain);
+      /* drop CNAMEs which didn't find a target. */
+      if (is_outdated_cname_pointer(new_chain))
+	cache_free(new_chain);
+      else
+	{
+	  cache_hash(new_chain);
+	  cache_link(new_chain);
+	  cache_inserted++;
+	}
       new_chain = tmp;
-      cache_inserted++;
     }
   new_chain = NULL;
 }
@@ -345,7 +376,8 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
 	{
 	  next = crecp->hash_next;
 	  
-	  if ((crecp->flags & F_IMMORTAL) || difftime(now, crecp->ttd) < 0)
+	  if (!is_outdated_cname_pointer(crecp) &&
+	      ((crecp->flags & F_IMMORTAL) || difftime(now, crecp->ttd) < 0))
 	    {
 	      if ((crecp->flags & F_FORWARD) && 
 		  (crecp->flags & prot) &&
@@ -430,7 +462,7 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
 	     {      
 	       if ((crecp->flags & F_REVERSE) && 
 		   (crecp->flags & prot) &&
-		   memcmp(&crecp->addr, addr, addrlen) == 0)
+		   memcmp(&crecp->addr.addr, addr, addrlen) == 0)
 		 {	    
 		   if (crecp->flags & (F_HOSTS | F_DHCP))
 		     {
@@ -461,19 +493,20 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
   if (ans && 
       (ans->flags & F_REVERSE) &&
       (ans->flags & prot) &&
-      memcmp(&ans->addr, addr, addrlen) == 0)
+      memcmp(&ans->addr.addr, addr, addrlen) == 0)
     return ans;
   
   return NULL;
 }
 
-static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, unsigned short flags)
+static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, 
+			    unsigned short flags, int index)
 {
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
 
   /* Remove duplicates in hosts files. */
   if (lookup && (lookup->flags & F_HOSTS) &&
-      memcmp(&lookup->addr, addr, addrlen) == 0)
+      memcmp(&lookup->addr.addr, addr, addrlen) == 0)
     free(cache);
   else
     {
@@ -481,12 +514,13 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
       if (cache_find_by_addr(NULL, addr, 0, flags & (F_IPV4 | F_IPV6)))
 	flags &= ~F_REVERSE;
       cache->flags = flags;
-      memcpy(&cache->addr, addr, addrlen);
+      cache->uid = index;
+      memcpy(&cache->addr.addr, addr, addrlen);
       cache_hash(cache);
     }
 }
 
-static void read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int is_addn)
+static void read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int index)
 {  
   FILE *f = fopen(filename, "r");
   char *line;
@@ -531,9 +565,6 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
       else
 	continue;
 
-     if (is_addn)
-	 flags |= F_ADDN;
-
      while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
        {
 	 struct crec *cache;
@@ -548,12 +579,12 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 		 strcpy(cache->name.sname, token);
 		 strcat(cache->name.sname, ".");
 		 strcat(cache->name.sname, domain_suffix);
-		 add_hosts_entry(cache, &addr, addrlen, flags);
+		 add_hosts_entry(cache, &addr, addrlen, flags, index);
 	       }
 	     if ((cache = malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
 	       {
 		 strcpy(cache->name.sname, token);
-		 add_hosts_entry(cache, &addr, addrlen, flags);
+		 add_hosts_entry(cache, &addr, addrlen, flags, index);
 	       }
 	   }
 	 else
@@ -566,7 +597,7 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
   syslog(LOG_INFO, "read %s - %d addresses", filename, count);
 }
 	    
-void cache_reload(int opts, char *buff, char *domain_suffix, char *addn_hosts)
+void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *addn_hosts)
 {
   struct crec *cache, **up, *tmp;
   int i;
@@ -603,11 +634,11 @@ void cache_reload(int opts, char *buff, char *domain_suffix, char *addn_hosts)
 
   if (!(opts & OPT_NO_HOSTS))
     read_hostsfile(HOSTSFILE, opts, buff, domain_suffix, 0);
-  if (addn_hosts)
+  while (addn_hosts)
     {
-      read_hostsfile(addn_hosts, opts, buff, domain_suffix, 1);
-      addn_file = addn_hosts;
-    }
+      read_hostsfile(addn_hosts->fname, opts, buff, domain_suffix, addn_hosts->index);
+      addn_hosts = addn_hosts->next;
+    }  
 } 
 
 void cache_unhash_dhcp(void)
@@ -633,7 +664,8 @@ void cache_unhash_dhcp(void)
   dhcp_inuse = NULL;
 }
 
-void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd) 
+void cache_add_dhcp_entry(struct daemon *daemon, char *host_name, 
+			  struct in_addr *host_address, time_t ttd) 
 {
   struct crec *crec;
   unsigned short flags =  F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
@@ -645,22 +677,19 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
     {
       if (crec->flags & F_HOSTS)
 	{
-	  if (crec->addr.addr.addr4.s_addr != host_address->s_addr)
-	    syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with an /etc/hosts entry.", host_name);
+	  if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
+	    {
+	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
+	      syslog(LOG_WARNING, 
+		     "not giving name %s to the DHCP lease of %s because"
+		     "the name exists in %s with address %s", 
+		     host_name, inet_ntoa(*host_address),
+		     record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
+	    }
 	  return;
 	}
       else if (!(crec->flags & F_DHCP))
-	{
-	  if (!(crec->flags & F_NEG))
-	    {
-	      syslog(LOG_WARNING, "not naming DHCP lease for %s because it clashes with a cached name.", host_name);
-	      return;
-	    }
-		
-	  /* name may have been searched for before being allocated to DHCP and 
-	     therefore got a negative cache entry. If so delete it and continue. */
-	  cache_scan_free(host_name, NULL, 0, F_IPV4 | F_FORWARD);
-	}
+	cache_scan_free(host_name, NULL, 0, F_IPV4 | F_FORWARD);
     }
  
   if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, F_IPV4)))
@@ -684,7 +713,7 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 	crec->flags |= F_IMMORTAL;
       else
 	crec->ttd = ttd;
-      crec->addr.addr.addr4 = *host_address;
+      crec->addr.addr.addr.addr4 = *host_address;
       crec->name.namep = host_name;
       crec->prev = dhcp_inuse;
       dhcp_inuse = crec;
@@ -694,12 +723,12 @@ void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t 
 
 
 
-void dump_cache(int debug, int cache_size)
+void dump_cache(struct daemon *daemon)
 {
   syslog(LOG_INFO, "cache size %d, %d/%d cache insertions re-used unexpired cache entries.", 
-	 cache_size, cache_live_freed, cache_inserted); 
+	 daemon->cachesize, cache_live_freed, cache_inserted); 
   
-  if (debug)
+  if (daemon->options & (OPT_DEBUG | OPT_LOG))
     {
       struct crec *cache ;
       char addrbuff[ADDRSTRLEN];
@@ -711,14 +740,21 @@ void dump_cache(int debug, int cache_size)
 	  {
 	    if ((cache->flags & F_NEG) && (cache->flags & F_FORWARD))
 	      addrbuff[0] = 0;
+	    else if (cache->flags & F_CNAME) 
+	      {
+		addrbuff[0] = 0;
+		addrbuff[ADDRSTRLEN-1] = 0;
+		if (!is_outdated_cname_pointer(cache))
+		  strncpy(addrbuff, cache_get_name(cache->addr.cname.cache), ADDRSTRLEN);
+	      }
 #ifdef HAVE_IPV6
 	    else if (cache->flags & F_IPV4)
-	      inet_ntop(AF_INET, &cache->addr, addrbuff, ADDRSTRLEN);
+	      inet_ntop(AF_INET, &cache->addr.addr, addrbuff, ADDRSTRLEN);
 	    else if (cache->flags & F_IPV6)
-	      inet_ntop(AF_INET6, &cache->addr, addrbuff, ADDRSTRLEN);
+	      inet_ntop(AF_INET6, &cache->addr.addr, addrbuff, ADDRSTRLEN);
 #else
             else 
-	      strcpy(addrbuff, inet_ntoa(cache->addr.addr.addr4));
+	      strcpy(addrbuff, inet_ntoa(cache->addr.addr.addr.addr4));
 #endif
 	    syslog(LOG_DEBUG, 
 #ifdef HAVE_BROKEN_RTC
@@ -729,6 +765,7 @@ void dump_cache(int debug, int cache_size)
 		   cache_get_name(cache), addrbuff,
 		   cache->flags & F_IPV4 ? "4" : "",
 		   cache->flags & F_IPV6 ? "6" : "",
+		   cache->flags & F_CNAME ? "C" : "",
 		   cache->flags & F_FORWARD ? "F" : " ",
 		   cache->flags & F_REVERSE ? "R" : " ",
 		   cache->flags & F_IMMORTAL ? "I" : " ",
@@ -736,19 +773,34 @@ void dump_cache(int debug, int cache_size)
 		   cache->flags & F_NEG ? "N" : " ",
 		   cache->flags & F_NXDOMAIN ? "X" : " ",
 		   cache->flags & F_HOSTS ? "H" : " ",
-		   cache->flags & F_ADDN ? "A" : " ",
 #ifdef HAVE_BROKEN_RTC
-		   cache->flags & F_IMMORTAL ? 0: (unsigned long)cache->ttd) ;
+		   cache->flags & F_IMMORTAL ? 0: (unsigned long)cache->ttd
 #else
-		   cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd))) ;
+	           cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd)) 
 #endif
-	  }
-     }
+		   );
+	  }  
+    } 
 }
 
+static char *record_source(struct hostsfile *addn_hosts, int index)
+{
+  char *source = HOSTSFILE;
+  while (addn_hosts)
+    { 
+      if (addn_hosts->index == index)
+	{
+	  source = addn_hosts->fname;
+	  break;
+	}
+      addn_hosts = addn_hosts->next;
+    }
 
+  return source;
+}
 
-void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned short type)
+void log_query(unsigned short flags, char *name, struct all_addr *addr, 
+	       unsigned short type, struct hostsfile *addn_hosts, int index)
 {
   char *source;
   char *verb = "is";
@@ -759,7 +811,7 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned
     return;
   
   strcpy(types, " ");
-
+  
   if (flags & F_NEG)
     {
       if (flags & F_REVERSE)
@@ -780,6 +832,8 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned
       else if (flags & F_IPV6)
 	strcat(addrbuff, "-IPv6");
     }
+  else if (flags & F_CNAME)
+    strcpy(addrbuff, "<CNAME>");
   else
 #ifdef HAVE_IPV6
     inet_ntop(flags & F_IPV4 ? AF_INET : AF_INET6,
@@ -787,17 +841,12 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned
 #else
     strcpy(addrbuff, inet_ntoa(addr->addr.addr4));  
 #endif
-  
+    
   if (flags & F_DHCP)
     source = "DHCP";
   else if (flags & F_HOSTS)
-    {
-      if (flags & F_ADDN)
-	source = addn_file;
-      else
-	source = HOSTSFILE;
-    }
-   else if (flags & F_CONFIG)
+    source = record_source(addn_hosts, index);
+  else if (flags & F_CONFIG)
     source = "config";
   else if (flags & F_UPSTREAM)
     source = "reply";

@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
+#define OPTSTRING "ZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -74,6 +74,7 @@ static struct myoption opts[] = {
   {"dhcp-userclass", 1, 0, 'j'},
   {"edns-packet-max", 1, 0, 'P'},
   {"keep-in-foreground", 0, 0, 'k'},
+  {"dhcp-authoritative", 0, 0, 'K'},
   {0, 0, 0, 0}
 };
 
@@ -91,6 +92,7 @@ static struct optflags optmap[] = {
   { 'n', OPT_NO_POLL },
   { 'd', OPT_DEBUG },
   { 'k', OPT_NO_FORK },
+  { 'K', OPT_AUTHORITATIVE },
   { 'o', OPT_ORDER },
   { 'R', OPT_NO_RESOLV },
   { 'E', OPT_EXPAND },
@@ -127,6 +129,7 @@ static char *usage =
 "-I, --except-interface=int          Specify interface(s) NOT to listen on.\n"
 "-j, --dhcp-userclass=<id>,<class>   Map DHCP user class to option set.\n"
 "-k, --keep-in-foreground            Do NOT fork into the background, do NOT run in debug mode.\n"
+"-K, --dhcp-authoritative            Assume we are the only DHCP server on the local network.\n"
 "-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
 "-L, --localmx                       Return MX records for local hosts.\n"
 "-m, --mx-host=host_name             Specify the MX name to reply to.\n"
@@ -165,7 +168,7 @@ struct daemon *read_opts (int argc, char **argv)
   int option = 0, i;
   FILE *file_save = NULL, *f = NULL;
   char *file_name_save = NULL, *conffile = CONFFILE;
-  int conffile_set = 0;
+  int hosts_index = 1, conffile_set = 0;
   int line_save = 0, lineno = 0;
   opterr = 0;
   
@@ -398,15 +401,15 @@ struct daemon *read_opts (int argc, char **argv)
 	      break;
 	      
 	    case 'H':
-	      if (daemon->addn_hosts)
-		{
-		  option = '?';
-		  problem = "only one addn hosts file allowed";
-		}
-	      else
-		daemon->addn_hosts = safe_string_alloc(optarg);
-	      break;
-	      
+	      {
+		struct hostsfile *new = safe_malloc(sizeof(struct hostsfile));
+		new->fname = safe_string_alloc(optarg);
+		new->index = hosts_index++;
+		new->next = daemon->addn_hosts;
+		daemon->addn_hosts = new;
+		break;
+	      }
+
 	    case 's':
 	      if (strcmp (optarg, "#") == 0)
 		daemon->options |= OPT_RESOLV_DOMAIN;
@@ -1009,10 +1012,11 @@ struct daemon *read_opts (int argc, char **argv)
 		new->len = 0;
 		new->is_addr = 0;
 		new->netid = NULL;
+		new->val = NULL;
 				
 		if ((comma = strchr(optarg, ',')))
 		  {
-		    *comma = 0;
+		    *comma++ = 0;
 		
 		    for (cp = optarg; *cp; cp++)
 		      if (!(*cp == ' ' || (*cp >='0' && *cp <= '9')))
@@ -1021,9 +1025,9 @@ struct daemon *read_opts (int argc, char **argv)
 		    if (*cp)
 		      {
 			new->netid = safe_string_alloc(optarg);
-			optarg = comma + 1;
+			optarg = comma;
 			if ((comma = strchr(optarg, ',')))
-			  *comma = 0;
+			  *comma++ = 0;
 		      }
 		  }
 		
@@ -1031,118 +1035,190 @@ struct daemon *read_opts (int argc, char **argv)
 		  {
 		    option = '?';
 		    problem = "bad dhcp-opt";
-		    if (new->netid)
-		      free(new->netid);
-		    free(new);
-		    break;
 		  }
-		
-		daemon->dhcp_opts = new;
-		
-		if (!comma)
-		  break;
-		
-		/* characterise the value */
-		is_addr = is_hex = is_dec = 1;
-		addrs = digs = 1;
-		for (cp = comma+1; *cp; cp++)
-		  if (*cp == ',')
-		    {
-		      addrs++;
-		      is_dec = is_hex = 0;
-		    }
-		  else if (*cp == ':')
-		    {
-		      digs++;
-		      is_dec = is_addr = 0;
-		    }
-		  else if (*cp == '.')
-		    is_dec = is_hex = 0;
-		  else if (!(*cp >='0' && *cp <= '9'))
-		      {
-			is_dec = is_addr = 0;
-			if (!((*cp >='A' && *cp <= 'F') ||
-			      (*cp >='a' && *cp <= 'f')))
-			  is_hex = 0;
-		      }
-		
-		if (is_hex && digs > 1)
+		else if (comma && new->opt == 119)
 		  {
-		    char *p = comma+1, *q, *r;
-		    new->len = digs;
-		    q = new->val = safe_malloc(new->len);
-		    while (*p)
+		    /* dns search, RFC 3397 */
+		    unsigned char *q, *r, *tail;
+		    unsigned char *p = NULL;
+		    int newlen, len = 0;
+		    
+		    optarg = comma;
+		    if ((comma = strchr(optarg, ',')))
+		      *(comma++) = 0;
+
+		    while (optarg && *optarg)
 		      {
-			for (r = p; *r && *r != ':'; r++);
-			if (*r)
+			if (!canonicalise(optarg))
 			  {
-			    if (r != p)
+			    option = '?';
+			    problem = "bad dhcp-search-opt";
+			    break;
+			  }
+			
+			if (!(r = realloc(p, len + strlen(optarg) + 2)))
+			  die("could not get memory", NULL);
+			p = memmove(r, p, len);
+			
+			q = p + len;
+			
+			/* add string on the end in RFC1035 format */
+			while (*optarg) 
+			  {
+			    char *cp = q++;
+			    int j;
+			    for (j = 0; *optarg && (*optarg != '.'); optarg++, j++)
+			      *q++ = *optarg;
+			    *cp = j;
+			    if (*optarg)
+			      optarg++;
+			  }
+			*q++ = 0;
+			
+			/* Now tail-compress using earlier names. */
+			newlen = q - p;
+			for (tail = p + len; *tail; tail += (*tail) + 1)
+			  for (r = p; r - p < len; r += (*r) + 1)
+			    if (strcmp(r, tail) == 0)
 			      {
-				*r = 0;
-				*(q++) = strtol(p, NULL, 16);
+				PUTSHORT((r - p) | 0xc000, tail); 
+				newlen = tail - p;
+				goto end;
 			      }
-			    p = r+1;
+		      end:
+			len = newlen;
+		    
+			optarg = comma;
+			if (optarg && (comma = strchr(optarg, ',')))
+			  *(comma++) = 0;
+		      }
+
+		    new->len = len;
+		    new->val = p;
+		  }
+		else if (comma)
+		  {
+		    /* not option 119 */
+		    /* characterise the value */
+		    is_addr = is_hex = is_dec = 1;
+		    addrs = digs = 1;
+		    for (cp = comma; *cp; cp++)
+		      if (*cp == ',')
+			{
+			  addrs++;
+			  is_dec = is_hex = 0;
+			}
+		      else if (*cp == ':')
+			{
+			  digs++;
+			  is_dec = is_addr = 0;
+			}
+		      else if (*cp == '.')
+			is_dec = is_hex = 0;
+		      else if (!(*cp >='0' && *cp <= '9'))
+			{
+			  is_dec = is_addr = 0;
+			  if (!((*cp >='A' && *cp <= 'F') ||
+				(*cp >='a' && *cp <= 'f')))
+			    is_hex = 0;
+			}
+		
+		    if (is_hex && digs > 1)
+		      {
+			char *p = comma, *q, *r;
+			new->len = digs;
+			q = new->val = safe_malloc(new->len);
+			while (*p)
+			  {
+			    for (r = p; *r && *r != ':'; r++);
+			    if (*r)
+			      {
+				if (r != p)
+				  {
+				    *r = 0;
+				    *(q++) = strtol(p, NULL, 16);
+				  }
+				p = r+1;
+			      }
+			    else
+			      {
+				if (*p)
+				  *(q++) = strtol(p, NULL, 16);
+				break;
+			      }
+			  }
+		      }
+		    else if (is_dec)
+		      {
+			/* Given that we don't know the length,
+			   this appaling hack is the best available */
+			unsigned int val = atoi(comma);
+			if (val < 256)
+			  {
+			    new->len = 1;
+			    new->val = safe_malloc(1);
+			    *(new->val) = val;
+			  }
+			else if (val < 65536)
+			  {
+			    new->len = 2;
+			    new->val = safe_malloc(2);
+			    *(new->val) = val>>8;
+			    *(new->val+1) = val;
 			  }
 			else
 			  {
-			    if (*p)
-			      *(q++) = strtol(p, NULL, 16);
-			    break;
+			    new->len = 4;
+			    new->val = safe_malloc(4);
+			    *(new->val) = val>>24;
+			    *(new->val+1) = val>>16;
+			    *(new->val+2) = val>>8;
+			    *(new->val+3) = val;
 			  }
 		      }
-		  }
-		else if (is_dec)
-		  {
-		    /* Given that we don't know the length,
-		       this appaling hack is the best available */
-		    unsigned int val = atoi(comma+1);
-		    if (val < 256)
+		    else if (is_addr)	
 		      {
-			new->len = 1;
-			new->val = safe_malloc(1);
-			*(new->val) = val;
-		      }
-		    else if (val < 65536)
-		      {
-			new->len = 2;
-			new->val = safe_malloc(2);
-			*(new->val) = val>>8;
-			*(new->val+1) = val;
+			struct in_addr in;
+			unsigned char *op;
+			new->len = INADDRSZ * addrs;
+			new->val = op = safe_malloc(new->len);
+			new->is_addr = 1;
+			while (addrs--) 
+			  {
+			    cp = comma;
+			    if ((comma = strchr(cp, ',')))
+			      *comma++ = 0;
+			    in.s_addr = inet_addr(cp);
+			    memcpy(op, &in, INADDRSZ);
+			    op += INADDRSZ;
+			  }
 		      }
 		    else
 		      {
-			new->len = 4;
-			new->val = safe_malloc(4);
-			*(new->val) = val>>24;
-			*(new->val+1) = val>>16;
-			*(new->val+2) = val>>8;
-			*(new->val+3) = val;
+			/* text arg */
+			new->len = strlen(comma);
+			new->val = safe_malloc(new->len);
+			memcpy(new->val, comma, new->len);
 		      }
 		  }
-		else if (is_addr)	
+
+		if (new->len > 256)
 		  {
-		    struct in_addr in;
-		    unsigned char *op;
-		    new->len = INADDRSZ * addrs;
-		    new->val = op = safe_malloc(new->len);
-		    new->is_addr = 1;
-		    while (addrs--) 
-		      {
-			cp = comma;
-			if ((comma = strchr(cp+1, ',')))
-			  *comma = 0;
-			in.s_addr = inet_addr(cp+1);
-			memcpy(op, &in, INADDRSZ);
-			op += INADDRSZ;
-		      }
+		    option = '?';
+		    problem = "dhcp-option too long";
+		  }
+
+		if (option == '?')
+		  {
+		    if (new->netid)
+		      free(new->netid);
+		    if (new->val)
+		      free(new->val);
+		    free(new);
 		  }
 		else
-		  {
-		    /* text arg */
-		    new->len = strlen(comma+1);
-		    new->val = safe_malloc(new->len);
-		    memcpy(new->val, comma+1, new->len);
-		  }
+		  daemon->dhcp_opts = new;
+
 		break;
 	      }
 

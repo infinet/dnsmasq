@@ -19,7 +19,8 @@ static struct frec *frec_list;
 static struct frec *get_new_frec(time_t now);
 static struct frec *lookup_frec(unsigned short id);
 static struct frec *lookup_frec_by_sender(unsigned short id,
-					  union mysockaddr *addr);
+					  union mysockaddr *addr,
+					  unsigned int crc);
 static unsigned short get_id(void);
 
 /* May be called more than once. */
@@ -104,13 +105,19 @@ static void send_from(int fd, int nowild, char *packet, int len,
     }
 #endif
   
-  /* certain Linux kernels seem to object to setting the source address in the IPv6 stack
-     by returning EINVAL from sendmsg. In that case, try again without setting the
-     source address, since it will nearly alway be correct anyway.  IPv6 stinks. */
-  if (sendmsg(fd, &msg, 0) == -1 && errno == EINVAL)
+ retry:
+  if (sendmsg(fd, &msg, 0) == -1)
     {
-      msg.msg_controllen = 0;
-      sendmsg(fd, &msg, 0);
+      /* certain Linux kernels seem to object to setting the source address in the IPv6 stack
+	 by returning EINVAL from sendmsg. In that case, try again without setting the
+	 source address, since it will nearly alway be correct anyway.  IPv6 stinks. */
+      if (errno == EINVAL && msg.msg_controllen)
+	{
+	  msg.msg_controllen = 0;
+	  goto retry;
+	}
+      if (retry_send())
+	goto retry;
     }
 }
           
@@ -185,9 +192,9 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
   if (flags & ~(F_NOERR | F_NXDOMAIN)) /* flags set here means a literal found */
     {
       if (flags & F_QUERY)
-	log_query(F_CONFIG | F_FORWARD | F_NEG, qdomain, NULL, 0);
+	log_query(F_CONFIG | F_FORWARD | F_NEG, qdomain, NULL, 0, NULL, 0);
       else
-	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp, 0);
+	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp, 0, NULL, 0);
     }
   else if (qtype && (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.'))
     flags = F_NXDOMAIN;
@@ -196,7 +203,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
     flags = F_NOERR;
 
   if (flags == F_NXDOMAIN || flags == F_NOERR)
-    log_query(F_CONFIG | F_FORWARD | F_NEG | qtype | (flags & F_NXDOMAIN), qdomain, NULL, 0);
+    log_query(F_CONFIG | F_FORWARD | F_NEG | qtype | (flags & F_NXDOMAIN), qdomain, NULL, 0, NULL, 0);
 
   return  flags;
 }
@@ -213,11 +220,12 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   unsigned short flags = 0;
   unsigned short gotname = extract_request(header, (unsigned int)plen, daemon->namebuff, NULL);
   struct server *start = NULL;
+  unsigned int crc = questions_crc(header,(unsigned int)plen);
   
   /* may be  recursion not speced or no servers available. */
   if (!header->rd || !daemon->servers)
     forward = NULL;
-  else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr)))
+  else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
     {
       /* retry on existing query, send to all available servers  */
       domain = forward->sentto->domain;
@@ -260,6 +268,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	  forward->new_id = get_id();
 	  forward->fd = udpfd;
 	  forward->orig_id = ntohs(header->id);
+	  forward->crc = crc;
 	  header->id = htons(forward->new_id);
 	}
     }
@@ -280,22 +289,29 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
 	     must be NULL also. */
 	  
 	  if (type == (start->flags & SERV_TYPE) &&
-	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)))
+	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)) &&
+	      !(start->flags & SERV_LITERAL_ADDRESS))
 	    {
-	      if (!(start->flags & SERV_LITERAL_ADDRESS) &&
-		  sendto(start->sfd->fd, (char *)header, plen, 0,
+	      if (sendto(start->sfd->fd, (char *)header, plen, 0,
 			 &start->addr.sa,
-			 sa_len(&start->addr)) != -1)
+			 sa_len(&start->addr)) == -1)
+		{
+		  if (retry_send())
+		    continue;
+		}
+	      else
 		{
 		  if (!gotname)
 		    strcpy(daemon->namebuff, "query");
 		  if (start->addr.sa.sa_family == AF_INET)
 		    log_query(F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&start->addr.in.sin_addr, 0); 
+			      (struct all_addr *)&start->addr.in.sin_addr, 0,
+			      NULL, 0); 
 #ifdef HAVE_IPV6
 		  else
 		    log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&start->addr.in6.sin6_addr, 0);
+			      (struct all_addr *)&start->addr.in6.sin6_addr, 0,
+			      NULL, 0);
 #endif 
 		  forwarded = 1;
 		  forward->sentto = start;
@@ -330,7 +346,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
 			 union mysockaddr *serveraddr, unsigned int n)
 {
   unsigned char *pheader, *sizep;
-  unsigned int plen;
+  unsigned int plen, munged = 0;
    
   /* If upstream is advertising a larger UDP packet size
 	 than we allow, trim it so that we don't get overlarge
@@ -365,45 +381,40 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
   if (header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
     return n;
   
-  if (header->rcode == NOERROR && ntohs(header->ancount) != 0)
+  if (daemon->bogus_addr && header->rcode != NXDOMAIN &&
+      check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
-      if (!(daemon->bogus_addr && 
-	    check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now)))
-	extract_addresses(header, n, daemon->namebuff, now, daemon->doctors);
+      munged = 1;
+      header->rcode = NXDOMAIN;
+      header->aa = 0;
     }
-  else
+  else 
     {
-      unsigned short flags = F_NEG;
-      int munged = 0;
-
-      if (header->rcode == NXDOMAIN)
+      if (header->rcode == NXDOMAIN && 
+	  extract_request(header, n, daemon->namebuff, NULL) &&
+	  check_for_local_domain(daemon->namebuff, now, daemon->mxnames))
 	{
 	  /* if we forwarded a query for a locally known name (because it was for 
 	     an unknown type) and the answer is NXDOMAIN, convert that to NODATA,
 	     since we know that the domain exists, even if upstream doesn't */
-	  if (extract_request(header, n, daemon->namebuff, NULL) &&
-	      check_for_local_domain(daemon->namebuff, now, daemon->mxnames))
-	    {
-	      munged = 1;
-	      header->rcode = NOERROR;
-	    }
-	  else
-	    flags |= F_NXDOMAIN;
+	  munged = 1;
+	  header->aa = 1;
+	  header->rcode = NOERROR;
 	}
-      
-      if (!(daemon->options & OPT_NO_NEG))
-	extract_neg_addrs(header, n, daemon->namebuff, now, flags);
-	  
-      /* do this after extract_neg_addrs. Ensure NODATA reply and remove
-	 nameserver info. */
-      if (munged)
-	{
-	  header->ancount = htons(0);
-	  header->nscount = htons(0);
-	  header->arcount = htons(0);
-	}
+  
+      extract_addresses(header, n, daemon->namebuff, now, daemon);
     }
-
+  
+  /* do this after extract_addresses. Ensure NODATA reply and remove
+     nameserver info. */
+  
+  if (munged)
+    {
+      header->ancount = htons(0);
+      header->nscount = htons(0);
+      header->arcount = htons(0);
+    }
+  
   /* the bogus-nxdomain stuff, doctor and NXDOMAIN->NODATA munging can all elide
      sections of the packet. Find the new length here and put back pseudoheader
      if it was removed. */
@@ -429,7 +440,9 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 #endif
   
   header = (HEADER *)daemon->packet;
-  if (n >= (int)sizeof(HEADER) && header->qr && (forward = lookup_frec(ntohs(header->id))))
+  forward = lookup_frec(ntohs(header->id));
+  
+  if (n >= (int)sizeof(HEADER) && header->qr && forward)
     {
       /* find good server by address if possible, otherwise assume the last one we sent to */ 
       if ((forward->sentto->flags & SERV_TYPE) == 0)
@@ -448,7 +461,8 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
       if ((n = process_reply(daemon, header, now, &serveraddr, (unsigned int)n)))
 	{
 	  header->id = htons(forward->orig_id);
-	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
+	  header->ra = 1; /* recursion if available */
+send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
 		    &forward->source, &forward->dest, forward->iface);
 	  forward->new_id = 0; /* cancel */
 	}
@@ -593,11 +607,11 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
     {
       if (listen->family == AF_INET) 
 	log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 
-		  (struct all_addr *)&source_addr.in.sin_addr, type);
+		  (struct all_addr *)&source_addr.in.sin_addr, type, NULL, 0);
 #ifdef HAVE_IPV6
       else
 	log_query(F_QUERY | F_IPV6 | F_FORWARD, daemon->namebuff, 
-		  (struct all_addr *)&source_addr.in6.sin6_addr, type);
+		  (struct all_addr *)&source_addr.in6.sin6_addr, type, NULL, 0);
 #endif
     }
 
@@ -625,16 +639,8 @@ static int read_write(int fd, char *packet, int size, int rw)
 	return 0;
       else if (n == -1)
 	{
-	  if (errno == EINTR)
+	  if (retry_send())
 	    goto retry;
-	  else if (errno == EAGAIN)
-	    {
-	      struct timespec waiter;
-	      waiter.tv_sec = 0;
-	      waiter.tv_nsec = 10000;
-	      nanosleep(&waiter, NULL);
-	      goto retry;
-	    }
 	  else
 	    return 0;
 	}
@@ -678,11 +684,11 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 	    {
 	      if (peer_addr.sa.sa_family == AF_INET) 
 		log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 
-			  (struct all_addr *)&peer_addr.in.sin_addr, qtype);
+			  (struct all_addr *)&peer_addr.in.sin_addr, qtype, NULL, 0);
 #ifdef HAVE_IPV6
 	      else
 		log_query(F_QUERY | F_IPV6 | F_FORWARD, daemon->namebuff, 
-			  (struct all_addr *)&peer_addr.in6.sin6_addr, qtype);
+			  (struct all_addr *)&peer_addr.in6.sin6_addr, qtype, NULL, 0);
 #endif
 	    }
 	}
@@ -763,11 +769,11 @@ char *tcp_request(struct daemon *daemon, int confd, time_t now)
 		    strcpy(daemon->namebuff, "query");
 		  if (last_server->addr.sa.sa_family == AF_INET)
 		    log_query(F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&last_server->addr.in.sin_addr, 0); 
+			      (struct all_addr *)&last_server->addr.in.sin_addr, 0, NULL, 0); 
 #ifdef HAVE_IPV6
 		  else
 		    log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
-			      (struct all_addr *)&last_server->addr.in6.sin6_addr, 0);
+			      (struct all_addr *)&last_server->addr.in6.sin6_addr, 0, NULL, 0);
 #endif 
 		  
 		  /* There's no point in updating the cache, since this process will exit and
@@ -857,13 +863,15 @@ static struct frec *lookup_frec(unsigned short id)
 }
 
 static struct frec *lookup_frec_by_sender(unsigned short id,
-					  union mysockaddr *addr)
+					  union mysockaddr *addr,
+					  unsigned int crc)
 {
   struct frec *f;
   
   for(f = frec_list; f; f = f->next)
     if (f->new_id &&
 	f->orig_id == id && 
+	f->crc == crc &&
 	sockaddr_isequal(&f->source, addr))
       return f;
    

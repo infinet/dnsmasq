@@ -1213,4 +1213,43 @@ version 2.15
 	    Improve error messages when there are problems with
 	    configuration.
 
+version 2.16
+	    Fixed typo in OpenBSD-only code which stopped compilation
+            under that OS. Chris Weinhaupl gets credit for reporting 
+            this.
+
+	    Added dhcp-authoritative option which restores non-RFC 
+	    compliant but desirable behaviour of pre-2.14 versions and
+            avoids long timeouts while DHCP clients try to renew leases
+            which are unknown to dnsmasq. Thanks to John Mastwijk for 
+	    help with this.	 
+
+	    Added support to the DHCP option code to allow RFC-3397 
+	    domain search DHCP option (119) to be sent.
+
+            Set NONBLOCK on all listening sockets to workaround non-POSIX
+            compliance in Linux 2.4 and 2.6. This fixes rare hangs which
+            occured when corrupted packets were received. Thanks to
+	    Joris van Rantwijk for chasing that down.
  
+	    Updated config.h for NetBSD. Thanks to Martin Lambers.
+
+            Do a better job of distinguishing between retransmissions
+	    and new queries when forwarding. This fixes a bug
+	    triggered by the polipo web cache which sends A and AAAA
+	    queries both with the same transaction-ID. Thanks to 
+	    Joachim Berdal Haga and Juliusz Chroboczek for help with this.
+
+	    Rewrote cache code to store CNAMES, rather then chasing
+	    them before storage. This eliminates bad situations when
+	    clients get inconsistent views depending on if data comes
+	    from the cache.
+
+	    Allow for more than one --addn-hosts flag.
+
+	    Clarify logged message when a DHCP lease clashes with an
+	    /etc/hosts entry. Thanks to Mat Swift for the suggestion.
+
+	    Added dynamic-dnsmasq from Peter Willis to the contrib
+	    section.
+

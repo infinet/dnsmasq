@@ -167,7 +167,7 @@ void lease_update_file(int force, time_t now)
     }
 }
 
-void lease_update_dns(void)
+void lease_update_dns(struct daemon *daemon)
 {
   struct dhcp_lease *lease;
   
@@ -177,8 +177,8 @@ void lease_update_dns(void)
       
       for (lease = leases; lease; lease = lease->next)
 	{
-	  cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
-	  cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires);
+	  cache_add_dhcp_entry(daemon, lease->fqdn, &lease->addr, lease->expires);
+	  cache_add_dhcp_entry(daemon, lease->hostname, &lease->addr, lease->expires);
 	}
       
       dns_dirty = 0;

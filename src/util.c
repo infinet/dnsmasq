@@ -251,3 +251,20 @@ int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
 {
   return (a.s_addr & mask.s_addr) == (b.s_addr & mask.s_addr);
 } 
+
+int retry_send(void)
+{
+   struct timespec waiter;
+   if (errno == EAGAIN)
+     {
+       waiter.tv_sec = 0;
+       waiter.tv_nsec = 10000;
+       nanosleep(&waiter, NULL);
+       return 1;
+     }
+   
+   if (errno == EINTR)
+     return 1;
+
+   return 0;
+}

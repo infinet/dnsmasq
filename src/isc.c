@@ -55,8 +55,9 @@ static int next_token (char *token, int buffsize, FILE * fp)
   return count ? 1 : 0;
 }
 
-void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
+void load_dhcp(struct daemon *daemon, time_t now)
 {
+  char *hostname = daemon->namebuff;
   char token[MAXTOK], *dot;
   struct in_addr host_address;
   time_t ttd, tts;
@@ -64,10 +65,10 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
   struct isc_lease *lease, *tmp, **up;
   struct stat statbuf;
 
-  if (stat(file, &statbuf) == -1)
+  if (stat(daemon->lease_file, &statbuf) == -1)
     {
       if (!logged_lease)
-	syslog(LOG_WARNING, "failed to access %s: %m", file);
+	syslog(LOG_WARNING, "failed to access %s: %m", daemon->lease_file);
       logged_lease = 1;
       return;
     }
@@ -81,13 +82,13 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
   lease_file_size = statbuf.st_size;
   lease_file_inode = statbuf.st_ino;
   
-  if (!(fp = fopen (file, "r")))
+  if (!(fp = fopen (daemon->lease_file, "r")))
     {
-      syslog (LOG_ERR, "failed to load %s: %m", file);
+      syslog (LOG_ERR, "failed to load %s: %m", daemon->lease_file);
       return;
     }
   
-  syslog (LOG_INFO, "reading %s", file);
+  syslog (LOG_INFO, "reading %s", daemon->lease_file);
 
   while ((next_token(token, MAXTOK, fp)))
     {
@@ -109,7 +110,7 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 			    if (!canonicalise(hostname))
 			      {
 				*hostname = 0;
-				syslog(LOG_ERR, "bad name in %s", file); 
+				syslog(LOG_ERR, "bad name in %s", daemon->lease_file); 
 			      }
 			}
                       else if ((strcmp(token, "ends") == 0) ||
@@ -168,7 +169,7 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 
 		  if ((dot = strchr(hostname, '.')))
 		    { 
-		      if (!suffix || hostname_isequal(dot+1, suffix))
+		      if (!daemon->domain_suffix || hostname_isequal(dot+1, daemon->domain_suffix))
 			{
 			  syslog(LOG_WARNING, 
 				 "Ignoring DHCP lease for %s because it has an illegal domain part", 
@@ -198,11 +199,12 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 			{
 			  leases = lease;
 			  strcpy(lease->name, hostname);
-			  if (suffix && (lease->fqdn = malloc(strlen(hostname) + strlen(suffix) + 2)))
+			  if (daemon->domain_suffix && 
+			      (lease->fqdn = malloc(strlen(hostname) + strlen(daemon->domain_suffix) + 2)))
 			    {
 			      strcpy(lease->fqdn, hostname);
 			      strcat(lease->fqdn, ".");
-			      strcat(lease->fqdn, suffix);
+			      strcat(lease->fqdn, daemon->domain_suffix);
 			    }
 			}
 		    }
@@ -235,8 +237,8 @@ void load_dhcp(char *file, char *suffix, time_t now, char *hostname)
 
   for (lease = leases; lease; lease = lease->next)
     {
-      cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
-      cache_add_dhcp_entry(lease->name, &lease->addr, lease->expires);
+      cache_add_dhcp_entry(daemon, lease->fqdn, &lease->addr, lease->expires);
+      cache_add_dhcp_entry(daemon, lease->name, &lease->addr, lease->expires);
     }
 }
 

@@ -95,6 +95,7 @@
 #define OPT_ETHERS         16384
 #define OPT_RESOLV_DOMAIN  32768
 #define OPT_NO_FORK        65536
+#define OPT_AUTHORITATIVE  131072
 
 struct all_addr {
   union {
@@ -129,7 +130,14 @@ union bigname {
 struct crec { 
   struct crec *next, *prev, *hash_next;
   time_t ttd; /* time to die */
-  struct all_addr addr;
+  int uid; 
+  union {
+    struct all_addr addr;
+    struct {
+      struct crec *cache;
+      int uid;
+    } cname;
+  } addr;
   unsigned short flags;
   union {
     char sname[SMALLDNAME];
@@ -139,7 +147,7 @@ struct crec {
 };
 
 #define F_IMMORTAL  1
-#define F_CONFIG   2
+#define F_CONFIG    2
 #define F_REVERSE   4
 #define F_FORWARD   8
 #define F_DHCP      16 
@@ -152,7 +160,7 @@ struct crec {
 #define F_SERVER    2048
 #define F_NXDOMAIN  4096
 #define F_QUERY     8192
-#define F_ADDN      16384
+#define F_CNAME     16384
 #define F_NOERR     32768
 
 /* struct sockaddr is not large enough to hold any address,
@@ -227,6 +235,13 @@ struct resolvc {
   char *name;
 };
 
+/* adn-hosts parms from command-line */
+struct hostsfile {
+  struct hostsfile *next;
+  char *fname;
+  int index; /* matches to cache entries fro logging */
+};
+
 struct frec {
   union mysockaddr source;
   struct all_addr dest;
@@ -234,6 +249,7 @@ struct frec {
   unsigned int iface;
   unsigned short orig_id, new_id;
   int fd;
+  unsigned int crc;
   time_t time;
   struct frec *next;
 };
@@ -340,7 +356,7 @@ struct daemon {
   int cachesize;
   int port, query_port;
   unsigned long local_ttl;
-  char *addn_hosts;
+  struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp;
   struct dhcp_config *dhcp_conf;
   struct dhcp_opt *dhcp_opts;
@@ -369,7 +385,8 @@ struct daemon {
 
 /* cache.c */
 void cache_init(int cachesize, int log);
-void log_query(unsigned short flags, char *name, struct all_addr *addr, unsigned short type);
+void log_query(unsigned short flags, char *name, struct all_addr *addr, 
+	       unsigned short type, struct hostsfile *addn_hosts, int index);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
 				unsigned short prot);
@@ -377,12 +394,12 @@ struct crec *cache_find_by_name(struct crec *crecp,
 				char *name, time_t now, unsigned short  prot);
 void cache_end_insert(void);
 void cache_start_insert(void);
-void cache_insert(char *name, struct all_addr *addr,
-		  time_t now, unsigned long ttl, unsigned short flags);
-void cache_reload(int opts, char *buff, char *domain_suffix, char *addn_hosts);
-void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd);
+struct crec *cache_insert(char *name, struct all_addr *addr,
+			  time_t now, unsigned long ttl, unsigned short flags);
+void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile  *addn_hosts);
+void cache_add_dhcp_entry(struct daemon *daemon, char *host_name, struct in_addr *host_address, time_t ttd);
 void cache_unhash_dhcp(void);
-void dump_cache(int debug, int size);
+void dump_cache(struct daemon *daemon);
 char *cache_get_name(struct crec *crecp);
 
 /* rfc1035.c */
@@ -392,14 +409,14 @@ int setup_reply(HEADER *header, unsigned int qlen,
 		struct all_addr *addrp, unsigned short flags,
 		unsigned long local_ttl);
 void extract_addresses(HEADER *header, unsigned int qlen, char *namebuff, 
-		       time_t now, struct doctor *doctors);
-void extract_neg_addrs(HEADER *header, unsigned int qlen, char *namebuff, time_t now, unsigned short flags);
+		       time_t now, struct daemon *daemon);
 int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon *daemon, time_t now);
 int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(HEADER *header, unsigned int plen,
 				 unsigned int *len, unsigned char **p);
 int check_for_local_domain(char *name, time_t now, struct mx_record *mx);
+unsigned int questions_crc(HEADER *header, unsigned int plen);
 int resize_packet(HEADER *header, unsigned int plen, 
 		  unsigned char *pheader, unsigned int hlen);
 
@@ -417,6 +434,7 @@ int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
 int hostname_isequal(unsigned char *a, unsigned char *b);
 time_t dnsmasq_time(int fd);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
+int retry_send(void);
 
 /* option.c */
 struct daemon *read_opts (int argc, char **argv);
@@ -452,7 +470,7 @@ struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct i
 
 /* lease.c */
 void lease_update_file(int force, time_t now);
-void lease_update_dns(void);
+void lease_update_dns(struct daemon *daemon);
 void lease_init(struct daemon *daemon, time_t now);
 struct dhcp_lease *lease_allocate(unsigned char *clid, int clid_len, struct in_addr addr);
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr);
@@ -471,6 +489,6 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr);
 
 /* isc.c */
 #ifdef HAVE_ISC_READER
-void load_dhcp(char *file, char *suffix, time_t now, char *hostname);
+void load_dhcp(struct daemon *daemon, time_t now);
 #endif
 

@@ -18,13 +18,14 @@ void dhcp_init(struct daemon *daemon)
 {
   int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   struct sockaddr_in saddr;
-  int oneopt = 1, zeroopt = 0;
+  int flags, oneopt = 1, zeroopt = 0;
   struct dhcp_config *configs, *cp;
 
   if (fd == -1)
     die ("cannot create DHCP socket : %s", NULL);
   
-  if (
+  if ((flags = fcntl(fd, F_GETFL, 0)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
 #if defined(IP_PKTINFO)
       setsockopt(fd, SOL_IP, IP_PKTINFO, &oneopt, sizeof(oneopt)) == -1 ||
 #elif defined(IP_RECVIF)
@@ -72,6 +73,8 @@ void dhcp_init(struct daemon *daemon)
      socket receive buffer size to one to avoid that. (zero is
      rejected as non-sensical by some BSD kernels) */
   if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETHERTYPE_IP))) == -1 ||
+      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1)
     die("cannot create DHCP packet socket: %s. "
 	"Is CONFIG_PACKET enabled in your kernel?", NULL);
@@ -160,7 +163,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 #else
   {
     struct iname *name;
-    for (name = daemon->if_names; names->isloop; names = names->next);
+    for (name = daemon->if_names; name->isloop; name = name->next);
     strcpy(ifr.ifr_name, name->name);
   }
 #endif
@@ -257,7 +260,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   lease_prune(NULL, now); /* lose any expired leases */
   newlen = dhcp_reply(daemon, iface_addr, ifr.ifr_name, sz, now);
   lease_update_file(0, now);
-  lease_update_dns();
+  lease_update_dns(daemon);
   
   if (newlen == 0)
     return;
@@ -283,7 +286,9 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	  dest.sin_addr = mess->ciaddr;
 	}
       
-      sendto(daemon->dhcpfd, mess, newlen, 0, (struct sockaddr *)&dest, sizeof(dest));
+      while(sendto(daemon->dhcpfd, mess, newlen, 0, 
+		   (struct sockaddr *)&dest, sizeof(dest)) == -1 &&
+	    retry_send());
     }
   else
     {
@@ -353,7 +358,8 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	iov[0].iov_len = sizeof(struct ether_header);
 	iov[1].iov_base = (char *)rawpacket;
 	iov[1].iov_len = ntohs(rawpacket->ip.ip_len);
-	writev(daemon->dhcp_raw_fd, iov, 2);
+	while (writev(daemon->dhcp_raw_fd, iov, 2) == -1 &&
+	       errno == EINTR);
 #else
 	struct sockaddr_ll dest;
 	
@@ -362,9 +368,9 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 	dest.sll_ifindex = iface_index;
 	dest.sll_protocol = htons(ETHERTYPE_IP);
 	memcpy(dest.sll_addr, hwdest, ETHER_ADDR_LEN); 
-	sendto(daemon->dhcp_raw_fd, rawpacket, ntohs(rawpacket->ip.ip_len), 
-	       0, (struct sockaddr *)&dest, sizeof(dest));
-	
+	while (sendto(daemon->dhcp_raw_fd, rawpacket, ntohs(rawpacket->ip.ip_len), 
+		      0, (struct sockaddr *)&dest, sizeof(dest)) == -1 &&
+	       errno == EINTR);
 #endif
       }
     }
@@ -624,7 +630,7 @@ void dhcp_update_configs(struct dhcp_config *configs)
 	(crec = cache_find_by_name(NULL, config->hostname, 0, F_IPV4)) &&
 	(crec->flags & F_HOSTS))
       {
-	config->addr = crec->addr.addr.addr4;
+	config->addr = crec->addr.addr.addr.addr4;
 	config->flags |= CONFIG_ADDR;
       }
 }

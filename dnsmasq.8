@@ -34,8 +34,8 @@ Don't read the hostnames in /etc/hosts.
 .TP
 .B \-H, --addn-hosts=<file>
 Additional hosts file. Read the specified file as well as /etc/hosts. If -h is given, read
-only the specified file. At most one additional hosts file may be
-given.
+only the specified file. This option may be repeated for more than one
+additional hosts file.
 .TP
 .B \-T, --local-ttl=<time>
 When replying with information from /etc/hosts or the DHCP leases
@@ -422,6 +422,12 @@ Limits dnsmasq to the specified maximum number of DHCP leases. The
 default is 150. This limit is to prevent DoS attacks from hosts which
 create thousands of leases and use lots of memory in the dnsmasq
 process.
+.TP
+.B \-K, --dhcp-authoritative
+Should be set when dnsmasq is definatively the only DHCP server on a network.
+It changes the behaviour from strict RFC compliance so that DHCP requests on
+unknown leases from unknown hosts are not ignored. This allows new hosts
+to get a lease without a tedious timeout under all circumstances.
 .TP
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information. If this option

@@ -408,10 +408,12 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  (iface_addr.s_addr != option_addr(opt).s_addr))
 	return 0;
       
-      log_packet("RELEASE", &mess->ciaddr, mess->chaddr, iface_name, NULL);
-
       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
 	lease_prune(lease, now);
+      else
+	message = "unknown lease";
+
+      log_packet("RELEASE", &mess->ciaddr, mess->chaddr, iface_name, message);
 	
       return 0;
       
@@ -473,22 +475,14 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 		  lease_prune(lease, now);
 		  lease = NULL;
 		}
-	      
-	      if (!lease)
-		{ 
-		  if (lease_find_by_addr(mess->yiaddr))
-		    message = "address in use";
-		  else if (!(lease = lease_allocate(clid, clid_len, mess->yiaddr)))
-		    message = "no leases left";
-		} 
 	    }
 	  else
 	    {
 	      /* INIT-REBOOT */
-	      if (!lease)
+	      if (!lease && !(daemon->options & OPT_AUTHORITATIVE))
 		return 0;
 	      
-	      if (lease->addr.s_addr != mess->yiaddr.s_addr)
+	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
 		message = "wrong address";
 	    }
 	}
@@ -507,31 +501,40 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  mess->yiaddr = mess->ciaddr;
 	}
       
+      log_packet("REQUEST", &mess->yiaddr, mess->chaddr, iface_name, NULL);
+      
       if (!message)
 	{
 	  struct dhcp_config *addr_config;
+
 	  /* If a machine moves networks whilst it has a lease, we catch that here. */
 	  if (!is_same_net(mess->yiaddr, context->start, context->netmask))
 	    message = "wrong network";
 
-	  /* Check for renewal of a lease which is now outside the allowed range. */
+	  /* Check for renewal of a lease which is outside the allowed range. */
 	  else if (!address_available(context, mess->yiaddr) &&
 		   (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
-	    message = "address no longer available";
+	    message = "address not available";
 
 	  /* Check if a new static address has been configured. Be very sure that
 	     when the client does DISCOVER, it will get the static address, otherwise
 	     an endless protocol loop will ensue. */
-
-	  else if (have_config(config, CONFIG_ADDR) && !lease_find_by_addr(config->addr))
+	  
+	  else if (have_config(config, CONFIG_ADDR) && 
+		   config->addr.s_addr != mess->yiaddr.s_addr &&
+		   (!(ltmp = lease_find_by_addr(config->addr)) || ltmp == lease))
 	    message = "static lease available";
 
 	  /* Check to see if the address is reserved as a static address for another host */
 	  else if ((addr_config = config_find_by_address(daemon->dhcp_conf, mess->yiaddr)) && addr_config != config)
 	    message ="address reserved";
-	}
 
-      log_packet("REQUEST", &mess->yiaddr, mess->chaddr, iface_name, NULL);
+	  else if ((ltmp = lease_find_by_addr(mess->yiaddr)) && ltmp != lease)
+	    message = "address in use";
+	  
+	  else if (!lease && !(lease = lease_allocate(clid, clid_len, mess->yiaddr)))
+	    message = "no leases left";
+	}
       
       if (message)
 	{
@@ -541,30 +544,31 @@ int dhcp_reply(struct daemon *daemon, struct in_addr iface_addr, char *iface_nam
 	  bootp_option_put(mess, NULL, NULL);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
 	  p = option_put_string(p, end, OPTION_MESSAGE, message);
-	  p = option_end(p, end, mess);
 	  mess->flags |= htons(0x8000); /* broadcast */
-	  return p - (unsigned char *)mess;
 	}
-      
-      log_packet("ACK", &mess->yiaddr, mess->chaddr, iface_name, hostname);
-      
-      lease_set_hwaddr(lease, mess->chaddr);
-      if (hostname)
-	lease_set_hostname(lease, hostname, daemon->domain_suffix);
-      lease_set_expires(lease, renewal_time == 0xffffffff ? 0 : now + (time_t)renewal_time);
-      
-      bootp_option_put(mess, daemon->dhcp_file, daemon->dhcp_sname);
-      mess->siaddr = daemon->dhcp_next_server.s_addr ? daemon->dhcp_next_server : iface_addr;
-      p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
-      p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
-      p = option_put(p, end, OPTION_LEASE_TIME, 4, renewal_time);
-      if (renewal_time != 0xffffffff)
+      else
 	{
-	  p = option_put(p, end, OPTION_T1, 4, (renewal_time/2) - fuzz);
-	  p = option_put(p, end, OPTION_T2, 4, ((renewal_time * 7)/8) - fuzz);
+	  log_packet("ACK", &mess->yiaddr, mess->chaddr, iface_name, hostname);
+      
+	  lease_set_hwaddr(lease, mess->chaddr);
+	  if (hostname)
+	    lease_set_hostname(lease, hostname, daemon->domain_suffix);
+	  lease_set_expires(lease, renewal_time == 0xffffffff ? 0 : now + (time_t)renewal_time);
+	  
+	  bootp_option_put(mess, daemon->dhcp_file, daemon->dhcp_sname);
+	  mess->siaddr = daemon->dhcp_next_server.s_addr ? daemon->dhcp_next_server : iface_addr;
+	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
+	  p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(iface_addr.s_addr));
+	  p = option_put(p, end, OPTION_LEASE_TIME, 4, renewal_time);
+	  if (renewal_time != 0xffffffff)
+	    {
+	      p = option_put(p, end, OPTION_T1, 4, (renewal_time/2) - fuzz);
+	      p = option_put(p, end, OPTION_T2, 4, ((renewal_time * 7)/8) - fuzz);
+	    }
+	  p = do_req_options(context, p, end, req_options, daemon, 
+			     hostname, iface_addr, netid, subnet_addr);
 	}
-      p = do_req_options(context, p, end, req_options, daemon, 
-			 hostname, iface_addr, netid, subnet_addr);
+
       p = option_end(p, end, mess);
       return p - (unsigned char *)mess; 
       

@@ -284,6 +284,22 @@ A: Yes, new releases of dnsmasq are always announced through
    freshmeat.net, and they allow you to subcribe to email alerts when
    new versions of particular projects are released.
 
+Q: What does the dhcp-authoritative option do? 
+
+A: See http://www.isc.org/index.pl?/sw/dhcp/authoritative.php - that's
+   for the ISC daemon, but the same applies to dnsmasq.
+
+Q: Why does my Gentoo box pause for a minute before getting a new
+   lease?
+
+A: Because when a Gentoo box shuts down, it releases its lease with
+   the server but remembers it on the client; this seems to be a 
+   Gentoo-specific patch to dhcpcd. On restart it tries to renew
+   a lease which is long gone, as far as dnsmasq is concerned, and
+   dnsmasq ignores it until is times out and restarts the process.
+   To fix this, set the dhcp-authoritative flag in dnsmasq.
+
+
 
 
 	      

@@ -314,7 +314,7 @@ int main (int argc, char **argv)
 	      dhcp_update_configs(daemon->dhcp_conf);
 	      lease_update_from_configs(daemon->dhcp_conf, daemon->domain_suffix); 
 	      lease_update_file(0, now); 
-	      lease_update_dns();
+	      lease_update_dns(daemon);
 	    }
 	  if (daemon->resolv_files && (daemon->options & OPT_NO_POLL))
 	    {
@@ -326,7 +326,7 @@ int main (int argc, char **argv)
       
       if (sigusr1)
 	{
-	  dump_cache(daemon->options & (OPT_DEBUG | OPT_LOG), daemon->cachesize);
+	  dump_cache(daemon);
 	  sigusr1 = 0;
 	}
       
@@ -379,7 +379,7 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_ISC_READER
 	  if (daemon->lease_file && !daemon->dhcp)
-	    load_dhcp(daemon->lease_file, daemon->domain_suffix, now, daemon->namebuff);
+	    load_dhcp(daemon, now);
 #endif
 
 	  if (!(daemon->options & OPT_NO_POLL))
@@ -638,43 +638,45 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
   
   setsockopt(daemon->dhcp_icmp_fd, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt));
 
-  if (sendto(daemon->dhcp_icmp_fd, (char *)&packet.icmp, sizeof(struct icmp), 0, 
-	     (struct sockaddr *)&saddr, sizeof(saddr)) == sizeof(struct icmp))
-    for (now = start = dnsmasq_time(daemon->uptime_fd); difftime(now, start) < 3.0;)
-      {
-	struct timeval tv;
-	fd_set rset;
-	struct sockaddr_in faddr;
-	int maxfd, len = sizeof(faddr);
-
-	tv.tv_usec = 250000;
-	tv.tv_sec = 0; 
-
-	FD_ZERO(&rset);
-	FD_SET(daemon->dhcp_icmp_fd, &rset);
-	maxfd = set_dns_listeners(daemon, &rset, daemon->dhcp_icmp_fd);
+  while (sendto(daemon->dhcp_icmp_fd, (char *)&packet.icmp, sizeof(struct icmp), 0, 
+		(struct sockaddr *)&saddr, sizeof(saddr)) == -1 &&
+	 retry_send());
+  
+  for (now = start = dnsmasq_time(daemon->uptime_fd); difftime(now, start) < 3.0;)
+    {
+      struct timeval tv;
+      fd_set rset;
+      struct sockaddr_in faddr;
+      int maxfd, len = sizeof(faddr);
+      
+      tv.tv_usec = 250000;
+      tv.tv_sec = 0; 
+      
+      FD_ZERO(&rset);
+      FD_SET(daemon->dhcp_icmp_fd, &rset);
+      maxfd = set_dns_listeners(daemon, &rset, daemon->dhcp_icmp_fd);
 		
-	if (select(maxfd+1, &rset, NULL, NULL, &tv) < 0)
-	  FD_ZERO(&rset);
-	
-	now = dnsmasq_time(daemon->uptime_fd);
-	check_dns_listeners(daemon, &rset, now);
-	
-	if (FD_ISSET(daemon->dhcp_icmp_fd, &rset) &&
-	    recvfrom(daemon->dhcp_icmp_fd, &packet, sizeof(packet), 0,
-		     (struct sockaddr *)&faddr, &len) == sizeof(packet) &&
-	    saddr.sin_addr.s_addr == faddr.sin_addr.s_addr &&
-	    packet.icmp.icmp_type == ICMP_ECHOREPLY &&
-	    packet.icmp.icmp_seq == 0 &&
-	    packet.icmp.icmp_id == id)
-	  {
-	    gotreply = 1;
-	    break;
-	  }
-      }
-
+      if (select(maxfd+1, &rset, NULL, NULL, &tv) < 0)
+	FD_ZERO(&rset);
+      
+      now = dnsmasq_time(daemon->uptime_fd);
+      check_dns_listeners(daemon, &rset, now);
+      
+      if (FD_ISSET(daemon->dhcp_icmp_fd, &rset) &&
+	  recvfrom(daemon->dhcp_icmp_fd, &packet, sizeof(packet), 0,
+		   (struct sockaddr *)&faddr, &len) == sizeof(packet) &&
+	  saddr.sin_addr.s_addr == faddr.sin_addr.s_addr &&
+	  packet.icmp.icmp_type == ICMP_ECHOREPLY &&
+	  packet.icmp.icmp_seq == 0 &&
+	  packet.icmp.icmp_id == id)
+	{
+	  gotreply = 1;
+	  break;
+	}
+    }
+  
   opt = 1;
   setsockopt(daemon->dhcp_icmp_fd, SOL_SOCKET, SO_RCVBUF, &opt, sizeof(opt));
-
+  
   return gotreply;
 }

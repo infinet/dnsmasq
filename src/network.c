@@ -256,6 +256,8 @@ static int create_ipv6_listener(struct listener **link, int port)
       setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
       setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
+      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
       (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
       fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
 #ifdef IPV6_RECVPKTINFO
@@ -321,6 +323,8 @@ struct listener *create_wildcard_listeners(int port)
       !create_ipv6_listener(&l6, port) ||
 #endif
       setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
 #if defined(IP_PKTINFO) 
       setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
@@ -373,6 +377,8 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 	    /* See Stevens 16.6 */
 	    (flags = fcntl(new->tcpfd, F_GETFL, 0)) == -1 ||
 	    fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+	    (flags = fcntl(new->fd, F_GETFL, 0)) == -1 ||
+	    fcntl(new->fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
 	    bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
 	    bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
 	    listen(new->tcpfd, 5) == -1)
@@ -385,7 +391,8 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
 {
   struct serverfd *sfd;
-  
+  int flags;
+
   /* may have a suitable one already */
   for (sfd = *sfds; sfd; sfd = sfd->next )
     if (sockaddr_isequal(&sfd->source_addr, addr))
@@ -402,7 +409,9 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
       return NULL;
     }
   
-  if (bind(sfd->fd, (struct sockaddr *)addr, sa_len(addr)) == -1)
+  if (bind(sfd->fd, (struct sockaddr *)addr, sa_len(addr)) == -1 ||
+      (flags = fcntl(sfd->fd, F_GETFL, 0)) == -1 ||
+      fcntl(sfd->fd, F_SETFL, flags | O_NONBLOCK) == -1)
     {
       int errsave = errno; /* save error from bind. */
       close(sfd->fd);

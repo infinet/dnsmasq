@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.15"
+#define VERSION "2.16"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -156,7 +156,7 @@ HAVE_PSELECT
    If your C library implements pselect, define this.
 
 HAVE_BPF
-   If your OS implements Berkeley PAcket filter, define this.
+   If your OS implements Berkeley Packet filter, define this.
 
 NOTES:
    For Linux you should define 
@@ -176,10 +176,12 @@ NOTES:
    you should NOT define  
      HAVE_LINUX_IPV6_PROC 
    and you MAY define  
-     HAVE_ARC4RANDOM - OpenBSD and FreeBSD 
-     HAVE_DEV_URANDOM - OpenBSD and FreeBSD
-     HAVE_DEV_RANDOM - FreeBSD (OpenBSD with hardware random number generator)
-     HAVE_GETOPT_LONG - only if you link GNU getopt. 
+     HAVE_ARC4RANDOM - OpenBSD and FreeBSD and NetBSD version 2.0 or later
+     HAVE_DEV_URANDOM - OpenBSD and FreeBSD and NetBSD
+     HAVE_DEV_RANDOM - FreeBSD  and NetBSD 
+                       (OpenBSD with hardware random number generator)
+     HAVE_GETOPT_LONG - NetBSD 
+                       (FreeBSD and OpenBSD only if you link GNU getopt) 
 
 */
 
@@ -250,9 +252,6 @@ typedef unsigned long in_addr_t;
 #endif
 #endif
 
-/* #elif defined(__OpenBSD__)
-#error The sockets API in OpenBSD does not provide facilities required by dnsmasq
-*/
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #undef HAVE_LINUX_IPV6_PROC
 #undef HAVE_GETOPT_LONG
@@ -275,16 +274,16 @@ typedef unsigned long in_addr_t;
 #define BIND_8_COMPAT
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
-/* The three below are not defined in Mac OS X arpa/nameserv.h */
+/* This is not defined in Mac OS X arpa/nameserv.h */
 #define IN6ADDRSZ 16
  
 #elif defined(__NetBSD__)
 #undef HAVE_LINUX_IPV6_PROC
-#undef HAVE_GETOPT_LONG
+#define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #define HAVE_RANDOM
-#undef HAVE_DEV_URANDOM
-#undef HAVE_DEV_RANDOM
+#define HAVE_DEV_URANDOM
+#define HAVE_DEV_RANDOM
 #define HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 #define HAVE_BPF
