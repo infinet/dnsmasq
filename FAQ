@@ -181,7 +181,42 @@ A: There are a couple of configuration gotchas which have been
    and from ports 67 and 68 and broadcast packets with source 
    address 0.0.0.0 and destination address 255.255.255.255 are not 
    dropped by iptables/ipchains.
+
+Q: I'm running Debian, and my machines get an address fine with DHCP,
+   but their names are not appearing in the DNS.
+
+A: By default, none of the DHCP clients send the host-name when asking
+   for a lease. For most of the clients, you can set the host-name to
+   send with the "hostname" keyword in /etc/network/interfaces. (See
+   "man interfaces" for details.) That doesn't work for dhclient, were
+   you have to add something like "send host-name daisy" to
+   /etc/dhclient.conf
+
+Q: I'm network booting my machines, and trying to give them static
+   DHCP-assigned addresses. The machine gets its correct address
+   whilst booting, but then the OS starts and it seems to get
+   allocated a different address.
+
+A: What is happening is this: The boot process sends a DHCP
+   request and gets allocated the static address corresponding to its
+   MAC address. The boot loader does not send a client-id. Then the OS
+   starts and repeats the DHCP process, but it it does send a
+   client-id. Dnsmasq cannot assume that the two requests are from the
+   same machine (since the client ID's don't match) and even though
+   the MAC address has a static allocation, that address is still in
+   use by the first incarnation of the machine (the one from the boot,
+   without a client ID.) dnsmasq therefore has to give the machine a
+   dynamic address from its pool. There are two ways to solve this:
+   (1) persuade your DHCP client not to send a client ID, or (2) set up
+   the static assignment to the client ID, not the MAC address. The
+   default client-id will be 01:<MAC address>, so change the dhcp-host
+   line from "dhcp-host=11:22:33:44:55:66,1.2.3.4" to
+   "dhcp-host=id:01:11:22:33:44:55:66,1.2.3.4" 
+
+Q: What network types are supported by the DHCP server?
   
+A: Ethernet (and 802.11 wireless) are supported on all platforms. On
+   Linux Token Ring is also supported.
 
 
 

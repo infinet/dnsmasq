@@ -161,10 +161,10 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 {
   int option = 0, i;
   unsigned int flags = 0;
-  FILE *f = NULL;
-  char *conffile = CONFFILE;
+  FILE *file_save = NULL, *f = NULL;
+  char *file_name_save = NULL, *conffile = CONFFILE;
   int conffile_set = 0;
-  int lineno = 0;
+  int line_save = 0, lineno = 0;
   opterr = 0;
   
   *min_leasetime = UINT_MAX;
@@ -179,26 +179,38 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 #endif
       else
 	{ /* f non-NULL, reading from conffile. */
+	reread:
 	  if (!fgets(buff, MAXDNAME, f))
 	    {
 	      /* At end of file, all done */
 	      fclose(f);
+	      if (file_save)
+		{
+		  /* may be nested */
+		  conffile = file_name_save;
+		  f = file_save;
+		  file_save = NULL;
+		  lineno = line_save;
+		  goto reread;
+		}
 	      break;
 	    }
 	  else
 	    {
 	      char *p;
+	      int white;
 	      lineno++;
 	      /* dump comments */
-	      for (p = buff; *p; p++)
-		if (*p == '#')
-		  *p = 0;
+	      for (white = 1, p = buff; *p; p++)
+		if (white && *p == '#')
+		  { 
+		    *p = 0;
+		    break;
+		  }
+		else
+		  white = isspace(*p);
 	      /* fgets gets end of line char too. */
-	      while (strlen(buff) > 0 && 
-		     (buff[strlen(buff)-1] == '\n' || 
-		      buff[strlen(buff)-1] == ' ' ||  
-		      buff[strlen(buff)-1] == '\r' || 
-		      buff[strlen(buff)-1] == '\t'))
+	      while (strlen(buff) > 0 && isspace(buff[strlen(buff)-1]))
 		buff[strlen(buff)-1] = 0;
 	      if (*buff == 0)
 		continue; 
@@ -227,6 +239,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	{ /* end of command line args, start reading conffile. */
 	  if (!conffile)
 	    break; /* "confile=" option disables */
+	fileopen:
 	  option = 0;
 	  if (!(f = fopen(conffile, "r")))
 	    {   
@@ -274,9 +287,27 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	  switch (option)
 	    { 
 	     case 'C': 
+	       if (!f)
+		 {
+		   conffile = safe_string_alloc(optarg);
+		   conffile_set = 1;
+		   break;
+		 }
+	      
+	       /* nest conffiles one deep */
+	       if (file_save)
+		 {
+		   sprintf(buff, "nested includes not allowed at line %d of %s ", lineno, conffile);
+		   complain(buff, NULL);
+		   continue;
+		 }
+	       file_name_save = conffile;
+	       file_save = f;
+	       line_save = lineno;
 	       conffile = safe_string_alloc(optarg);
 	       conffile_set = 1;
-	       break;
+	       lineno = 0;
+	       goto fileopen;
 	      
 	    case 'x': 
 	      *runfile = safe_string_alloc(optarg);
@@ -643,11 +674,15 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    *(a[k]++) = 0;
 		  }
 		  
-		if ((k < 2) ||
-		    ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1) ||
-		    ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1))
+		if ((k < 2) || ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1))
+		  option = '?';
+		else if (strcmp(a[1], "static") == 0)
+		  new->end = new->start;
+		else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
+		  option = '?';
+		  
+		if (option == '?')
 		  {
-		    option = '?';
 		    free(new);
 		    break;
 		  }
@@ -700,22 +735,17 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	    case 'G':
 	      {
 		int j, k;
-		char *a[4] = { NULL, NULL, NULL, NULL };
+		char *a[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
 		unsigned int e0, e1, e2, e3, e4, e5;
 		struct dhcp_config *new = safe_malloc(sizeof(struct dhcp_config));
 		struct in_addr in;
 
 		new->next = *dhcp_conf;
-				  
-		memset(new->hwaddr, 0, ETHER_ADDR_LEN);
-		new->clid_len = 0;
-		new->clid = NULL;
-		new->hostname = NULL;
-		new->addr.s_addr = 0;
-		new->lease_time = 0; 
+		new->flags = 0;		  
+		
 		
 		a[0] = optarg;
-		for (k = 1; k < 4; k++)
+		for (k = 1; k < 6; k++)
 		  {
 		    if (!(a[k] = strchr(a[k-1], ',')))
 		      break;
@@ -723,37 +753,60 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		  }
 		   
 		for(j = 0; j < k; j++)
-		  if (strchr(a[j], ':')) /* ethernet address or binary CLID */
+		  if (strchr(a[j], ':')) /* ethernet address, netid or binary CLID */
 		    {
 		      char *arg = a[j];
 		      if ((arg[0] == 'i' || arg[0] == 'I') &&
 			  (arg[1] == 'd' || arg[1] == 'D') &&
 			  arg[2] == ':')
 			{
-			  int s, len;
+			  int len;
 			  arg += 3; /* dump id: */
 			  if (strchr(arg, ':'))
 			    {
-			      s = (strlen(arg)/3) + 1;
-			      /* decode in place */
-			      for (len = 0; len < s; len++)
+			      /* decode hex in place */
+			      char *p = arg, *q = arg, *r;
+			      while (*p)
 				{
-				  if (arg[(len*3)+2] != ':')
-				    option = '?';
-				  arg[(len*3)+2] = 0;
-				  arg[len] = strtol(&arg[len*3], NULL, 16);
+				  for (r = p; *r && *r != ':'; r++);
+				  if (*r)
+				    {
+				      if (r != p)
+					{
+					  *r = 0;
+					  *(q++) = strtol(p, NULL, 16);
+					}
+				      p = r+1;
+				    }
+				  else
+				    {
+				      if (*p)
+					*(q++) = strtol(p, NULL, 16);
+				      break;
+				    }
 				}
+			      len = q - arg;
 			    }
 			  else
 			    len = strlen(arg);
 			  
+			  new->flags |= CONFIG_CLID;
 			  new->clid_len = len;
 			  new->clid = safe_malloc(len);
 			  memcpy(new->clid, arg, len);
 			}
+		      else if ((arg[0] == 'n' || arg[0] == 'N') &&
+			       (arg[1] == 'e' || arg[1] == 'E') &&
+			       (arg[2] == 't' || arg[3] == 'T') &&
+			       arg[3] == ':')
+			{
+			  new->flags |= CONFIG_NETID;
+			  new->netid = safe_string_alloc(arg+4);
+			}
 		      else if (sscanf(a[j], "%x:%x:%x:%x:%x:%x",
 				      &e0, &e1, &e2, &e3, &e4, &e5) == 6)
 			{
+			  new->flags |= CONFIG_HWADDR;
 			  new->hwaddr[0] = e0;
 			  new->hwaddr[1] = e1;
 			  new->hwaddr[2] = e2;
@@ -765,7 +818,10 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			option = '?';
 		    }
 		  else if (strchr(a[j], '.') && (in.s_addr = inet_addr(a[j])) != (in_addr_t)-1)
-		    new->addr = in;
+		    {
+		      new->addr = in;
+		      new->flags |= CONFIG_ADDR;
+		    }
 		  else
 		    {
 		      char *cp, *lastp = NULL, last = 0;
@@ -800,19 +856,38 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			  if (lastp)
 			    *lastp = last;
 			  if (strcmp(a[j], "infinite") == 0)
-			    new->lease_time = 0xffffffff;
+			    {
+			      new->lease_time = 0xffffffff;
+			      new->flags |= CONFIG_TIME;
+			    }
+			  else if (strcmp(a[j], "ignore") == 0)
+			    new->flags |= CONFIG_DISABLE;
 			  else
-			    new->hostname = safe_string_alloc(a[j]);
+			    {
+			      new->hostname = safe_string_alloc(a[j]);
+			      new->flags |= CONFIG_NAME;
+			    }
 			}
 		      else
-			new->lease_time = atoi(a[j]) * fac;  
+			{
+			  new->lease_time = atoi(a[j]) * fac; 
+			  new->flags |= CONFIG_TIME;
+			}
 		    }
 
 		if (option == '?')
-		  free(new);
+		  {
+		    if (new->flags & CONFIG_NAME)
+		      free(new->hostname);
+		    if (new->flags & CONFIG_CLID)
+		      free(new->clid);
+		    if (new->flags & CONFIG_NETID)
+		      free(new->netid);
+		    free(new);
+		  }
 		else
 		  {
-		    if (new->lease_time < *min_leasetime)
+		    if ((new->flags & CONFIG_TIME) && new->lease_time < *min_leasetime)
 		      *min_leasetime = new->lease_time;
 		    *dhcp_conf = new;
 		  }
@@ -823,7 +898,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 	      {
 		struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
 		char *cp, *comma;
-		int addrs, is_addr;
+		int addrs, digs, is_addr, is_hex, is_dec;
 		
 		new->next = *dhcp_opts;
 		new->len = 0;
@@ -853,58 +928,113 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		    free(new);
 		    break;
 		  }
-
+		
+		*dhcp_opts = new;
+		
 		if (!comma)
-		  {
-		    *dhcp_opts = new;
-		    break;
-		  }
-
-		/* check for non-address list characters */
-		for (addrs = 1, is_addr = 0, cp = comma+1; *cp; cp++)
+		  break;
+		
+		/* characterise the value */
+		is_addr = is_hex = is_dec = 1;
+		addrs = digs = 1;
+		for (cp = comma+1; *cp; cp++)
 		  if (*cp == ',')
-		    addrs++;
-		  else if (!(*cp == '.' || *cp == ' ' || (*cp >='0' && *cp <= '9')))
-		    break;
+		    {
+		      addrs++;
+		      is_dec = is_hex = 0;
+		    }
+		  else if (*cp == ':')
+		    {
+		      digs++;
+		      is_dec = is_addr = 0;
+		    }
 		  else if (*cp == '.')
-		    is_addr = 1;
-		    
-		if (*cp)
+		    is_dec = is_hex = 0;
+		  else if (!(*cp >='0' && *cp <= '9'))
+		      {
+			is_dec = is_addr = 0;
+			if (!((*cp >='A' && *cp <= 'F') ||
+			      (*cp >='a' && *cp <= 'F')))
+			  is_hex = 0;
+		      }
+		
+		if (is_hex && digs > 1)
+		  {
+		    char *p = comma+1, *q, *r;
+		    new->len = digs;
+		    q = new->val = safe_malloc(new->len);
+		    while (*p)
+		      {
+			for (r = p; *r && *r != ':'; r++);
+			if (*r)
+			  {
+			    if (r != p)
+			      {
+				*r = 0;
+				*(q++) = strtol(p, NULL, 16);
+			      }
+			    p = r+1;
+			  }
+			else
+			  {
+			    if (*p)
+			      *(q++) = strtol(p, NULL, 16);
+			    break;
+			  }
+		      }
+		  }
+		else if (is_dec)
+		  {
+		    /* Given that we don't know the length,
+		       this applaing hack is the best available */
+		    unsigned int val = atoi(comma+1);
+		    if (val < 256)
+		      {
+			new->len = 1;
+			new->val = safe_malloc(1);
+			*(new->val) = val;
+		      }
+		    else if (val < 65536)
+		      {
+			new->len = 2;
+			new->val = safe_malloc(2);
+			*(new->val) = val>>8;
+			*(new->val+1) = val;
+		      }
+		    else
+		      {
+			new->len = 4;
+			new->val = safe_malloc(4);
+			*(new->val) = val>>24;
+			*(new->val+1) = val>>16;
+			*(new->val+2) = val>>8;
+			*(new->val+3) = val;
+		      }
+		  }
+		else if (is_addr)	
+		  {
+		    struct in_addr in;
+		    unsigned char *op;
+		    new->len = INADDRSZ * addrs;
+		    new->val = op = safe_malloc(new->len);
+		    new->is_addr = 1;
+		    while (addrs--) 
+		      {
+			cp = comma;
+			if ((comma = strchr(cp+1, ',')))
+			  *comma = 0;
+			in.s_addr = inet_addr(cp+1);
+			memcpy(op, &in, INADDRSZ);
+			op += INADDRSZ;
+		      }
+		  }
+		else
 		  {
 		    /* text arg */
 		    new->len = strlen(comma+1);
 		    new->val = safe_malloc(new->len);
 		    memcpy(new->val, comma+1, new->len);
 		  }
-		else
-		  {
-		    struct in_addr in;
-		    unsigned char *op;
-
-		    if (addrs == 1 && !is_addr)
-		      {
-			new->len = 1;
-			new->val = safe_malloc(1);
-			*(new->val) = atoi(comma+1);
-		      }
-		    else
-		      {
-			new->len = INADDRSZ * addrs;
-			new->val = op = safe_malloc(new->len);
-			new->is_addr = 1;
-			while (addrs--) 
-			  {
-			    cp = comma;
-			    if (cp && (comma = strchr(cp+1, ',')))
-			      *comma = 0;
-			    if (cp && (in.s_addr = inet_addr(cp+1)) == (in_addr_t)-1)
-			      option = '?';
-			    memcpy(op, &in, INADDRSZ);
-			    op += INADDRSZ;
-			  }
-		      }
-		  }
-		*dhcp_opts = new;
 		break;
 	      }
 

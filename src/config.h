@@ -12,12 +12,13 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.5"
+#define VERSION "2.6"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define TIMEOUT 20 /* drop queries after TIMEOUT seconds */
 #define LOGRATE 120 /* log table overflows every LOGRATE seconds */
 #define CACHESIZ 150 /* default cache size */
+#define MAXTOK 50 /* token in DHCP leases */
 #define MAXLEASES 150 /* maximum number of DHCP leases */
 #define SMALLDNAME 40 /* most domain names are smaller than this */
 #define HOSTSFILE "/etc/hosts"
@@ -121,6 +122,10 @@ HAVE_BROKEN_RTC
    work on other systems by teaching dnsmasq_time() in utils.c how to
    read the system uptime.
 
+HAVE_ISC_READER 
+   define this to include the old ISC dhcpcd integration. Note that you cannot
+   set both HAVE_ISC_READER and HAVE_BROKEN_RTC.
+
 HAVE_GETOPT_LONG
    define this if you have GNU libc or GNU getopt. 
 
@@ -174,6 +179,16 @@ NOTES:
      HAVE_GETOPT_LONG - only if you link GNU getopt. 
 
 */
+
+/* platform independent options. */
+#undef HAVE_BROKEN_RTC
+#define HAVE_ISC_READER
+
+#if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
+#  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
+#endif
+
+/* platform dependent options. */
 
 /* Must preceed __linux__ since uClinux defines __linux__ too. */
 #if defined(__uClinux__) || defined(__UCLIBC__)
@@ -255,6 +270,7 @@ typedef unsigned long in_addr_t;
 #define HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
 #define HAVE_BPF
+#define BIND_8_COMPAT
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
 /* The two below are not defined in Mac OS X arpa/nameserv.h */
@@ -284,6 +300,7 @@ typedef unsigned long in_addr_t;
 #undef HAVE_PSELECT
 #define HAVE_BPF
 #endif
+
 
 
 

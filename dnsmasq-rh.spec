@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.5
+Version: 2.6
 Release: 1
 Copyright: GPL
 Group: System Environment/Daemons
@@ -58,7 +58,6 @@ cp rpm/dnsmasq.rh $RPM_BUILD_ROOT/etc/rc.d/init.d/dnsmasq
 strip src/dnsmasq
 cp src/dnsmasq $RPM_BUILD_ROOT/usr/sbin
 cp dnsmasq.8 $RPM_BUILD_ROOT/usr/share/man/man8
-gzip $RPM_BUILD_ROOT/usr/share/man/man8/dnsmasq.8
 cp dnsmasq.conf.example $RPM_BUILD_ROOT/etc/dnsmasq.conf
 
 ###############################################################################
@@ -128,6 +127,6 @@ fi
 %attr(0755,root,root) /etc/rc.d/init.d/dnsmasq
 %attr(0664,root,root) /etc/dnsmasq.conf
 %attr(0755,root,root) /usr/sbin/dnsmasq
-%attr(0644,root,root) /usr/share/man/man8/dnsmasq.8.gz
+%attr(0644,root,root) /usr/share/man/man8/dnsmasq*
 
 

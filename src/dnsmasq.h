@@ -238,14 +238,23 @@ struct dhcp_lease {
 };
 
 struct dhcp_config {
+  unsigned int flags;
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
   unsigned char hwaddr[ETHER_ADDR_LEN]; 
-  char *hostname;
+  char *hostname, *netid;
   struct in_addr addr;
   unsigned int lease_time;
   struct dhcp_config *next;
 };
+
+#define CONFIG_DISABLE   1
+#define CONFIG_CLID      2
+#define CONFIG_HWADDR    4
+#define CONFIG_TIME      8
+#define CONFIG_NAME     16
+#define CONFIG_ADDR     32
+#define CONFIG_NETID    64
 
 struct dhcp_opt {
   int opt, len, is_addr;
@@ -406,3 +415,7 @@ int dhcp_reply(struct dhcp_context *context,
 	       char *domain_suffix, char *dhcp_file, char *dhcp_sname, 
 	       struct in_addr dhcp_next_server, struct in_addr router);
 
+/* isc.c */
+#ifdef HAVE_ISC_READER
+void load_dhcp(char *file, char *suffix, time_t now, char *hostname);
+#endif

@@ -860,4 +860,68 @@ release 2.5
 	     interface a packet was sent to. Thanks to Javier Kohen
 	     for the bug report.
 
+release 2.6 
+	     Support Token Ring DHCP. Thanks to Dag Wieers for help
+	     testing. Note that Token ring support only works on Linux 
+	     currently.
+
+	     Fix compilation on MacOS X. Thanks to Bernhard Ehlers for
+	     the patch.
+
+	     Added new "ignore" keyword for
+	     dhcp-host. "dhcp-host=11:22:33:44:55:66,ignore" will
+	     cause the DHCP server to ignore any host with the given
+	     MAC address, leaving it to other servers on the
+	     network. This also works with client-id and hostnames.
+	     Suggestion by Alex Melt.
+
+	     Fixed parsing of hex client IDs. Problem spotted by Peter
+	     Fichtner.
+
+	     Allow conf-file options in configuration file, to
+	     provide an include function.
+	     
+	     Re-read /etc/ethers on receipt of SIGHUP.
+
+	     Added back the ability to read ISC dhcpd lease files, by
+	     popular demand. Note that this is deprecated and for
+	     backwards compatibility only. You can get back the 4K of
+	     memory that the code occupies by undefining
+	     "HAVE_ISC_READER" in src/config.h
+
+	     Added ability to disable "pool" DHCP address allocation
+	     whilst leaving static leases working. The syntax is
+	     "dhcp-range=192.168.0.0,static"
+	     Thanks to Grzegorz Nosek for the suggestion.
+
+	     Generalized dnsmasq-rh.spec file to work on Mandrake too,
+	     and removed dnsmasq-mdk.spec. Thanks to Doug Keller.
+
+	     Allow DHCP options which are tied to specific static
+	     leases in the same way as to specific networks.
+
+	     Generalised the dhcp-option parser a bit to allow hex
+	     strings as parameters. This is now legal:
+	     dhcp-option=128,e4:45:74:68:00:00
+	     Inspired by a patch from Joel Nordell.
+
+	     Changed the semantics of argument-less dhcp-options for
+	     the default-setting ones, ie 1, 3, 6 and 28. Now, doing
+	     eg, dhcp-option=3 stops dnsmasq from sending a default
+	     router option at all. Thanks to Scott Emmons for pointing
+	     out that this is useful.
+
+	     Fixed dnsmasq.conf parsing bug which interpreted port
+	     numbers in server= lines as a comment. To start a
+	     comment, a '#' character must now be a the start of a
+	     line or preceded by whitespace. Thanks to Christian
+	     Haggstrom for the bug report.
+ 
+	     
+
+
+
+
+	     
+
 	     

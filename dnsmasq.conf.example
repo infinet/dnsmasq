@@ -157,6 +157,14 @@ filterwin2k
 # it asks for a DHCP lease.
 #dhcp-host=judge
 
+# Never offer DHCP service to a machine whose ethernet 
+# address is 11:22:33:44:55:66
+#dhcp-host=11:22:33:44:55:66,ignore
+
+# Send extra options which are tagged as "red" to 
+# the machine with ethernet address 11:22:33:44:55:66
+#dhcp-host=11:22:33:44:55:66,net:red
+
 # If this line is uncommented, dnsmasq will read /etc/ethers and act
 # on the ethernet-address/IP pairs found there just as if they had
 # been given as --dhcp-host options. Useful if you keep
@@ -192,6 +200,10 @@ filterwin2k
 
 # Set the "all subnets are local" flag
 #dhcp-option=27,1
+
+# Send the etherboot magic flag and then etherboot options (a string).
+#dhcp-option=128,e4:45:74:68:00:00
+#dhcp-option=129,NIC=eepro100
 
 # Specify an option which will only be sent to the "red" network 
 # (see dhcp-range for the declaration of the "red" network)
@@ -250,13 +262,13 @@ filterwin2k
 # and this maps 1.2.3.x to 5.6.7.x
 #alias=1.2.3.0,5.6.7.0,255.255.255.0
 
- 
-
 # For debugging purposes, log each DNS query as it passes through
 # dnsmasq.
 #log-queries
 
-
+# Include a another lot of configuration options.
+#conf-file=/etc/dnsmasq.more.conf
+ 
  
 
 

@@ -7,9 +7,11 @@ Version 1.x of dnsmasq includes a facility for reading the dhcp.leases
 file written by ISC dhcpd. This allows the names of machines which
 have addresses allocated by DHCP to be included in the DNS.
 
-Version 2.x of dnsmasq removes the ISC dhcpd integration and replaces
-it with a DHCP server integrated into dnsmasq. This is an incompatible
-change in dnsmasq but it has the following advantages:
+Version 2.x of dnsmasq replaces the ISC dhcpd integration with a DHCP 
+server integrated into dnsmasq. Versions 2.0-2.5 removed the ISC 
+integration completely, but in version 2.6 it was re-enabled for 
+backwards compatibility purposes. The change to an integrated DHCP 
+server has the following advantages:
 
 * Small. ISC dhcpd is a large and comprehensive DHCP solution. The
   dnsmasq DHCP server adds about 15k to DNS-only dnsmasq and provides
@@ -27,7 +29,6 @@ change in dnsmasq but it has the following advantages:
   static leases cannot be used with dnsmasq unless each machine with a
   static lease is also inserted into /etc/hosts. This is not required
   with the dnsmasq DHCP server.
-
 
 
        DHCP configuration
@@ -55,9 +56,9 @@ in the same way as before.
 Having started dnsmasq, tell any hosts on the network to renew their
 DHCP lease, so that dnsmasq's  DHCP server becomes aware of them. For
 Linux, this is best done by killing-and-restarting the DHCP client
-daemon or taking the network interface down and then back up. For
-Windows use winipcfg.exe
-
+daemon or taking the network interface down and then back up. For 
+Windows 9x/Me, use the graphical tool "winipcfg". For Windows
+NT/2000/XP, use the command-line "ipconfig /renew"
 
 For more complex DHCP configuration, refer to the doc/setup.html, the
 dnsmasq manpage and the annotated example configuration file. Also

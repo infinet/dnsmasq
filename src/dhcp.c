@@ -362,6 +362,10 @@ int address_available(struct dhcp_context *context, struct in_addr taddr)
   start = ntohl(context->start.s_addr);
   end = ntohl(context->end.s_addr);
 
+  /* static leases only. */
+  if (start == end)
+    return 0;
+
   if (addr < start)
     return 0;
 
@@ -382,7 +386,11 @@ int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
 
   struct dhcp_config *config;
   struct in_addr start = context->last;
-  
+
+  /* start == end means no dynamic leases. */
+  if (context->end.s_addr == context->start.s_addr)
+    return 0;
+
   do {
     if (context->last.s_addr == context->end.s_addr)
       context->last = context->start;
@@ -393,7 +401,7 @@ int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
     if (!lease_find_by_addr(context->last))
       {
 	for (config = configs; config; config = config->next)
-	  if (config->addr.s_addr == context->last.s_addr)
+	  if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == context->last.s_addr)
 	    break;
 	
 	if (!config)
@@ -411,7 +419,7 @@ static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *
 {
   if (!context)
     return 1;
-  if (config->addr.s_addr == 0)
+  if (!(config->flags & CONFIG_ADDR))
     return 1;
   if ((config->addr.s_addr & context->netmask.s_addr) == (context->start.s_addr & context->netmask.s_addr))
     return 1;
@@ -428,28 +436,31 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
   
   if (clid_len)
     for (config = configs; config; config = config->next)
-      {
-	if (config->clid_len == clid_len && 
-	    memcmp(config->clid, clid, clid_len) == 0 &&
-	    is_addr_in_context(context, config))
-	  return config;
-	
-	/* dhcpcd prefixes ASCII client IDs by zero which is wrong, but we try and
-	   cope with that here */
-	if (*clid == 0 && config->clid_len == clid_len-1  &&
-	    memcmp(config->clid, clid+1, clid_len-1) == 0 &&
-	    is_addr_in_context(context, config))
-	  return config;
-      }
-    
+      if (config->flags & CONFIG_CLID)
+	{
+	  if (config->clid_len == clid_len && 
+	      memcmp(config->clid, clid, clid_len) == 0 &&
+	      is_addr_in_context(context, config))
+	    return config;
+	  
+	  /* dhcpcd prefixes ASCII client IDs by zero which is wrong, but we try and
+	     cope with that here */
+	  if (*clid == 0 && config->clid_len == clid_len-1  &&
+	      memcmp(config->clid, clid+1, clid_len-1) == 0 &&
+	      is_addr_in_context(context, config))
+	    return config;
+	}
+  
   for (config = configs; config; config = config->next)
-    if (memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0 &&
+    if ((config->flags & CONFIG_HWADDR) &&
+	memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0 &&
 	is_addr_in_context(context, config))
       return config;
   
   if (hostname)
     for (config = configs; config; config = config->next)
-      if (config->hostname && hostname_isequal(config->hostname, hostname) &&
+      if ((config->flags & CONFIG_NAME) && 
+	  hostname_isequal(config->hostname, hostname) &&
 	  is_addr_in_context(context, config))
 	return config;
   
@@ -459,28 +470,29 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
 {
   FILE *f = fopen(ETHERSFILE, "r");
-  unsigned int e0, e1, e2, e3, e4, e5;
-  char *ip, *cp, *name;
+  unsigned int flags, e0, e1, e2, e3, e4, e5;
+  char *ip, *cp;
   struct in_addr addr;
+  unsigned char hwaddr[ETHER_ADDR_LEN];
   struct dhcp_config *config;
+  int count = 0;
   
   if (!f)
-    die("failed to open " ETHERSFILE ":%s", NULL);
-  
+    {
+      syslog(LOG_ERR, "failed to read " ETHERSFILE ":%m");
+      return configs;
+    }
+
   while (fgets(buff, MAXDNAME, f))
     {
-      while (strlen(buff) > 0 && 
-	     (buff[strlen(buff)-1] == '\n' || 
-	      buff[strlen(buff)-1] == ' ' || 
-	      buff[strlen(buff)-1] == '\r' || 
-	      buff[strlen(buff)-1] == '\t'))
+      while (strlen(buff) > 0 && isspace(buff[strlen(buff)-1]))
 	buff[strlen(buff)-1] = 0;
       
       if ((*buff == '#') || (*buff == '+'))
 	continue;
       
-      for (ip = buff; *ip && *ip != ' ' && *ip != '\t'; ip++);
-      for(; *ip && (*ip == ' ' || *ip == '\t'); ip++)
+      for (ip = buff; *ip && !isspace(*ip); ip++);
+      for(; *ip && isspace(*ip); ip++)
 	*ip = 0;
       if (!*ip)
 	continue;
@@ -488,6 +500,13 @@ struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
       if (!sscanf(buff, "%x:%x:%x:%x:%x:%x", &e0, &e1, &e2, &e3, &e4, &e5))
 	continue;
       
+      hwaddr[0] = e0;
+      hwaddr[1] = e1;
+      hwaddr[2] = e2;
+      hwaddr[3] = e3;
+      hwaddr[4] = e4;
+      hwaddr[5] = e5;
+
       /* check for name or dotted-quad */
       for (cp = ip; *cp; cp++)
 	if (!(*cp == '.' || (*cp >='0' && *cp <= '9')))
@@ -495,47 +514,64 @@ struct dhcp_config *dhcp_read_ethers(struct dhcp_config *configs, char *buff)
       
       if (!*cp)
 	{
-	  name = NULL;
 	  if ((addr.s_addr = inet_addr(ip)) == (in_addr_t)-1)
 	    continue;
+	  flags = CONFIG_ADDR;
 	  
 	  for (config = configs; config; config = config->next)
-	    if (config->addr.s_addr == addr.s_addr)
+	    if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == addr.s_addr)
 	      break;
 	}
       else 
 	{
 	  if (!canonicalise(ip))
 	    continue;
-	  name = ip;
-	  addr.s_addr = 0;
+	  flags = CONFIG_NAME;
 
 	  for (config = configs; config; config = config->next)
-	    if (config->hostname && hostname_isequal(config->hostname, name))
+	    if ((config->flags & CONFIG_NAME) && hostname_isequal(config->hostname, ip))
 	      break;
 	}
       
       if (!config)
 	{ 
-	  config = safe_malloc(sizeof(struct dhcp_config));
-	  config->clid_len = 0;
-	  config->clid = NULL; 
-	  config->lease_time = 0;
-	  config->hostname = safe_string_alloc(name);
-	  config->addr = addr;
-	  config->next = configs;
-	  configs = config;
+	  for (config = configs; config; config = config->next)
+	    if ((config->flags & CONFIG_HWADDR) && 
+		memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
+	      break;
+	  
+	  if (!config)
+	    {
+	      if (!(config = malloc(sizeof(struct dhcp_config))))
+		continue;
+	      config->flags = 0;
+	      config->next = configs;
+	      configs = config;
+	    }
+	  
+	  config->flags |= flags;
+	  
+	  if (flags & CONFIG_NAME)
+	    {
+	      if ((config->hostname = malloc(strlen(ip)+1)))
+		strcpy(config->hostname, ip);
+	      else
+		config->flags &= ~CONFIG_NAME;
+	    }
+	  
+	  if (flags & CONFIG_ADDR)
+	    config->addr = addr;
 	}
+      
+      config->flags |= CONFIG_HWADDR;
+      memcpy(config->hwaddr, hwaddr, ETHER_ADDR_LEN);
 
-      config->hwaddr[0] = e0;
-      config->hwaddr[1] = e1;
-      config->hwaddr[2] = e2;
-      config->hwaddr[3] = e3;
-      config->hwaddr[4] = e4;
-      config->hwaddr[5] = e5;
+      count++;
     }
   
   fclose(f);
+
+  syslog(LOG_INFO, "read " ETHERSFILE " - %d addresses", count);
   return configs;
 }
 
@@ -549,10 +585,13 @@ void dhcp_update_configs(struct dhcp_config *configs)
   struct crec *crec;
   
   for (config = configs; config; config = config->next)
-    if (config->addr.s_addr == 0 && config->hostname && 
+    if (!(config->flags & CONFIG_ADDR) &&
+	(config->flags & CONFIG_NAME) && 
 	(crec = cache_find_by_name(NULL, config->hostname, 0, F_IPV4)) &&
 	(crec->flags & F_HOSTS))
-      config->addr = crec->addr.addr.addr4;
-  
+      {
+	config->addr = crec->addr.addr.addr4;
+	config->flags |= CONFIG_ADDR;
+      }
 }
 

@@ -71,7 +71,7 @@ int main (int argc, char **argv)
   int leasefd = -1, dhcpfd = -1, dhcp_raw_fd = -1;
   struct sigaction sigact;
   sigset_t sigmask;
-  
+
   sighup = 1; /* init cache the first time through */
   sigusr1 = 0; /* but don't dump */
   sigterm = 0; /* or die */
@@ -120,17 +120,14 @@ int main (int argc, char **argv)
 #endif
 
   if (!lease_file)
-    lease_file = LEASEFILE;
-  else
     {
-      if (!dhcp)
-	{
-	  complain("********* dhcp-lease option set, but not dhcp-range.", NULL);
-	  complain("********* Are you trying to use the obsolete ISC dhcpd integration?", NULL);
-	  complain("********* Please configure the dnsmasq integrated DHCP server by using", NULL);
-	  complain("********* the \"dhcp-range\" option, and remove any other DHCP server.", NULL);
-	}
+      if (dhcp)
+	lease_file = LEASEFILE;
     }
+#ifndef HAVE_ISC_READER
+  else if (!dhcp)
+    die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
+#endif
   
   interfaces = enumerate_interfaces(if_names, if_addrs, if_except, port);
   if (options & OPT_NOWILD)
@@ -152,11 +149,6 @@ int main (int argc, char **argv)
     {
       dhcp_init(&dhcpfd, &dhcp_raw_fd);
       leasefd = lease_init(lease_file, domain_suffix, dnamebuff, packet, now, maxleases);
-      if (options & OPT_ETHERS)
-	dhcp_configs = dhcp_read_ethers(dhcp_configs, dnamebuff);
-      lease_update_from_configs(dhcp_configs, domain_suffix); /* must follow cache_init and lease_init */
-      lease_update_file(0, now); 
-      lease_update_dns();
     }
   
   setbuf(stdout, NULL);
@@ -248,7 +240,10 @@ int main (int argc, char **argv)
 	sprintf(packet, "infinite");
       else
 	sprintf(packet, "%ds", (int)dhcp_tmp->lease_time);
-      syslog(LOG_INFO, "DHCP, IP range %s -- %s, lease time %s", 
+      syslog(LOG_INFO, 
+	     dhcp_tmp->start.s_addr == dhcp_tmp->end.s_addr ? 
+	     "DHCP, static leases only on %.0s%s, lease time %s" :
+	     "DHCP, IP range %s -- %s, lease time %s",
 	     dnamebuff, inet_ntoa(dhcp_tmp->end), packet);
     }
 
@@ -271,6 +266,8 @@ int main (int argc, char **argv)
 	  cache_reload(options, dnamebuff, domain_suffix, addn_hosts);
 	  if (dhcp)
 	    {
+	      if (options & OPT_ETHERS)
+		dhcp_configs = dhcp_read_ethers(dhcp_configs, dnamebuff);
 	      dhcp_update_configs(dhcp_configs);
 	      lease_update_from_configs(dhcp_configs, domain_suffix); 
 	      lease_update_file(0, now); 
@@ -350,11 +347,17 @@ int main (int argc, char **argv)
       if (last == 0 || difftime(now, last) > 1.0)
 	{
 	  last = now;
+
+#ifdef HAVE_ISC_READER
+	  if (lease_file && !dhcp)
+	    load_dhcp(lease_file, domain_suffix, now, dnamebuff);
+#endif
+
 	  if (!(options & OPT_NO_POLL))
 	    {
 	      struct resolvc *res = resolv, *latest = NULL;
-	      time_t last_change = 0;
 	      struct stat statbuf;
+	      time_t last_change = 0;
 	      /* There may be more than one possible file. 
 		 Go through and find the one which changed _last_.
 		 Warn of any which can't be read. */

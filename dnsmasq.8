@@ -23,7 +23,10 @@ is lightweight and easy to configure. It is intended as be run on
 small router/firewalls and  provide a DNS (and optionally, DHCP) service to a LAN.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
-functions, for instance "--pid-file=" disables writing a PID file.
+functions, for instance "--pid-file=" disables writing a PID file. On
+BSD, unless the GNU getopt library is linked, the long form of the
+options does not work on the command line; it is still recognised in
+the configuration file.
 .TP
 .B \-h, --no-hosts
 Don't read the hostnames in /etc/hosts.
@@ -271,9 +274,16 @@ given using the
 .B interface
 option. This limitation currently affects OpenBSD. The optional
 network-id is a alphanumeric label which marks this network so that
-dhcp options may be specified on a per-network basis.
+dhcp options may be specified on a per-network basis. The end address
+may be replaced by the keyword 
+.B static
+which tells dnsmasq to enable DHCP for the network specified, but not
+to dynamically allocate IP addresses. Only hosts which have static
+addresses given via 
+.B dhcp-host
+or from /etc/ethers will be served.
 .TP
-.B \-G, --dhcp-host=[[<hwaddr>]|[id:<client_id>]][,<ipaddr>][,<hostname>][,<lease_time>]
+.B \-G, --dhcp-host=[[<hwaddr>]|[id:<client_id>]][net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
 Specify per host parameters for the DHCP server. This allows a machine
 with a particular hardware address to be always allocated the same
 hostname, IP address and lease time. A hostname specified like this
@@ -299,7 +309,16 @@ allowed to specify the client ID as text, like this:
 If a name appears in /etc/hosts, the associated address can be
 allocated to a DHCP lease, but only if a 
 .B --dhcp-host
-option specifying the name also exists.
+option specifying the name also exists. The special keyword "ignore"
+tells dnsmasq to never offer a DHCP lease to a machine. The machine
+can be specified by hardware address, client ID or hostname, for
+instance
+.B --dhcp-host=00:20:e0:3b:13:af,ignore
+This is
+useful when there is another DHCP server on the network which should
+be used by some machines. The net:<network-id> parameter enables DHCP options just
+for this host in the same way as the the network-id in
+.B dhcp-range.
 .TP 
 .B \-Z, --read-ethers
 Read /etc/ethers for information about hosts for the DHCP server. The
@@ -323,7 +342,9 @@ specfied in RFC2132. For example, to set the default route option to
 and to set the time-server address to 192.168.0.4, do
 .B dhcp-option=42,192.168.0.4
 The special address 0.0.0.0 is taken to mean "the address of the
-machine running dnsmasq". If the optional network-id is given then
+machine running dnsmasq". Data types allowed are comma seperated
+dotted-quad IP addresses, a decimal number, colon-seperated hex digits
+and a text string. If the optional network-id is given then
 this option is only sent to machines on the network whose dhcp-range
 contains a matching network-id.
 Be careful: no checking is done that the correct type of data for the
@@ -344,7 +365,12 @@ create thousands of leases and use lots of memory in the dnsmasq
 process.
 .TP
 .B \-l, --dhcp-leasefile=<path>
-Use the specified file to store DHCP lease information.
+Use the specified file to store DHCP lease information. If this option
+is given but no dhcp-range option is given then dnsmasq version 1
+behaviour is activated. The file given is assumed to be an ISC dhcpd
+lease file and parsed for leases which are then added to the DNS
+system if they have a hostname. This functionality may have been
+excluded from dnsmasq at compile time, in which case an error will occur.
 .TP
 .B \-s, --domain=<domain>
 Specifies the domain for the DHCP server. This has two effects;
@@ -361,12 +387,14 @@ Add the domain-suffix to simple names (without a period) in /etc/hosts
 in the same way as for DHCP-derived names.
 .SH CONFIG FILE
 At startup, dnsmasq reads /etc/dnsmasq.conf, if it exists. (On
-FreeBSD, the file is /usr/local/etc/dnsmasq.conf) The format of this
+FreeBSD and OpenBSD, the file is /usr/local/etc/dnsmasq.conf) The format of this
 file consists of one option per line, exactly as the long options detailed 
 in the OPTIONS section but without the leading "--". Lines starting with # are comments and ignored. For
 options which may only be specified once, the configuration file overrides 
 the command line. Use the --conf-file option to specify a different
-configuration file.
+configuration file. The conf-file option is also allowed in
+configuration files, to include multiple configuration files. Only one
+level of nesting is allowed.
 .SH NOTES
 When it receives a SIGHUP, 
 .B dnsmasq 
