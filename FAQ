@@ -1,0 +1,161 @@
+Q: Why does dnsmasq open UDP ports >1024 as well as port 53.
+   Is this a security problem/trojan/backdoor?
+
+A: The high ports that dnsmasq opens is for replies from the upstream
+   nameserver(s). Queries from dnsmasq to upstream nameservers are sent
+   from these ports and replies received to them. The reason for doing this is
+   that most firewall setups block incoming packets _to_ port 53, in order
+   to stop DNS queries from the outside world. If dnsmasq sent its queries
+   from port 53 the replies would be _to_ port 53 and get blocked.
+
+   This is not a security hole since dnsmasq will only accept replies to that
+   port: queries are  dropped. The replies must be to oustanding queries
+   which dnsmasq has forwarded, otherwise they are dropped too.
+ 
+   Addendum: dnsmasq now has the option "query-port" (-Q), which allows
+   you to specify the UDP port to be used for this purpose.  If not
+   specified, the operating system will select an available port number
+   just as it did before.
+ 
+Q: Why doesn't dnsmasq support DNS queries over TCP? Don't the RFC's specify
+   that?
+
+A: Yes, they do, so technically dnsmasq is not RFC-compliant. In practice, the
+   sorts of queries which dnsmasq is used for are always sent via UDP. Adding 
+   TCP support would make dnsmasq much more heavyweight for no practical 
+   benefit. If you really want to do zone transfers, forward port 53 TCP 
+   using in-kernel port-forwarding or a port-fowarder like rinetd.
+
+
+Q: When I send SIGUSR1 to dump the contents of the cache, some entries have
+   no IP address and are for names like mymachine.mydomain.com.mydomain.com.
+   What are these?
+
+A: They are negative entries: that's what the N flag means. Dnsmasq asked 
+   an upstream nameserver to resolve that address and it replied "doesn't 
+   exist, and won't exist for <n> hours" so dnsmasq saved that information so
+   that if _it_ gets asked the same question it can answer directly without
+   having to go back to the upstream server again. The strange repeated domains
+   result from the way resolvers search short names. See "man resolv.conf" for
+   details.
+
+
+Q: Will dnsmasq compile/run on non-Linux systems?
+
+A: Yes, there is explicit support for *BSD and Solaris.
+   For other systems, try altering the settings in config.h.
+
+A: Update for V2. Doing DHCP is rather non-portable, so there may be
+   a few teething troubles. The initial 2.0 release is known to work
+   on Linux 2.2.x, Linux 2.4.x and Linux 2.6.x with uclibc and glibc
+   2.3. It also works on FreeBSD 4.8. The crucial problem is sending
+   raw packets, bypassing the IP stack. Dnsmasq contains code to do
+   using PF_PACKET sockets (which is for Linux) and the Berkeley packet
+   filter (which works with BSD). If you are trying to port to another
+   Un*x, bpf is the most likeley candidate. See config.h 
+
+Q: My companies' nameserver knows about some names which aren't in the
+   public DNS. Even though I put it first in /etc/resolv.conf, it
+   dosen't work: dnsmasq seems not to use the nameservers in the order
+   given. What am I doing wrong?
+
+A: By default, dnsmasq treats all the nameservers it knows about as
+   equal: it picks the one to use using an algorithm designed to avoid 
+   nameservers which aren't responding. To make dnsmasq use the
+   servers in order, give it the -o flag. If you want some queries
+   sent to a special server, think about using the -S flag to give the
+   IP address of that server, and telling dnsmasq exactly which
+   domains to use the server for.
+
+Q: OK, I've got queries to a private nameserver working, now how about 
+   reverse queries for a range of IP addresses?
+
+A: Use the standard DNS convention of <reversed address>.in-addr.arpa.
+   For instance to send reverse queries on the range 192.168.0.0 to 
+   192.168.0.255 to a nameserver at 10.0.0.1 do
+   server=/0.168.192.in-addr.arpa/10.0.0.1
+
+Q: Dnsmasq fails to start with an error like this: "dnsmasq: bind
+   failed: Cannot assign requested address". What's the problem?
+
+A: This has been seen when a system is bringing up a PPP interface at
+   boot time: by the time dnsmasq start the interface has been
+   created, but not brought up and assigned an address. The easiest
+   solution is to use --interface flags to specify which interfaces
+   dnsmasq should listen on. Since you are unlikely to want dnsmasq to
+   listen on a PPP interface and offer DNS service to the world, the
+   problem is solved.
+
+Q: I'm running on BSD and dnsmasq won't accept long options on the
+   command line. 
+
+A: Dnsmasq when built on BSD systems doesn't use GNU getopt by
+   default. You can either just use the single-letter options or
+   change config.h and the Makefile to use getopt-long. Note that
+   options in /etc/dnsmasq.conf must always be the long form,
+   on all platforms.
+
+Q: Names on the internet are working fine, but looking up local names 
+   from /etc/hosts or DHCP doesn't seem to work.
+
+A: Resolver code sometime does strange things when given names without
+   any dots in. Win2k and WinXP may not use the DNS at all and just
+   try and look up the name using WINS. On unix look at "options ndots:"
+   in "man resolv.conf" for details on this topic. Testing lookups
+   using "nslookup" or "dig" will work, but then attempting to run
+   "ping" will get a lookup failure, appending a dot to the end of the
+   hostname  will fix things. (ie "ping myhost" fails, but "ping
+   myhost." works. The solution is to make sure that all your hosts
+   have a domain set ("domain" in resolv.conf, the network applet in
+   windows, or set a domain in your DHCP server). Any domain  will do,
+   but "localnet" is traditional. Now when you resolve "myhost" the
+   resolver will attempt to look up "myhost.localnet" so you need to
+   have dnsmasq reply to that name. The way to do that is to include
+   the domain in each name on /etc/hosts and/or to use the
+   --expand-hosts and --domain-suffix options.
+
+Q: Can I get dnsmasq to save the contents of its cache to disk when
+   I shut my machine down and re-load when it starts again.
+
+A: No, that facility is not provided. Very few names in the DNS have
+   their time-to-live set for longer than a few hours so most of the
+   cache entries would have expired after a shutdown. For longer-lived
+   names it's much cheaper to just reload them from the upstream
+   server. Note that dnsmasq is not shut down between PPP sessions so
+   go off-line and then on-line again will not lose the contents of
+   the cache.
+
+Q: Who are Verisign, what do they have to do with the bogus-nxdomain
+   option in dnsmasq and why should I wory about it?
+
+A: [note: this was written in September 2003, things may well change.]
+   Versign run the .com and .net top-level-domains. They have just
+   changed the configuration of their servers so that unknown .com and
+   .net domains, instead of returning an error code NXDOMAIN, (no such
+   domain) return the address of a host at Versign which runs a web
+   server showing a search page. Most right-thinking people regard
+   this new behaviour as broken :-).  You can test to see if you are
+   suffering Versign brokeness by run a command like 
+   
+   host jlsdajkdalld.com
+
+   If you get "jlsdajkdalld.com" does not exist, then all is fine, if
+   host returns an IP address, then the DNS is broken. (Try a few
+   different unlikely domains, just in case you picked a wierd one
+   which really _is_ registered.)
+
+   Assuming that your DNS is broken, and you want to fix it, simply
+   note the IP address being returned and pass it to dnsmasq using the
+   --bogus-nxdomain flag. Dnsmasq will check for results returning
+   that address and substitute an NXDOMAIN instead. 
+
+   As of writing, the IP address in question for the .com and .net
+   domains is is 64.94.110.11. Various other, less prominent,
+   registries pull the same stunt; there is a list of them all, and
+   the addresses to block, at http://winware.org/bogus-domains.txt
+
+
+
+
+
+

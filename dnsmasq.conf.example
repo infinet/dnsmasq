@@ -1,0 +1,170 @@
+# Configuration file for dnsmasq.
+#
+# Format is one option per line, legal options are the same
+# as the long options legal on the command line. See
+# "/usr/sbin/dnsmasq --help" or "man 8 dnsmasq" for details.
+
+# Change these lines if you want dnsmasq to serve MX records.
+# Only one of mx-host and mx-target need be set, the other defaults
+# to the name of the host  running dnsmasq.
+#mx-host=
+#mx-target=
+#selfmx
+#localmx
+
+# The following three options make you a better netizen, since they 
+# tell dnsmasq to filter out queries which the public DNS cannot
+# answer, and which load the servers (especially the root servers) 
+# uneccessarily. If you have a dial-on-demand link they also stop
+# these requests from bringing up the link uneccessarily.
+
+# Never forward plain names (with a dot or domain part)
+domain-needed
+# Reply to reverse queries for addresses in the non-routed address
+# space with the dotted.quad address
+bogus-priv
+# Filter useless windows-originated DNS requests
+filterwin2k
+
+
+# Change this line if you want dns to get its upstream servers from
+# somewhere other that /etc/resolv.conf 
+#resolv-file=
+
+# If you don't want dnsmasq to read /etc/resolv.conf or any other
+# file, getting its servers for this file instead (see below), then
+# uncomment this
+#no-resolv
+
+# If you don't want dnsmasq to poll /etc/resolv.conf or other resolv
+# files for changes and re-read them then uncomment this.
+#no-poll
+
+# Add other name servers here, with domain specs if they are for 
+# non-public domains.
+#server=/localnet/192.168.0.1
+
+# Add local-only domains here, queries in these domains are answered
+# from /etc/hosts or DHCP only.
+#local=/localnet/
+
+# Add domains which you want to force to an IP address here.
+# The example below send any host in doubleclick.net to a local
+# webserver.
+#address=/doubleclick.net/127.0.0.1
+
+# You no longer (as of version 1.7) need to set these to enable 
+# dnsmasq to read /etc/ppp/resolv.conf since dnsmasq now uses the
+# "dip" group to achieve this.
+#user=
+#group=
+
+# If you want dnsmasq to listen for requests only on specified interfaces
+# (and the loopback) give the name of the interface (eg eth0) here. 
+# Repeat the line for more than one interface.
+#interface=
+# Or you can specify which interface _not_ to listen on
+#except-interface=
+# Or which to listen on by address (remember to include 127.0.0.1 if
+# you use this.)
+#listen-address=
+
+# If you don't want dnsmasq to read /etc/hosts, uncomment the
+# following line.
+#no-hosts
+# or if you want it to read another file, as well as /etc/hosts, use
+# this.
+#addn-hosts=/etc/banner_add_hosts
+
+# Set this (and domain: see below) if you want to have a domain
+# automatically added to simple names in a hosts-file.
+#expand-hosts
+
+# Uncomment this to enable the integrated DHCP server, you need
+# to supply the range of addresses available for lease and optionally 
+# a lease time. If you have more than one interface, you will need to
+# repeat this for each interface on which you want to supply DHCP
+# service.
+#dhcp-range=192.168.0.50,192.168.0.150,12h
+
+# Supply parameters for specified hosts using DHCP. There are lots
+# of valid alternatives, do we will give examples of each. Note that
+# IP addresses DO NOT have to be in the range given above, they just
+# need to be on the same network. 
+
+# Always allocate the host with ethernet address 11:22:33:44:55:66 
+# The IP address 192.168.0.60
+#dhcp-host=11:22:33:44:55:66,192.168.0.60
+
+# Always set the name of the host with hardware address
+# 11:22:33:44:55:66 to be "fred"
+#dhcp-host=11:22:33:44:55:66,fred
+
+# Always give the host with ethernet address 11:22:33:44:55:66
+# the name fred and IP address 192.168.0.60 and lease time 45 minutes
+#dhcp-host=11:22:33:44:55:66,fred,192.168.0.60,45m
+
+# Give the machine which says it's name is "bert" IP address
+# 192.168.0.70 and an infinite lease
+#dhcp-host=bert,192.168.0.70,infinite
+
+# Always give the host with client identifier 01:02:02:04 
+# the IP address 192.168.0.60
+#dhcp-host=id:01:02:02:04,192.168.0.60
+
+# Always give the host with client identifier "marjorie"
+# the IP address 192.168.0.60
+#dhcp-host=id:marjorie,192.168.0.60
+
+# Send options to hosts which ask for a DHCP lease.
+# See RFC 2132 for details of available options.
+
+# Set the NTP time server addresses to 192.168.0.4 and 10.10.0.5
+#dhcp-option=42,192.168.0.4,10.10.0.5
+
+# Set the NIS domain name to "welly"
+#dhcp-option=40,welly
+
+# Set the boot filename and tftpd server name and address
+# for BOOTP. You will only need this is you want to
+# boot machines over the network.
+#dhcp-boot=/var/ftpd/pxelinux.0,boothost,192.168.0.3
+
+# The DHCP server needs somewhere on disk to keep its lease database.
+# This defaults to a sane location, but if you want to change it, use
+# the line below.
+#dhcp-leasefile=/var/lib/dnsmasq/leases
+
+# Override the default route (which is normally automagically set
+# to be the machine running dnsmasq
+#dhcp-option=2,192,168.4.4
+
+# Set the cachesize here.
+#cache-size=600
+
+# If you want to disable negative caching, uncomment this.
+#no-negcache
+
+# Normally responses which come form /etc/hosts and the DHCP lease
+# file have Time-To-Live set as zero, which conventionally means
+# do not cache further. If you are happy to trade lower load on the 
+# server for potentially stale date, you can set a time-to-live (in 
+# seconds) here.
+#local-ttl=
+
+# If you want dnsmasq to detect attempts by Verisign to send queries
+# to unregistered .com and .net hosts to its sitefinder service and
+# have dnsmasq instead return the correct NXDOMAIN response, uncomment
+# this line. You can add similar lines to do the same for other
+# registries which have implemented wildcard A records.
+#bogus-nxdomain=64.94.110.11
+
+# For debugging purposes, log each DNS query as it passes through
+# dnsmasq.
+#log-queries
+
+
+ 
+
+
+
