@@ -25,7 +25,7 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
   if (except)
     for (tmp = except; tmp; tmp = tmp->next)
       if (tmp->name && strcmp(tmp->name, name) == 0)
-	return NULL;
+	return list;
   
   /* we may need to check the whitelist */
   if (names || addrs)
@@ -38,31 +38,31 @@ static struct irec *add_iface(struct irec *list, char *name, union mysockaddr *a
 	  if (sockaddr_isequal(&tmp->addr, addr))
 	    break;
       if (!tmp) 
-	return NULL;
+	return list;
     }
   
   /* check whether the interface IP has been added already 
      it is possible to have multiple interfaces with the same address */
-  for (; list; list = list->next) 
-    if (sockaddr_isequal(&list->addr, addr))
+  for (iface = list; iface; iface = iface->next) 
+    if (sockaddr_isequal(&iface->addr, addr))
       break;
-  if (list)
-    return NULL;
+  if (iface)
+    return list;
   
   /* If OK, add it to the head of the list */
   iface = safe_malloc(sizeof(struct irec));
   iface->addr = *addr;
-
+  iface->next = list;
   return iface;
 }
 
 
-struct irec *enumerate_interfaces(struct iname *names,
-				  struct iname *addrs,
+struct irec *enumerate_interfaces(struct iname **names,
+				  struct iname **addrs,
 				  struct iname *except,
 				  int port)
 {
-  struct irec *iface = NULL, *new;
+  struct irec *iface = NULL;
   char *buf, *ptr;
   struct ifreq *ifr = NULL;
   struct ifconf ifc;
@@ -137,22 +137,19 @@ struct irec *enumerate_interfaces(struct iname *names,
 	die("ioctl error getting interface flags: %m", NULL);
 
       /* If we are restricting the set of interfaces to use, make
-	 sure that loopback interfaces are in that set. */
-      if (names && (ifr->ifr_flags & IFF_LOOPBACK))
+	 sure that loopback interfaces are in that set. Note that
+	 this is done as addresses rather than interface names so
+	 as not to confuse the no-IPRECVIF workaround on the DHCP code */
+      if (*names && (ifr->ifr_flags & IFF_LOOPBACK))
 	{
 	  struct iname *lo = safe_malloc(sizeof(struct iname));
-	  lo->name = safe_string_alloc(ifr->ifr_name);
-	  lo->next = names->next;
-	  names->next = lo;
+	  lo->addr = addr;
+	  lo->next = *addrs;
+	  *addrs = lo;
 	}
 
-      if ((new = add_iface(iface, ifr->ifr_name, 
-			   &addr, names, addrs, except)))
-	{
-	  new->next = iface;
-	  iface = new;
-	}
-
+      iface = add_iface(iface, ifr->ifr_name, &addr, *names, *addrs, except);
+	
 #if defined(HAVE_LINUX_IPV6_PROC) && defined(HAVE_IPV6)
       /* IPv6 addresses don't seem to work with SIOCGIFCONF. Barf */
       /* This code snarfed from net-tools 1.60 and certainly linux specific, though
@@ -194,11 +191,17 @@ struct irec *enumerate_interfaces(struct iname *names,
 	    fclose(f);
 	  }
 	
-	if (found && (new = add_iface(iface, ifr->ifr_name,
-				      &addr6, names, addrs, except)))
+	if (found)
 	  {
-	    new->next = iface;
-	    iface = new;
+	    if (*names && (ifr->ifr_flags & IFF_LOOPBACK))
+	      {
+		struct iname *lo = safe_malloc(sizeof(struct iname));
+		lo->addr = addr6;
+		lo->next = *addrs;
+		*addrs = lo;
+	      }
+	    
+	    iface = add_iface(iface, ifr->ifr_name, &addr6, *names, *addrs, except);
 	  }
       }
 #endif /* LINUX */

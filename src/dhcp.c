@@ -60,7 +60,8 @@ void dhcp_init(int *fdp, int* rfdp)
 }
 
 void dhcp_packet(struct dhcp_context *contexts, char *packet, 
-		 struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs, 
+		 struct dhcp_opt *dhcp_opts, struct dhcp_config *dhcp_configs,
+		 struct dhcp_vendor *vendors,
 		 time_t now, char *namebuff, char *domain_suffix,
 		 char *dhcp_file, char *dhcp_sname, 
 		 struct in_addr dhcp_next_server, int dhcp_fd, int raw_fd,
@@ -181,7 +182,7 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
        /* we can use the interface netmask if either the packet came direct,
 	  or it came via a relay listening on the same network. This sounds unlikely,
 	  but it happens with win4lin. */
-       if ((source.s_addr & iface_netmask.s_addr) != (iface_addr.s_addr & iface_netmask.s_addr))
+       if (!is_same_net(source, iface_addr, iface_netmask))
 	 iface_netmask.s_addr = 0;
        else if (ioctl(dhcp_fd, SIOCGIFBRDADDR, &ifr) != -1)
 	 iface_broadcast = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
@@ -193,8 +194,8 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
       struct in_addr netmask = context->netmask.s_addr ? context->netmask : iface_netmask;
 
       if (netmask.s_addr && 
-	  (source.s_addr & netmask.s_addr) == (context->start.s_addr & netmask.s_addr) &&
-	  (source.s_addr & netmask.s_addr) == (context->end.s_addr & netmask.s_addr))
+	  is_same_net(source, context->start, netmask) &&
+	  is_same_net(source, context->end, netmask))
 	break;
     }
       
@@ -225,7 +226,7 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
      DHCP broadcast, either this machine or a relay. In the special case that the relay
      is on the same network as us, we set the default route to us, not the relay.
      This is the win4lin scenario again. */ 
-  if ((source.s_addr & context->netmask.s_addr) == (iface_addr.s_addr & context->netmask.s_addr))
+  if (is_same_net(source, iface_addr, context->netmask))
     router = iface_addr;
   else
     router = source;
@@ -233,8 +234,8 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
   lease_prune(NULL, now); /* lose any expired leases */
   newlen = dhcp_reply(context, iface_addr, ifr.ifr_name, ifr.ifr_mtu, 
 		      rawpacket, sz, now, namebuff, 
-		      dhcp_opts, dhcp_configs, domain_suffix, dhcp_file,
-		      dhcp_sname, dhcp_next_server, router);
+		      dhcp_opts, dhcp_configs, vendors, domain_suffix, 
+		      dhcp_file, dhcp_sname, dhcp_next_server, router);
   lease_update_file(0, now);
   lease_update_dns();
 	  
@@ -350,7 +351,6 @@ void dhcp_packet(struct dhcp_context *contexts, char *packet,
     }
 }
 
-	  
 int address_available(struct dhcp_context *context, struct in_addr taddr)
 {
   /* Check is an address is OK for this network, ie
@@ -379,38 +379,47 @@ int address_available(struct dhcp_context *context, struct in_addr taddr)
 }
 
 int address_allocate(struct dhcp_context *context, struct dhcp_config *configs,
-		     struct in_addr *addrp)   
+		     struct in_addr *addrp, unsigned char *hwaddr)   
 {
   /* Find a free address: exlude anything in use and anything allocated to
      a particular hwaddr/clientid/hostname in our configuration */
 
   struct dhcp_config *config;
-  struct in_addr start = context->last;
+  struct in_addr start, addr ;
+  int i, j;
 
   /* start == end means no dynamic leases. */
   if (context->end.s_addr == context->start.s_addr)
     return 0;
-
+  
+  /* pick a seed based on hwaddr then iterate until we find a free address. */
+  for (j = 0, i = 0; i < ETHER_ADDR_LEN; i++)
+    j += hwaddr[i] + (hwaddr[i] << 8) + (hwaddr[i] << 16);
+  
+  start.s_addr = addr.s_addr = 
+    htonl(ntohl(context->start.s_addr) + 
+	  (j % (ntohl(context->end.s_addr) - ntohl(context->start.s_addr))));
+ 
   do {
-    if (context->last.s_addr == context->end.s_addr)
-      context->last = context->start;
+    if (addr.s_addr == context->end.s_addr)
+      addr = context->start;
     else
-      context->last.s_addr = htonl(ntohl(context->last.s_addr) + 1);
+      addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
 
     
-    if (!lease_find_by_addr(context->last))
+    if (!lease_find_by_addr(addr))
       {
 	for (config = configs; config; config = config->next)
-	  if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == context->last.s_addr)
+	  if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == addr.s_addr)
 	    break;
 	
 	if (!config)
 	  {
-	    *addrp = context->last;
+	    *addrp = addr;
 	    return 1;
 	  }
       }
-  } while (context->last.s_addr != start.s_addr);
+  } while (addr.s_addr != start.s_addr);
   
   return 0;
 }
@@ -421,7 +430,7 @@ static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *
     return 1;
   if (!(config->flags & CONFIG_ADDR))
     return 1;
-  if ((config->addr.s_addr & context->netmask.s_addr) == (context->start.s_addr & context->netmask.s_addr))
+  if (is_same_net(config->addr, context->start, context->netmask))
     return 1;
   
   return 0;

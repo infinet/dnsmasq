@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.6
+Version: 2.7
 Release: 1
 Copyright: GPL
 Group: System Environment/Daemons

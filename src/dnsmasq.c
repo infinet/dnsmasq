@@ -66,6 +66,7 @@ int main (int argc, char **argv)
   struct dhcp_context *dhcp_tmp, *dhcp = NULL;
   struct dhcp_config *dhcp_configs = NULL;
   struct dhcp_opt *dhcp_options = NULL;
+  struct dhcp_vendor *dhcp_vendors = NULL;
   char *dhcp_file = NULL, *dhcp_sname = NULL;
   struct in_addr dhcp_next_server;
   int leasefd = -1, dhcpfd = -1, dhcp_raw_fd = -1;
@@ -109,15 +110,9 @@ int main (int argc, char **argv)
 		      &username, &groupname, &domain_suffix, &runfile, 
 		      &if_names, &if_addrs, &if_except, &bogus_addr, 
 		      &serv_addrs, &cachesize, &port, &query_port, &local_ttl, &addn_hosts,
-		      &dhcp, &dhcp_configs, &dhcp_options,
+		      &dhcp, &dhcp_configs, &dhcp_options, &dhcp_vendors,
 		      &dhcp_file, &dhcp_sname, &dhcp_next_server, &maxleases, &min_leasetime,
 		      &doctors);
-
-  /* if we cannot support binding the wildcard address, set the "bind only
-     interfaces in use" option */
-#ifndef  HAVE_UDP_SRC_DST
-  options |= OPT_NOWILD;
-#endif
 
   if (!lease_file)
     {
@@ -129,7 +124,13 @@ int main (int argc, char **argv)
     die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
 #endif
   
-  interfaces = enumerate_interfaces(if_names, if_addrs, if_except, port);
+#ifndef  HAVE_UDP_SRC_DST
+  /* if we cannot support binding the wildcard address, set the "bind only
+     interfaces in use" option */
+  options |= OPT_NOWILD;
+#endif
+
+  interfaces = enumerate_interfaces(&if_names, &if_addrs, if_except, port);
   if (options & OPT_NOWILD)
     listeners = create_bound_listeners(interfaces);
   else
@@ -397,7 +398,7 @@ int main (int argc, char **argv)
 				    dnamebuff, last_server, bogus_addr, doctors);
 
       if (dhcp && FD_ISSET(dhcpfd, &rset))
-	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs,
+	dhcp_packet(dhcp, packet, dhcp_options, dhcp_configs, dhcp_vendors,
 		    now, dnamebuff, domain_suffix, dhcp_file,
 		    dhcp_sname, dhcp_next_server, dhcpfd, dhcp_raw_fd,
 		    if_names, if_addrs, if_except);

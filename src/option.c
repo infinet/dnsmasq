@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 - 2003 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2004 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:"
+#define OPTSTRING "ZDNLERzowefnbvhdqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:"
 
 static struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -70,6 +70,7 @@ static struct myoption opts[] = {
   {"bind-interfaces", 0, 0, 'z'},
   {"read-ethers", 0, 0, 'Z' },
   {"alias", 1, 0, 'V' },
+  {"dhcp-vendorclass", 1, 0, 'U'},
   {0, 0, 0, 0}
 };
 
@@ -139,6 +140,7 @@ static char *usage =
 "-t, --mx-target=host_name           Specify the host in an MX reply.\n"
 "-T, --local-ttl=time                Specify time-to-live in seconds for replies from /etc/hosts.\n"
 "-u, --user=username                 Change to this user after startup. (defaults to " CHUSER ").\n" 
+"-U, --dhcp-vendorclass=<id>,<class> Map DHCP vendor class to option set.\n"
 "-v, --version                       Display dnsmasq version.\n"
 "-V, --alias=addr,addr,mask          Translate IPv4 addresses from upstream servers.\n"
 "-w, --help                          Display this message.\n"
@@ -155,7 +157,7 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			struct iname **if_names, struct iname **if_addrs, struct iname **if_except,
 			struct bogus_addr **bogus_addr, struct server **serv_addrs, int *cachesize, int *port, 
 			int *query_port, unsigned long *local_ttl, char **addn_hosts, struct dhcp_context **dhcp,
-			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, char **dhcp_file,
+			struct dhcp_config **dhcp_conf, struct dhcp_opt **dhcp_opts, struct dhcp_vendor **dhcp_vendors, char **dhcp_file,
 			char **dhcp_sname, struct in_addr *dhcp_next_server, int *dhcp_max, 
 			unsigned int *min_leasetime, struct doctor **doctors)
 {
@@ -726,7 +728,6 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		      }
 		  }
 				
-		new->last = new->start;
 		if (new->lease_time < *min_leasetime)
 		  *min_leasetime = new->lease_time;
 		break;
@@ -760,40 +761,45 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 			  (arg[1] == 'd' || arg[1] == 'D') &&
 			  arg[2] == ':')
 			{
-			  int len;
-			  arg += 3; /* dump id: */
-			  if (strchr(arg, ':'))
-			    {
-			      /* decode hex in place */
-			      char *p = arg, *q = arg, *r;
-			      while (*p)
-				{
-				  for (r = p; *r && *r != ':'; r++);
-				  if (*r)
-				    {
-				      if (r != p)
-					{
-					  *r = 0;
-					  *(q++) = strtol(p, NULL, 16);
-					}
-				      p = r+1;
-				    }
-				  else
-				    {
-				      if (*p)
-					*(q++) = strtol(p, NULL, 16);
-				      break;
-				    }
-				}
-			      len = q - arg;
-			    }
+			  if (arg[3] == '*')
+			    new->flags |= CONFIG_NOCLID;
 			  else
-			    len = strlen(arg);
-			  
-			  new->flags |= CONFIG_CLID;
-			  new->clid_len = len;
-			  new->clid = safe_malloc(len);
-			  memcpy(new->clid, arg, len);
+			    {
+			      int len;
+			      arg += 3; /* dump id: */
+			      if (strchr(arg, ':'))
+				{
+				  /* decode hex in place */
+				  char *p = arg, *q = arg, *r;
+				  while (*p)
+				    {
+				      for (r = p; *r && *r != ':'; r++);
+				      if (*r)
+					{
+					  if (r != p)
+					    {
+					      *r = 0;
+					      *(q++) = strtol(p, NULL, 16);
+					    }
+					  p = r+1;
+					}
+				      else
+					{
+					  if (*p)
+					    *(q++) = strtol(p, NULL, 16);
+					  break;
+					}
+				    }
+				  len = q - arg;
+				}
+			      else
+				len = strlen(arg);
+			      
+			      new->flags |= CONFIG_CLID;
+			      new->clid_len = len;
+			      new->clid = safe_malloc(len);
+			      memcpy(new->clid, arg, len);
+			    }
 			}
 		      else if ((arg[0] == 'n' || arg[0] == 'N') &&
 			       (arg[1] == 'e' || arg[1] == 'E') &&
@@ -1057,6 +1063,26 @@ unsigned int read_opts (int argc, char **argv, char *buff, struct resolvc **reso
 		break;
 	      }
 
+	    case 'U':
+	      {
+		char *comma;
+		
+		if (!(comma = strchr(optarg, ',')))
+		  option = '?';
+		else
+		  {
+		    struct dhcp_vendor *new = safe_malloc(sizeof(struct dhcp_vendor));
+		    *comma = 0;
+		    new->net = safe_string_alloc(optarg);
+		    new->len = strlen(comma+1);
+		    new->data = safe_malloc(new->len);
+		    memcpy(new->data, comma+1, new->len);
+		    new->next = *dhcp_vendors;
+		    *dhcp_vendors = new;
+		  }
+		break;
+	      }
+		    
 	    case 'V':
 	      {
 		char *a[3] = { NULL, NULL, NULL };

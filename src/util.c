@@ -228,3 +228,8 @@ time_t dnsmasq_time(int fd)
   return time(NULL);
 #endif
 }
+
+int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
+{
+  return (a.s_addr & mask.s_addr) == (b.s_addr & mask.s_addr);
+} 

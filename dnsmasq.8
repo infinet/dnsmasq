@@ -283,7 +283,7 @@ addresses given via
 .B dhcp-host
 or from /etc/ethers will be served.
 .TP
-.B \-G, --dhcp-host=[[<hwaddr>]|[id:<client_id>]][net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
+.B \-G, --dhcp-host=[[<hwaddr>]|[id:[<client_id>][*]]][net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
 Specify per host parameters for the DHCP server. This allows a machine
 with a particular hardware address to be always allocated the same
 hostname, IP address and lease time. A hostname specified like this
@@ -305,7 +305,10 @@ hardware addresses to identify hosts by prefixing with 'id:'. Thus:
 .B --dhcp-host=id:01:02:03:04,..... 
 refers to the host with client identifier 01:02:03:04. It is also
 allowed to specify the client ID as text, like this:
-.B --dhcp-host=id:clientidastext,.....
+.B --dhcp-host=id:clientidastext,..... 
+The special option id:* means "ignore any client-id 
+and use MAC addresses only." This is useful when a client presents a client-id sometimes 
+but not others.
 If a name appears in /etc/hosts, the associated address can be
 allocated to a DHCP lease, but only if a 
 .B --dhcp-host
@@ -340,7 +343,7 @@ specfied in RFC2132. For example, to set the default route option to
 192.168.4.4, do 
 .B --dhcp-option=3,192.168.4.4
 and to set the time-server address to 192.168.0.4, do
-.B dhcp-option=42,192.168.0.4
+.B --dhcp-option=42,192.168.0.4
 The special address 0.0.0.0 is taken to mean "the address of the
 machine running dnsmasq". Data types allowed are comma seperated
 dotted-quad IP addresses, a decimal number, colon-seperated hex digits
@@ -352,6 +355,15 @@ option number is sent, and there are option numbers for which it is not
 possible to generate the correct data type; it is quite possible to
 persuade dnsmasq to generate illegal DHCP packets with injudicious use
 of this flag.
+.TP
+.B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
+Map from a vendor-class string to a network id. Most DHCP clients provide a 
+"vendor class" which represents, in some sense, the type of host. This options 
+maps vendor classes to network ids, so that DHCP options may be selectively delivered
+to different classes of hosts. For example 
+.B dhcp-vendorclass=printers,Hewlett-Packard JetDirect
+will allow options to be set only for HP printers like so:
+.B --dhcp-option=printers,3,192.168.4.4
 .TP
 .B \-M, --dhcp-boot=<filename>,[<servername>[,<server address>]]
 Set BOOTP options to be returned by the DHCP server. These are needed

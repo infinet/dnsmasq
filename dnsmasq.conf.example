@@ -161,6 +161,12 @@ filterwin2k
 # address is 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,ignore
 
+# Ignore any client-id presented by the machine with ethernet
+# address 11:22:33:44:55:66. This is useful to prevent a machine 
+# being treated differently when running under different OS's or
+# between PXE boot and OS boot.
+#dhcp-host=11:22:33:44:55:66,id:*
+
 # Send extra options which are tagged as "red" to 
 # the machine with ethernet address 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,net:red

@@ -916,12 +916,49 @@ release 2.6
 	     comment, a '#' character must now be a the start of a
 	     line or preceded by whitespace. Thanks to Christian
 	     Haggstrom for the bug report.
+
+release 2.7  
+             Allow the dhcp-host specification of id:* which makes 
+	     dnsmasq ignore any client-id. This is useful to ensure 
+	     that a dual-boot machine sees the same lease when one OS 
+	     gives a client-id and the other doesn't. It's also useful
+	     when PXE boot DHCP does not use client IDs but the OS it boots 
+             does. Thanks to Grzegorz Nosek for suggesting this enhancement.
+
+	     No longer assume that ciaddr is zero in received DHCPDISCOVER 
+	     messages, just for security against broken clients.
+
+	     Set default of siaddr field to the address of the machine running 
+             dnsmasq when not explicitly set using dhcp-boot
+             option. This is the ISC dhcpd behaviour.  
+
+             Send T1 and T2 options in DHCPOFFER packets. This is required
+	     by the DHCP client in some JetDirect printers. Thanks 
+             to Paul Mattal for work on this.
+
+	     Fixed bug with DHCP on OpenBSD reported by Dominique Jacquel.
+	     The code which added loopback interfaces to the list
+	     was confusing the DHCP code, which expected one interface only.
+	     Solved by adding loopback interfaces to address list instead.
+
+	     Add dhcp-vendorclass option to allow options to be sent only
+	     to certain classes of clients.
+
+	     Tweaked option search code so that if a netid-qualified
+	     option is used, any unqualified option is ignored.
+	     
+	     Changed the method of picking new dynamic IP
+	     addresses. This used to use the next consecutive
+	     address as long it was free, now it uses a hash
+	     from the client hardware address. This reduces the amount
+	     of address movement for clients which let their lease
+	     expire and allows consecutive DHCPOFFERS to the same host
+	     to (almost always) be for the same address, without
+	     storing state before a lease is granted.
  
-	     
+	     Tweaked option handling code to return all possible
+	     options rather than none when DHCP "requested options"
+	     field is missing. This fixes interoperability with
+	     ancient IBM LANMAN DHCP clients. Thanks to Jim Louvau for
+	     help with this.
 
-
-
-
-	     
-
-	     

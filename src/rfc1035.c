@@ -443,7 +443,7 @@ void extract_neg_addrs(HEADER *header, unsigned int qlen, char *name, time_t now
 static void dns_doctor(struct doctor *doctor, struct in_addr *addr)
 {
   for (; doctor; doctor = doctor->next)
-    if ((doctor->in.s_addr & doctor->mask.s_addr) == (addr->s_addr & doctor->mask.s_addr))
+    if (is_same_net(doctor->in, *addr, doctor->mask))
       {
 	addr->s_addr &= ~doctor->mask.s_addr;
 	addr->s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
