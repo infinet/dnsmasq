@@ -89,9 +89,8 @@ static void send_from(int fd, int nowild, char *packet, int len,
 	  cmptr->cmsg_type = IP_SENDSRCADDR;
 #endif
 	}
-      
-#ifdef HAVE_IPV6
       else
+#ifdef HAVE_IPV
 	{
 	  struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
 	  pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
@@ -100,6 +99,8 @@ static void send_from(int fd, int nowild, char *packet, int len,
 	  cmptr->cmsg_type = IPV6_PKTINFO;
 	  cmptr->cmsg_level = IPV6_LEVEL;
 	}
+#else
+      iface = 0; /* eliminate warning */
 #endif
     }
   
@@ -134,7 +135,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
   
   for (serv = daemon->servers; serv; serv=serv->next)
     /* domain matches take priority over NODOTS matches */
-    if ((serv->flags & SERV_FOR_NODOTS) && *type != SERV_HAS_DOMAIN && !strchr(qdomain, '.'))
+    if ((serv->flags & SERV_FOR_NODOTS) && *type != SERV_HAS_DOMAIN && !strchr(qdomain, '.') && namelen != 0)
       {
 	unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
 	*type = SERV_FOR_NODOTS;
@@ -194,7 +195,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
       else
 	log_query(F_CONFIG | F_FORWARD | flags, qdomain, *addrpp, 0, NULL, 0);
     }
-  else if (qtype && (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.'))
+  else if (qtype && (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
     flags = F_NXDOMAIN;
     
   if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now, daemon))
@@ -215,13 +216,13 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   char *domain = NULL;
   int type = 0;
   struct all_addr *addrp = NULL;
+  unsigned int crc = questions_crc(header, (unsigned int)plen, daemon->namebuff);
   unsigned short flags = 0;
   unsigned short gotname = extract_request(header, (unsigned int)plen, daemon->namebuff, NULL);
   struct server *start = NULL;
-  unsigned int crc = questions_crc(header,(unsigned int)plen, daemon->namebuff);
-  
-  /* may be  recursion not speced or no servers available. */
-  if (!header->rd || !daemon->servers)
+    
+  /* may be no servers available. */
+  if (!daemon->servers)
     forward = NULL;
   else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
     {
@@ -369,16 +370,8 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
   if (!header->ra && header->rcode == NOERROR && ntohs(header->ancount) == 0 &&
       server && !(server->flags & SERV_WARNED_RECURSIVE))
     {
-      char addrbuff[ADDRSTRLEN];
-#ifdef HAVE_IPV6
-      if (server->addr.sa.sa_family == AF_INET)
-	inet_ntop(AF_INET, &server->addr.in.sin_addr, addrbuff, ADDRSTRLEN);
-      else if (server->addr.sa.sa_family == AF_INET6)
-	inet_ntop(AF_INET6, &server->addr.in6.sin6_addr, addrbuff, ADDRSTRLEN);
-#else
-      strcpy(addrbuff, inet_ntoa(server->addr.in.sin_addr));
-#endif
-      syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", addrbuff);
+      prettyprint_addr(&server->addr, daemon->namebuff);
+      syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", daemon->namebuff);
       if (!(daemon->options & OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
@@ -520,7 +513,10 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
       netmask = listen->iface->netmask;
     }
   else
-    dst_addr_4.s_addr = 0;
+    {
+      dst_addr_4.s_addr = 0;
+      netmask.s_addr = 0;
+    }
 
   iov[0].iov_base = daemon->packet;
   iov[0].iov_len = daemon->edns_pktsz;
@@ -657,7 +653,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 		  header, n, now);
 }
 
-static int read_write(int fd, char *packet, int size, int rw)
+static int read_write(int fd, unsigned char *packet, int size, int rw)
 {
   int n, done;
   
@@ -686,14 +682,14 @@ static int read_write(int fd, char *packet, int size, int rw)
    blocking as neccessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
    done by the caller. */
-char *tcp_request(struct daemon *daemon, int confd, time_t now,
-		  struct in_addr local_addr, struct in_addr netmask)
+unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
+			   struct in_addr local_addr, struct in_addr netmask)
 {
   int size = 0, m;
   unsigned short qtype, gotname;
   unsigned char c1, c2;
   /* Max TCP packet + slop */
-  char *packet = malloc(65536 + MAXDNAME + RRFIXEDSZ);
+  unsigned char *packet = malloc(65536 + MAXDNAME + RRFIXEDSZ);
   HEADER *header;
   struct server *last_server;
   

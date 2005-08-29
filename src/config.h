@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.22"
+#define VERSION "2.23"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -49,6 +49,10 @@
 #define UPTIME "/proc/uptime"
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
+
+/* DBUS interface specifics */
+#define DNSMASQ_SERVICE "uk.org.thekelleys.dnsmasq"
+#define DNSMASQ_PATH "/uk/org/thekelleys/dnsmasq"
 
 /* Logfile stuff - change this to change the options and facility */
 /* debug is true if the --no-daemon flag is given */
@@ -164,6 +168,11 @@ HAVE_RTNETLINK
    back to the Berkley API at runtime if netlink support is not
    configured into the kernel.
 
+HAVE_DBUS
+   Define this if you want to link against libdbus, and have dnsmasq
+   define some methods to allow (re)configuration of the upstream DNS 
+   servers via DBus.
+
 NOTES:
    For Linux you should define 
       HAVE_LINUX_IPV6_PROC 
@@ -200,6 +209,8 @@ NOTES:
 #if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
 #endif
+
+#undef HAVE_DBUS
 
 /* platform dependent options. */
 

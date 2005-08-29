@@ -7,10 +7,10 @@ SRC = src
 CFLAGS?= -O2
 
 all : 
-	@cd $(SRC); $(MAKE) dnsmasq 
+	$(MAKE) -f ../bld/Makefile -C $(SRC) dnsmasq 
 
 clean :
-	rm -f *~ contrib/*/*~ */*~ $(SRC)/*.o $(SRC)/dnsmasq core build
+	rm -f *~ bld/*~ contrib/*/*~ */*~ $(SRC)/*.o $(SRC)/dnsmasq core build
 
 install : all
 	install -d $(DESTDIR)$(BINDIR) -d $(DESTDIR)$(MANDIR)/man8

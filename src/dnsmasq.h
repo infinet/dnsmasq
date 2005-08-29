@@ -110,6 +110,8 @@
 #define OPT_NO_FORK        65536
 #define OPT_AUTHORITATIVE  131072
 #define OPT_LOCALISE       262144
+#define OPT_DBUS           524288
+#define OPT_BOOTP_DYNAMIC  1048576
 
 struct all_addr {
   union {
@@ -133,7 +135,8 @@ struct doctor {
 
 struct mx_srv_record {
   char *name, *target;
-  int issrv, srvport, priority, weight, offset;
+  int issrv, srvport, priority, weight;
+  unsigned int offset;
   struct mx_srv_record *next;
 };
 
@@ -214,6 +217,8 @@ union mysockaddr {
 #define SERV_HAS_DOMAIN       16  /* server for one domain only */
 #define SERV_FOR_NODOTS       32  /* server for names with no domain part only */
 #define SERV_WARNED_RECURSIVE 64  /* avoid warning spam */
+#define SERV_FROM_DBUS       128  /* 1 if source is DBus */
+#define SERV_MARK            256  /* for mark-and-delete */
 #define SERV_TYPE    (SERV_HAS_DOMAIN | SERV_FOR_NODOTS)
 
 
@@ -255,8 +260,8 @@ struct iname {
 /* resolv-file parms from command-line */
 struct resolvc {
   struct resolvc *next;
-  int is_default;
-  int logged;
+  int is_default, logged;
+  time_t mtime;
   char *name;
 };
 
@@ -379,6 +384,11 @@ struct udp_dhcp_packet {
 	} data;
 };
 
+struct ping_result {
+  struct in_addr addr;
+  time_t time;
+  struct ping_result *next;
+};
 
 struct daemon {
   /* datastuctures representing the command-line and 
@@ -394,7 +404,7 @@ struct daemon {
   char *username, *groupname;
   char *domain_suffix;
   char *runfile; 
-  struct iname *if_names, *if_addrs, *if_except;
+  struct iname *if_names, *if_addrs, *if_except, *dhcp_except;
   struct bogus_addr *bogus_addr;
   struct server *servers;
   int cachesize;
@@ -417,6 +427,7 @@ struct daemon {
   int packet_buff_sz; /* size of above */
   char *namebuff; /* MAXDNAME size buffer */
   struct serverfd *sfds;
+  struct irec *interfaces;
   struct listener *listeners;
   struct server *last_server;
   int uptime_fd;
@@ -428,6 +439,15 @@ struct daemon {
 #endif
   struct udp_dhcp_packet *dhcp_packet;
   char *dhcp_buff, *dhcp_buff2;
+  struct ping_result *ping_results;
+
+  /* DBus stuff */
+#ifdef HAVE_DBUS
+  /* void * here to avoid depending on dbus headers outside dbus.c */
+  void *dbus;
+  struct watch *watches;
+#endif
+
 };
 
 /* cache.c */
@@ -472,35 +492,35 @@ int resize_packet(HEADER *header, unsigned int plen,
 unsigned short rand16(void);
 int legal_char(char c);
 int canonicalise(char *s);
-int atoi_check(char *a, int *res);
+unsigned char *do_rfc1035_name(unsigned char *p, char *sval);
 void die(char *message, char *arg1);
 void complain(char *message, int lineno, char *file);
 void *safe_malloc(size_t size);
-char *safe_string_alloc(char *cp);
 int sa_len(union mysockaddr *addr);
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
-int hostname_isequal(unsigned char *a, unsigned char *b);
+int hostname_isequal(char *a, char *b);
 time_t dnsmasq_time(int fd);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 int retry_send(void);
 void prettyprint_time(char *buf, unsigned int t);
+int prettyprint_addr(union mysockaddr *addr, char *buf);
 int parse_hex(char *in, unsigned char *out, int maxlen, 
 	      unsigned int *wildcard_mask);
 
 /* option.c */
-struct daemon *read_opts (int argc, char **argv);
+struct daemon *read_opts (int argc, char **argv, char *compile_opts);
 
 /* forward.c */
 void forward_init(int first);
 void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
 void receive_query(struct listener *listen, struct daemon *daemon, time_t now);
-char *tcp_request(struct daemon *daemon, int confd, time_t now,
-		  struct in_addr local_addr, struct in_addr netmask);
+unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
+			   struct in_addr local_addr, struct in_addr netmask);
 
 /* network.c */
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
 void reload_servers(char *fname, struct daemon *daemon);
-void check_servers(struct daemon *daemon, struct irec *interfaces);
+void check_servers(struct daemon *daemon);
 int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
 			 union mysockaddr *test_addrp, struct in_addr *netmaskp);
 struct listener *create_wildcard_listeners(int port);
@@ -515,7 +535,7 @@ struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr
 int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool);
 int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 		     struct in_addr *addrp, unsigned char *hwaddr,
-		     struct dhcp_netid *netids);
+		     struct dhcp_netid *netids, time_t now);
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,
@@ -551,6 +571,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 
 /* dnsmasq.c */
 int icmp_ping(struct daemon *daemon, struct in_addr addr);
+void clear_cache_and_reload(struct daemon *daemon, time_t now);
 
 /* isc.c */
 #ifdef HAVE_ISC_READER
@@ -563,4 +584,13 @@ int netlink_init(void);
 int netlink_process(struct daemon *daemon, int index, 
 		    struct in_addr relay, struct in_addr primary,
 		    struct dhcp_context **retp);
+#endif
+
+/* dbus.c */
+#ifdef HAVE_DBUS
+char *dbus_init(struct daemon *daemon);
+void check_dbus_listeners(struct daemon *daemon,
+			  fd_set *rset, fd_set *wset, fd_set *eset);
+int set_dbus_listeners(struct daemon *daemon, int maxfd, 
+		       fd_set *rset, fd_set *wset, fd_set *eset);
 #endif

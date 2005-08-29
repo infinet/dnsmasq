@@ -85,18 +85,6 @@ unsigned short rand16(void)
   return( (unsigned short) (rand() >> 15) );
 }
 
-int atoi_check(char *a, int *res)
-{
-  char *p;
-
-  for (p = a; *p; p++)
-     if (*p < '0' || *p > '9')
-       return 0;
-
-  *res = atoi(a);
-  return 1;
-}
-
 int legal_char(char c)
 {
   /* check for legal char a-z A-Z 0-9 - 
@@ -125,13 +113,31 @@ int canonicalise(char *s)
       s[l-1] = 0;
     }
   
-  while ((c = *s++))
-    if (c == '.')
-      dotgap = 0;
-    else if (!legal_char(c) || (++dotgap > MAXLABEL))
-      return 0;
-  
+  while ((c = *s))
+    {
+      if (c == '.')
+	dotgap = 0;
+      else if (!legal_char(c) || (++dotgap > MAXLABEL))
+	return 0;
+      s++;
+    }
   return 1;
+}
+
+unsigned char *do_rfc1035_name(unsigned char *p, char *sval)
+{
+  int j;
+  
+  while (sval && *sval)
+    {
+      unsigned char *cp = p++;
+      for (j = 0; *sval && (*sval != '.'); sval++, j++)
+	*p++ = *sval;
+      *cp  = j;
+      if (*sval)
+	sval++;
+    }
+  return p;
 }
 
 /* for use during startup */
@@ -143,20 +149,7 @@ void *safe_malloc(size_t size)
     die("could not get memory", NULL);
      
   return ret;
-}
-    
-char *safe_string_alloc(char *cp)
-{
-  char *ret = NULL;
-
-  if (cp && strlen(cp) != 0)
-    {
-      ret = safe_malloc(strlen(cp)+1);
-      strcpy(ret, cp);
-    }
-
-  return ret;
-}
+}    
 
 static void log_err(char *message, char *arg1)
 {
@@ -176,8 +169,8 @@ void complain(char *message, int lineno, char *file)
 {
   char buff[256];
   
-  sprintf(buff, "%s at line %d of %s", message, lineno, file);
-  log_err(buff, NULL);
+  sprintf(buff, "%s at line %d of %%s", message, lineno);
+  log_err(buff, file);
 }
 
 void die(char *message, char *arg1)
@@ -221,13 +214,13 @@ int sa_len(union mysockaddr *addr)
 }
 
 /* don't use strcasecmp and friends here - they may be messed up by LOCALE */
-int hostname_isequal(unsigned char *a, unsigned char *b)
+int hostname_isequal(char *a, char *b)
 {
   unsigned int c1, c2;
   
   do {
-    c1 = *a++;
-    c2 = *b++;
+    c1 = (unsigned char) *a++;
+    c2 = (unsigned char) *b++;
     
     if (c1 >= 'A' && c1 <= 'Z')
       c1 += 'a' - 'A';
@@ -249,6 +242,9 @@ time_t dnsmasq_time(int fd)
      a nameserver and updates it. */
   char buf[30];
   lseek(fd, 0, SEEK_SET);
+  read(fd, buf, 30);
+  /* ensure the time is terminated even if /proc/uptime sends something unexpected */
+  buf[29] = 0;  
   read(fd, buf, 30);
   return (time_t)atol(buf);
 #else
@@ -279,6 +275,30 @@ int retry_send(void)
    return 0;
 }
 
+/* returns port number from address */
+int prettyprint_addr(union mysockaddr *addr, char *buf)
+{
+  int port = 0;
+  
+#ifdef HAVE_IPV6
+  if (addr->sa.sa_family == AF_INET)
+    {
+      inet_ntop(AF_INET, &addr->in.sin_addr, buf, ADDRSTRLEN);
+      port = ntohs(addr->in.sin_port);
+    }
+  else if (addr->sa.sa_family == AF_INET6)
+    {
+      inet_ntop(AF_INET6, &addr->in6.sin6_addr, buf, ADDRSTRLEN);
+      port = ntohs(addr->in6.sin6_port);
+    }
+#else
+  strcpy(buf, inet_ntoa(addr->in.sin_addr));
+  port = ntohs(addr->in.sin_port); 
+#endif
+  
+  return port;
+}
+
 void prettyprint_time(char *buf, unsigned int t)
 {
   if (t == 0xffffffff)
@@ -286,7 +306,9 @@ void prettyprint_time(char *buf, unsigned int t)
   else
     {
       unsigned int x, p = 0;
-      if ((x = t/3600))
+       if ((x = t/86400))
+	p += sprintf(&buf[p], "%dd", x);
+       if ((x = (t/3600)%24))
 	p += sprintf(&buf[p], "%dh", x);
       if ((x = (t/60)%60))
 	p += sprintf(&buf[p], "%dm", x);

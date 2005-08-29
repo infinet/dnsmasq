@@ -59,12 +59,12 @@ void cache_init(int size, int logq)
     hash_table[i] = NULL;
 }
 
-static struct crec **hash_bucket(unsigned char *name)
+static struct crec **hash_bucket(char *name)
 {
   unsigned int c, val = 0;
   
   /* don't use tolower and friends here - they may be messed up by LOCALE */
-  while((c = *name++))
+  while((c = (unsigned char) *name++))
     if (c >= 'A' && c <= 'Z')
       val += c + 'a' - 'A';
     else
@@ -579,12 +579,12 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 	continue;
 
 #ifdef HAVE_IPV6      
-      if (inet_pton(AF_INET, token, &addr) == 1)
+      if (inet_pton(AF_INET, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
 	  addrlen = INADDRSZ;
 	}
-      else if (inet_pton(AF_INET6, token, &addr) == 1)
+      else if (inet_pton(AF_INET6, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6;
 	  addrlen = IN6ADDRSZ;
@@ -902,9 +902,9 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
   else if (flags & F_QUERY)
     {
       unsigned int i;
-      static struct {
+      static const struct {
 	unsigned int type;
-	char *name;
+	const char * const name;
       } typestr[] = {
 	{ 1,   "A" },
 	{ 2,   "NS" },
@@ -948,6 +948,9 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
   else
     source = "cached";
   
+  if (strlen(name) == 0)
+    name = ".";
+
   if ((flags & F_FORWARD) | (flags & F_NEG))
     syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, addrbuff);
   else if (flags & F_REVERSE)

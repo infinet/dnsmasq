@@ -56,7 +56,7 @@ void dhcp_init(struct daemon *daemon)
   if ((fd = socket (AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1 ||
       (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
       fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-      setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) ||
+      setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_DONTROUTE, &zeroopt, sizeof(zeroopt)) == -1)
     die("cannot create ICMP raw socket: %s.", NULL);
 
@@ -102,7 +102,7 @@ void dhcp_init(struct daemon *daemon)
      and get a terminating zero added */
   daemon->dhcp_buff = safe_malloc(256);
   daemon->dhcp_buff2 = safe_malloc(256); 
-
+  daemon->ping_results = NULL;
 }
 
 void dhcp_packet(struct daemon *daemon, time_t now)
@@ -189,6 +189,10 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 
   /* enforce available interface configuration */
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
+    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+      return;
+ 
+  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
     if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
       return;
   
@@ -333,6 +337,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 #else
 	struct sockaddr_ll dest;
 	
+	memset(&dest, 0, sizeof(dest));
 	dest.sll_family = AF_PACKET;
 	dest.sll_halen =  ETHER_ADDR_LEN;
 	dest.sll_ifindex = iface_index;
@@ -495,7 +500,8 @@ int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool)
 }
 
 int address_allocate(struct dhcp_context *context, struct daemon *daemon,
-		     struct in_addr *addrp, unsigned char *hwaddr, struct dhcp_netid *netids)   
+		     struct in_addr *addrp, unsigned char *hwaddr, 
+		     struct dhcp_netid *netids, time_t now)   
 {
   /* Find a free address: exclude anything in use and anything allocated to
      a particular hwaddr/clientid/hostname in our configuration.
@@ -528,12 +534,47 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 	  if (!lease_find_by_addr(addr) && 
 	      !config_find_by_address(daemon->dhcp_conf, addr))
 	    {
+	      struct ping_result *r, *victim = NULL;
+	      int count;
+
+	      /* check if we failed to ping addr sometime in the last
+		 30s. If so, assume the same situation still exists.
+		 This avoids problems when a stupid client bangs
+		 on us repeatedly. As a final check, is we did more
+		 than six ping checks in the last 30s, we are in 
+		 high-load mode, so don't do any more. */
+	      for (count = 0, r = daemon->ping_results; r; r = r->next)
+		if (difftime(now, r->time) > 30.0)
+		  victim = r; /* old record */
+		else if (++count == 6 || r->addr.s_addr == addr.s_addr)
+		  {
+		    *addrp = addr;
+		    return 1;
+		  }
+	      
 	      if (icmp_ping(daemon, addr))
-		/* perturb address selection so that we are
+		/* address in use: perturb address selection so that we are
 		   less likely to try this address again. */
 		c->addr_epoch++;
 	      else
 		{
+		  /* at this point victim may hold an expired record */
+		  if (!victim)
+		    {
+		      if ((victim = malloc(sizeof(struct ping_result))))
+			{
+			  victim->next = daemon->ping_results;
+			  daemon->ping_results = victim;
+			}
+		    }
+		  
+		  /* record that this address is OK for 30s 
+		     without more ping checks */
+		  if (victim)
+		    {
+		      victim->addr = addr;
+		      victim->time = now;
+		    }
 		  *addrp = addr;
 		  return 1;
 		}
@@ -548,7 +589,7 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
       }
 
   if (netids)
-    return address_allocate(context, daemon, addrp, hwaddr, NULL);
+    return address_allocate(context, daemon, addrp, hwaddr, NULL, now);
 
   return 0;
 }
@@ -590,14 +631,16 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	    return config;
 	}
   
-  for (config = configs; config; config = config->next)
-    if ((config->flags & CONFIG_HWADDR) &&
-	config->wildcard_mask == 0 &&
-	memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0 &&
-	is_addr_in_context(context, config))
-      return config;
-  
 
+  if (hwaddr)
+    for (config = configs; config; config = config->next)
+      if ((config->flags & CONFIG_HWADDR) &&
+	  config->wildcard_mask == 0 &&
+	  memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0 &&
+	  is_addr_in_context(context, config))
+	return config;
+  
+  
   if (hostname && context)
     for (config = configs; config; config = config->next)
       if ((config->flags & CONFIG_NAME) && 
@@ -605,20 +648,21 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	  is_addr_in_context(context, config))
 	return config;
   
-  for (config = configs; config; config = config->next)
-    if ((config->flags & CONFIG_HWADDR) &&
-	config->wildcard_mask != 0 &&
-	is_addr_in_context(context, config))
-      {
-	int i;
-	unsigned int mask = config->wildcard_mask;
-	for (i = ETHER_ADDR_LEN - 1; i >= 0; i--, mask = mask >> 1)
-	  if (mask & 1)
-	    config->hwaddr[i] = hwaddr[i];
-	if (memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
-	  return config;
-      }
-
+  if (hwaddr)
+    for (config = configs; config; config = config->next)
+      if ((config->flags & CONFIG_HWADDR) &&
+	  config->wildcard_mask != 0 &&
+	  is_addr_in_context(context, config))
+	{
+	  int i;
+	  unsigned int mask = config->wildcard_mask;
+	  for (i = ETHER_ADDR_LEN - 1; i >= 0; i--, mask = mask >> 1)
+	    if (mask & 1)
+	      config->hwaddr[i] = hwaddr[i];
+	  if (memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
+	    return config;
+	}
+  
   return NULL;
 }
 
@@ -632,6 +676,8 @@ void dhcp_read_ethers(struct daemon *daemon)
   unsigned char hwaddr[ETHER_ADDR_LEN];
   struct dhcp_config *config, *configs = daemon->dhcp_conf;
   int count = 0;
+
+  addr.s_addr = 0; /* eliminate warning */
   
   if (!f)
     {
@@ -731,7 +777,9 @@ void dhcp_update_configs(struct dhcp_config *configs)
 {
   /* Some people like to keep all static IP addresses in /etc/hosts.
      This goes through /etc/hosts and sets static addresses for any DHCP config
-     records which don't have an address and whose name matches. */
+     records which don't have an address and whose name matches. 
+     We take care to maintain the invariant that any IP address can appear
+     in at most one dhcp-host. */
   
   struct dhcp_config *config;
   struct crec *crec;
@@ -742,8 +790,14 @@ void dhcp_update_configs(struct dhcp_config *configs)
 	(crec = cache_find_by_name(NULL, config->hostname, 0, F_IPV4)) &&
 	(crec->flags & F_HOSTS))
       {
-	config->addr = crec->addr.addr.addr.addr4;
-	config->flags |= CONFIG_ADDR;
+	if (config_find_by_address(configs, crec->addr.addr.addr.addr4))
+	  syslog(LOG_WARNING, "duplicate IP address %s (%s) in dhcp-config directive", 
+		 inet_ntoa(crec->addr.addr.addr.addr4), config->hostname);
+	else
+	  {
+	    config->addr = crec->addr.addr.addr.addr4;
+	    config->flags |= CONFIG_ADDR;
+	  }
       }
 }
 

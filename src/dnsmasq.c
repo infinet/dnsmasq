@@ -14,6 +14,27 @@
 
 #include "dnsmasq.h"
 
+static char *compile_opts = 
+#ifndef HAVE_IPV6
+"no-"
+#endif
+"IPv6 "
+#ifndef HAVE_GETOPT_LONG
+"no-"
+#endif
+"GNU-getopt "
+#ifdef HAVE_BROKEN_RTC
+"no-RTC "
+#endif
+#ifndef HAVE_ISC_READER
+"no-"
+#endif
+"ISC-leasefile "
+#ifndef HAVE_DBUS
+"no-"
+#endif
+"DBus";
+
 static volatile int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
 
 static int set_dns_listeners(struct daemon *daemon, fd_set *set, int maxfd);
@@ -25,9 +46,7 @@ int main (int argc, char **argv)
   struct daemon *daemon;
   int first_loop = 1;
   int bind_fallback = 0;
-  time_t resolv_changed = 0;
   time_t now, last = 0;
-  struct irec *interfaces;
   struct sigaction sigact;
   sigset_t sigmask;
   struct iname *if_tmp;
@@ -65,7 +84,7 @@ int main (int argc, char **argv)
   sigaddset(&sigact.sa_mask, SIGCHLD);
   sigprocmask(SIG_BLOCK, &sigact.sa_mask, &sigmask); 
 
-  daemon = read_opts(argc, argv);
+  daemon = read_opts(argc, argv, compile_opts);
   
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
@@ -83,7 +102,7 @@ int main (int argc, char **argv)
     die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
 #endif
   
-  if (!enumerate_interfaces(daemon, &interfaces, NULL, NULL))
+  if (!enumerate_interfaces(daemon, &daemon->interfaces, NULL, NULL))
     die("failed to find list of interfaces: %s", NULL);
 
   if (!(daemon->options & OPT_NOWILD) && 
@@ -95,7 +114,7 @@ int main (int argc, char **argv)
     
   if (daemon->options & OPT_NOWILD) 
     {
-      daemon->listeners = create_bound_listeners(interfaces, daemon->port);
+      daemon->listeners = create_bound_listeners(daemon->interfaces, daemon->port);
 
       for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
 	if (if_tmp->name && !if_tmp->used)
@@ -104,18 +123,8 @@ int main (int argc, char **argv)
       for (if_tmp = daemon->if_addrs; if_tmp; if_tmp = if_tmp->next)
 	if (!if_tmp->used)
 	  {
-	    char *addrbuff = daemon->namebuff;
-#ifdef HAVE_IPV6
-	    if (if_tmp->addr.sa.sa_family == AF_INET)
-	      inet_ntop(AF_INET, &if_tmp->addr.in.sin_addr,
-			addrbuff, ADDRSTRLEN);
-	    else
-	      inet_ntop(AF_INET6, &if_tmp->addr.in6.sin6_addr,
-			addrbuff, ADDRSTRLEN);
-#else
-	    strcpy(addrbuff, inet_ntoa(if_tmp->addr.in.sin_addr));
-#endif
-	    die("no interface with address %s", addrbuff);
+	    prettyprint_addr(&if_tmp->addr, daemon->namebuff);
+	    die("no interface with address %s", daemon->namebuff);
 	  }
     }
   
@@ -144,6 +153,20 @@ int main (int argc, char **argv)
       lease_init(daemon, now);
     }
 
+  if (daemon->options & OPT_DBUS)
+#ifdef HAVE_DBUS
+    {
+      char *err;
+      daemon->dbus = NULL;
+      daemon->watches = NULL;
+      if ((err = dbus_init(daemon)))
+	die("DBus error: %s", err);
+    }
+#else
+  if (daemon->options & OPT_DBUS)
+    die("DBus not available: set HAVE_DBUS in src/config.h", NULL);
+#endif
+  
   /* If query_port is set then create a socket now, before dumping root
      for use to access nameservers without more specific source addresses.
      This allows query_port to be a low port */
@@ -174,14 +197,19 @@ int main (int argc, char **argv)
   if (!(daemon->options & OPT_DEBUG))
     {
       FILE *pidfile;
-      struct serverfd *serverfdp;
-      struct listener *listener;
       struct passwd *ent_pw;
-      int i;
-        
+      fd_set test_set;
+      int maxfd, i;
+	
+      FD_ZERO(&test_set);
+      maxfd = set_dns_listeners(daemon, &test_set, -1);
+#ifdef HAVE_DBUS
+      maxfd = set_dbus_listeners(daemon, maxfd, &test_set, &test_set, &test_set);
+#endif
+      
       /* The following code "daemonizes" the process. 
 	 See Stevens section 12.4 */
-
+      
 #ifndef NO_FORK
       if (!(daemon->options & OPT_NO_FORK))
 	{
@@ -209,28 +237,19 @@ int main (int argc, char **argv)
 
       for (i=0; i<64; i++)
 	{
-	  for (listener = daemon->listeners; listener; listener = listener->next)
-	    if (listener->fd == i || listener->tcpfd == i)
-	      break;
-	  if (listener)
-	    continue;
-
 #ifdef HAVE_BROKEN_RTC	  
 	  if (i == daemon->uptime_fd)
 	    continue;
 #endif
-
+	  
 	  if (daemon->dhcp && 
 	      (i == daemon->lease_fd || 
 	       i == daemon->dhcpfd || 
 	       i == daemon->dhcp_raw_fd ||
 	       i == daemon->dhcp_icmp_fd))
 	    continue;
-	  
-	  for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
-	    if (serverfdp->fd == i)
-	      break;
-	  if (serverfdp)
+
+	  if (i <= maxfd && FD_ISSET(i, &test_set))
 	    continue;
 
 	  close(i);
@@ -261,7 +280,19 @@ int main (int argc, char **argv)
     syslog(LOG_INFO, "started, version %s cachesize %d", VERSION, daemon->cachesize);
   else
     syslog(LOG_INFO, "started, version %s cache disabled", VERSION);
-  
+
+  syslog(LOG_INFO, "compile time options: %s", compile_opts);
+
+#ifdef HAVE_DBUS
+  if (daemon->options & OPT_DBUS)
+    {
+      if (daemon->dbus)
+	syslog(LOG_INFO, "DBus support enabled: connected to system bus");
+      else
+	syslog(LOG_INFO, "DBus support enabled: bus connection pending");
+    }
+#endif
+
   if (bind_fallback)
     syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
   
@@ -304,28 +335,19 @@ int main (int argc, char **argv)
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
     syslog(LOG_WARNING, "running as root");
   
-  check_servers(daemon, interfaces);
+  check_servers(daemon);
   
   while (sigterm == 0)
     {
-      fd_set rset;
+      fd_set rset, wset, eset;
       
       if (sighup)
 	{
-	  cache_reload(daemon->options, daemon->namebuff, daemon->domain_suffix, daemon->addn_hosts);
-	  if (daemon->dhcp)
-	    {
-	      if (daemon->options & OPT_ETHERS)
-		dhcp_read_ethers(daemon);
-	      dhcp_update_configs(daemon->dhcp_conf);
-	      lease_update_from_configs(daemon->dhcp_conf, daemon->domain_suffix); 
-	      lease_update_file(0, now); 
-	      lease_update_dns(daemon);
-	    }
+	  clear_cache_and_reload(daemon, now);
 	  if (daemon->resolv_files && (daemon->options & OPT_NO_POLL))
 	    {
 	      reload_servers(daemon->resolv_files->name, daemon);
-	      check_servers(daemon, interfaces);
+	      check_servers(daemon);
 	    }
 	  sighup = 0;
 	}
@@ -349,11 +371,15 @@ int main (int argc, char **argv)
 	}
       
       FD_ZERO(&rset);
+      FD_ZERO(&wset);
+      FD_ZERO(&eset);
       
       if (!first_loop)
 	{
-	  int maxfd = set_dns_listeners(daemon, &rset, 0);
-	  	  
+	  int maxfd = set_dns_listeners(daemon, &rset, -1);
+#ifdef HAVE_DBUS
+	  maxfd = set_dbus_listeners(daemon, maxfd, &rset, &wset, &eset);
+#endif
 	  if (daemon->dhcp)
 	    {
 	      FD_SET(daemon->dhcpfd, &rset);
@@ -361,25 +387,56 @@ int main (int argc, char **argv)
 		maxfd = daemon->dhcpfd;
 	    }
 
+	  /* Whilst polling for the dbus, wake every quarter second */
 #ifdef HAVE_PSELECT
-	  if (pselect(maxfd+1, &rset, NULL, NULL, NULL, &sigmask) < 0)
-	    FD_ZERO(&rset); /* rset otherwise undefined after error */ 
+	  {
+	    struct timespec *tp = NULL;
+#ifdef HAVE_DBUS
+	    struct timespec t;
+	    if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+	      {
+		tp = &t;
+		tp->tv_sec = 0;
+		tp->tv_nsec = 250000000;
+	      }
+#endif
+	    if (pselect(maxfd+1, &rset, &wset, &eset, tp, &sigmask) < 0)
+	    {
+	      /* otherwise undefined after error */ 
+	      FD_ZERO(&rset); FD_ZERO(&wset); FD_ZERO(&eset);
+	    }
+	  }
 #else
 	  {
 	    sigset_t save_mask;
+	    struct timeval *tp = NULL;
+#ifdef HAVE_DBUS
+	    struct timeval t;
+	    if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+	      {
+		tp = &t;
+		tp->tv_sec = 0;
+		tp->tv_usec = 250000;
+	      }
+#endif
 	    sigprocmask(SIG_SETMASK, &sigmask, &save_mask);
-	    if (select(maxfd+1, &rset, NULL, NULL, NULL) < 0)
-	      FD_ZERO(&rset); /* rset otherwise undefined after error */ 
+	    if (select(maxfd+1, &rset, &wset, &eset, tp) < 0)
+	      {
+		/* otherwise undefined after error */ 
+		FD_ZERO(&rset); FD_ZERO(&wset); FD_ZERO(&eset);
+	      }
 	    sigprocmask(SIG_SETMASK, &save_mask, NULL);
+	    
 	  }
 #endif
 	}
-
+      
       first_loop = 0;
       now = dnsmasq_time(daemon->uptime_fd);
 
       /* Check for changes to resolv files once per second max. */
-      if (last == 0 || difftime(now, last) > 1.0)
+      /* Don't go silent for long periods if the clock goes backwards. */
+      if (last == 0 || difftime(now, last) > 1.0 || difftime(now, last) < 1.0)
 	{
 	  last = now;
 
@@ -407,24 +464,40 @@ int main (int argc, char **argv)
 		  else
 		    {
 		      res->logged = 0;
-		      if (difftime(statbuf.st_mtime, last_change) > 0.0)
+		      if (statbuf.st_mtime != res->mtime)
 			{
-			  last_change = statbuf.st_mtime;
-			  latest = res;
+			  res->mtime = statbuf.st_mtime;
+			  if (difftime(res->mtime, last_change) > 0.0)
+			    {
+			      last_change = res->mtime;
+			      latest = res;
+			    }
 			}
 		    }
 		  res = res->next;
 		}
 	  
-	      if (latest && difftime(last_change, resolv_changed) > 0.0)
+	      if (latest)
 		{
-		  resolv_changed = last_change;
 		  reload_servers(latest->name, daemon);
-		  check_servers(daemon, interfaces);
+		  check_servers(daemon);
 		}
 	    }
 	}
-		
+      
+#ifdef HAVE_DBUS
+      /* if we didn't create a DBus connection, retry now. */ 
+      if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+	{
+	  char *err;
+	  if ((err = dbus_init(daemon)))
+	    syslog(LOG_WARNING, "DBus error: %s", err);
+	  if (daemon->dbus)
+	    syslog(LOG_INFO, "connected to system DBus");
+	}
+      check_dbus_listeners(daemon, &rset, &wset, &eset);
+#endif
+
       check_dns_listeners(daemon, &rset, now);
       
       if (daemon->dhcp && FD_ISSET(daemon->dhcpfd, &rset))
@@ -432,7 +505,7 @@ int main (int argc, char **argv)
     }
   
   syslog(LOG_INFO, "exiting on receipt of SIGTERM");
-
+  
   if (daemon->dhcp)
     { 
 #ifdef HAVE_BROKEN_RTC
@@ -466,6 +539,21 @@ static void sig_handler(int sig)
       
       while (waitpid(-1, NULL, WNOHANG) > 0)
 	num_kids--;
+    }
+}
+
+
+void clear_cache_and_reload(struct daemon *daemon, time_t now)
+{
+  cache_reload(daemon->options, daemon->namebuff, daemon->domain_suffix, daemon->addn_hosts);
+  if (daemon->dhcp)
+    {
+      if (daemon->options & OPT_ETHERS)
+	dhcp_read_ethers(daemon);
+      dhcp_update_configs(daemon->dhcp_conf);
+      lease_update_from_configs(daemon->dhcp_conf, daemon->domain_suffix); 
+      lease_update_file(0, now); 
+      lease_update_dns(daemon);
     }
 }
 
@@ -540,7 +628,7 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 #endif
 	       else
 		 {
-		   char *buff;
+		   unsigned char *buff;
 		   struct server *s; 
 		   int flags;
 		   
@@ -649,7 +737,8 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
       struct timeval tv;
       fd_set rset;
       struct sockaddr_in faddr;
-      int maxfd, len = sizeof(faddr);
+      int maxfd; 
+      socklen_t len = sizeof(faddr);
       
       tv.tv_usec = 250000;
       tv.tv_sec = 0; 

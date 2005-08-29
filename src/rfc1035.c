@@ -14,13 +14,13 @@
 
 static int add_resource_record(HEADER *header, char *limit, int *truncp, 
 			       unsigned int nameoffset, unsigned char **pp, 
-			       unsigned long ttl, int *offset, unsigned short type, 
+			       unsigned long ttl, unsigned int *offset, unsigned short type, 
 			       unsigned short class, char *format, ...);
 
 static int extract_name(HEADER *header, unsigned int plen, unsigned char **pp, 
-			unsigned char *name, int isExtract)
+			char *name, int isExtract)
 {
-  unsigned char *cp = name, *p = *pp, *p1 = NULL;
+  unsigned char *cp = (unsigned char *)name, *p = *pp, *p1 = NULL;
   unsigned int j, l, hops = 0;
   int retvalue = 1;
   
@@ -68,7 +68,7 @@ static int extract_name(HEADER *header, unsigned int plen, unsigned char **pp,
 	  digs = ((count-1)>>2)+1;
 	  
 	  /* output is \[x<hex>/siz]. which is digs+9 chars */
-	  if (cp - name + digs + 9 >= MAXDNAME)
+	  if (cp - (unsigned char *)name + digs + 9 >= MAXDNAME)
 	    return 0;
 	  if (p - (unsigned char *)header + ((count-1)>>3) + 1u >= plen)
 	    return 0;
@@ -86,13 +86,13 @@ static int extract_name(HEADER *header, unsigned int plen, unsigned char **pp,
 	      
 	      *cp++ = dig < 10 ? dig + '0' : dig + 'A' - 10;
 	    } 
-	  cp += sprintf(cp, "/%d]", count);
+	  cp += sprintf((char *)cp, "/%d]", count);
 	  /* do this here to overwrite the zero char from sprintf */
 	  *cp++ = '.';
 	}
       else 
 	{ /* label_type = 0 -> label. */
-	  if (cp - name + l + 1 >= MAXDNAME)
+	  if (cp - (unsigned char *)name + l + 1 >= MAXDNAME)
 	    return 0;
 	  if (p - (unsigned char *)header + 1u >= plen)
 	    return 0;
@@ -349,7 +349,7 @@ unsigned int questions_crc(HEADER *header, unsigned int plen, char *name)
       if (!extract_name(header, plen, &p, name, 1))
 	return crc; /* bad packet */
       
-      for (p1 = name; *p1; p1++)
+      for (p1 = (unsigned char *)name; *p1; p1++)
 	{
 	  int i = 8;
 	  char c = *p1;
@@ -883,7 +883,7 @@ int check_for_bogus_wildcard(HEADER *header, unsigned int qlen, char *name,
 }
 
 static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigned int nameoffset, unsigned char **pp, 
-			       unsigned long ttl, int *offset, unsigned short type, unsigned short class, char *format, ...)
+			       unsigned long ttl, unsigned int *offset, unsigned short type, unsigned short class, char *format, ...)
 {
   va_list ap;
   unsigned char *sav, *p = *pp;
@@ -936,19 +936,10 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigne
 	/* get domain-name answer arg and store it in RDATA field */
 	if (offset)
 	  *offset = p - (unsigned char *)header;
-	sval = va_arg(ap, char *);
-	while (sval && *sval)
-	  {
-	    unsigned char *cp = p++;
-	    for (j = 0; *sval && (*sval != '.'); sval++, j++)
-	      *p++ = *sval;
-	    *cp  = j;
-	    if (*sval)
-	      sval++;
-	  }
+	p = do_rfc1035_name(p, va_arg(ap, char *));
 	*p++ = 0;
 	break;
-
+	
       case 't':
 	usval = va_arg(ap, int);
 	sval = va_arg(ap, char *);
@@ -1126,17 +1117,31 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 	  for (flag = F_IPV4; flag; flag = (flag == F_IPV4) ? F_IPV6 : 0)
 	    {
 	      unsigned short type = T_A;
-	      	      
+
 	      if (flag == F_IPV6)
 #ifdef HAVE_IPV6
-		  type = T_AAAA;
+		type = T_AAAA;
 #else
-		  break;
+	        break;
 #endif
 	      
 	      if (qtype != type && qtype != T_ANY)
 		continue;
 	      
+	      /* Check for "A for A"  queries. */
+	      if (qtype == T_A && (addr.addr.addr4.s_addr = inet_addr(name)) != (in_addr_t) -1)
+		{
+		  ans = 1;
+		  if (!dryrun)
+		    {
+		      log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, 0, NULL, 0);
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->local_ttl, NULL, type, C_IN, "4", &addr))
+			anscount++;
+		    }
+		  continue;
+		}
+
 	    cname_restart:
 	      if ((crecp = cache_find_by_name(NULL, name, now, flag | F_CNAME)))
 		{
@@ -1231,7 +1236,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 		  ans = found = 1;
 		  if (!dryrun)
 		    {
-		      int offset;
+		      unsigned int offset;
 		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_IPV4, name, NULL, 0, NULL, 0);
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl,
 					      &offset, T_MX, C_IN, "sd", rec->weight, rec->target))
@@ -1268,7 +1273,7 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 		    found = ans = 1;
 		    if (!dryrun)
 		      {
-			int offset;
+			unsigned int offset;
 			log_query(F_CNAME | F_FORWARD | F_CONFIG | F_IPV6, name, NULL, 0, NULL, 0);
 			if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, 
 						&offset, T_SRV, C_IN, "sssd", 

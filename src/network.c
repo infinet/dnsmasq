@@ -33,7 +33,8 @@ static int iface_allowed(struct daemon *daemon, struct irec *iface,
       if (!lo)
 	{
 	  lo = safe_malloc(sizeof(struct iname));
-	  lo->name = safe_string_alloc(name);
+	  lo->name = safe_malloc(strlen(name)+1);
+	  strcpy(lo->name, name);
 	  lo->isloop = lo->used = 1;
 	  lo->next = daemon->if_names;
 	  daemon->if_names = lo;
@@ -100,6 +101,8 @@ int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
   int fd = socket(PF_INET, SOCK_DGRAM, 0);
   struct in_addr netmask;
   int ret = 0;
+  
+  netmask.s_addr = 0; /* eliminate warning */
 
   if (fd == -1)
     return 0;
@@ -262,7 +265,7 @@ int enumerate_interfaces(struct daemon *daemon, struct irec **chainp,
   return ret;
 }
 
-#ifdef HAVE_IPV6
+#if defined(HAVE_IPV6) && (defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
 static int create_ipv6_listener(struct listener **link, int port)
 {
   union mysockaddr addr;
@@ -330,6 +333,7 @@ static int create_ipv6_listener(struct listener **link, int port)
 struct listener *create_wildcard_listeners(int port)
 {
 #if !(defined(IP_PKTINFO) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
+  port = 0; /* eliminate warning */
   return NULL;
 #else
   union mysockaddr addr;
@@ -434,7 +438,11 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 	    }
 	  else
 #endif
-	    die("failed to bind listening socket: %s", NULL);
+	    {
+	      char addrbuff[ADDRSTRLEN];
+	      prettyprint_addr(&iface->addr, addrbuff);
+	      die("failed to bind listening socket for %s: %s", addrbuff);
+	    }
 	}
       else
 	 {
@@ -486,9 +494,8 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
   return sfd;
 }
 
-void check_servers(struct daemon *daemon, struct irec *interfaces)
+void check_servers(struct daemon *daemon)
 {
-  char addrbuff[ADDRSTRLEN];
   struct irec *iface;
   struct server *new, *tmp, *ret = NULL;
   int port = 0;
@@ -504,27 +511,14 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
       
       if (!(new->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR)))
 	{
-#ifdef HAVE_IPV6
-	  if (new->addr.sa.sa_family == AF_INET)
-	    {
-	      inet_ntop(AF_INET, &new->addr.in.sin_addr, addrbuff, ADDRSTRLEN);
-	      port = ntohs(new->addr.in.sin_port);
-	    }
-	  else if (new->addr.sa.sa_family == AF_INET6)
-	    {
-	      inet_ntop(AF_INET6, &new->addr.in6.sin6_addr, addrbuff, ADDRSTRLEN);
-	      port = ntohs(new->addr.in6.sin6_port);
-	    }
-#else
-	  strcpy(addrbuff, inet_ntoa(new->addr.in.sin_addr));
-	  port = ntohs(new->addr.in.sin_port); 
-#endif
-	  for (iface = interfaces; iface; iface = iface->next)
+	  port = prettyprint_addr(&new->addr, daemon->namebuff);
+
+	  for (iface = daemon->interfaces; iface; iface = iface->next)
 	    if (sockaddr_isequal(&new->addr, &iface->addr))
 	      break;
 	  if (iface)
 	    {
-	      syslog(LOG_WARNING, "ignoring nameserver %s - local interface", addrbuff);
+	      syslog(LOG_WARNING, "ignoring nameserver %s - local interface", daemon->namebuff);
 	      free(new);
 	      continue;
 	    }
@@ -533,7 +527,7 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
 	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds)))
 	    {
 	      syslog(LOG_WARNING, 
-		     "ignoring nameserver %s - cannot make/bind socket: %m", addrbuff);
+		     "ignoring nameserver %s - cannot make/bind socket: %m", daemon->namebuff);
 	      free(new);
 	      continue;
 	    }
@@ -554,10 +548,10 @@ void check_servers(struct daemon *daemon, struct irec *interfaces)
 	  if (new->flags & SERV_NO_ADDR)
 	    syslog(LOG_INFO, "using local addresses only for %s %s", s1, s2);
 	  else if (!(new->flags & SERV_LITERAL_ADDRESS))
-	    syslog(LOG_INFO, "using nameserver %s#%d for %s %s", addrbuff, port, s1, s2);
+	    syslog(LOG_INFO, "using nameserver %s#%d for %s %s", daemon->namebuff, port, s1, s2);
 	}
       else
-	syslog(LOG_INFO, "using nameserver %s#%d", addrbuff, port); 
+	syslog(LOG_INFO, "using nameserver %s#%d", daemon->namebuff, port); 
     }
   
   daemon->servers = ret;
@@ -611,7 +605,7 @@ void reload_servers(char *fname, struct daemon *daemon)
 	    continue;
 	  
 #ifdef HAVE_IPV6
-          if (inet_pton(AF_INET, token, &addr.in.sin_addr))
+          if (inet_pton(AF_INET, token, &addr.in.sin_addr) > 0)
 #else
           if ((addr.in.sin_addr.s_addr = inet_addr(token)) != (in_addr_t) -1)
 #endif
@@ -625,7 +619,7 @@ void reload_servers(char *fname, struct daemon *daemon)
 	      source_addr.in.sin_port = htons(daemon->query_port);
 	    }
 #ifdef HAVE_IPV6
-	  else if (inet_pton(AF_INET6, token, &addr.in6.sin6_addr))
+	  else if (inet_pton(AF_INET6, token, &addr.in6.sin6_addr) > 0)
 	    {
 #ifdef HAVE_SOCKADDR_SA_LEN
 	      source_addr.in6.sin6_len = addr.in6.sin6_len = sizeof(struct sockaddr_in6);

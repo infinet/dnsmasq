@@ -39,18 +39,15 @@ A: They are negative entries: that's what the N flag means. Dnsmasq asked
 
 Q: Will dnsmasq compile/run on non-Linux systems?
 
-A: Yes, there is explicit support for *BSD and Solaris.
+A: Yes, there is explicit support for *BSD and MacOS X. There are
+   start-up scripts for MacOS X Tiger and Panther in /contrib. Earlier
+   dnsmasq releases ran under Solaris, but that capability has
+   probably rotted. Dnsmasq will link with uclibc to provide small
+   binaries suitable for use in embedded systems such as
+   routers. (There's special code to support machines with flash
+   filesystems and no battery-backed RTC.)
    For other systems, try altering the settings in config.h.
-
-A: Update for V2. Doing DHCP is rather non-portable, so there may be
-   a few teething troubles. The initial 2.0 release is known to work
-   on Linux 2.2.x, Linux 2.4.x and Linux 2.6.x with uclibc and glibc
-   2.3. It also works on FreeBSD 4.8. The crucial problem is sending
-   raw packets, bypassing the IP stack. Dnsmasq contains code to do
-   using PF_PACKET sockets (which is for Linux) and the Berkeley packet
-   filter (which works with BSD). If you are trying to port to another
-   Un*x, bpf is the most likeley candidate. See config.h 
-
+ 
 Q: My companies' nameserver knows about some names which aren't in the
    public DNS. Even though I put it first in /etc/resolv.conf, it
    dosen't work: dnsmasq seems not to use the nameservers in the order
@@ -88,7 +85,7 @@ A: This has been seen when a system is bringing up a PPP interface at
 Q: I'm running on BSD and dnsmasq won't accept long options on the
    command line. 
 
-A: Dnsmasq when built on BSD systems doesn't use GNU getopt by
+A: Dnsmasq when built on some BSD systems doesn't use GNU getopt by
    default. You can either just use the single-letter options or
    change config.h and the Makefile to use getopt-long. Note that
    options in /etc/dnsmasq.conf must always be the long form,
@@ -105,13 +102,23 @@ A: Resolver code sometime does strange things when given names without
    "ping" will get a lookup failure, appending a dot to the end of the
    hostname  will fix things. (ie "ping myhost" fails, but "ping
    myhost." works. The solution is to make sure that all your hosts
-   have a domain set ("domain" in resolv.conf, the network applet in
-   windows, or set a domain in your DHCP server). Any domain  will do,
-   but "localnet" is traditional. Now when you resolve "myhost" the
-   resolver will attempt to look up "myhost.localnet" so you need to
-   have dnsmasq reply to that name. The way to do that is to include
-   the domain in each name on /etc/hosts and/or to use the
-   --expand-hosts and --domain options.
+   have a domain set ("domain" in resolv.conf, or set a domain in 
+   your DHCP server, see below fr Windows XP and Mac OS X). 
+   Any domain  will do, but "localnet" is traditional. Now when you
+   resolve "myhost" the resolver will attempt to look up 
+   "myhost.localnet" so you need to have dnsmasq reply to that name. 
+   The way to do that is to include the domain in each name on
+   /etc/hosts  and/or to use the --expand-hosts and --domain options.
+
+Q: How do I set the DNS domain in Windows XP or MacOS X (ref: previous
+   question)?
+
+A: for XP, Control Panel > Network Connections > { Connection to gateway /
+   DNS } > Properties > { Highlight TCP/IP } > Properties > Advanced >
+   DNS Tab > DNS suffix for this connection: 
+
+A: for OS X, System Preferences > Network > {Connection to gateway / DNS } >
+   Search domains:
 
 Q: Can I get dnsmasq to save the contents of its cache to disk when
    I shut my machine down and re-load when it starts again?
@@ -281,7 +288,9 @@ Q: Can I get email notification when a new version of dnsmasq is
 
 A: Yes, new releases of dnsmasq are always announced through
    freshmeat.net, and they allow you to subcribe to email alerts when
-   new versions of particular projects are released.
+   new versions of particular projects are released. New releases are
+   also announced in the dnsmasq-discuss mailing list, subscribe at 
+   http://lists.thekelleys.org.uk/mailman/listinfo/dnsmasq-discuss
 
 Q: What does the dhcp-authoritative option do? 
 
@@ -301,7 +310,7 @@ A: Because when a Gentoo box shuts down, it releases its lease with
 Q: My laptop has two network interfaces, a wired one and a wireless
    one. I never use both interfaces at the same time, and I'd like the
    same IP and configuration to be used irrespcetive of which
-   interface is in use. How can I do that.
+   interface is in use. How can I do that?
 
 A: By default, the identity of a machine is determined by using the
    MAC address, which is associated with interface hardware. Once an
@@ -320,12 +329,11 @@ Q: Can dnsmasq do DHCP on IP-alias interfaces?
 A: Yes, from version-2.21. The support is only available running under
    Linux, on a kernel which provides the RT-netlink facility. All 2.4 
    and 2.6 kernels provide RT-netlink and it's an option in 2.2
-   kernels. If dnsmasq is built under uclibc, even on Linux, then
-   the support is not included.
+   kernels. 
    
    If a physical interface has more than one IP address or aliases
    with extra IP addresses, then any dhcp-ranges corresponding to
-   these addresses can be used for address allocation. So is and
+   these addresses can be used for address allocation. So if an
    interface has addresses 192.168.1.0/24 and 192.68.2.0/24 and there
    are DHCP ranges 192.168.1.100-192.168.1.200 and
    192.168.2.100-192.168.2.200 then both ranges would be used for host
@@ -333,6 +341,21 @@ A: Yes, from version-2.21. The support is only available running under
    have one of the address-ranges as static-only, and have known
    hosts allocated addresses on that subnet using dhcp-host options,
    while  anonymous hosts go on the other.
+
+
+Q: Dnsmasq sometimes logs "nameserver xxx.xxx.xxx.xxx refused
+   to do a recursive query" and DNS stops working. What's going on?
+
+A: Probably the nameserver is an authoritative nameserver for a
+   particular domain, but is not configured to answer general DNS
+   queries for an arbitrary domain. It is not suitable for use by
+   dnsmasq as an upstream server and should be removed from the
+   configuration. Note that if you have more than one upstream
+   nameserver configured dnsmasq will load-balance across them and
+   it may be some time before dnsmasq gets around to using a 
+   particular nameserver. This means that a particular configuration
+   may work for sometime with a broken upstream nameserver
+   configuration.
 
   
 

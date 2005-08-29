@@ -21,9 +21,9 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:"
+#define OPTSTRING "31yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:"
 
-static struct myoption opts[] = { 
+static const struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
   {"no-hosts", 0, 0, 'h'},
   {"no-poll", 0, 0, 'n'},
@@ -65,6 +65,7 @@ static struct myoption opts[] = {
   {"addn-hosts", 1, 0, 'H'},
   {"query-port", 1, 0, 'Q'},
   {"except-interface", 1, 0, 'I'},
+  {"no-dhcp-interface", 1, 0, '2'},
   {"domain-needed", 0, 0, 'D'},
   {"dhcp-lease-max", 1, 0, 'X' },
   {"bind-interfaces", 0, 0, 'z'},
@@ -79,6 +80,8 @@ static struct myoption opts[] = {
   {"srv-host", 1, 0, 'W'},
   {"localise-queries", 0, 0, 'y'},
   {"txt-record", 1, 0, 'Y'},
+  {"enable-dbus", 0, 0, '1'},
+  {"bootp-dynamic", 0, 0, '3'},
   {0, 0, 0, 0}
 };
 
@@ -87,7 +90,7 @@ struct optflags {
   unsigned int flag; 
 };
 
-static struct optflags optmap[] = {
+static const struct optflags optmap[] = {
   { 'b', OPT_BOGUSPRIV },
   { 'f', OPT_FILTER },
   { 'q', OPT_LOG },
@@ -106,12 +109,14 @@ static struct optflags optmap[] = {
   { 'z', OPT_NOWILD },
   { 'Z', OPT_ETHERS },
   { 'y', OPT_LOCALISE },
+  { '1', OPT_DBUS },
+  { '3', OPT_BOOTP_DYNAMIC },
   { 'v', 0},
   { 'w', 0},
   { 0, 0 }
 };
 
-static char *usage =
+static const char * const usage =
 "Usage: dnsmasq [options]\n\n"
 #ifndef HAVE_GETOPT_LONG
 "Use short options only on the command line.\n"
@@ -170,7 +175,97 @@ static char *usage =
 "-Y  --txt-record=name,txt....       Specify TXT DNS record.\n"
 "-z, --bind-interfaces               Bind only to interfaces in use.\n"
 "-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
+"-1, --enable-dbus                   Enable the DBus interface for setting upstream servers, etc.\n"
+"-2, --no-dhcp-interface=interface   Do not provide DHCP on this interface, only provide DNS.\n"
+"-3, --bootp-dynamic                 Enable dynamic address allocation for bootp.\n"
 "\n";
+
+/* We hide metacharaters in quoted strings by mapping them into the ASCII control
+   character space. Note that the \0, \t \a \b \r  and \n characters are carefully placed in the
+   following sequence so that they map to themselves: it is therefore possible to call
+   unhide_metas repeatedly on string without breaking things.
+   The transformation gets undone by opt_canonicalise, atoi_check and safe_string_alloc, and a 
+   couple of other places. */
+
+static char meta[] = "\000123456\a\b\t\n78\r90abcdefABCDEF:,.";
+
+static char hide_meta(char c)
+{
+  unsigned int i;
+
+  for (i = 0; i < (sizeof(meta) - 1); i++)
+    if (c == meta[i])
+      return (char)i;
+  
+  return c;
+}
+
+static char unhide_meta(char cr)
+{ 
+  unsigned int c = cr;
+  
+  if (c < (sizeof(meta) - 1))
+    cr = meta[c];
+  
+  return cr;
+}
+
+static void unhide_metas(char *cp)
+{
+  if (cp)
+    for(; *cp; cp++)
+      *cp = unhide_meta(*cp);
+}
+
+static char *safe_string_alloc(char *cp)
+{
+  char *ret = NULL;
+  
+  if (cp && strlen(cp) != 0)
+    {
+      ret = safe_malloc(strlen(cp)+1);
+      strcpy(ret, cp); 
+      
+      /* restore hidden metachars */
+      unhide_metas(ret);
+    }
+    
+  return ret;
+}
+
+static char *safe_strchr(char *s, int c)
+{
+  if (!s) 
+    return NULL;
+
+  return strchr(s, c);
+}
+
+static int canonicalise_opt(char *s)
+{
+  if (!s)
+    return 0;
+
+  unhide_metas(s);
+  return canonicalise(s);
+}
+
+static int atoi_check(char *a, int *res)
+{
+  char *p;
+
+  if (!a)
+    return 0;
+
+  unhide_metas(a);
+  
+  for (p = a; *p; p++)
+     if (*p < '0' || *p > '9')
+       return 0;
+
+  *res = atoi(a);
+  return 1;
+}
 
 static void add_txt(struct daemon *daemon, char *name, char *txt)
 {
@@ -187,20 +282,7 @@ static void add_txt(struct daemon *daemon, char *name, char *txt)
   memcpy((r->txt)+1, txt, len);
 }
 
-/* filenames are OK with unquoted commas, restore them here. */
-static char *safe_filename_alloc(char *filename)
-{
-  char *p, *ret = safe_string_alloc(filename);
-  
-  if (ret)
-    for (p = ret; *p; p++)
-      if (*p == '\001')
-	*p = ',';
-  
-  return ret;
-}
-
-struct daemon *read_opts (int argc, char **argv)
+struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 {
   struct daemon *daemon = safe_malloc(sizeof(struct daemon));
   char *problem = NULL, *buff = safe_malloc(MAXDNAME);
@@ -248,9 +330,6 @@ struct daemon *read_opts (int argc, char **argv)
 	      strncpy(buff, optarg, MAXDNAME);
 	      buff[MAXDNAME-1] = 0;
 	      arg = buff;
-	      for (p = arg; *p; p++)
-		if (*p == ',')
-		  *p = '\001';
 	    }
 	  else
 	    arg = NULL;
@@ -276,28 +355,40 @@ struct daemon *read_opts (int argc, char **argv)
 	  else
 	    {
 	      int white;
+	      unsigned int lastquote;
 	      lineno++;
 	      
 	      /* Implement quotes, inside quotes we allow \\ \" \n and \t 
-		 unquoted commas get changed to \001 also strip comments */
+		 metacharacters get hidden also strip comments */
 	      
-	      for (white = 1, p = buff; *p; p++)
+	      for (white = 1, lastquote = 0, p = buff; *p; p++)
 		{
 		  if (*p == '"')
 		    {
 		      memmove(p, p+1, strlen(p+1)+1);
 		      for(; *p && *p != '"'; p++)
-			if (*p == '\\' && 
-			    (p[1] == '\\' || p[1] == '"' || p[1] == 'n' || p[1] == 't'))
-			  {
-			    if (p[1] == 't')
-			      p[1] = '\t';
-			    else if (p[1] == 'n')
-			      p[1] = '\n';
-			    memmove(p, p+1, strlen(p+1)+1);
-			  }
+			{
+			  if (*p == '\\' && strchr("\"tnabr\\", p[1]))
+			    {
+			      if (p[1] == 't')
+				p[1] = '\t';
+			      else if (p[1] == 'n')
+				p[1] = '\n';
+			      else if (p[1] == 'a')
+				p[1] = '\a';
+			      else if (p[1] == 'b')
+				p[1] = '\b';
+			      else if (p[1] == 'r')
+				p[1] = '\r';
+			      memmove(p, p+1, strlen(p+1)+1);
+			    }
+			  *p = hide_meta(*p);
+			}
 		      if (*p == '"') 
-			memmove(p, p+1, strlen(p+1)+1);
+			{
+			  memmove(p, p+1, strlen(p+1)+1);
+			  lastquote = p - buff;
+			}
 		      else
 			complain("missing \"", lineno, conffile);
 		    }
@@ -307,13 +398,10 @@ struct daemon *read_opts (int argc, char **argv)
 		      *p = 0;
 		      break;
 		    }
-		  white = isspace(*p); 
-		  if (*p == ',')
-		    *p = '\001';
-
+		  white = isspace(unhide_meta(*p)); 
 		}
 	      /* fgets gets end of line char too. */
-	      while (strlen(buff) > 0 && isspace(buff[strlen(buff)-1]))
+	      while (strlen(buff) > lastquote && isspace(unhide_meta(buff[strlen(buff)-1])))
 		buff[strlen(buff)-1] = 0;
 	      if (*buff == 0)
 		continue; 
@@ -360,7 +448,8 @@ struct daemon *read_opts (int argc, char **argv)
 
       if (!f && option == 'v')
         {
-          printf("Dnsmasq version %s  %s\n\n", VERSION, COPYRIGHT);
+          printf("Dnsmasq version %s  %s\n", VERSION, COPYRIGHT);
+	  printf("Compile time options %s\n\n", compile_opts); 
 	  printf("This software comes with ABSOLUTELY NO WARRANTY.\n");
 	  printf("Dnsmasq is free software, and you are welcome to redistribute it\n");
 	  printf("under the terms of the GNU General Public License, version 2.\n");
@@ -390,7 +479,7 @@ struct daemon *read_opts (int argc, char **argv)
 	     case 'C': 
 	       if (!f)
 		 {
-		   conffile = safe_filename_alloc(arg);
+		   conffile = safe_string_alloc(arg);
 		   conffile_set = 1;
 		   break;
 		 }
@@ -404,18 +493,18 @@ struct daemon *read_opts (int argc, char **argv)
 	       file_name_save = conffile;
 	       file_save = f;
 	       line_save = lineno;
-	       conffile = safe_filename_alloc(arg);
+	       conffile = safe_string_alloc(arg);
 	       conffile_set = 1;
 	       lineno = 0;
 	       goto fileopen;
 	      
 	    case 'x': 
-	      daemon->runfile = safe_filename_alloc(arg);
+	      daemon->runfile = safe_string_alloc(arg);
 	      break;
 	      
 	    case 'r':
 	      {
-		char *name = safe_filename_alloc(arg);
+		char *name = safe_string_alloc(arg);
 		struct resolvc *new, *list = daemon->resolv_files;
 		
 		if (list && list->is_default)
@@ -435,6 +524,7 @@ struct daemon *read_opts (int argc, char **argv)
 		    new->next = list;
 		    new->name = name;
 		    new->is_default = 0;
+		    new->mtime = 0;
 		    new->logged = 0;
 		    list = new;
 		  }
@@ -447,11 +537,11 @@ struct daemon *read_opts (int argc, char **argv)
 		int pref = 1;
 		struct mx_srv_record *new;
 
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  {
 		    char *prefstr;
 		    *(comma++) = 0;
-		    if ((prefstr=strchr(comma, '\001')))
+		    if ((prefstr=strchr(comma, ',')))
 		      {
 			*(prefstr++) = 0;
 			if (!atoi_check(prefstr, &pref))
@@ -463,7 +553,7 @@ struct daemon *read_opts (int argc, char **argv)
 		      }
 		  }
 
-		if (!canonicalise(arg) || (comma && !canonicalise(comma)))
+		if (!canonicalise_opt(arg) || (comma && !canonicalise_opt(comma)))
 		  {
 		    option = '?';
 		    problem = "bad MX name";
@@ -481,7 +571,7 @@ struct daemon *read_opts (int argc, char **argv)
 	      }
 
 	    case 't':
-	      if (!canonicalise(arg))
+	      if (!canonicalise_opt(arg))
 		{
 		  option = '?';
 		  problem = "bad MX target";
@@ -491,13 +581,13 @@ struct daemon *read_opts (int argc, char **argv)
 	      break;
 	      
 	    case 'l':
-	      daemon->lease_file = safe_filename_alloc(arg);
+	      daemon->lease_file = safe_string_alloc(arg);
 	      break;
 	      
 	    case 'H':
 	      {
 		struct hostsfile *new = safe_malloc(sizeof(struct hostsfile));
-		new->fname = safe_filename_alloc(arg);
+		new->fname = safe_string_alloc(arg);
 		new->index = hosts_index++;
 		new->next = daemon->addn_hosts;
 		daemon->addn_hosts = new;
@@ -507,7 +597,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 's':
 	      if (strcmp (arg, "#") == 0)
 		daemon->options |= OPT_RESOLV_DOMAIN;
-	      else if (!canonicalise(arg))
+	      else if (!canonicalise_opt(arg))
 		option = '?';
 	      else
 		daemon->domain_suffix = safe_string_alloc(arg);
@@ -524,7 +614,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'i':
 	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  *comma++ = 0;
 		new->next = daemon->if_names;
 		daemon->if_names = new;
@@ -532,30 +622,40 @@ struct daemon *read_opts (int argc, char **argv)
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(arg);
 		new->isloop = new->used = 0;
-		if (strchr(arg, ':'))
+		if (safe_strchr(new->name, ':'))
 		  daemon->options |= OPT_NOWILD;
 		arg = comma;
 	      } while (arg);
 	      break;
 	    
 	    case 'I':
+	    case '2':
 	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  *comma++ = 0;
-		new->next = daemon->if_except;
-		daemon->if_except = new;
 		new->name = safe_string_alloc(arg);
-		if (strchr(arg, ':'))
-		  daemon->options |= OPT_NOWILD;
+		if (option == 'I')
+		  {
+		    new->next = daemon->if_except;
+		    daemon->if_except = new;
+		    if (safe_strchr(new->name, ':'))
+		      daemon->options |= OPT_NOWILD;
+		  }
+		else
+		  {
+		    new->next = daemon->dhcp_except;
+		    daemon->dhcp_except = new;
+		  }
 		arg = comma;
 	      } while (arg);
 	      break;
-	      	      
+	      
 	    case 'B':
 	      {
 		struct in_addr addr;
-		if ((addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
+		unhide_metas(arg);
+		if (arg && (addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
 		  {
 		    struct bogus_addr *baddr = safe_malloc(sizeof(struct bogus_addr));
 		    baddr->next = daemon->bogus_addr;
@@ -570,31 +670,24 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'a':
 	      do {
 		struct iname *new = safe_malloc(sizeof(struct iname));
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  *comma++ = 0;
+		unhide_metas(arg);
 		new->next = daemon->if_addrs;
-#ifdef HAVE_IPV6
-		if (inet_pton(AF_INET, arg, &new->addr.in.sin_addr))
+		if (arg && (new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
 		  {
 		    new->addr.sa.sa_family = AF_INET;
 #ifdef HAVE_SOCKADDR_SA_LEN
 		    new->addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
 		  }
-		else if (inet_pton(AF_INET6, arg, &new->addr.in6.sin6_addr))
+#ifdef HAVE_IPV6
+		else if (arg && inet_pton(AF_INET6, arg, &new->addr.in6.sin6_addr) > 0)
 		  {
 		    new->addr.sa.sa_family = AF_INET6;
 		    new->addr.in6.sin6_flowinfo = htonl(0);
 #ifdef HAVE_SOCKADDR_SA_LEN
 		    new->addr.in6.sin6_len = sizeof(struct sockaddr_in6);
-#endif
-		  }
-#else
-		if ((new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
-		  {
-		    new->addr.sa.sa_family = AF_INET;
-#ifdef HAVE_SOCKADDR_SA_LEN
-		    new->addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
 		  }
 #endif
@@ -615,7 +708,9 @@ struct daemon *read_opts (int argc, char **argv)
 	      {
 		struct server *serv, *newlist = NULL;
 		
-		if (*arg == '/')
+		unhide_metas(arg);
+
+		if (arg && *arg == '/')
 		  {
 		    char *end;
 		    arg++;
@@ -626,7 +721,7 @@ struct daemon *read_opts (int argc, char **argv)
 			/* # matches everything and becomes a zero length domain string */
 			if (strcmp(arg, "#") == 0)
 			  domain = "";
-			else if (!canonicalise(arg) && strlen(arg) != 0)
+			else if (!canonicalise_opt(arg) && strlen(arg) != 0)
 			  option = '?';
 			else
 			  domain = safe_string_alloc(arg); /* NULL if strlen is zero */
@@ -661,7 +756,7 @@ struct daemon *read_opts (int argc, char **argv)
 		      option = '?';
 		  }
 		
-		if (!*arg)
+		if (!arg || !*arg)
 		  {
 		    newlist->flags |= SERV_NO_ADDR; /* no server */
 		    if (newlist->flags & SERV_LITERAL_ADDRESS)
@@ -696,11 +791,7 @@ struct daemon *read_opts (int argc, char **argv)
 			  }
 		      }
 
-#ifdef HAVE_IPV6
-		    if (inet_pton(AF_INET, arg, &newlist->addr.in.sin_addr))
-#else
 		    if ((newlist->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t) -1)
-#endif
 		      {
 			newlist->addr.in.sin_port = htons(serv_port);	
 			newlist->source_addr.in.sin_port = htons(source_port); 
@@ -710,11 +801,7 @@ struct daemon *read_opts (int argc, char **argv)
 #endif
 			if (source)
 			  {
-#ifdef HAVE_IPV6
-			    if (inet_pton(AF_INET, source+1, &newlist->source_addr.in.sin_addr))
-#else
 			    if ((newlist->source_addr.in.sin_addr.s_addr = inet_addr(source+1)) != (in_addr_t) -1)
-#endif
 				newlist->flags |= SERV_HAS_SOURCE;
 			    else
 			      option = '?'; /* error */
@@ -723,7 +810,7 @@ struct daemon *read_opts (int argc, char **argv)
 			  newlist->source_addr.in.sin_addr.s_addr = INADDR_ANY;
 		      }
 #ifdef HAVE_IPV6
-		    else if (inet_pton(AF_INET6, arg, &newlist->addr.in6.sin6_addr))
+		    else if (inet_pton(AF_INET6, arg, &newlist->addr.in6.sin6_addr) > 0)
 		      {
 			newlist->addr.in6.sin6_port = htons(serv_port);
 			newlist->source_addr.in6.sin6_port = htons(source_port);
@@ -734,7 +821,7 @@ struct daemon *read_opts (int argc, char **argv)
 #endif
 			if (source)
 			  {
-			    if (inet_pton(AF_INET6, source+1, &newlist->source_addr.in6.sin6_addr))
+			    if (inet_pton(AF_INET6, source+1, &newlist->source_addr.in6.sin6_addr) > 0)
 			      newlist->flags |= SERV_HAS_SOURCE;
 			    else
 			      option = '?'; /* error */
@@ -774,6 +861,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'c':
 	      {
 		int size;
+		
 		if (!atoi_check(arg, &size))
 		  option = '?';
 		else
@@ -841,11 +929,17 @@ struct daemon *read_opts (int argc, char **argv)
 		
 		problem = "bad dhcp-range";
 
+		if (!arg)
+		  {
+		    option = '?';
+		    break;
+		  }
+		
 		for (cp = arg; *cp; cp++)
 		  if (!(*cp == ' ' || *cp == '.' ||  (*cp >='0' && *cp <= '9')))
 		    break;
 
-		if (*cp != '\001' && (comma = strchr(arg, '\001')))
+		if (*cp != ',' && (comma = strchr(arg, ',')))
 		  {
 		    *comma = 0;
 		    if (strstr(arg, "net:") == arg)
@@ -864,7 +958,7 @@ struct daemon *read_opts (int argc, char **argv)
 		
 		for (k = 1; k < 5; k++)
 		  {
-		    if (!(a[k] = strchr(a[k-1], '\001')))
+		    if (!(a[k] = strchr(a[k-1], ',')))
 		      break;
 		    *(a[k]++) = 0;
 		  }
@@ -924,6 +1018,10 @@ struct daemon *read_opts (int argc, char **argv)
 			  {
 			    switch (a[leasepos][strlen(a[leasepos]) - 1])
 			      {
+			      case 'd':
+			      case 'D':
+				fac *= 24;
+				/* fall though */
 			      case 'h':
 			      case 'H':
 				fac *= 60;
@@ -962,15 +1060,17 @@ struct daemon *read_opts (int argc, char **argv)
 		new->flags = 0;		  
 		
 		
-		a[0] = arg;
-		for (k = 1; k < 6; k++)
-		  {
-		    if (!(a[k] = strchr(a[k-1], '\001')))
-		      break;
-		    *(a[k]++) = 0;
-		  }
+		if ((a[0] = arg))
+		  for (k = 1; k < 6; k++)
+		    {
+		      if (!(a[k] = strchr(a[k-1], ',')))
+			break;
+		      *(a[k]++) = 0;
+		    }
+		else
+		  k = 0;
 		   
-		for(j = 0; j < k; j++)
+		for (j = 0; j < k; j++)
 		  if (strchr(a[j], ':')) /* ethernet address, netid or binary CLID */
 		    {
 		      char *arg = a[j];
@@ -986,7 +1086,7 @@ struct daemon *read_opts (int argc, char **argv)
 			      int len;
 			      arg += 3; /* dump id: */
 			      if (strchr(arg, ':'))
-				len = parse_hex(arg, arg, -1, NULL);
+				len = parse_hex(arg, (unsigned char *)arg, -1, NULL);
 			      else
 				len = (int) strlen(arg);
 			      
@@ -1022,6 +1122,10 @@ struct daemon *read_opts (int argc, char **argv)
 			  last = *lastp;
 			  switch (last)
 			    {
+			    case 'd':
+			    case 'D':
+			      fac *= 24;
+			      /* fall through */
 			    case 'h':
 			    case 'H':
 			      fac *= 60;
@@ -1100,7 +1204,7 @@ struct daemon *read_opts (int argc, char **argv)
 		new->val = NULL;
 		new->vendor_class = NULL;
 				
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  {
 		    struct dhcp_netid *np = NULL;
 		    *comma++ = 0;
@@ -1113,7 +1217,7 @@ struct daemon *read_opts (int argc, char **argv)
 			break;
 		      
 		      if (strstr(arg, "vendor:") == arg)
-    			new->vendor_class = safe_string_alloc(arg+7);
+    			new->vendor_class = (unsigned char *)safe_string_alloc(arg+7);
 		      else
 			{
 			  new->netid = safe_malloc(sizeof (struct dhcp_netid));
@@ -1122,7 +1226,7 @@ struct daemon *read_opts (int argc, char **argv)
 			  np = new->netid;
 			}
 		      arg = comma;
-		      if ((comma = strchr(arg, '\001')))
+		      if ((comma = safe_strchr(arg, ',')))
 			*comma++ = 0;
 		    } while (arg);
 		  }
@@ -1140,12 +1244,12 @@ struct daemon *read_opts (int argc, char **argv)
 		    size_t newlen, len = 0;
 		    
 		    arg = comma;
-		    if ((comma = strchr(arg, '\001')))
+		    if ((comma = safe_strchr(arg, ',')))
 		      *(comma++) = 0;
 
 		    while (arg && *arg)
 		      {
-			if (!canonicalise(arg))
+			if (!canonicalise_opt(arg))
 			  {
 			    option = '?';
 			    problem = "bad domain in dhcp-option";
@@ -1159,7 +1263,7 @@ struct daemon *read_opts (int argc, char **argv)
 			/* add string on the end in RFC1035 format */
 			while (*arg) 
 			  {
-			    char *cp = q++;
+			    unsigned char *cp = q++;
 			    int j;
 			    for (j = 0; *arg && (*arg != '.'); arg++, j++)
 			      *q++ = *arg;
@@ -1173,7 +1277,7 @@ struct daemon *read_opts (int argc, char **argv)
 			newlen = q - p;
 			for (tail = p + len; *tail; tail += (*tail) + 1)
 			  for (r = p; r - p < (int)len; r += (*r) + 1)
-			    if (strcmp(r, tail) == 0)
+			    if (strcmp((char *)r, (char *)tail) == 0)
 			      {
 				PUTSHORT((r - p) | 0xc000, tail); 
 				newlen = tail - p;
@@ -1183,7 +1287,7 @@ struct daemon *read_opts (int argc, char **argv)
 			len = newlen;
 		    
 			arg = comma;
-			if (arg && (comma = strchr(arg, '\001')))
+			if ((comma = safe_strchr(arg, ',')))
 			  *(comma++) = 0;
 		      }
 
@@ -1197,7 +1301,7 @@ struct daemon *read_opts (int argc, char **argv)
 		    is_addr = is_hex = is_dec = 1;
 		    addrs = digs = 1;
 		    for (cp = comma; *cp; cp++)
-		      if (*cp == '\001')
+		      if (*cp == ',')
 			{
 			  addrs++;
 			  is_dec = is_hex = 0;
@@ -1275,7 +1379,7 @@ struct daemon *read_opts (int argc, char **argv)
 			while (addrs--) 
 			  {
 			    cp = comma;
-			    if ((comma = strchr(cp, '\001')))
+			    if ((comma = strchr(cp, ',')))
 			      *comma++ = 0;
 			    in.s_addr = inet_addr(cp);
 			    memcpy(op, &in, INADDRSZ);
@@ -1287,7 +1391,7 @@ struct daemon *read_opts (int argc, char **argv)
 			/* text arg */
 			new->len = strlen(comma);
 			/* keep terminating zero on string */
-			new->val = safe_string_alloc(comma);
+			new->val = (unsigned char *)safe_string_alloc(comma);
 		      }
 		  }
 
@@ -1328,7 +1432,7 @@ struct daemon *read_opts (int argc, char **argv)
 		    struct dhcp_netid *newid = safe_malloc(sizeof(struct dhcp_netid));
 		    newid->next = id;
 		    id = newid;
-		    if ((comma = strchr(arg, '\001')))
+		    if ((comma = strchr(arg, ',')))
 		      *comma++ = 0;
 		    newid->net = safe_string_alloc(arg+4);
 		    arg = comma;
@@ -1340,18 +1444,22 @@ struct daemon *read_opts (int argc, char **argv)
 		  {
 		    char *dhcp_file, *dhcp_sname = NULL;
 		    struct in_addr dhcp_next_server;
-		    if ((comma = strchr(arg, '\001')))
+		    if ((comma = strchr(arg, ',')))
 		      *comma++ = 0;
 		    dhcp_file = safe_string_alloc(arg);
 		    dhcp_next_server.s_addr = 0;
 		    if (comma)
 		      {
 			arg = comma;
-			if ((comma = strchr(arg, '\001')))
+			if ((comma = strchr(arg, ',')))
 			  *comma++ = 0;
 			dhcp_sname = safe_string_alloc(arg);
-			if (comma && (dhcp_next_server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
-			  option = '?';
+			if (comma)
+			  {
+			    unhide_metas(comma);
+			    if ((dhcp_next_server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
+			      option = '?';
+			  }
 		      }
 		    if (option != '?')
 		      {
@@ -1380,13 +1488,14 @@ struct daemon *read_opts (int argc, char **argv)
 	    case 'U':
 	    case 'j':
 	      {
-		if (!(comma = strchr(arg, '\001')))
+		if (!(comma = safe_strchr(arg, ',')))
 		  option = '?';
 		else
 		  {
 		    struct dhcp_vendor *new = safe_malloc(sizeof(struct dhcp_vendor));
 		    *comma = 0;
 		    new->netid.net = safe_string_alloc(arg);
+		    unhide_metas(comma+1);
 		    new->len = strlen(comma+1);
 		    new->data = safe_malloc(new->len);
 		    memcpy(new->data, comma+1, new->len);
@@ -1405,7 +1514,7 @@ struct daemon *read_opts (int argc, char **argv)
 		daemon->dhcp_ignore = new;
 		do {
 		  struct dhcp_netid *member = safe_malloc(sizeof(struct dhcp_netid));
-		  if ((comma = strchr(arg, '\001')))
+		  if ((comma = safe_strchr(arg, ',')))
 		    *comma++ = 0;
 		  member->next = list;
 		  list = member;
@@ -1426,15 +1535,18 @@ struct daemon *read_opts (int argc, char **argv)
 
 		mask.s_addr = 0xffffffff;
 		
-		a[0] = arg;
-		for (k = 1; k < 4; k++)
-		  {
-		    if (!(a[k] = strchr(a[k-1], '\001')))
-		      break;
-		    *(a[k]++) = 0;
-		  }
+		if ((a[0] = arg))
+		  for (k = 1; k < 3; k++)
+		    {
+		      if (!(a[k] = strchr(a[k-1], ',')))
+			break;
+		      *(a[k]++) = 0;
+		      unhide_metas(a[k]);
+		    }
+		else
+		  k = 0;
 
-		if ((k < 2) ||
+		if ((k < 2) || 
 		    ((in.s_addr = inet_addr(a[0])) == (in_addr_t)-1) ||
 		    ((out.s_addr = inet_addr(a[1])) == (in_addr_t)-1))
 		  {
@@ -1460,21 +1572,21 @@ struct daemon *read_opts (int argc, char **argv)
 		struct txt_record *new;
 		unsigned char *p, *q;
 
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  *(comma) = 0;
 
-		if (!canonicalise(arg))
+		if (!canonicalise_opt(arg))
 		  {
 		    option = '?';
 		    problem = "bad TXT record";
 		    break;
 		  }
 				  
-		if ((q = comma))
+		if ((q = (unsigned char *)comma))
 		  while (1)
 		    {
 		      size_t len;
-		      if ((p = strchr(q+1, '\001')))
+		      if ((p = (unsigned char *)strchr((char*)q+1, ',')))
 			{
 			  if ((len = p - q - 1) > 255)
 			    { 
@@ -1482,13 +1594,16 @@ struct daemon *read_opts (int argc, char **argv)
 			      break;
 			    }
 			  *q = len;
-			  q = p;
+			  for (q = q+1; q < p; q++)
+			    *q = unhide_meta(*q);
 			}
 		      else
 			{
-			  if ((len = strlen(q+1)) > 255)
+			  if ((len = strlen((char *)q+1)) > 255)
 			    option = '?';
 			  *q = len;
+			  for (q = q+1; *q; q++)
+			    *q = unhide_meta(*q);
 			  break;
 			}
 		    }
@@ -1505,7 +1620,7 @@ struct daemon *read_opts (int argc, char **argv)
 		new->class = C_IN;
 		if (comma)
 		  {
-		    new->len = q - ((unsigned char *)comma) + *q + 1;
+		    new->len = q - ((unsigned char *)comma);
 		    new->txt = safe_malloc(new->len);
 		    memcpy(new->txt, comma, new->len);
 		  }
@@ -1528,10 +1643,10 @@ struct daemon *read_opts (int argc, char **argv)
 		char *name, *target = NULL;
 		struct mx_srv_record *new;
 		
-		if ((comma = strchr(arg, '\001')))
+		if ((comma = safe_strchr(arg, ',')))
 		  *(comma++) = 0;
 
-		if (!canonicalise(arg))
+		if (!canonicalise_opt(arg))
 		  {
 		    option = '?';
 		    problem = "bad SRV record";
@@ -1542,9 +1657,9 @@ struct daemon *read_opts (int argc, char **argv)
 		if (comma)
 		  {
 		    arg = comma;
-		    if ((comma = strchr(arg, '\001')))
+		    if ((comma = strchr(arg, ',')))
 		      *(comma++) = 0;
-		    if (!canonicalise(arg))
+		    if (!canonicalise_opt(arg))
 		      {
 			option = '?';
 			problem = "bad SRV target";
@@ -1554,7 +1669,7 @@ struct daemon *read_opts (int argc, char **argv)
 		    if (comma)
 		      {
 			arg = comma;
-			if ((comma = strchr(arg, '\001')))
+			if ((comma = strchr(arg, ',')))
 			  *(comma++) = 0;
 			if (!atoi_check(arg, &port))
 			  {
@@ -1565,7 +1680,7 @@ struct daemon *read_opts (int argc, char **argv)
 			if (comma)
 			  {
 			    arg = comma;
-			    if ((comma = strchr(arg, '\001')))
+			    if ((comma = strchr(arg, ',')))
 			      *(comma++) = 0;
 			    if (!atoi_check(arg, &priority))
 			      {
@@ -1576,7 +1691,7 @@ struct daemon *read_opts (int argc, char **argv)
 			    if (comma)
 			      {
 				arg = comma;
-				if ((comma = strchr(arg, '\001')))
+				if ((comma = strchr(arg, ',')))
 				  *(comma++) = 0;
 				if (!atoi_check(arg, &weight))
 				  {
@@ -1674,27 +1789,11 @@ struct daemon *read_opts (int argc, char **argv)
 	  mx->target = daemon->mxtarget;
     }
 
-  if (daemon->domain_suffix)
-    {
-       /* add domain for any srv record without one. */
-      struct mx_srv_record *srv;
-      
-      for (srv = daemon->mxnames; srv; srv = srv->next)
-	if (srv->issrv &&
-	    strchr(srv->name, '.') && 
-	    strchr(srv->name, '.') == strrchr(srv->name, '.'))
-	  {
-	    strcpy(buff, srv->name);
-	    strcat(buff, ".");
-	    strcat(buff, daemon->domain_suffix);
-	    free(srv->name);
-	    srv->name = safe_string_alloc(buff);
-	  }
-    }
-  
   if (daemon->options & OPT_NO_RESOLV)
     daemon->resolv_files = 0;
-  else if (daemon->resolv_files && (daemon->resolv_files)->next && (daemon->options & OPT_NO_POLL))
+  else if (daemon->resolv_files && 
+	   (daemon->resolv_files)->next && 
+	   (daemon->options & OPT_NO_POLL))
     die("only one resolv.conf file allowed in no-poll mode.", NULL);
   
   if (daemon->options & OPT_RESOLV_DOMAIN)
@@ -1715,7 +1814,7 @@ struct daemon *read_opts (int argc, char **argv)
 	    continue;
 	  
 	  if ((token = strtok(NULL, " \t\n\r")) &&  
-	      canonicalise(token) &&
+	      canonicalise_opt(token) &&
 	      (daemon->domain_suffix = safe_string_alloc(token)))
 	    break;
 	}
@@ -1725,7 +1824,25 @@ struct daemon *read_opts (int argc, char **argv)
       if (!daemon->domain_suffix)
 	die("no search directive found in %s", (daemon->resolv_files)->name);
     }
+
+  if (daemon->domain_suffix)
+    {
+       /* add domain for any srv record without one. */
+      struct mx_srv_record *srv;
       
+      for (srv = daemon->mxnames; srv; srv = srv->next)
+	if (srv->issrv &&
+	    strchr(srv->name, '.') && 
+	    strchr(srv->name, '.') == strrchr(srv->name, '.'))
+	  {
+	    strcpy(buff, srv->name);
+	    strcat(buff, ".");
+	    strcat(buff, daemon->domain_suffix);
+	    free(srv->name);
+	    srv->name = safe_string_alloc(buff);
+	  }
+    }
+     
   return daemon;
 }
       

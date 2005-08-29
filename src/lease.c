@@ -71,9 +71,9 @@ void lease_init(struct daemon *daemon, time_t now)
       if (strcmp(daemon->packet, "*") == 0)
 	clid_len = 0;
       else
-	clid_len = parse_hex(daemon->packet, daemon->packet, 255, NULL);
+	clid_len = parse_hex(daemon->packet, (unsigned char *)daemon->packet, 255, NULL);
       
-      if (!(lease = lease_allocate(hwaddr, daemon->packet, clid_len, addr)))
+      if (!(lease = lease_allocate(hwaddr, (unsigned char *)daemon->packet, clid_len, addr)))
 	die ("too many stored leases", NULL);
       
       lease->expires = expires;

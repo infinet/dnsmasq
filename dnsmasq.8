@@ -48,7 +48,8 @@ data under some circumstances.
 .TP
 .B \-k, --keep-in-foreground
 Do not go into the background at startup but otherwise run as
-normal. This is intended for use when dnsmasq is run under daemontools.
+normal. This is intended for use when dnsmasq is run under daemontools
+or launchd.
 .TP
 .B \-d, --no-daemon
 Debug mode: don't fork to the background, don't write a pid file,
@@ -120,6 +121,9 @@ options does not matter and that
 .B --except-interface
 options always override the others.
 .TP 
+.B \-2, --no-dhcp-interface=<interface name>
+Do not provide DHCP on the specified interface, but do provide DNS service.
+.TP
 .B \-a, --listen-address=<ipaddr>
 Listen on the given IP address(es). Both 
 .B \--interface
@@ -201,6 +205,12 @@ time is the one used.
 Don't read /etc/resolv.conf. Get upstream servers only from the command
 line or the dnsmasq configuration file.
 .TP
+.B \-1, --enable-dbus
+Allow dnsmasq configuration to be updated via DBus method calls. The
+configuration which can be changed is upstream DNS servers (and
+corressponding domains) and cache clear. Requires that dnsmasq has
+been built with DBus support.
+.TP 
 .B \-o, --strict-order
 By default, dnsmasq will send queries to any of the upstream servers
 it knows about and tries to favour servers to are known to
@@ -212,11 +222,11 @@ Don't poll /etc/resolv.conf for changes.
 .TP
 .B \-D, --domain-needed
 Tells dnsmasq to never forward queries for plain names, without dots
-or domain parts, to upstream nameservers. If the name is not knowm
+or domain parts, to upstream nameservers. If the name is not known
 from /etc/hosts or DHCP then a "not found" answer is returned.
 .TP
 .B \-S, --server=[/[<domain>]/[domain/]][<ipaddr>[#<port>][@<source>[#<port>]]]
-Specify IP address of upsream severs directly. Setting this flag does
+Specify IP address of upstream severs directly. Setting this flag does
 not suppress reading of /etc/resolv.conf, use -R to do that. If one or
 more 
 optional domains are given, that server is used only for those domains
@@ -302,13 +312,7 @@ is one and the defaults for
 weight and priority are zero. Be careful if transposing data from BIND
 zone files: the port, weight and priority numbers are in a different
 order. More than one SRV record for a given service/domain is allowed,
-all that match are returned. Specifying at least one 
-.B --srv-host
-option also turns on replies to SOA queries for the
-domain given by the
-.B --domain 
-option. The data in these is stereotyped, but is enough for resolvers
-to deduce that the domain is a valid one for resolving SRV records.
+all that match are returned.
 .TP
 .B \-Y, --txt-record=<name>[[,<text>],<text>]
 Return a TXT DNS record. The value of TXT record is a set of strings,
@@ -390,9 +394,10 @@ instance
 .B --dhcp-host=00:20:e0:3b:13:af,ignore
 This is
 useful when there is another DHCP server on the network which should
-be used by some machines. The net:<network-id> parameter enables DHCP options just
-for this host in the same way as the the network-id in
-.B dhcp-range.
+be used by some machines. The net:<network-id> sets the network-id tag
+whenever this dhcp-host directive is in use.
+This can be used to selectively send DHCP options just
+for this host.
 Ethernet addresses (but not client-ids) may have
 wildcard bytes, so for example 
 .B --dhcp-host=00:20:e0:3b:13:*,ignore 
@@ -434,7 +439,13 @@ of this flag. When the value is a decimal number, dnsmasq must determine how
 large the data item is. It does this by examining the option number and/or the
 value, but can be overriden by appending a single letter flag as follows:
 b = one byte, s = two bytes, i = four bytes. This is mainly useful with 
-encapsulated vendor class options (see below) where dnsmasq cannot determine data size from the  option number.
+encapsulated vendor class options (see below) where dnsmasq cannot
+determine data size from the  option number. Option data which
+consists solely of periods and digits will be interpreted by dnsmasq
+as an IP address, and inserted into an option as such. To force a
+literal string, use quotes. For instance when using option 66 to send
+a literal IP address as TFTP server name, it is necessary to do
+.B --dhcp-option=66,"1.2.3.4"
 
 Encapsulated Vendor-class options may also be specified using
 --dhcp-option: for instance 
@@ -489,6 +500,12 @@ It changes the behaviour from strict RFC compliance so that DHCP requests on
 unknown leases from unknown hosts are not ignored. This allows new hosts
 to get a lease without a tedious timeout under all circumstances.
 .TP
+.B \-3, --bootp-dynamic
+Enable dynamic allocation of IP addresses to BOOTP clients. Use this
+with care, since each address allocated to a BOOTP client is leased
+forever, and therefore becomes permanently unavailable for re-use by
+other hosts.
+.TP
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information. If this option
 is given but no dhcp-range option is given then dnsmasq version 1
@@ -502,7 +519,7 @@ Specifies the domain for the DHCP server. This has two effects;
 firstly it causes the DHCP server to return the domain to any hosts
 which request it, and secondly it sets the domain which it is legal
 for DHCP-configured hosts to claim. The intention is to constrain hostnames so that an untrusted host on the LAN cannot advertise it's name via dhcp as e.g. "microsoft.com" and capture traffic not meant for it. If no domain suffix is specified, then any DHCP hostname with a domain part (ie with a period) will be disallowed and logged. If suffix is specified, then hostnames with a domain part are allowed, provided the domain part matches the suffix. In addition, when a suffix is set then hostnames without a domain part have the suffix added as an optional domain part. Eg on my network I can set 
-.B --domain-suffix=thekelleys.org.uk
+.B --domain=thekelleys.org.uk
 and have a machine whose DHCP hostname is "laptop". The IP address for that machine is available from 
 .B dnsmasq
 both as "laptop" and "laptop.thekelleys.org.uk". If the domain is
@@ -510,7 +527,7 @@ given as "#" then the domain is read from the first "search" directive
 in /etc/resolv.conf (or equivalent). 
 .TP
 .B \-E, --expand-hosts
-Add the domain-suffix to simple names (without a period) in /etc/hosts
+Add the domain to simple names (without a period) in /etc/hosts
 in the same way as for DHCP-derived names.
 .SH CONFIG FILE
 At startup, dnsmasq reads
@@ -522,13 +539,13 @@ FreeBSD, the file is
 file consists of one option per line, exactly as the long options detailed 
 in the OPTIONS section but without the leading "--". Lines starting with # are comments and ignored. For
 options which may only be specified once, the configuration file overrides 
-the command line. Use the --conf-file option to specify a different
+the command line. Use the --conf-file (or -C) option to specify a different
 configuration file. The conf-file option is also allowed in
 configuration files, to include multiple configuration files. Only one
 level of nesting is allowed. Quoting is allowed in a config file:
-between " quotes the special meaning of , and # is removed and the
-following escapes are allowed: \\\\ \\" \\t and \\n. The later two
-corresponding to newline and tab.
+between " quotes the special meanings of ,:. and # are removed and the
+following escapes are allowed: \\\\ \\" \\t \\a \\b \\r and \\n. The later 
+corresponding to tab, bell, backspace, return and newline.
 .SH NOTES
 When it receives a SIGHUP, 
 .B dnsmasq 

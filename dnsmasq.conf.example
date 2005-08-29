@@ -10,7 +10,7 @@
 # uneccessarily. If you have a dial-on-demand link they also stop
 # these requests from bringing up the link uneccessarily.
 
-# Never forward plain names (with a dot or domain part)
+# Never forward plain names (without a dot or domain part)
 domain-needed
 # Never forward addresses in the non-routed address spaces.
 bogus-priv
@@ -62,8 +62,9 @@ bogus-priv
 #user=
 #group=
 
-# If you want dnsmasq to listen for requests only on specified interfaces
-# (and the loopback) give the name of the interface (eg eth0) here. 
+# If you want dnsmasq to listen for DHCP and DNS requests only on 
+# specified interfaces (and the loopback) give the name of the 
+# interface (eg eth0) here. 
 # Repeat the line for more than one interface.
 #interface=
 # Or you can specify which interface _not_ to listen on
@@ -71,6 +72,10 @@ bogus-priv
 # Or which to listen on by address (remember to include 127.0.0.1 if
 # you use this.)
 #listen-address=
+# If you want dnsmasq to provide only DNS service on an interface,
+# configure it as shown above, and then use the following line to
+# disable DHCP on it.
+#no-dhcp-interface=
 
 # On systems which support it, dnsmasq binds the wildcard address,
 # even when it is listening on only some interfaces. It then discards

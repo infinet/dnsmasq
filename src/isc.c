@@ -136,8 +136,8 @@ void load_dhcp(struct daemon *daemon, time_t now)
                                  it is noted that it might not be entirely accurate for odd seconds.
 				 Since we're trying to get the same answer as dhcpd, that's just
 				 fine here. */
-			      static int months [11] = { 31, 59, 90, 120, 151, 181,
-							 212, 243, 273, 304, 334 };
+			      static const int months [11] = { 31, 59, 90, 120, 151, 181,
+							       212, 243, 273, 304, 334 };
 			      time_t time = ((((((365 * (lease_time.tm_year - 1970) + /* Days in years since '70 */
 						  (lease_time.tm_year - 1969) / 4 +   /* Leap days since '70 */
 						  (lease_time.tm_mon > 1                /* Days in months this year */
