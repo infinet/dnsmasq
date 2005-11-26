@@ -33,7 +33,11 @@ static char *compile_opts =
 #ifndef HAVE_DBUS
 "no-"
 #endif
-"DBus";
+"DBus "
+#ifdef NO_GETTEXT
+"no-"
+#endif
+"i18n";
 
 static volatile int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
 
@@ -50,6 +54,12 @@ int main (int argc, char **argv)
   struct sigaction sigact;
   sigset_t sigmask;
   struct iname *if_tmp;
+
+#ifndef NO_GETTEXT
+  setlocale(LC_ALL, "");
+  bindtextdomain("dnsmasq", LOCALEDIR); 
+  textdomain("dnsmasq");
+#endif
 
   sighup = 1; /* init cache the first time through */
   sigusr1 = 0; /* but don't dump */
@@ -99,11 +109,11 @@ int main (int argc, char **argv)
     }
 #ifndef HAVE_ISC_READER
   else if (!daemon->dhcp)
-    die("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h", NULL);
+    die(_("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h"), NULL);
 #endif
   
   if (!enumerate_interfaces(daemon, &daemon->interfaces, NULL, NULL))
-    die("failed to find list of interfaces: %s", NULL);
+    die(_("failed to find list of interfaces: %s"), NULL);
 
   if (!(daemon->options & OPT_NOWILD) && 
       !(daemon->listeners = create_wildcard_listeners(daemon->port)))
@@ -118,13 +128,13 @@ int main (int argc, char **argv)
 
       for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
 	if (if_tmp->name && !if_tmp->used)
-	  die("unknown interface %s", if_tmp->name);
+	  die(_("unknown interface %s"), if_tmp->name);
   
       for (if_tmp = daemon->if_addrs; if_tmp; if_tmp = if_tmp->next)
 	if (!if_tmp->used)
 	  {
 	    prettyprint_addr(&if_tmp->addr, daemon->namebuff);
-	    die("no interface with address %s", daemon->namebuff);
+	    die(_("no interface with address %s"), daemon->namebuff);
 	  }
     }
   
@@ -133,7 +143,7 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_BROKEN_RTC
   if ((daemon->uptime_fd = open(UPTIME, O_RDONLY)) == -1)
-    die("cannot open " UPTIME ":%s", NULL);
+    die(_("cannot open %s:%s"), UPTIME);
 #endif
  
   now = dnsmasq_time(daemon->uptime_fd);
@@ -147,7 +157,7 @@ int main (int argc, char **argv)
 	if (!tmp->isloop)
 	  c++;
       if (c != 1)
-	die("must set exactly one interface on broken systems without IP_RECVIF", NULL);
+	die(_("must set exactly one interface on broken systems without IP_RECVIF"), NULL);
 #endif
       dhcp_init(daemon);
       lease_init(daemon, now);
@@ -160,11 +170,11 @@ int main (int argc, char **argv)
       daemon->dbus = NULL;
       daemon->watches = NULL;
       if ((err = dbus_init(daemon)))
-	die("DBus error: %s", err);
+	die(_("DBus error: %s"), err);
     }
 #else
   if (daemon->options & OPT_DBUS)
-    die("DBus not available: set HAVE_DBUS in src/config.h", NULL);
+    die(_("DBus not available: set HAVE_DBUS in src/config.h"), NULL);
 #endif
   
   /* If query_port is set then create a socket now, before dumping root
@@ -277,29 +287,29 @@ int main (int argc, char **argv)
 	  DNSMASQ_LOG_FAC(daemon->options & OPT_DEBUG));
   
   if (daemon->cachesize != 0)
-    syslog(LOG_INFO, "started, version %s cachesize %d", VERSION, daemon->cachesize);
+    syslog(LOG_INFO, _("started, version %s cachesize %d"), VERSION, daemon->cachesize);
   else
-    syslog(LOG_INFO, "started, version %s cache disabled", VERSION);
+    syslog(LOG_INFO, _("started, version %s cache disabled"), VERSION);
 
-  syslog(LOG_INFO, "compile time options: %s", compile_opts);
+  syslog(LOG_INFO, _("compile time options: %s"), compile_opts);
 
 #ifdef HAVE_DBUS
   if (daemon->options & OPT_DBUS)
     {
       if (daemon->dbus)
-	syslog(LOG_INFO, "DBus support enabled: connected to system bus");
+	syslog(LOG_INFO, _("DBus support enabled: connected to system bus"));
       else
-	syslog(LOG_INFO, "DBus support enabled: bus connection pending");
+	syslog(LOG_INFO, _("DBus support enabled: bus connection pending"));
     }
 #endif
 
   if (bind_fallback)
-    syslog(LOG_WARNING, "setting --bind-interfaces option because of OS limitations");
+    syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
   
   if (!(daemon->options & OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
       if (if_tmp->name && !if_tmp->used)
-	syslog(LOG_WARNING, "warning: interface %s does not currently exist", if_tmp->name);
+	syslog(LOG_WARNING, _("warning: interface %s does not currently exist"), if_tmp->name);
   
   if (daemon->dhcp)
     {
@@ -316,8 +326,8 @@ int main (int argc, char **argv)
 	  strcpy(daemon->dhcp_buff, inet_ntoa(dhcp_tmp->start));
 	  syslog(LOG_INFO, 
 		 (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		 "DHCP, static leases only on %.0s%s, lease time %s" :
-		 "DHCP, IP range %s -- %s, lease time %s",
+		 _("DHCP, static leases only on %.0s%s, lease time %s") :
+		 _("DHCP, IP range %s -- %s, lease time %s"),
 		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), daemon->dhcp_buff2);
 	}
  
@@ -328,12 +338,12 @@ int main (int argc, char **argv)
       if (daemon->min_leasetime < 60)
 	daemon->min_leasetime = 60;
       prettyprint_time(daemon->dhcp_buff2, daemon->min_leasetime);
-      syslog(LOG_INFO, "DHCP, %s will be written every %s", daemon->lease_file, daemon->dhcp_buff2);
+      syslog(LOG_INFO, _("DHCP, %s will be written every %s"), daemon->lease_file, daemon->dhcp_buff2);
 #endif
     }
 
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
-    syslog(LOG_WARNING, "running as root");
+    syslog(LOG_WARNING, _("running as root"));
   
   check_servers(daemon);
   
@@ -458,7 +468,7 @@ int main (int argc, char **argv)
 		  if (stat(res->name, &statbuf) == -1)
 		    {
 		      if (!res->logged)
-			syslog(LOG_WARNING, "failed to access %s: %m", res->name);
+			syslog(LOG_WARNING, _("failed to access %s: %m"), res->name);
 		      res->logged = 1;
 		    }
 		  else
@@ -491,9 +501,9 @@ int main (int argc, char **argv)
 	{
 	  char *err;
 	  if ((err = dbus_init(daemon)))
-	    syslog(LOG_WARNING, "DBus error: %s", err);
+	    syslog(LOG_WARNING, _("DBus error: %s"), err);
 	  if (daemon->dbus)
-	    syslog(LOG_INFO, "connected to system DBus");
+	    syslog(LOG_INFO, _("connected to system DBus"));
 	}
       check_dbus_listeners(daemon, &rset, &wset, &eset);
 #endif
@@ -504,7 +514,7 @@ int main (int argc, char **argv)
 	dhcp_packet(daemon, now);
     }
   
-  syslog(LOG_INFO, "exiting on receipt of SIGTERM");
+  syslog(LOG_INFO, _("exiting on receipt of SIGTERM"));
   
   if (daemon->dhcp)
     { 
@@ -551,7 +561,7 @@ void clear_cache_and_reload(struct daemon *daemon, time_t now)
       if (daemon->options & OPT_ETHERS)
 	dhcp_read_ethers(daemon);
       dhcp_update_configs(daemon->dhcp_conf);
-      lease_update_from_configs(daemon->dhcp_conf, daemon->domain_suffix); 
+      lease_update_from_configs(daemon); 
       lease_update_file(0, now); 
       lease_update_dns(daemon);
     }

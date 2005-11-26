@@ -415,14 +415,14 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 	  fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
 	  (flags = fcntl(new->fd, F_GETFL, 0)) == -1 ||
 	  fcntl(new->fd, F_SETFL, flags | O_NONBLOCK) == -1)
-	die("failed to create listening socket: %s", NULL);
+	die(_("failed to create listening socket: %s"), NULL);
       
 #ifdef HAVE_IPV6
       if (iface->addr.sa.sa_family == AF_INET6)
 	{
 	  if (setsockopt(new->fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
 	      setsockopt(new->tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
-	    die("failed to set IPV6 options on listening socket: %s", NULL);
+	    die(_("failed to set IPV6 options on listening socket: %s"), NULL);
 	}
 #endif
       
@@ -441,14 +441,14 @@ struct listener *create_bound_listeners(struct irec *interfaces, int port)
 	    {
 	      char addrbuff[ADDRSTRLEN];
 	      prettyprint_addr(&iface->addr, addrbuff);
-	      die("failed to bind listening socket for %s: %s", addrbuff);
+	      die(_("failed to bind listening socket for %s: %s"), addrbuff);
 	    }
 	}
       else
 	 {
 	   listeners = new;     
 	   if (listen(new->tcpfd, 5) == -1)
-	     die("failed to listen on socket: %s", NULL);
+	     die(_("failed to listen on socket: %s"), NULL);
 	 }
     }
   
@@ -518,7 +518,7 @@ void check_servers(struct daemon *daemon)
 	      break;
 	  if (iface)
 	    {
-	      syslog(LOG_WARNING, "ignoring nameserver %s - local interface", daemon->namebuff);
+	      syslog(LOG_WARNING, _("ignoring nameserver %s - local interface"), daemon->namebuff);
 	      free(new);
 	      continue;
 	    }
@@ -527,7 +527,7 @@ void check_servers(struct daemon *daemon)
 	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds)))
 	    {
 	      syslog(LOG_WARNING, 
-		     "ignoring nameserver %s - cannot make/bind socket: %m", daemon->namebuff);
+		     _("ignoring nameserver %s - cannot make/bind socket: %m"), daemon->namebuff);
 	      free(new);
 	      continue;
 	    }
@@ -541,17 +541,17 @@ void check_servers(struct daemon *daemon)
 	{
 	  char *s1, *s2;
 	  if (new->flags & SERV_HAS_DOMAIN)
-	    s1 = "domain", s2 = new->domain;
+	    s1 = _("domain"), s2 = new->domain;
 	  else
-	    s1 = "unqualified", s2 = "domains";
+	    s1 = _("unqualified"), s2 = _("domains");
 	  
 	  if (new->flags & SERV_NO_ADDR)
-	    syslog(LOG_INFO, "using local addresses only for %s %s", s1, s2);
+	    syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
 	  else if (!(new->flags & SERV_LITERAL_ADDRESS))
-	    syslog(LOG_INFO, "using nameserver %s#%d for %s %s", daemon->namebuff, port, s1, s2);
+	    syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
 	}
       else
-	syslog(LOG_INFO, "using nameserver %s#%d", daemon->namebuff, port); 
+	syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
     }
   
   daemon->servers = ret;
@@ -588,11 +588,11 @@ void reload_servers(char *fname, struct daemon *daemon)
   f = fopen(fname, "r");
   if (!f)
     {
-      syslog(LOG_ERR, "failed to read %s: %m", fname);
+      syslog(LOG_ERR, _("failed to read %s: %m"), fname);
     }
   else
     {
-      syslog(LOG_INFO, "reading %s", fname);
+      syslog(LOG_INFO, _("reading %s"), fname);
       while ((line = fgets(daemon->namebuff, MAXDNAME, f)))
 	{
 	  union  mysockaddr addr, source_addr;

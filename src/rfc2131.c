@@ -78,7 +78,8 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 				     struct in_addr subnet_addr,
 				     unsigned char fqdn_flags);
 
-int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, unsigned int sz, time_t now)
+int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, 
+	       unsigned int sz, time_t now, int unicast_dest)
 {
   unsigned char *opt, *clid = NULL;
   struct dhcp_lease *ltmp, *lease = NULL;
@@ -89,6 +90,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
   unsigned char *p = mess->options + sizeof(u32); /* skip cookie */
   unsigned char *end = (unsigned char *)(daemon->dhcp_packet + 1);
   char *hostname = NULL, *offer_hostname = NULL, *client_hostname = NULL;
+  int hostname_auth = 0;
   unsigned char *req_options = NULL;
   char *message = NULL;
   unsigned int time;
@@ -166,7 +168,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       if (mess->htype != ARPHRD_ETHER && mess->htype != ARPHRD_IEEE802)
 #endif
 	{
-	  syslog(LOG_WARNING, "DHCP request for unsupported hardware type (%d) recieved on %s", 
+	  syslog(LOG_WARNING, _("DHCP request for unsupported hardware type (%d) recieved on %s"), 
 		 mess->htype, iface_name);
 	  return 0;
 	}	
@@ -215,8 +217,8 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
   
   if (!context)
     {
-      syslog(LOG_WARNING, "no address range available for DHCP request %s %s", 
-             subnet_addr.s_addr ? "with subnet selector" : "via",
+      syslog(LOG_WARNING, _("no address range available for DHCP request %s %s"), 
+             subnet_addr.s_addr ? _("with subnet selector") : _("via"),
              subnet_addr.s_addr ? inet_ntoa(subnet_addr) : (mess->giaddr.s_addr ? inet_ntoa(mess->giaddr) : iface_name));
       return 0;
     }
@@ -233,7 +235,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       struct in_addr *logaddr = NULL;
       
       if (have_config(config, CONFIG_DISABLE))
-	message = "disabled";
+	message = _("disabled");
 
       end = mess->options + 64; /* BOOTP vend area is only 64 bytes */
             
@@ -257,7 +259,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       
       for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
 	if (match_netid(id_list->list, netid))
-	  message = "disabled";
+	  message = _("disabled");
       
       if (!message)
 	{
@@ -267,20 +269,20 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	      mess->yiaddr = config->addr;
 	      if ((lease = lease_find_by_addr(config->addr)) &&
 		  memcmp(lease->hwaddr, chaddr, ETHER_ADDR_LEN) != 0)
-		message = "address in use";
+		message = _("address in use");
 	    }
 	  else if (!(daemon->options & OPT_BOOTP_DYNAMIC))
-	    message = "no address configured";
+	    message = _("no address configured");
 	  else
 	    {
 	      if ((lease = lease_find_by_client(mess->chaddr, NULL, 0)))
 		mess->yiaddr = lease->addr;
 	      else if (!address_allocate(context, daemon, &mess->yiaddr, chaddr, netid, now))
-		message = "no address available";
+		message = _("no address available");
 	    }
 	  
 	  if (!message && !lease && (!(lease = lease_allocate(chaddr, NULL, 0, mess->yiaddr))))
-	    message = "no leases left";
+	    message = _("no leases left");
 	  
 	  if (!message)
 	    {
@@ -295,7 +297,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	      
 	      lease_set_hwaddr(lease, chaddr, NULL, 0);
 	      if (hostname)
-		lease_set_hostname(lease, hostname, daemon->domain_suffix); 
+		lease_set_hostname(lease, hostname, daemon->domain_suffix, 1); 
 	      lease_set_expires(lease, 0); /* infinite lease */
 	      
 	      p = do_req_options(context, p, end, NULL, daemon, 
@@ -370,6 +372,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
   if (have_config(config, CONFIG_NAME))
     {
       hostname = config->hostname;
+      hostname_auth = 1;
       /* be careful not to send an OFFER with a hostname not 
 	 matching the DISCOVER. */
       if (fqdn_flags != 0 || !client_hostname || hostname_isequal(hostname, client_hostname))
@@ -475,7 +478,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       if (have_config(config, CONFIG_ADDR) && 
 	  config->addr.s_addr == option_addr(opt).s_addr)
 	{
-	  syslog(LOG_WARNING, "disabling DHCP static address %s", inet_ntoa(config->addr));
+	  syslog(LOG_WARNING, _("disabling DHCP static address %s"), inet_ntoa(config->addr));
 	  config->flags &= ~CONFIG_ADDR ;
 	}
       else
@@ -493,7 +496,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
 	lease_prune(lease, now);
       else
-	message = "unknown lease";
+	message = _("unknown lease");
 
       log_packet("RELEASE", &mess->ciaddr, chaddr, iface_name, message);
 	
@@ -506,7 +509,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))	 
 	  addr = option_addr(opt);
 	if (ignore || have_config(config, CONFIG_DISABLE))
-	  message = "ignored";
+	  message = _("ignored");
 	else if (have_config(config, CONFIG_ADDR) && 
 		 (!(ltmp = lease_find_by_addr(config->addr)) || ltmp == lease))
 	  mess->yiaddr = config->addr;
@@ -516,7 +519,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 		 !config_find_by_address(daemon->dhcp_conf, addr))
 	  mess->yiaddr = addr;
 	else if (!address_allocate(context, daemon, &mess->yiaddr, chaddr, netid, now))
-	  message = "no address available";      
+	  message = _("no address available");      
 	log_packet("DISCOVER", opt ? &addr : NULL, chaddr, iface_name, message);          
       }
 
@@ -586,7 +589,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 		return 0;
 	      
 	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
-		message = "wrong address";
+		message = _("wrong address");
 	    }
 	}
       else
@@ -594,8 +597,11 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  /* RENEWING or REBINDING */ 
 	  /* Must exist a lease for this address */
 	  if (!lease || mess->ciaddr.s_addr != lease->addr.s_addr)
-	    message = "lease not found";
-	  
+	    {
+	      message = _("lease not found");
+	      /* ensure we broadcast NAK */
+	      unicast_dest = 0;
+	    }
 	  /* desynchronise renewals */
 	  fuzz = rand16();
 	  mess->yiaddr = mess->ciaddr;
@@ -609,12 +615,16 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 
 	  /* If a machine moves networks whilst it has a lease, we catch that here. */
 	  if (!is_same_net(mess->yiaddr, context->start, context->netmask))
-	    message = "wrong network";
-
+	    {
+	      message = _("wrong network");
+	      /* ensure we broadcast NAK */
+	      unicast_dest = 0;
+	    }
+	  
 	  /* Check for renewal of a lease which is outside the allowed range. */
 	  else if (!address_available(context, mess->yiaddr) &&
 		   (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
-	    message = "address not available";
+	    message = _("address not available");
 
 	  /* Check if a new static address has been configured. Be very sure that
 	     when the client does DISCOVER, it will get the static address, otherwise
@@ -623,35 +633,45 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  else if (have_config(config, CONFIG_ADDR) && 
 		   config->addr.s_addr != mess->yiaddr.s_addr &&
 		   (!(ltmp = lease_find_by_addr(config->addr)) || ltmp == lease))
-	    message = "static lease available";
+	    message = _("static lease available");
 
 	  /* Check to see if the address is reserved as a static address for another host */
 	  else if ((addr_config = config_find_by_address(daemon->dhcp_conf, mess->yiaddr)) && addr_config != config)
-	    message = "address reserved";
+	    message = _("address reserved");
 
 	  else if ((ltmp = lease_find_by_addr(mess->yiaddr)) && ltmp != lease)
-	    message = "address in use";
+	    message = _("address in use");
 	  
 	  else if (!lease && !(lease = lease_allocate(chaddr, clid, clid_len, mess->yiaddr)))
-	    message = "no leases left";
+	    message = _("no leases left");
 	}
       
       if (message)
 	{
 	  log_packet("NAK", &mess->yiaddr, chaddr, iface_name, message);
 	  
-	  mess->siaddr.s_addr = mess->yiaddr.s_addr = mess->ciaddr.s_addr = 0;
+	  mess->siaddr.s_addr = mess->yiaddr.s_addr = 0;
 	  bootp_option_put(mess, NULL, NULL);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
 	  p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
 	  p = option_put_string(p, end, OPTION_MESSAGE, message);
-	  mess->flags |= htons(0x8000); /* broadcast */
+	  /* This fixes a problem with the DHCP spec, broadcasting a NAK to a host on 
+	     a distant subnet which unicast a REQ to us won't work. */
+	  if (!unicast_dest || mess->giaddr.s_addr != 0 || 
+	      mess->ciaddr.s_addr == 0 || is_same_net(context->local, mess->ciaddr, context->netmask))
+	    {
+	      mess->flags |= htons(0x8000); /* broadcast */
+	      mess->ciaddr.s_addr = 0;
+	    }
 	}
       else
 	{
-	  if (!hostname)
-	    hostname = host_from_dns(daemon, mess->yiaddr);
-	  
+	  if (!hostname_auth && (client_hostname = host_from_dns(daemon, mess->yiaddr)))
+	    {
+	      hostname = client_hostname;
+	      hostname_auth = 1;
+	    }
+
 	  log_packet("ACK", &mess->yiaddr, chaddr, iface_name, hostname);
       
 	  context = narrow_context(context, mess->yiaddr);
@@ -671,7 +691,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  
 	  lease_set_hwaddr(lease, chaddr, clid, clid_len);
 	  if (hostname)
-	    lease_set_hostname(lease, hostname, daemon->domain_suffix);
+	    lease_set_hostname(lease, hostname, daemon->domain_suffix, hostname_auth);
 	  lease_set_expires(lease, time == 0xffffffff ? 0 : now + (time_t)time);
 	  	  
 	  mess->siaddr = context->local;
@@ -695,7 +715,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       
     case DHCPINFORM:
       if (ignore || have_config(config, CONFIG_DISABLE))
-	message = "ignored";
+	message = _("ignored");
       
       log_packet("INFORM", &mess->ciaddr, chaddr, iface_name, message);
      
@@ -809,12 +829,24 @@ static void bootp_option_put(struct dhcp_packet *mess,
     }
 }
 
+static int check_space(unsigned char *p, unsigned char *end, int len, int opt)
+{
+  /* always keep one octet space for the END option. */ 
+  if (p + len + 3 >= end)
+    {
+      syslog(LOG_WARNING, _("cannot send DHCP option %d: no space left in packet"), opt);
+      return 0;
+    }
+
+  return 1;
+}
+
+   
 static unsigned char *option_put(unsigned char *p, unsigned char *end, int opt, int len, unsigned int val)
 {
   int i;
   
-  /* always keep one octet space for the END option. */ 
-  if (p + len + 3 < end)
+  if (check_space(p, end, len, opt)) 
     {
       *(p++) = opt;
       *(p++) = len;
@@ -838,7 +870,7 @@ static unsigned char *option_put_string(unsigned char *p, unsigned char *end, in
 {
   size_t len = strlen(string);
 
-  if (p + len + 3 < end)
+  if (check_space(p, end, len, opt))
     {
       *(p++) = opt;
       *(p++) = len;
@@ -941,9 +973,9 @@ static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *
 
 static unsigned char *do_opt(struct dhcp_opt *opt, unsigned char *p, unsigned char *end,  struct in_addr local)
 {
-  if (p + opt->len + 3 >= end)
+  if (!check_space(p, end, opt->len, opt->opt))
     return p;
-  
+    
   *(p++) = opt->opt;
   *(p++) = opt->len;
   
@@ -1097,7 +1129,7 @@ static unsigned char *do_req_options(struct dhcp_context *context,
 	if (!opt->netid || match_netid(opt->netid, netid))
 	  {
 	    if (vendor_class && strcmp(vendor_class, (char *)opt->vendor_class) != 0)
-	      syslog(LOG_WARNING, "More than one vendor class matches, using %s", vendor_class);
+	      syslog(LOG_WARNING, _("More than one vendor class matches, using %s"), vendor_class);
 	    else
 	      vendor_class = (char *)opt->vendor_class;
 	  }

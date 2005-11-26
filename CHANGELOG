@@ -1544,3 +1544,69 @@ version 2.23
 	    Added --bootp-dynamic option and associated
 	    functionality. Thanks to Josef Wolf for the suggestion.
  
+version 2.24
+            Updated contrib/openvpn/dnsmasq.patch from Joseph Tate.
+
+	    Tweaked DHCP NAK code, a DHCP NAK is now unicast as a
+	    fallback in cases where a broadcast is futile: namely in
+	    response to a unicast REQUEST from a non-local network
+	    which was not sent via a relay.
+
+	    Slightly changed the semantics of domain matching in
+	    --server and --address configs. --server=/domain.com/ still
+	    matches domain.com and sub.domain.com but does not 
+	    now match newdomain.com The semantics of 
+            --server=/.domain.com/ are unchanged. 
+	    Thanks to Chris Blaise for the patch.
+
+	    Added backwards-compatible internationalisation support.
+	    The existing make targets, (all, dnsmasq, install) work as
+	    before. New ones (all-i18n, and install-i18n) add gettext.
+	    The translations live in po/ There are not too many
+	    strings, so if anybody can provide translations (and for
+	    the manpage....) please send them in.
+
+	    Tweak behaviour on receipt of REFUSED or SERVFAIL rcodes,
+	    now the query gets retried on all servers before returning
+	    the error to the source of the query. Thanks to Javier
+	    Kohen for the report.
+ 
+	    Added Polish translation - thanks to Tomasz Sochanski.
+
+	    Changed default manpage install location from /usr/man 
+	    to /usr/share/man 
+
+	    Added Spanish translation - thanks to Christopher Chatham.
+
+	    Log a warning when a DHCP packet is truncated due to lack
+	    of space. (Thanks to Michael Welle for the prompt to do
+	    this.)
+	    
+	    Added French translation - thanks to Lionel Tricon.
+
+	    Added Indonesian translation - thanks to Salman AS.
+
+	    Tweaked the netlink code to cope with interface broadcast
+	    address not set, or set to 0.0.0.0.
+
+	    Fixed problem assigning fixed addresses to hosts when more
+	    than one dhcp-range is available. Thanks to Sorin Panca
+	    for help chasing this down.
+
+	    Added more explict error mesages to the hosts file and
+	    ethers file reading code. Markus Kaiserswerth suffered to
+	    make this happen.
+
+	    Ensure that a hostname supplied by a DHCP client can never
+	    override one configured on the server. Previously, any
+	    host claiming a name would be given it, even if that
+	    over-rode a dhcp-host declaration, leading to potentially 
+            confusing situations.
+
+	    Added Slackware package-build stuff into contrib/ The i18n
+	    effort broke the current scripts, and working ones were
+	    needed for testing, so they ended up here rather than make
+	    Pat re-invent the wheel.
+	    
+	    Added Romanian translation, thanks to Sorin Panca for
+	    that.

@@ -4,9 +4,9 @@
 # as the long options legal on the command line. See
 # "/usr/sbin/dnsmasq --help" or "man 8 dnsmasq" for details.
 
-# The following two options make you a better netizen, since they 
+# The following two options make you a better netizen, since they
 # tell dnsmasq to filter out queries which the public DNS cannot
-# answer, and which load the servers (especially the root servers) 
+# answer, and which load the servers (especially the root servers)
 # uneccessarily. If you have a dial-on-demand link they also stop
 # these requests from bringing up the link uneccessarily.
 
@@ -18,14 +18,14 @@ bogus-priv
 
 # Uncomment this to filter useless windows-originated DNS requests
 # which can trigger dial-on-demand links needlessly.
-# Note that (amongst other things) this blocks all SRV requests, 
+# Note that (amongst other things) this blocks all SRV requests,
 # so don't use it if you use eg Kerberos.
 # This option only affects forwarding, SRV records originating for
 # dnsmasq (via srv-host= lines) are not suppressed by it.
 #filterwin2k
 
 # Change this line if you want dns to get its upstream servers from
-# somewhere other that /etc/resolv.conf 
+# somewhere other that /etc/resolv.conf
 #resolv-file=
 
 # By  default,  dnsmasq  will  send queries to any of the upstream
@@ -36,7 +36,7 @@ bogus-priv
 #strict-order
 
 # If you don't want dnsmasq to read /etc/resolv.conf or any other
-# file, getting its servers for this file instead (see below), then
+# file, getting its servers from this file instead (see below), then
 # uncomment this
 #no-resolv
 
@@ -44,7 +44,7 @@ bogus-priv
 # files for changes and re-read them then uncomment this.
 #no-poll
 
-# Add other name servers here, with domain specs if they are for 
+# Add other name servers here, with domain specs if they are for
 # non-public domains.
 #server=/localnet/192.168.0.1
 
@@ -62,9 +62,9 @@ bogus-priv
 #user=
 #group=
 
-# If you want dnsmasq to listen for DHCP and DNS requests only on 
-# specified interfaces (and the loopback) give the name of the 
-# interface (eg eth0) here. 
+# If you want dnsmasq to listen for DHCP and DNS requests only on
+# specified interfaces (and the loopback) give the name of the
+# interface (eg eth0) here.
 # Repeat the line for more than one interface.
 #interface=
 # Or you can specify which interface _not_ to listen on
@@ -79,12 +79,12 @@ bogus-priv
 
 # On systems which support it, dnsmasq binds the wildcard address,
 # even when it is listening on only some interfaces. It then discards
-# requests that it shouldn't reply to. This has the advantage of 
+# requests that it shouldn't reply to. This has the advantage of
 # working even when interfaces come and go and change address. If you
 # want dnsmasq to really bind only the interfaces it is listening on,
-# uncomment this option. About the only time you may need this is when 
+# uncomment this option. About the only time you may need this is when
 # running another nameserver on the same machine.
-#bind-interfaces 
+#bind-interfaces
 
 # If you don't want dnsmasq to read /etc/hosts, uncomment the
 # following line.
@@ -105,16 +105,16 @@ bogus-priv
 #    domain of all systems configured by DHCP
 # 3) Provides the domain part for "expand-hosts"
 #domain=thekelleys.org.uk
-  
+
 # Uncomment this to enable the integrated DHCP server, you need
-# to supply the range of addresses available for lease and optionally 
+# to supply the range of addresses available for lease and optionally
 # a lease time. If you have more than one network, you will need to
 # repeat this for each network on which you want to supply DHCP
 # service.
 #dhcp-range=192.168.0.50,192.168.0.150,12h
 
 # This is an example of a DHCP range where the netmask is given. This
-# is needed for networks we reach the dnsmasq DHCP server via a relay 
+# is needed for networks we reach the dnsmasq DHCP server via a relay
 # agent. If you don't know what a DHCP relay agent is, you probably
 # don't need to worry about this.
 #dhcp-range=192.168.0.50,192.168.0.150,255.255.255.0,12h
@@ -129,7 +129,7 @@ bogus-priv
 # need to be on the same network. The order of the parameters in these
 # do not matter, it's permissble to give name,adddress and MAC in any order
 
-# Always allocate the host with ethernet address 11:22:33:44:55:66 
+# Always allocate the host with ethernet address 11:22:33:44:55:66
 # The IP address 192.168.0.60
 #dhcp-host=11:22:33:44:55:66,192.168.0.60
 
@@ -145,7 +145,7 @@ bogus-priv
 # 192.168.0.70 and an infinite lease
 #dhcp-host=bert,192.168.0.70,infinite
 
-# Always give the host with client identifier 01:02:02:04 
+# Always give the host with client identifier 01:02:02:04
 # the IP address 192.168.0.60
 #dhcp-host=id:01:02:02:04,192.168.0.60
 
@@ -158,21 +158,21 @@ bogus-priv
 # it asks for a DHCP lease.
 #dhcp-host=judge
 
-# Never offer DHCP service to a machine whose ethernet 
+# Never offer DHCP service to a machine whose ethernet
 # address is 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,ignore
 
 # Ignore any client-id presented by the machine with ethernet
-# address 11:22:33:44:55:66. This is useful to prevent a machine 
+# address 11:22:33:44:55:66. This is useful to prevent a machine
 # being treated differently when running under different OS's or
 # between PXE boot and OS boot.
 #dhcp-host=11:22:33:44:55:66,id:*
 
-# Send extra options which are tagged as "red" to 
+# Send extra options which are tagged as "red" to
 # the machine with ethernet address 11:22:33:44:55:66
 #dhcp-host=11:22:33:44:55:66,net:red
 
-# Send extra options which are tagged as "red" to 
+# Send extra options which are tagged as "red" to
 # any machine with ethernet address starting 11:22:33:
 #dhcp-host=11:22:33:*:*:*,net:red
 
@@ -180,7 +180,7 @@ bogus-priv
 # DHCP vendorclass string includes the substring "Linux"
 #dhcp-vendorclass=red,Linux
 
-# Send extra options which are tagged as "red" to any machine one 
+# Send extra options which are tagged as "red" to any machine one
 # of whose DHCP userclass strings includes the substring "accounts"
 #dhcp-userclass=red,accounts
 
@@ -207,7 +207,7 @@ bogus-priv
 # Set the NTP time server addresses to 192.168.0.4 and 10.10.0.5
 #dhcp-option=42,192.168.0.4,10.10.0.5
 
-# Set the NTP time server address to be the same machine as 
+# Set the NTP time server address to be the same machine as
 # is running dnsmasq
 #dhcp-option=42,0.0.0.0
 
@@ -224,17 +224,17 @@ bogus-priv
 #dhcp-option=128,e4:45:74:68:00:00
 #dhcp-option=129,NIC=eepro100
 
-# Specify an option which will only be sent to the "red" network 
+# Specify an option which will only be sent to the "red" network
 # (see dhcp-range for the declaration of the "red" network)
 #dhcp-option=red,42,192.168.1.1
 
 # The following DHCP options set up dnsmasq in the same way as is specified
-# for the ISC dhcpcd in 
+# for the ISC dhcpcd in
 # http://www.samba.org/samba/ftp/docs/textdocs/DHCP-Server-Configuration.txt
 # adapted for a typical dnsmasq installation where the host running
 # dnsmasq is also the host running samba.
 # you may want to uncomment them if you use Windows clients and Samba.
-#dhcp-option=19,0           # option ip-forwarding off 
+#dhcp-option=19,0           # option ip-forwarding off
 #dhcp-option=44,0.0.0.0     # set netbios-over-TCP/IP nameserver(s) aka WINS server(s)
 #dhcp-option=45,0.0.0.0     # netbios datagram distribution server
 #dhcp-option=46,8           # netbios node type
@@ -242,12 +242,12 @@ bogus-priv
 
 # Send RFC-3397 DNS domain search DHCP option. WARNING: Your DHCP client
 # probably doesn't support this......
-#dhcp-option=119,eng.apple.com,marketing.apple.com 
+#dhcp-option=119,eng.apple.com,marketing.apple.com
 
 # Send encapsulated vendor-class specific options. The vendor-class
 # is sent as DHCP option 60, and all the options marked with the
 # vendor class are send encapsulated in DHCP option 43. The meaning of
-# the options is defined by the vendor-class. This example sets the 
+# the options is defined by the vendor-class. This example sets the
 # mtftp address to 0.0.0.0 for PXEClients
 #dhcp-option=vendor:PXEClient,1,0.0.0.0
 
@@ -264,10 +264,10 @@ bogus-priv
 # the line below.
 #dhcp-leasefile=/var/lib/misc/dnsmasq.leases
 
-# Set the DHCP server to authoritative mode. In this mode it will barge in 
-# and take over the lease for any client which broadcasts on the network, 
+# Set the DHCP server to authoritative mode. In this mode it will barge in
+# and take over the lease for any client which broadcasts on the network,
 # whether it has a record of the lease or not. This avoids long timeouts
-# when a machine wakes up on a new network. DO NOT enable this if there's 
+# when a machine wakes up on a new network. DO NOT enable this if there's
 # the slighest chance that you might end up accidentally configuring a DHCP
 # server for your campus/company accidentally. The ISC server uses the same
 # the same option, and this URL provides more information:
@@ -282,8 +282,8 @@ bogus-priv
 
 # Normally responses which come form /etc/hosts and the DHCP lease
 # file have Time-To-Live set as zero, which conventionally means
-# do not cache further. If you are happy to trade lower load on the 
-# server for potentially stale date, you can set a time-to-live (in 
+# do not cache further. If you are happy to trade lower load on the
+# server for potentially stale date, you can set a time-to-live (in
 # seconds) here.
 #local-ttl=
 
@@ -318,11 +318,11 @@ bogus-priv
 # Return an MX record pointing to itself for all local machines.
 #selfmx
 
-# Change the following lines if you want dnsmasq to serve SRV 
+# Change the following lines if you want dnsmasq to serve SRV
 # records.  These are useful if you want to serve ldap requests for
 # Active Directory and other windows-originated DNS requests.
 # See RFC 2782.
-# You may add multiple srv-host lines. 
+# You may add multiple srv-host lines.
 # The fields are <name>,<target>,<port>,<priority>,<weight>
 # If the domain part if missing from the name (so that is just has the
 # service and protocol sections) then the domain given by the domain=
@@ -343,13 +343,13 @@ bogus-priv
 #srv-host=_ldap._tcp.example.com,ldapserver.example.com,389,2
 
 # A SRV record indicating that there is no LDAP server for the domain
-# example.com 
+# example.com
 #srv-host=_ldap._tcp.example.com
 
 
 # Change the following lines to enable dnsmasq to serve TXT records.
 # These are used for things like SPF and zeroconf. (Note that the
-# domain-name expansion done for SRV records _does_not 
+# domain-name expansion done for SRV records _does_not
 # occur for TXT records.)
 
 #Example SPF.
@@ -365,8 +365,3 @@ bogus-priv
 
 # Include a another lot of configuration options.
 #conf-file=/etc/dnsmasq.more.conf
- 
- 
-
-
-

@@ -116,69 +116,69 @@ static const struct optflags optmap[] = {
   { 0, 0 }
 };
 
-static const char * const usage =
-"Usage: dnsmasq [options]\n\n"
-#ifndef HAVE_GETOPT_LONG
-"Use short options only on the command line.\n"
-#endif
-"Valid options are :\n"
-"-a, --listen-address=ipaddr         Specify local address(es) to listen on.\n"
-"-A, --address=/domain/ipaddr        Return ipaddr for all hosts in specified domains.\n"
-"-b, --bogus-priv                    Fake reverse lookups for RFC1918 private address ranges.\n"
-"-B, --bogus-nxdomain=ipaddr         Treat ipaddr as NXDOMAIN (defeats Verisign wildcard).\n" 
-"-c, --cache-size=cachesize          Specify the size of the cache in entries (defaults to %d).\n"
-"-C, --conf-file=path                Specify configuration file (defaults to " CONFFILE ").\n"
-"-d, --no-daemon                     Do NOT fork into the background: run in debug mode.\n"
-"-D, --domain-needed                 Do NOT forward queries with no domain part.\n" 
-"-e, --selfmx                        Return self-pointing MX records for local hosts.\n"
-"-E, --expand-hosts                  Expand simple names in /etc/hosts with domain-suffix.\n"
-"-f, --filterwin2k                   Don't forward spurious DNS requests from Windows hosts.\n"
-"-F, --dhcp-range=ipaddr,ipaddr,time Enable DHCP in the range given with lease duration.\n"
-"-g, --group=groupname               Change to this group after startup (defaults to " CHGRP ").\n"
-"-G, --dhcp-host=<hostspec>          Set address or hostname for a specified machine.\n"
-"-h, --no-hosts                      Do NOT load " HOSTSFILE " file.\n"
-"-H, --addn-hosts=path               Specify a hosts file to be read in addition to " HOSTSFILE ".\n"
-"-i, --interface=interface           Specify interface(s) to listen on.\n"
-"-I, --except-interface=int          Specify interface(s) NOT to listen on.\n"
-"-j, --dhcp-userclass=<id>,<class>   Map DHCP user class to option set.\n"
-"-J, --dhcp-ignore=<id>              Don't do DHCP for hosts in option set.\n"
-"-k, --keep-in-foreground            Do NOT fork into the background, do NOT run in debug mode.\n"
-"-K, --dhcp-authoritative            Assume we are the only DHCP server on the local network.\n"
-"-l, --dhcp-leasefile=path           Specify where to store DHCP leases (defaults to " LEASEFILE ").\n"
-"-L, --localmx                       Return MX records for local hosts.\n"
-"-m, --mx-host=host_name,target,pref Specify an MX record.\n"
-"-M, --dhcp-boot=<bootp opts>        Specify BOOTP options to DHCP server.\n"
-"-n, --no-poll                       Do NOT poll " RESOLVFILE " file, reload only on SIGHUP.\n"
-"-N, --no-negcache                   Do NOT cache failed search results.\n"
-"-o, --strict-order                  Use nameservers strictly in the order given in " RESOLVFILE ".\n"
-"-O, --dhcp-option=<optspec>         Set extra options to be set to DHCP clients.\n"
-"-p, --port=number                   Specify port to listen for DNS requests on (defaults to 53).\n"
-"-P, --edns-packet-max=<size>        Maximum supported UDP packet size for EDNS.0 (defaults to %d).\n"
-"-q, --log-queries                   Log queries.\n"
-"-Q, --query-port=number             Force the originating port for upstream queries.\n"
-"-R, --no-resolv                     Do NOT read resolv.conf.\n"
-"-r, --resolv-file=path              Specify path to resolv.conf (defaults to " RESOLVFILE ").\n"
-"-S, --server=/domain/ipaddr         Specify address(es) of upstream servers with optional domains.\n"
-"    --local=/domain/                Never forward queries to specified domains.\n"
-"-s, --domain=domain                 Specify the domain to be assigned in DHCP leases.\n"
-"-t, --mx-target=host_name           Specify default target in an MX record.\n"
-"-T, --local-ttl=time                Specify time-to-live in seconds for replies from /etc/hosts.\n"
-"-u, --user=username                 Change to this user after startup. (defaults to " CHUSER ").\n" 
-"-U, --dhcp-vendorclass=<id>,<class> Map DHCP vendor class to option set.\n"
-"-v, --version                       Display dnsmasq version and copyright information.\n"
-"-V, --alias=addr,addr,mask          Translate IPv4 addresses from upstream servers.\n"
-"-W, --srv-host=name,target,...      Specify a SRV record.\n"
-"-w, --help                          Display this message.\n"
-"-x, --pid-file=path                 Specify path of PID file. (defaults to " RUNFILE ").\n"
-"-X, --dhcp-lease-max=number         Specify maximum number of DHCP leases (defaults to %d).\n"
-"-y, --localise-queries              Answer DNS queries based on the interface a query was sent to.\n"
-"-Y  --txt-record=name,txt....       Specify TXT DNS record.\n"
-"-z, --bind-interfaces               Bind only to interfaces in use.\n"
-"-Z, --read-ethers                   Read DHCP static host information from " ETHERSFILE ".\n"
-"-1, --enable-dbus                   Enable the DBus interface for setting upstream servers, etc.\n"
-"-2, --no-dhcp-interface=interface   Do not provide DHCP on this interface, only provide DNS.\n"
-"-3, --bootp-dynamic                 Enable dynamic address allocation for bootp.\n"
-"\n";
+static const struct {
+  char * const flag;
+  char * const desc;
+  char * const arg;
+} usage[] = {
+  { "-a, --listen-address=ipaddr",  gettext_noop("Specify local address(es) to listen on."), NULL },
+  { "-A, --address=/domain/ipaddr", gettext_noop("Return ipaddr for all hosts in specified domains."), NULL },
+  { "-b, --bogus-priv", gettext_noop("Fake reverse lookups for RFC1918 private address ranges."), NULL },
+  { "-B, --bogus-nxdomain=ipaddr", gettext_noop("Treat ipaddr as NXDOMAIN (defeats Verisign wildcard)."), NULL }, 
+  { "-c, --cache-size=cachesize", gettext_noop("Specify the size of the cache in entries (defaults to %s)."), "$" },
+  { "-C, --conf-file=path", gettext_noop("Specify configuration file (defaults to %s)."), CONFFILE },
+  { "-d, --no-daemon", gettext_noop("Do NOT fork into the background: run in debug mode."), NULL },
+  { "-D, --domain-needed", gettext_noop("Do NOT forward queries with no domain part."), NULL }, 
+  { "-e, --selfmx", gettext_noop("Return self-pointing MX records for local hosts."), NULL },
+  { "-E, --expand-hosts", gettext_noop("Expand simple names in /etc/hosts with domain-suffix."), NULL },
+  { "-f, --filterwin2k", gettext_noop("Don't forward spurious DNS requests from Windows hosts."), NULL },
+  { "-F, --dhcp-range=ipaddr,ipaddr,time", gettext_noop("Enable DHCP in the range given with lease duration."), NULL },
+  { "-g, --group=groupname", gettext_noop("Change to this group after startup (defaults to %s)."), CHGRP },
+  { "-G, --dhcp-host=<hostspec>", gettext_noop("Set address or hostname for a specified machine."), NULL }, 
+  { "-h, --no-hosts", gettext_noop("Do NOT load %s file."), HOSTSFILE },
+  { "-H, --addn-hosts=path", gettext_noop("Specify a hosts file to be read in addition to %s."), HOSTSFILE },
+  { "-i, --interface=interface", gettext_noop("Specify interface(s) to listen on."), NULL },
+  { "-I, --except-interface=int", gettext_noop("Specify interface(s) NOT to listen on.") , NULL },
+  { "-j, --dhcp-userclass=<id>,<class>", gettext_noop("Map DHCP user class to option set."), NULL },
+  { "-J, --dhcp-ignore=<id>", gettext_noop("Don't do DHCP for hosts in option set."), NULL },
+  { "-k, --keep-in-foreground", gettext_noop("Do NOT fork into the background, do NOT run in debug mode."), NULL },
+  { "-K, --dhcp-authoritative", gettext_noop("Assume we are the only DHCP server on the local network."), NULL },
+  { "-l, --dhcp-leasefile=path", gettext_noop("Specify where to store DHCP leases (defaults to %s)."), LEASEFILE },
+  { "-L, --localmx", gettext_noop("Return MX records for local hosts."), NULL },
+  { "-m, --mx-host=host_name,target,pref", gettext_noop("Specify an MX record."), NULL },
+  { "-M, --dhcp-boot=<bootp opts>", gettext_noop("Specify BOOTP options to DHCP server."), NULL },
+  { "-n, --no-poll", gettext_noop("Do NOT poll %s file, reload only on SIGHUP."), RESOLVFILE }, 
+  { "-N, --no-negcache", gettext_noop("Do NOT cache failed search results."), NULL },
+  { "-o, --strict-order", gettext_noop("Use nameservers strictly in the order given in %s."), RESOLVFILE },
+  { "-O, --dhcp-option=<optspec>", gettext_noop("Set extra options to be set to DHCP clients."), NULL },
+  { "-p, --port=number", gettext_noop("Specify port to listen for DNS requests on (defaults to 53)."), NULL },
+  { "-P, --edns-packet-max=<size>", gettext_noop("Maximum supported UDP packet size for EDNS.0 (defaults to %s)."), "*" },
+  { "-q, --log-queries", gettext_noop("Log queries."), NULL },
+  { "-Q, --query-port=number", gettext_noop("Force the originating port for upstream queries."), NULL },
+  { "-R, --no-resolv", gettext_noop("Do NOT read resolv.conf."), NULL },
+  { "-r, --resolv-file=path", gettext_noop("Specify path to resolv.conf (defaults to %s)."), RESOLVFILE }, 
+  { "-S, --server=/domain/ipaddr", gettext_noop("Specify address(es) of upstream servers with optional domains."), NULL },
+  { "    --local=/domain/", gettext_noop("Never forward queries to specified domains."), NULL },
+  { "-s, --domain=domain", gettext_noop("Specify the domain to be assigned in DHCP leases."), NULL },
+  { "-t, --mx-target=host_name", gettext_noop("Specify default target in an MX record."), NULL },
+  { "-T, --local-ttl=time", gettext_noop("Specify time-to-live in seconds for replies from /etc/hosts."), NULL },
+  { "-u, --user=username", gettext_noop("Change to this user after startup. (defaults to %s)."), CHUSER }, 
+  { "-U, --dhcp-vendorclass=<id>,<class>", gettext_noop("Map DHCP vendor class to option set."), NULL },
+  { "-v, --version", gettext_noop("Display dnsmasq version and copyright information."), NULL },
+  { "-V, --alias=addr,addr,mask", gettext_noop("Translate IPv4 addresses from upstream servers."), NULL },
+  { "-W, --srv-host=name,target,...", gettext_noop("Specify a SRV record."), NULL },
+  { "-w, --help", gettext_noop("Display this message."), NULL },
+  { "-x, --pid-file=path", gettext_noop("Specify path of PID file. (defaults to %s)."), RUNFILE },
+  { "-X, --dhcp-lease-max=number", gettext_noop("Specify maximum number of DHCP leases (defaults to %s)."), "&" },
+  { "-y, --localise-queries", gettext_noop("Answer DNS queries based on the interface a query was sent to."), NULL },
+  { "-Y  --txt-record=name,txt....", gettext_noop("Specify TXT DNS record."), NULL },
+  { "-z, --bind-interfaces", gettext_noop("Bind only to interfaces in use."), NULL },
+  { "-Z, --read-ethers", gettext_noop("Read DHCP static host information from %s."), ETHERSFILE },
+  { "-1, --enable-dbus", gettext_noop("Enable the DBus interface for setting upstream servers, etc."), NULL },
+  { "-2, --no-dhcp-interface=interface", gettext_noop("Do not provide DHCP on this interface, only provide DNS."), NULL },
+  { "-3, --bootp-dynamic", gettext_noop("Enable dynamic address allocation for bootp."), NULL },
+  { NULL, NULL, NULL }
+}; 
 
 /* We hide metacharaters in quoted strings by mapping them into the ASCII control
    character space. Note that the \0, \t \a \b \r  and \n characters are carefully placed in the
@@ -187,7 +187,7 @@ static const char * const usage =
    The transformation gets undone by opt_canonicalise, atoi_check and safe_string_alloc, and a 
    couple of other places. */
 
-static char meta[] = "\000123456\a\b\t\n78\r90abcdefABCDEF:,.";
+static const char meta[] = "\000123456\a\b\t\n78\r90abcdefABCDEF:,.";
 
 static char hide_meta(char c)
 {
@@ -291,6 +291,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
   char *p, *arg, *comma, *file_name_save = NULL, *conffile = CONFFILE;
   int hosts_index = 1, conffile_set = 0;
   int line_save = 0, lineno = 0;
+    
   opterr = 0;
   
   memset(daemon, 0, sizeof(struct daemon));
@@ -390,7 +391,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			  lastquote = p - buff;
 			}
 		      else
-			complain("missing \"", lineno, conffile);
+			complain(_("missing \""), lineno, conffile);
 		    }
 
 		  if (white && *p == '#')
@@ -419,7 +420,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		  option = opts[i].val;
 	      if (!option)
 		{
-		  complain("bad option", lineno, conffile);
+		  complain(_("bad option"), lineno, conffile);
 		  continue;
 		}
 	    }
@@ -436,23 +437,46 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	      if (errno == ENOENT && !conffile_set)
 		break; /* No conffile, all done. */
 	      else
-		die("cannot read %s: %s", conffile);
+		die(_("cannot read %s: %s"), conffile);
 	    }
 	}
      
       if (!f && option == 'w')
 	{
-	  printf (usage,  CACHESIZ, EDNS_PKTSZ, MAXLEASES);
+	  printf(_("Usage: dnsmasq [options]\n\n"));
+#ifndef HAVE_GETOPT_LONG
+	  printf(_("Use short options only on the command line.\n"));
+#endif
+	  printf(_("Valid options are :\n"));
+	  
+	  for (i = 0; usage[i].flag; i++)
+	    {
+	      if (usage[i].arg)
+		{
+		  if (strcmp(usage[i].arg, "$") == 0)
+		    sprintf(buff, "%d", CACHESIZ);
+		  else if (strcmp(usage[i].arg, "*") == 0)
+		    sprintf(buff, "%d", EDNS_PKTSZ);
+		  else if (strcmp(usage[i].arg, "&") == 0)
+		    sprintf(buff, "%d", MAXLEASES);
+		  else 
+		    strcpy(buff, usage[i].arg);
+		}
+	      printf("%-36.36s", usage[i].flag);
+	      printf(_(usage[i].desc), buff);
+	      printf("\n");
+	    }
+
 	  exit(0);
 	}
 
       if (!f && option == 'v')
         {
-          printf("Dnsmasq version %s  %s\n", VERSION, COPYRIGHT);
-	  printf("Compile time options %s\n\n", compile_opts); 
-	  printf("This software comes with ABSOLUTELY NO WARRANTY.\n");
-	  printf("Dnsmasq is free software, and you are welcome to redistribute it\n");
-	  printf("under the terms of the GNU General Public License, version 2.\n");
+          printf(_("Dnsmasq version %s  %s\n"), VERSION, COPYRIGHT);
+	  printf(_("Compile time options %s\n\n"), compile_opts); 
+	  printf(_("This software comes with ABSOLUTELY NO WARRANTY.\n"));
+	  printf(_("Dnsmasq is free software, and you are welcome to redistribute it\n"));
+	  printf(_("under the terms of the GNU General Public License, version 2.\n"));
           exit(0);
         }
       
@@ -462,7 +486,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	    daemon->options |= optmap[i].flag;
 	    option = 0;
 	    if (f && arg)
-	      complain("extraneous parameter", lineno, conffile);
+	      complain(_("extraneous parameter"), lineno, conffile);
 	    break;
 	  }
       
@@ -470,7 +494,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	{
 	  if (f && !arg)
 	    {
-	      complain("missing parameter", lineno, conffile);
+	      complain(_("missing parameter"), lineno, conffile);
 	      continue;
 	    }
 	      	  
@@ -487,7 +511,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	       /* nest conffiles one deep */
 	       if (file_save)
 		 {
-		   complain("nested includes not allowed", lineno, conffile);
+		   complain(_("nested includes not allowed"), lineno, conffile);
 		   continue;
 		 }
 	       file_name_save = conffile;
@@ -547,7 +571,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			if (!atoi_check(prefstr, &pref))
 			  {
 			    option = '?';
-			    problem = "bad MX preference";
+			    problem = _("bad MX preference");
 			    break;
 			  }
 		      }
@@ -556,7 +580,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		if (!canonicalise_opt(arg) || (comma && !canonicalise_opt(comma)))
 		  {
 		    option = '?';
-		    problem = "bad MX name";
+		    problem = _("bad MX name");
 		    break;
 		  }
 
@@ -574,7 +598,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	      if (!canonicalise_opt(arg))
 		{
 		  option = '?';
-		  problem = "bad MX target";
+		  problem = _("bad MX target");
 		}
 	      else
 		daemon->mxtarget = safe_string_alloc(arg);
@@ -776,7 +800,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			    if (!atoi_check(portno+1, &source_port))
 			      {
 				option = '?';
-				problem = "bad port";
+				problem = _("bad port");
 			      }
 			  }
 		      }
@@ -787,7 +811,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			if (!atoi_check(portno+1, &serv_port))
 			  {
 			    option = '?';
-			    problem = "bad port";
+			    problem = _("bad port");
 			  }
 		      }
 
@@ -927,7 +951,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		new->netid.net = NULL;
 		new->flags = 0;
 		
-		problem = "bad dhcp-range";
+		problem = _("bad dhcp-range");
 
 		if (!arg)
 		  {
@@ -987,7 +1011,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		    leasepos = 3;
 		    if (!is_same_net(new->start, new->end, new->netmask))
 		      {
-			problem = "inconsistent DHCP range";
+			problem = _("inconsistent DHCP range");
 			option = '?';
 		      }
 		  }
@@ -1174,7 +1198,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 
 		if (option == '?')
 		  {
-		    problem = "bad dhcp-host";
+		    problem = _("bad dhcp-host");
 		    if (new->flags & CONFIG_NAME)
 		      free(new->hostname);
 		    if (new->flags & CONFIG_CLID)
@@ -1234,7 +1258,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		if (!arg || (new->opt = atoi(arg)) == 0)
 		  {
 		    option = '?';
-		    problem = "bad dhcp-option";
+		    problem = _("bad dhcp-option");
 		  }
 		else if (comma && new->opt == 119 && !new->vendor_class)
 		  {
@@ -1252,12 +1276,12 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			if (!canonicalise_opt(arg))
 			  {
 			    option = '?';
-			    problem = "bad domain in dhcp-option";
+			    problem = _("bad domain in dhcp-option");
 			    break;
 			  }
 			
 			if (!(p = realloc(p, len + strlen(arg) + 2)))
-			  die("could not get memory", NULL);
+			  die(_("could not get memory"), NULL);
 			q = p + len;
 			
 			/* add string on the end in RFC1035 format */
@@ -1398,7 +1422,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		if (new->len > 255)
 		  {
 		    option = '?';
-		    problem = "dhcp-option too long";
+		    problem = _("dhcp-option too long");
 		  }
 
 		if (option == '?')
@@ -1578,7 +1602,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		if (!canonicalise_opt(arg))
 		  {
 		    option = '?';
-		    problem = "bad TXT record";
+		    problem = _("bad TXT record");
 		    break;
 		  }
 				  
@@ -1610,7 +1634,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		
 		if (option == '?')
 		  {
-		    problem = "TXT record string too long";
+		    problem = _("TXT record string too long");
 		    break;
 		  }
 
@@ -1649,7 +1673,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		if (!canonicalise_opt(arg))
 		  {
 		    option = '?';
-		    problem = "bad SRV record";
+		    problem = _("bad SRV record");
 		    break;
 		  }
 		name = safe_string_alloc(arg);
@@ -1662,7 +1686,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		    if (!canonicalise_opt(arg))
 		      {
 			option = '?';
-			problem = "bad SRV target";
+			problem = _("bad SRV target");
 			break;
 		      }
 		    target = safe_string_alloc(arg);
@@ -1674,7 +1698,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			if (!atoi_check(arg, &port))
 			  {
 			    option = '?';
-			    problem = "invalid port number";
+			    problem = _("invalid port number");
 			    break;
 			  }
 			if (comma)
@@ -1685,7 +1709,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 			    if (!atoi_check(arg, &priority))
 			      {
 				option = '?';
-				problem = "invalid priority";
+				problem = _("invalid priority");
 				break;
 			      }
 			    if (comma)
@@ -1696,7 +1720,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 				if (!atoi_check(arg, &weight))
 				  {
 				    option = '?';
-				    problem = "invalid weight";
+				    problem = _("invalid weight");
 				    break;
 				  }
 			      }
@@ -1721,13 +1745,15 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
       if (option == '?')
 	{
 	  if (f)
-	    complain( problem ? problem : "error", lineno, conffile);
+	    complain( problem ? problem : _("error"), lineno, conffile);
 	  else
+	    die(_("bad command line options: %s."),
 #ifdef HAVE_GETOPT_LONG
-	    die("bad command line options: %s.", problem ? problem : "try --help");
+		problem ? problem : "try --help"
 #else
-	    die("bad command line options: %s.", problem ? problem : "try -w");
+		problem ? problem : "try -w"
 #endif
+		);
 	}
     }
       
@@ -1765,7 +1791,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
       struct mx_srv_record *mx;
       
       if (gethostname(buff, MAXDNAME) == -1)
-	die("cannot get host-name: %s", NULL);
+	die(_("cannot get host-name: %s"), NULL);
       
       for (mx = daemon->mxnames; mx; mx = mx->next)
 	if (!mx->issrv && hostname_isequal(mx->name, buff))
@@ -1794,17 +1820,17 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
   else if (daemon->resolv_files && 
 	   (daemon->resolv_files)->next && 
 	   (daemon->options & OPT_NO_POLL))
-    die("only one resolv.conf file allowed in no-poll mode.", NULL);
+    die(_("only one resolv.conf file allowed in no-poll mode."), NULL);
   
   if (daemon->options & OPT_RESOLV_DOMAIN)
     {
       char *line;
       
       if (!daemon->resolv_files || (daemon->resolv_files)->next)
-	die("must have exactly one resolv.conf to read domain from.", NULL);
+	die(_("must have exactly one resolv.conf to read domain from."), NULL);
       
       if (!(f = fopen((daemon->resolv_files)->name, "r")))
-	die("failed to read %s: %m", (daemon->resolv_files)->name);
+	die(_("failed to read %s: %m"), (daemon->resolv_files)->name);
       
       while ((line = fgets(buff, MAXDNAME, f)))
 	{
@@ -1822,7 +1848,7 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
       fclose(f);
 
       if (!daemon->domain_suffix)
-	die("no search directive found in %s", (daemon->resolv_files)->name);
+	die(_("no search directive found in %s"), (daemon->resolv_files)->name);
     }
 
   if (daemon->domain_suffix)

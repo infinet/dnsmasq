@@ -109,7 +109,7 @@ static void dbus_read_servers(struct daemon *daemon, DBusMessage *message)
 	    }
 
 #ifndef HAVE_IPV6
-	  syslog(LOG_WARNING, "attempt to set an IPv6 server address via DBus - no IPv6 support");
+	  syslog(LOG_WARNING, _("attempt to set an IPv6 server address via DBus - no IPv6 support"));
 #else
 	  if (i == sizeof(struct in6_addr)-1)
 	    {
@@ -234,7 +234,7 @@ DBusHandlerResult message_handler (DBusConnection *connection,
     }
   else if (strcmp(method, "SetServers") == 0)
     {
-      syslog(LOG_INFO, "setting upstream servers from DBus");
+      syslog(LOG_INFO, _("setting upstream servers from DBus"));
       dbus_read_servers(daemon, message);
       check_servers(daemon);
     }
@@ -270,7 +270,7 @@ char *dbus_init(struct daemon *daemon)
   
   if (!dbus_connection_register_object_path(connection,  DNSMASQ_PATH, 
 					    &dnsmasq_vtable, daemon))
-    return "could not register a DBus message handler";
+    return _("could not register a DBus message handler");
   
   daemon->dbus = connection; 
   

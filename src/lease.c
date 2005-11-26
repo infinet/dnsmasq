@@ -36,7 +36,7 @@ void lease_init(struct daemon *daemon, time_t now)
 
   /* NOTE: need a+ mode to create file if it doesn't exist */
   if (!(lease_file = fopen(daemon->lease_file, "a+")))
-    die("cannot open or create leases file: %s", NULL);
+    die(_("cannot open or create leases file: %s"), NULL);
     
   /* a+ mode lease pointer at end. */
   rewind(lease_file);
@@ -74,12 +74,12 @@ void lease_init(struct daemon *daemon, time_t now)
 	clid_len = parse_hex(daemon->packet, (unsigned char *)daemon->packet, 255, NULL);
       
       if (!(lease = lease_allocate(hwaddr, (unsigned char *)daemon->packet, clid_len, addr)))
-	die ("too many stored leases", NULL);
+	die (_("too many stored leases"), NULL);
       
       lease->expires = expires;
 
       if (strcmp(daemon->dhcp_buff, "*") !=  0)
-	  lease_set_hostname(lease, daemon->dhcp_buff, daemon->domain_suffix);
+	  lease_set_hostname(lease, daemon->dhcp_buff, daemon->domain_suffix, 0);
     }
   
   dns_dirty = 1;
@@ -88,17 +88,21 @@ void lease_init(struct daemon *daemon, time_t now)
   daemon->lease_fd = fileno(lease_file);
 }
 
-void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain)
+void lease_update_from_configs(struct daemon *daemon)
 {
   /* changes to the config may change current leases. */
   
   struct dhcp_lease *lease;
   struct dhcp_config *config;
-  
+  char *name;
+
   for (lease = leases; lease; lease = lease->next)
-    if ((config = find_config(dhcp_configs, NULL, lease->clid, lease->clid_len, lease->hwaddr, NULL)) && 
-	(config->flags & CONFIG_NAME))
-      lease_set_hostname(lease, config->hostname, domain);
+    if ((config = find_config(daemon->dhcp_conf, NULL, lease->clid, lease->clid_len, lease->hwaddr, NULL)) && 
+	(config->flags & CONFIG_NAME) &&
+	(!(config->flags & CONFIG_ADDR) || config->addr.s_addr == lease->addr.s_addr))
+      lease_set_hostname(lease, config->hostname, daemon->domain_suffix, 1);
+    else if ((name = host_from_dns(daemon, lease->addr)))
+      lease_set_hostname(lease, name, daemon->domain_suffix, 1); /* updates auth flag only */
 }
 
 void lease_update_file(int always, time_t now)
@@ -304,26 +308,32 @@ int lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
   return 1;
 }
 
-void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix)
+void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix, int auth)
 {
   struct dhcp_lease *lease_tmp;
   char *new_name = NULL, *new_fqdn = NULL;
 
   if (lease->hostname && name && hostname_isequal(lease->hostname, name))
-    return;
+    {
+      lease->auth_name = auth;
+      return;
+    }
 
   if (!name && !lease->hostname)
     return;
 
   /* If a machine turns up on a new net without dropping the old lease,
      or two machines claim the same name, then we end up with two interfaces with
-     the same name. Check for that here and remove the name from the old lease. */
+     the same name. Check for that here and remove the name from the old lease.
+     Don't allow a name from the client to override a name from dnsmasq config. */
   
   if (name)
     {
       for (lease_tmp = leases; lease_tmp; lease_tmp = lease_tmp->next)
 	if (lease_tmp->hostname && hostname_isequal(lease_tmp->hostname, name))
 	  {
+	    if (lease_tmp->auth_name && !auth)
+	      return;
 	    new_name = lease_tmp->hostname;
 	    lease_tmp->hostname = NULL;
 	    if (lease_tmp->fqdn)
@@ -331,6 +341,7 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix)
 		new_fqdn = lease_tmp->fqdn;
 		lease_tmp->fqdn = NULL;
 	      }
+	    break;
 	  }
      
       if (!new_name && (new_name = malloc(strlen(name) + 1)))
@@ -351,6 +362,7 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix)
   
   lease->hostname = new_name;
   lease->fqdn = new_fqdn;
+  lease->auth_name = auth;
   
   file_dirty = force;
   dns_dirty = 1;

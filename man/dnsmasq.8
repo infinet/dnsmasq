@@ -65,7 +65,7 @@ Specify an alternate path for dnsmasq to record its process-id in. Normally /var
 .TP
 .B \-u, --user=<username>
 Specify the userid to which dnsmasq will change after startup. Dnsmasq must normally be started as root, but it will drop root 
-priviledges after startup by changing id to another user. Normally this user is "nobody" but that 
+privileges after startup by changing id to another user. Normally this user is "nobody" but that 
 can be over-ridden with this switch.
 .TP
 .B \-g, --group=<groupname> 
@@ -155,7 +155,7 @@ dnsmasq which provide DHCP service to run in the same machine.
 .TP
 .B \-y, --localise-queries
 Return answers to DNS queries from /etc/hosts which depend on the interface over which the query was
-recieved. If a name in /etc/hosts has more than one address associated with
+received. If a name in /etc/hosts has more than one address associated with
 it, and at least one of those addresses is on the same subnet as the
 interface to which the query was sent, then return only the
 address(es) on that subnet. This allows for a server  to have multiple
@@ -179,11 +179,11 @@ Cisco PIX routers call "DNS doctoring".
 .B \-B, --bogus-nxdomain=<ipaddr>
 Transform replies which contain the IP address given into "No such
 domain" replies. This is intended to counteract a devious move made by
-Versign in September 2003 when they started returning the address of
+Verisign in September 2003 when they started returning the address of
 an advertising web page in response to queries for unregistered names,
 instead of the correct NXDOMAIN response. This option tells dnsmasq to
 fake the correct response when it sees this behaviour. As at Sept 2003
-the IP address being returnd by Verisign is 64.94.110.11
+the IP address being returned by Verisign is 64.94.110.11
 .TP
 .B \-f, --filterwin2k
 Later versions of windows make periodic DNS requests which don't get sensible answers from
@@ -208,7 +208,7 @@ line or the dnsmasq configuration file.
 .B \-1, --enable-dbus
 Allow dnsmasq configuration to be updated via DBus method calls. The
 configuration which can be changed is upstream DNS servers (and
-corressponding domains) and cache clear. Requires that dnsmasq has
+corresponding domains) and cache clear. Requires that dnsmasq has
 been built with DBus support.
 .TP 
 .B \-o, --strict-order
@@ -234,7 +234,7 @@ and they are queried only using the specified server. This is
 intended for private nameservers: if you have a nameserver on your
 network which deals with names of the form
 xxx.internal.thekelleys.org.uk at 192.168.1.1 then giving  the flag 
-.B -S /.internal.thekelleys.org.uk/192.168.1.1 
+.B -S /internal.thekelleys.org.uk/192.168.1.1 
 will send all queries for
 internal machines to that nameserver, everything else will go to the
 servers in /etc/resolv.conf. An empty domain specification,
@@ -333,13 +333,13 @@ Enable the DHCP server. Addresses will be given out from the range
 in 
 .B dhcp-host
 options. If the lease time is given, then leases
-will be given for that length of time. The lease time is on seconds,
+will be given for that length of time. The lease time is in seconds,
 or minutes (eg 45m) or hours (eg 1h) or the literal "infinite". This
 option may be repeated, with different addresses, to enable DHCP
 service to more than one network. For directly connected networks (ie,
 networks on which the machine running dnsmasq has an interface) the
 netmask is optional. It is, however, required for networks which
-recieve DHCP service via a relay agent. The broadcast address is
+receive DHCP service via a relay agent. The broadcast address is
 always optional. On some broken systems, dnsmasq can listen on only
 one interface when using DHCP, and the name of that interface must be
 given using the
@@ -414,14 +414,14 @@ have exactly the same effect as
 options containing the same information.
 .TP
 .B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:<vendor-class>]<opt>,[<value>[,<value>]]
-Specfify different or extra options to DHCP clients. By default,
+Specify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
 the DNS server and default route are set to the address of the machine
 running dnsmasq. If the domain name option has been set, that is sent.
 This option allows these defaults to be overridden,
 or other options specified. The <opt> is the number of the option, as
-specfied in RFC2132. For example, to set the default route option to 
+specified in RFC2132. For example, to set the default route option to 
 192.168.4.4, do 
 .B --dhcp-option=3,192.168.4.4
 and to set the time-server address to 192.168.0.4, do
@@ -437,7 +437,7 @@ option number is sent, it is quite possible to
 persuade dnsmasq to generate illegal DHCP packets with injudicious use
 of this flag. When the value is a decimal number, dnsmasq must determine how 
 large the data item is. It does this by examining the option number and/or the
-value, but can be overriden by appending a single letter flag as follows:
+value, but can be overridden by appending a single letter flag as follows:
 b = one byte, s = two bytes, i = four bytes. This is mainly useful with 
 encapsulated vendor class options (see below) where dnsmasq cannot
 determine data size from the  option number. Option data which
@@ -495,7 +495,7 @@ create thousands of leases and use lots of memory in the dnsmasq
 process.
 .TP
 .B \-K, --dhcp-authoritative
-Should be set when dnsmasq is definatively the only DHCP server on a network.
+Should be set when dnsmasq is definately the only DHCP server on a network.
 It changes the behaviour from strict RFC compliance so that DHCP requests on
 unknown leases from unknown hosts are not ignored. This allows new hosts
 to get a lease without a tedious timeout under all circumstances.
@@ -529,20 +529,24 @@ in /etc/resolv.conf (or equivalent).
 .B \-E, --expand-hosts
 Add the domain to simple names (without a period) in /etc/hosts
 in the same way as for DHCP-derived names.
+.TP
+.B \-C, --conf-file=<file>
+Specify a different configuration file. The conf-file option is also allowed in
+configuration files, to include multiple configuration files. Only one
+level of nesting is allowed.
 .SH CONFIG FILE
 At startup, dnsmasq reads
 .I /etc/dnsmasq.conf,
 if it exists. (On
 FreeBSD, the file is 
 .I /usr/local/etc/dnsmasq.conf
-) The format of this
+) (but see the 
+.B \-C
+option.) The format of this
 file consists of one option per line, exactly as the long options detailed 
 in the OPTIONS section but without the leading "--". Lines starting with # are comments and ignored. For
 options which may only be specified once, the configuration file overrides 
-the command line. Use the --conf-file (or -C) option to specify a different
-configuration file. The conf-file option is also allowed in
-configuration files, to include multiple configuration files. Only one
-level of nesting is allowed. Quoting is allowed in a config file:
+the command line.  Quoting is allowed in a config file:
 between " quotes the special meanings of ,:. and # are removed and the
 following escapes are allowed: \\\\ \\" \\t \\a \\b \\r and \\n. The later 
 corresponding to tab, bell, backspace, return and newline.
@@ -663,7 +667,8 @@ configurations or in
 , and a
 .B dhcp-range 
 configuration option is present to activate the DHCP server
-on a particular network. The filename
+on a particular network. (Setting --bootp-dynamic removes the need for
+static address mappings.) The filename
 parameter in a BOOTP request is matched against netids in
 .B  dhcp-option 
 configurations, allowing some control over the options returned to

@@ -90,7 +90,7 @@ static void send_from(int fd, int nowild, char *packet, int len,
 #endif
 	}
       else
-#ifdef HAVE_IPV
+#ifdef HAVE_IPV6
 	{
 	  struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
 	  pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
@@ -160,9 +160,11 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
     else if (serv->flags & SERV_HAS_DOMAIN)
       {
 	unsigned int domainlen = strlen(serv->domain);
+	char *matchstart = qdomain + namelen - domainlen;
 	if (namelen >= domainlen &&
-	    hostname_isequal(qdomain + namelen - domainlen, serv->domain) &&
-	    domainlen >= matchlen)
+	    hostname_isequal(matchstart, serv->domain) &&
+	    domainlen >= matchlen &&
+	    (namelen == domainlen || *(serv->domain) == '.' || *(matchstart-1) == '.' ))
 	  {
 	    unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
 	    *type = SERV_HAS_DOMAIN;
@@ -210,9 +212,8 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
 /* returns new last_server */	
 static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *udpaddr,
 			  struct all_addr *dst_addr, unsigned int dst_iface,
-			  HEADER *header, int plen, time_t now)
+			  HEADER *header, int plen, time_t now, struct frec *forward)
 {
-  struct frec *forward;
   char *domain = NULL;
   int type = 0;
   struct all_addr *addrp = NULL;
@@ -224,7 +225,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   /* may be no servers available. */
   if (!daemon->servers)
     forward = NULL;
-  else if ((forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
+  else if (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
     {
       /* retry on existing query, send to all available servers  */
       domain = forward->sentto->domain;
@@ -337,9 +338,12 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
     }	  
   
   /* could not send on, return empty answer or address if known for whole domain */
-  plen = setup_reply(header, (unsigned int)plen, addrp, flags, daemon->local_ttl);
-  send_from(udpfd, daemon->options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
-  
+  if (udpfd != -1)
+    {
+      plen = setup_reply(header, (unsigned int)plen, addrp, flags, daemon->local_ttl);
+      send_from(udpfd, daemon->options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
+    }
+
   return;
 }
 
@@ -371,7 +375,7 @@ static int process_reply(struct daemon *daemon, HEADER *header, time_t now,
       server && !(server->flags & SERV_WARNED_RECURSIVE))
     {
       prettyprint_addr(&server->addr, daemon->namebuff);
-      syslog(LOG_WARNING, "nameserver %s refused to do a recursive query", daemon->namebuff);
+      syslog(LOG_WARNING, _("nameserver %s refused to do a recursive query"), daemon->namebuff);
       if (!(daemon->options & OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
@@ -445,40 +449,62 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
     {
        struct server *server = forward->sentto;
        
+       if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0)
+	 /* for broken servers, attempt to send to another one. */
+	 {
+	   unsigned char *pheader;
+	   unsigned int plen;
+	   int nn;
+	   /* recreate query from reply */
+	   pheader = find_pseudoheader(header, n, &plen, NULL);
+	   header->ancount = htons(0);
+	   header->nscount = htons(0);
+	   header->arcount = htons(0);
+	   if ((nn = resize_packet(header, n, pheader, plen)))
+	     {
+	       forward->forwardall = 1;
+	       header->qr = 0;
+	       header->tc = 0;
+	       forward_query(daemon, -1, NULL, NULL, 0, header, nn, now, forward);
+	       return;
+	     }
+	 }   
+
        if ((forward->sentto->flags & SERV_TYPE) == 0)
 	 {
 	   if (header->rcode == SERVFAIL || header->rcode == REFUSED)
 	     server = NULL;
 	   else
-	    {
-	      /* find good server by address if possible, otherwise assume the last one we sent to */ 
-	      struct server *last_server;
-	      for (last_server = daemon->servers; last_server; last_server = last_server->next)
-		if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
-		    sockaddr_isequal(&last_server->addr, &serveraddr))
-		  {
-		    server = last_server;
-		    break;
-		  }
-	    } 
+	     {
+	       struct server *last_server;
+	       /* find good server by address if possible, otherwise assume the last one we sent to */ 
+	       for (last_server = daemon->servers; last_server; last_server = last_server->next)
+		 if (!(last_server->flags & (SERV_LITERAL_ADDRESS | SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_NO_ADDR)) &&
+		     sockaddr_isequal(&last_server->addr, &serveraddr))
+		   {
+		     server = last_server;
+		     break;
+		   }
+	     } 
 	   daemon->last_server = server;
 	 }
-       
-      if ((n = process_reply(daemon, header, now, forward->crc, server, (unsigned int)n)))
-	{
-	  header->id = htons(forward->orig_id);
-	  header->ra = 1; /* recursion if available */
-	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
-		    &forward->source, &forward->dest, forward->iface);
-	}
-	 
+	         
       /* If the answer is an error, keep the forward record in place in case
 	 we get a good reply from another server. Kill it when we've
 	 had replies from all to avoid filling the forwarding table when
 	 everything is broken */
       if (forward->forwardall == 0 || --forward->forwardall == 1 || 
 	  (header->rcode != REFUSED && header->rcode != SERVFAIL))
-	forward->new_id = 0; /* cancel */
+	{
+	  if ((n = process_reply(daemon, header, now, forward->crc, server, (unsigned int)n)))
+	    {
+	      header->id = htons(forward->orig_id);
+	      header->ra = 1; /* recursion if available */
+	      send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, n, 
+			&forward->source, &forward->dest, forward->iface);
+	    }
+	  forward->new_id = 0; /* cancel */
+	}
     }
 }
 
@@ -650,7 +676,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
     send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
     forward_query(daemon, listen->fd, &source_addr, &dst_addr, if_index,
-		  header, n, now);
+		  header, n, now, NULL);
 }
 
 static int read_write(int fd, unsigned char *packet, int size, int rw)
@@ -870,7 +896,7 @@ static struct frec *get_new_frec(time_t now)
       if (!warntime || difftime(now, warntime) > LOGRATE)
 	{
 	  warntime = now;
-	  syslog(LOG_WARNING, "forwarding table overflow: check for server loops.");
+	  syslog(LOG_WARNING, _("forwarding table overflow: check for server loops."));
 	}
       return NULL;
     }

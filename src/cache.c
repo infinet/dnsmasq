@@ -562,7 +562,7 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
   
   if (!f)
     {
-      syslog(LOG_ERR, "failed to load names from %s: %m", filename);
+      syslog(LOG_ERR, _("failed to load names from %s: %m"), filename);
       return;
     }
     
@@ -597,7 +597,10 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 	}
 #endif
       else
-	continue;
+	{
+	  syslog(LOG_ERR, _("bad address at %s line %d"), filename, lineno); 
+	  continue;
+	}
 
      while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
        {
@@ -622,13 +625,13 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 	       }
 	   }
 	 else
-	   syslog(LOG_ERR, "bad name at %s line %d", filename, lineno); 
+	   syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
        }
     }
   
   fclose(f);
 
-  syslog(LOG_INFO, "read %s - %d addresses", filename, count);
+  syslog(LOG_INFO, _("read %s - %d addresses"), filename, count);
 }
 	    
 void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *addn_hosts)
@@ -664,7 +667,7 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
   if ((opts & OPT_NO_HOSTS) && !addn_hosts)
     {
       if (cache_size > 0)
-	syslog(LOG_INFO, "cleared cache");
+	syslog(LOG_INFO, _("cleared cache"));
       return;
     }
 
@@ -717,8 +720,8 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 	    {
 	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
 	      syslog(LOG_WARNING, 
-		     "not giving name %s to the DHCP lease of %s because "
-		     "the name exists in %s with address %s", 
+		     _("not giving name %s to the DHCP lease of %s because "
+		       "the name exists in %s with address %s"), 
 		     host_name, inet_ntoa(*host_address),
 		     record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
 	    }
@@ -761,7 +764,7 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 
 void dump_cache(struct daemon *daemon)
 {
-  syslog(LOG_INFO, "cache size %d, %d/%d cache insertions re-used unexpired cache entries.", 
+  syslog(LOG_INFO, _("cache size %d, %d/%d cache insertions re-used unexpired cache entries."), 
 	 daemon->cachesize, cache_live_freed, cache_inserted); 
   
   if (daemon->options & (OPT_DEBUG | OPT_LOG))

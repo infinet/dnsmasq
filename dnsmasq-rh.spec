@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.23
+Version: 2.24
 Release: 1
 Copyright: GPL
 Group: System Environment/Daemons
@@ -38,7 +38,7 @@ leases and BOOTP for network booting of diskless machines.
 %prep
 %setup -q
 %build
-make
+make all-i18n PREFIX=/usr
 
 
 ###############################################################################
@@ -55,9 +55,9 @@ mkdir -p -m 755 $RPM_BUILD_ROOT/etc/rc.d/init.d
 mkdir -p -m 755 $RPM_BUILD_ROOT/usr/share/man/man8
 
 cp rpm/dnsmasq.rh $RPM_BUILD_ROOT/etc/rc.d/init.d/dnsmasq
-strip src/dnsmasq
+make install-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
+strip $RPM_BUILD_ROOT/usr/sbin/dnsmasq
 cp src/dnsmasq $RPM_BUILD_ROOT/usr/sbin
-cp dnsmasq.8 $RPM_BUILD_ROOT/usr/share/man/man8
 cp dnsmasq.conf.example $RPM_BUILD_ROOT/etc/dnsmasq.conf
 
 ###############################################################################
@@ -127,6 +127,7 @@ fi
 %attr(0755,root,root) /etc/rc.d/init.d/dnsmasq
 %attr(0664,root,root) /etc/dnsmasq.conf
 %attr(0755,root,root) /usr/sbin/dnsmasq
+%attr(0644,root,root) /usr/share/man/*/man8/dnsmasq*
 %attr(0644,root,root) /usr/share/man/man8/dnsmasq*
-
+%attr(0644,root,root) /usr/share/locale/*/LC_MESSAGES/*
 

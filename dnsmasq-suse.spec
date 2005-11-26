@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.23
+Version: 2.24
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers
@@ -43,7 +43,7 @@ patch -p0 <rpm/%{name}-SuSE.patch
 
 %build
 %{?suse_update_config:%{suse_update_config -f}}
-make
+make all-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
 
 ###############################################################################
 #
@@ -54,15 +54,11 @@ make
 %install
 rm -rf $RPM_BUILD_ROOT
 mkdir -p ${RPM_BUILD_ROOT}/etc/init.d
-mkdir -p ${RPM_BUILD_ROOT}/usr/sbin
-mkdir -p ${RPM_BUILD_ROOT}%{_mandir}/man8
+make install-i18n DESTDIR=$RPM_BUILD_ROOT PREFIX=/usr
 install -o root -g root -m 755 rpm/rc.dnsmasq-suse $RPM_BUILD_ROOT/etc/init.d/dnsmasq
 install -o root -g root -m 644 dnsmasq.conf.example $RPM_BUILD_ROOT/etc/dnsmasq.conf
-strip src/dnsmasq
-install -o root -g root -m 755 src/dnsmasq $RPM_BUILD_ROOT/usr/sbin
+strip $RPM_BUILD_ROOT/usr/sbin/dnsmasq
 ln -sf ../../etc/init.d/dnsmasq $RPM_BUILD_ROOT/usr/sbin/rcdnsmasq
-gzip -9 dnsmasq.8
-install -o root -g root -m 644 dnsmasq.8.gz $RPM_BUILD_ROOT%{_mandir}/man8
 
 ###############################################################################
 #

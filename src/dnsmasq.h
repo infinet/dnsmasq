@@ -37,7 +37,16 @@
 #include <getopt.h>
 
 #include "config.h"
- 
+
+#define gettext_noop(S) (S)
+#ifdef NO_GETTEXT
+#  define _(S) (S)
+#else
+#  include <libintl.h>
+#  include <locale.h>   
+#  define _(S) gettext(S)
+#endif
+
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -288,6 +297,7 @@ struct dhcp_lease {
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
   char *hostname, *fqdn; /* name from client-hostname option or config */
+  int auth_name;         /* hostname came from config, not from client */
   time_t expires;        /* lease expiry */
   unsigned char hwaddr[ETHER_ADDR_LEN]; 
   struct in_addr addr;
@@ -558,16 +568,17 @@ struct dhcp_lease *lease_allocate(unsigned char *hwaddr, unsigned char *clid,
 				  int clid_len, struct in_addr addr);
 int lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int clid_len);
-void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix);
+void lease_set_hostname(struct dhcp_lease *lease, char *name, 
+			char *suffix, int auth);
 void lease_set_expires(struct dhcp_lease *lease, time_t exp);
 struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr,
 					unsigned char *clid, int clid_len);
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
 void lease_prune(struct dhcp_lease *target, time_t now);
-void lease_update_from_configs(struct dhcp_config *dhcp_configs, char *domain);
+void lease_update_from_configs(struct daemon *daemon);
 
 /* rfc2131.c */
-int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, unsigned int sz, time_t now);
+int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, unsigned int sz, time_t now, int unicast_dest);
 
 /* dnsmasq.c */
 int icmp_ping(struct daemon *daemon, struct in_addr addr);

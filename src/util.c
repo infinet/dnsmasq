@@ -146,7 +146,7 @@ void *safe_malloc(size_t size)
   void *ret = malloc(size);
   
   if (!ret)
-    die("could not get memory", NULL);
+    die(_("could not get memory"), NULL);
      
   return ret;
 }    
@@ -169,14 +169,14 @@ void complain(char *message, int lineno, char *file)
 {
   char buff[256];
   
-  sprintf(buff, "%s at line %d of %%s", message, lineno);
+  sprintf(buff, _("%s at line %d of %%s"), message, lineno);
   log_err(buff, file);
 }
 
 void die(char *message, char *arg1)
 {
   log_err(message, arg1);
-  syslog(LOG_CRIT, "FAILED to start up");
+  syslog(LOG_CRIT, _("FAILED to start up"));
   exit(1);
 }
 
@@ -302,7 +302,7 @@ int prettyprint_addr(union mysockaddr *addr, char *buf)
 void prettyprint_time(char *buf, unsigned int t)
 {
   if (t == 0xffffffff)
-    sprintf(buf, "infinite");
+    sprintf(buf, _("infinite"));
   else
     {
       unsigned int x, p = 0;

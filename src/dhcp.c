@@ -22,7 +22,7 @@ void dhcp_init(struct daemon *daemon)
   struct dhcp_config *configs, *cp;
 
   if (fd == -1)
-    die ("cannot create DHCP socket : %s", NULL);
+    die (_("cannot create DHCP socket : %s"), NULL);
   
   if ((flags = fcntl(fd, F_GETFL, 0)) == -1 ||
       fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
@@ -32,14 +32,14 @@ void dhcp_init(struct daemon *daemon)
       setsockopt(fd, IPPROTO_IP, IP_RECVIF, &oneopt, sizeof(oneopt)) == -1 ||
 #endif
       setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &oneopt, sizeof(oneopt)) == -1)  
-    die("failed to set options on DHCP socket: %s", NULL);
+    die(_("failed to set options on DHCP socket: %s"), NULL);
   
   /* When bind-interfaces is set, there might be more than one dnmsasq
      instance binding port 67. That's Ok if they serve different networks.
      Need to set REUSEADDR to make this posible. */
   if ((daemon->options & OPT_NOWILD) &&
       setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &oneopt, sizeof(oneopt)) == -1)
-    die("failed to set SO_REUSEADDR on DHCP socket: %s", NULL);
+    die(_("failed to set SO_REUSEADDR on DHCP socket: %s"), NULL);
   
   saddr.sin_family = AF_INET;
   saddr.sin_port = htons(DHCP_SERVER_PORT);
@@ -49,7 +49,7 @@ void dhcp_init(struct daemon *daemon)
 #endif
 
   if (bind(fd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in)))
-    die("failed to bind DHCP server socket: %s", NULL);
+    die(_("failed to bind DHCP server socket: %s"), NULL);
 
   daemon->dhcpfd = fd;
 
@@ -58,7 +58,7 @@ void dhcp_init(struct daemon *daemon)
       fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_DONTROUTE, &zeroopt, sizeof(zeroopt)) == -1)
-    die("cannot create ICMP raw socket: %s.", NULL);
+    die(_("cannot create ICMP raw socket: %s."), NULL);
 
   daemon->dhcp_icmp_fd = fd;
 
@@ -72,7 +72,7 @@ void dhcp_init(struct daemon *daemon)
 	if ((fd = open(filename, O_RDWR, 0)) != -1)
 	  break;
 	if (errno != EBUSY)
-	  die("cannot create DHCP BPF socket: %s", NULL);
+	  die(_("cannot create DHCP BPF socket: %s"), NULL);
       }	    
   }
 #else
@@ -83,8 +83,8 @@ void dhcp_init(struct daemon *daemon)
      rejected as non-sensical by some BSD kernels) */
   if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETHERTYPE_IP))) == -1 ||
       setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1)
-    die("cannot create DHCP packet socket: %s. "
-	"Is CONFIG_PACKET enabled in your kernel?", NULL);
+    die(_("cannot create DHCP packet socket: %s. "
+	  "Is CONFIG_PACKET enabled in your kernel?"), NULL);
 #endif
   
   daemon->dhcp_raw_fd = fd;
@@ -95,7 +95,7 @@ void dhcp_init(struct daemon *daemon)
   for (configs = daemon->dhcp_conf; configs; configs = configs->next)
     for (cp = configs->next; cp; cp = cp->next)
       if ((configs->flags & cp->flags & CONFIG_ADDR) &&	configs->addr.s_addr == cp->addr.s_addr)
-	die("duplicate IP address %s in dhcp-config directive.", inet_ntoa(cp->addr));
+	die(_("duplicate IP address %s in dhcp-config directive."), inet_ntoa(cp->addr));
   
   daemon->dhcp_packet = safe_malloc(sizeof(struct udp_dhcp_packet));
   /* These two each hold a DHCP option max size 255
@@ -116,6 +116,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   struct iovec iov[2];
   struct cmsghdr *cmptr;
   int sz, newlen, iface_index = 0;
+  int unicast_dest = 0;
   struct in_addr iface_addr;
 #ifdef HAVE_BPF
   unsigned char iface_hwaddr[ETHER_ADDR_LEN];
@@ -151,19 +152,23 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     return;
   for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
     if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
-      iface_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
-  
+      {
+	iface_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
+	if (((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_addr.s_addr != INADDR_BROADCAST)
+	  unicast_dest = 1;
+      }
+
   if (!(ifr.ifr_ifindex = iface_index) || 
       ioctl(daemon->dhcpfd, SIOCGIFNAME, &ifr) == -1)
     return;
-
+  
 #elif defined(IP_RECVIF)
   if (msg.msg_controllen < sizeof(struct cmsghdr))
     return;
   for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
     if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
       iface_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
-  
+
   if (!iface_index || !if_indextoname(iface_index, ifr.ifr_name))
     return;
 
@@ -233,7 +238,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     }
 
   lease_prune(NULL, now); /* lose any expired leases */
-  newlen = dhcp_reply(daemon, context, ifr.ifr_name, sz, now);
+  newlen = dhcp_reply(daemon, context, ifr.ifr_name, sz, now, unicast_dest);
   lease_update_file(0, now);
   lease_update_dns(daemon);
   
@@ -376,7 +381,7 @@ struct dhcp_context *complete_context(struct daemon *daemon, struct in_addr loca
 	  {
 	    strcpy(daemon->dhcp_buff, inet_ntoa(context->start));
 	    strcpy(daemon->dhcp_buff2, inet_ntoa(context->end));
-	    syslog(LOG_WARNING, "DHCP range %s -- %s is not consistent with netmask %s",
+	    syslog(LOG_WARNING, _("DHCP range %s -- %s is not consistent with netmask %s"),
 		   daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(netmask));
 	  }	
  	context->netmask = netmask;
@@ -596,12 +601,13 @@ int address_allocate(struct dhcp_context *context, struct daemon *daemon,
 
 static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *config)
 {
-  if (!context)
+  if (!context) /* called via find_config() from lease_update_from_configs() */
     return 1; 
   if (!(config->flags & CONFIG_ADDR))
     return 1;
-  if (is_same_net(config->addr, context->start, context->netmask))
-    return 1;
+  for (; context; context = context->current)
+    if (is_same_net(config->addr, context->start, context->netmask))
+      return 1;
   
   return 0;
 }
@@ -675,18 +681,20 @@ void dhcp_read_ethers(struct daemon *daemon)
   struct in_addr addr;
   unsigned char hwaddr[ETHER_ADDR_LEN];
   struct dhcp_config *config, *configs = daemon->dhcp_conf;
-  int count = 0;
+  int count = 0, lineno = 0;
 
   addr.s_addr = 0; /* eliminate warning */
   
   if (!f)
     {
-      syslog(LOG_ERR, "failed to read " ETHERSFILE ":%m");
+      syslog(LOG_ERR, _("failed to read %s:%m"), ETHERSFILE);
       return;
     }
 
   while (fgets(buff, MAXDNAME, f))
     {
+      lineno++;
+      
       while (strlen(buff) > 0 && isspace(buff[strlen(buff)-1]))
 	buff[strlen(buff)-1] = 0;
       
@@ -696,11 +704,11 @@ void dhcp_read_ethers(struct daemon *daemon)
       for (ip = buff; *ip && !isspace(*ip); ip++);
       for(; *ip && isspace(*ip); ip++)
 	*ip = 0;
-      if (!*ip)
-	continue;
-      
-      if (parse_hex(buff, hwaddr, 6, NULL) != 6)
-	continue;
+      if (!*ip || parse_hex(buff, hwaddr, 6, NULL) != 6)
+	{
+	  syslog(LOG_ERR, _("bad line at %s line %d"), ETHERSFILE, lineno); 
+	  continue;
+	}
       
       /* check for name or dotted-quad */
       for (cp = ip; *cp; cp++)
@@ -710,7 +718,11 @@ void dhcp_read_ethers(struct daemon *daemon)
       if (!*cp)
 	{
 	  if ((addr.s_addr = inet_addr(ip)) == (in_addr_t)-1)
-	    continue;
+	    {
+	      syslog(LOG_ERR, _("bad address at %s line %d"), ETHERSFILE, lineno); 
+	      continue;
+	    }
+
 	  flags = CONFIG_ADDR;
 	  
 	  for (config = configs; config; config = config->next)
@@ -720,7 +732,11 @@ void dhcp_read_ethers(struct daemon *daemon)
       else 
 	{
 	  if (!canonicalise(ip))
-	    continue;
+	    {
+	      syslog(LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
+	      continue;
+	    }
+
 	  flags = CONFIG_NAME;
 
 	  for (config = configs; config; config = config->next)
@@ -768,7 +784,7 @@ void dhcp_read_ethers(struct daemon *daemon)
   
   fclose(f);
 
-  syslog(LOG_INFO, "read " ETHERSFILE " - %d addresses", count);
+  syslog(LOG_INFO, _("read %s - %d addresses"), ETHERSFILE, count);
   
   daemon->dhcp_conf =  configs;
 }
@@ -791,7 +807,7 @@ void dhcp_update_configs(struct dhcp_config *configs)
 	(crec->flags & F_HOSTS))
       {
 	if (config_find_by_address(configs, crec->addr.addr.addr.addr4))
-	  syslog(LOG_WARNING, "duplicate IP address %s (%s) in dhcp-config directive", 
+	  syslog(LOG_WARNING, _("duplicate IP address %s (%s) in dhcp-config directive"), 
 		 inet_ntoa(crec->addr.addr.addr.addr4), config->hostname);
 	else
 	  {
@@ -827,7 +843,7 @@ char *strip_hostname(struct daemon *daemon, char *hostname)
     {
       if (!daemon->domain_suffix || !hostname_isequal(dot+1, daemon->domain_suffix))
 	{
-	  syslog(LOG_WARNING, "Ignoring DHCP host name %s because it has an illegal domain part", hostname);
+	  syslog(LOG_WARNING, _("Ignoring DHCP host name %s because it has an illegal domain part"), hostname);
 	  hostname = NULL;
 	}
       else

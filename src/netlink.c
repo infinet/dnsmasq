@@ -34,7 +34,7 @@ int netlink_init(void)
   addr.nl_groups = 0;
   
   if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    die("cannot bind netlink socket: %s", NULL);
+    die(_("cannot bind netlink socket: %s"), NULL);
   
   return sock;
 }
@@ -132,7 +132,7 @@ int netlink_process(struct daemon *daemon, int index, struct in_addr relay,
 		  rta = RTA_NEXT(rta, len1);
 		}
 	      
-	      if (addr.s_addr && broadcast.s_addr)
+	      if (addr.s_addr)
 		{
 		  ret = complete_context(daemon, addr, ret, netmask, broadcast, relay, primary);	
 		  if (addr.s_addr == primary.s_addr)
