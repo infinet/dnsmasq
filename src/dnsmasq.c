@@ -26,6 +26,9 @@ static char *compile_opts =
 #ifdef HAVE_BROKEN_RTC
 "no-RTC "
 #endif
+#ifdef HAVE_RTNETLINK
+"RTNetlink "
+#endif
 #ifndef HAVE_ISC_READER
 "no-"
 #endif
@@ -37,7 +40,7 @@ static char *compile_opts =
 #ifdef NO_GETTEXT
 "no-"
 #endif
-"i18n";
+"I18N ";
 
 static volatile int sigterm, sighup, sigusr1, sigalarm, num_kids, in_child;
 

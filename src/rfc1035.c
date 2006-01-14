@@ -1049,11 +1049,15 @@ int answer_request(HEADER *header, char *limit, unsigned int qlen, struct daemon
 	      if (t->class == qclass && hostname_isequal(name, t->name))
 		{
 		  ans = 1;
-		  log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, 0, NULL, 0);
-		  if (!dryrun &&
-		      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 0, NULL,
-					  T_TXT, t->class, "t", t->len, t->txt))
-		    anscount++;
+		  if (!dryrun)
+		    {
+		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, 0, NULL, 0);
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->local_ttl, NULL,
+					      T_TXT, t->class, "t", t->len, t->txt))
+			anscount++;
+
+		    }
 		}
 	    }
 	}

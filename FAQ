@@ -357,6 +357,19 @@ A: Probably the nameserver is an authoritative nameserver for a
    may work for sometime with a broken upstream nameserver
    configuration.
 
+
+Q: Does the dnsmasq DHCP server probe addresses before allocating
+   them, as recommended in RFC2131?
+
+A: Yes, dynmaically allocated IP addresses are checked by sending an
+   ICMP echo request (ping). If a reply is received, then dnsmasq
+   assumes that the address is in use, and attempts to allocate an
+   different address. The wait for a reply is between two and three
+   seconds. Because the DHCP server is not re-entrant, it cannot serve
+   other DHCP requests during this time. To avoid dropping requests,
+   the address probe may be skipped when dnsmasq is under heavy load.
+
+ 
   
 
 

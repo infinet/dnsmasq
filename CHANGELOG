@@ -1610,3 +1610,24 @@ version 2.24
 	    
 	    Added Romanian translation, thanks to Sorin Panca for
 	    that.
+
+version 2.25
+            Fixed RedHat spec file for FC4 - thanks to Werner Hoelzl
+            and Andrew Bird.
+
+            Fixed Suse spec file - thanks to Steven Springl.
+
+	    Fixed DHCP bug when two distict subnets are on the same
+	    physical interface. Thanks to Pawel Zawora for finding
+	    this and suggesting the fix.
+
+	    Added logging to make it explicit when dnsmasq falls back
+	    from using RT-netlink sockets to the old ioctl API for
+	    getting information about interfaces. Doing this
+	    completely silently made remote debugging hard.
+
+	    Merged uclibc build fixes from the OpenWRT package into
+	    src/config.h 
+
+	    Added Norwegian translation - thanks to Jan Erik Askildt.
+

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2006 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define VERSION "2.24"
+#define VERSION "2.25"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -76,26 +76,6 @@
 
 #ifndef T_OPT
 #  define T_OPT 41
-#endif
-
-/* Decide if we're going to support IPv6 */
-/* We assume that systems which don't have IPv6
-   headers don't have ntop and pton either */
-
-#if defined(INET6_ADDRSTRLEN) && defined(IPV6_V6ONLY) && !defined(NO_IPV6)
-#  define HAVE_IPV6
-#  define ADDRSTRLEN INET6_ADDRSTRLEN
-#  if defined(SOL_IPV6)
-#    define IPV6_LEVEL SOL_IPV6
-#  else
-#    define IPV6_LEVEL IPPROTO_IPV6
-#  endif
-#elif defined(INET_ADDRSTRLEN)
-#  undef HAVE_IPV6
-#  define ADDRSTRLEN INET_ADDRSTRLEN
-#else
-#  undef HAVE_IPV6
-#  define ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
 #endif
 
 /* Get linux C library versions. */
@@ -205,18 +185,17 @@ NOTES:
 /* platform independent options. */
 #undef HAVE_BROKEN_RTC
 #define HAVE_ISC_READER
+#undef HAVE_DBUS
 
 #if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
 #endif
 
-#undef HAVE_DBUS
-
 /* platform dependent options. */
 
 /* Must preceed __linux__ since uClinux defines __linux__ too. */
-#if defined(__uClinux__) || defined(__UCLIBC__)
-#undef HAVE_LINUX_IPV6_PROC
+#if defined(__uClinux__)
+#define HAVE_LINUX_IPV6_PROC
 #define HAVE_GETOPT_LONG
 #define HAVE_RTNETLINK
 #undef HAVE_ARC4RANDOM
@@ -225,11 +204,31 @@ NOTES:
 #define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #undef HAVE_PSELECT
-#if defined(__uClinux__)
 /* Never use fork() on uClinux. Note that this is subtly different from the
    --keep-in-foreground option, since it also  suppresses forking new 
    processes for TCP connections. It's intended for use on MMU-less kernels. */
+#define NO_FORK
+
+#elif defined(__UCLIBC__)
+#define HAVE_LINUX_IPV6_PROC
+#if defined(__UCLIBC_HAS_GNU_GETOPT__) || \
+   ((__UCLIBC_MAJOR__==0) && (__UCLIBC_MINOR__==9) && (__UCLIBC_SUBLEVEL__<21))
+#    define HAVE_GETOPT_LONG
+#  else
+#    undef HAVE_GETOPT_LONG
+#  endif
+#define HAVE_RTNETLINK
+#undef HAVE_ARC4RANDOM
+#define HAVE_RANDOM
+#define HAVE_DEV_URANDOM
+#define HAVE_DEV_RANDOM
+#undef HAVE_SOCKADDR_SA_LEN
+#undef HAVE_PSELECT
+#if !defined(__ARCH_HAS_MMU__)
 #  define NO_FORK
+#endif
+#if !defined(__UCLIBC_HAS_IPV6__)
+#  define NO_IPV6
 #endif
 
 /* libc5 - must precede __linux__ too */
@@ -271,9 +270,7 @@ typedef size_t socklen_t;
 #if defined(__GLIBC__) && (__GLIBC__ == 2) && \
     defined(__GLIBC_MINOR__) && (__GLIBC_MINOR__ < 2)
 typedef unsigned long in_addr_t; 
-#if defined(HAVE_IPV6)
 #   define HAVE_BROKEN_SOCKADDR_IN6
-#endif
 #endif
 
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
@@ -333,6 +330,26 @@ typedef unsigned long in_addr_t;
 #define HAVE_BPF
 #endif
 
+
+/* Decide if we're going to support IPv6 */
+/* We assume that systems which don't have IPv6
+   headers don't have ntop and pton either */
+
+#if defined(INET6_ADDRSTRLEN) && defined(IPV6_V6ONLY) && !defined(NO_IPV6)
+#  define HAVE_IPV6
+#  define ADDRSTRLEN INET6_ADDRSTRLEN
+#  if defined(SOL_IPV6)
+#    define IPV6_LEVEL SOL_IPV6
+#  else
+#    define IPV6_LEVEL IPPROTO_IPV6
+#  endif
+#elif defined(INET_ADDRSTRLEN)
+#  undef HAVE_IPV6
+#  define ADDRSTRLEN INET_ADDRSTRLEN
+#else
+#  undef HAVE_IPV6
+#  define ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
+#endif
 
 
 

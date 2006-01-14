@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2005-11-22 20:10+0000\n"
+"POT-Creation-Date: 2006-01-13 16:01+0000\n"
 "PO-Revision-Date: 2005-10-07 11:04+0100\n"
 "Last-Translator: Christopher Chatham <chrislinux@gmail.com>\n"
 "Language-Team: Spanish <es@li.org>\n"
@@ -20,17 +20,17 @@ msgstr ""
 msgid "failed to load names from %s: %m"
 msgstr "no se pudo cargar nombres desde %s: %m"
 
-#: cache.c:601 dhcp.c:722
+#: cache.c:601 dhcp.c:737
 #, fuzzy, c-format
 msgid "bad address at %s line %d"
 msgstr "nombre erróneo en %s línea %d"
 
-#: cache.c:628 dhcp.c:736
+#: cache.c:628 dhcp.c:751
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "nombre erróneo en %s línea %d"
 
-#: cache.c:634 dhcp.c:787
+#: cache.c:634 dhcp.c:802
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "direcciónes %s - %d leídas"
@@ -504,7 +504,7 @@ msgid "forwarding table overflow: check for server loops."
 msgstr ""
 "desbordamiento en la tabla de reenvio: revisar si hay loops de servidor."
 
-#: isc.c:71 dnsmasq.c:471
+#: isc.c:71 dnsmasq.c:474
 #, c-format
 msgid "failed to access %s: %m"
 msgstr "no se pudo accesar %s: %m"
@@ -587,102 +587,102 @@ msgstr "usando servidor DNS %s#%d para %s %s"
 msgid "using nameserver %s#%d"
 msgstr "usando servidor DNS %s#%d"
 
-#: dnsmasq.c:112
+#: dnsmasq.c:115
 msgid ""
 "ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h"
 msgstr ""
 "Integración dhcpd ISC no disponible: fijar HAVE_ISC_READER en src/config.h"
 
-#: dnsmasq.c:116
+#: dnsmasq.c:119
 #, c-format
 msgid "failed to find list of interfaces: %s"
 msgstr "no se pudo encontrar lista de interfaces: %s"
 
-#: dnsmasq.c:131
+#: dnsmasq.c:134
 #, c-format
 msgid "unknown interface %s"
 msgstr "interface desconocida %s"
 
-#: dnsmasq.c:137
+#: dnsmasq.c:140
 #, c-format
 msgid "no interface with address %s"
 msgstr "ninguna interface con dirección %s"
 
-#: dnsmasq.c:146
+#: dnsmasq.c:149
 #, c-format
 msgid "cannot open %s:%s"
 msgstr "no se puede abrir %s:%s"
 
-#: dnsmasq.c:160
+#: dnsmasq.c:163
 msgid "must set exactly one interface on broken systems without IP_RECVIF"
 msgstr "debe fijarse exactamente una interface en sistemas rotos sin IP_RECVIF"
 
-#: dnsmasq.c:173 dnsmasq.c:504
+#: dnsmasq.c:176 dnsmasq.c:507
 #, c-format
 msgid "DBus error: %s"
 msgstr "error DBus: %s"
 
-#: dnsmasq.c:177
+#: dnsmasq.c:180
 msgid "DBus not available: set HAVE_DBUS in src/config.h"
 msgstr "DBus no disponible: fijar HAVE_DBUS en src/config.h"
 
-#: dnsmasq.c:290
+#: dnsmasq.c:293
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "versión %s iniciada, tamaño de caché %d"
 
-#: dnsmasq.c:292
+#: dnsmasq.c:295
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "versión %s iniciada, caché deshabilitado"
 
-#: dnsmasq.c:294
+#: dnsmasq.c:297
 #, c-format
 msgid "compile time options: %s"
 msgstr "opciones de compilación: %s"
 
-#: dnsmasq.c:300
+#: dnsmasq.c:303
 msgid "DBus support enabled: connected to system bus"
 msgstr "soporte DBus habilitado: conectado a bus de sistema"
 
-#: dnsmasq.c:302
+#: dnsmasq.c:305
 msgid "DBus support enabled: bus connection pending"
 msgstr "soporte DBus habilitado: conección a bus pendiente"
 
-#: dnsmasq.c:307
+#: dnsmasq.c:310
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr ""
 "fijando opción --bind-interfaces debido a limitaciones de sistema operativo"
 
-#: dnsmasq.c:312
+#: dnsmasq.c:315
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "advertencia: interface %s no existe actualmente"
 
-#: dnsmasq.c:329
+#: dnsmasq.c:332
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP, arriendos estáticos solo en %.0s%s, tiempo de arriendo %s"
 
-#: dnsmasq.c:330
+#: dnsmasq.c:333
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, rango de IP %s -- %s, tiempo de arriendo %s"
 
-#: dnsmasq.c:341
+#: dnsmasq.c:344
 #, c-format
 msgid "DHCP, %s will be written every %s"
 msgstr "DHCP, %s será escrito cada %s"
 
-#: dnsmasq.c:346
+#: dnsmasq.c:349
 msgid "running as root"
 msgstr "corriendo como root"
 
-#: dnsmasq.c:506
+#: dnsmasq.c:509
 msgid "connected to system DBus"
 msgstr "conectado a DBus de sistema"
 
-#: dnsmasq.c:517
+#: dnsmasq.c:520
 msgid "exiting on receipt of SIGTERM"
 msgstr "haciendo exit al haber recibido SIGTERM"
 
@@ -730,27 +730,31 @@ msgstr ""
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "dirección IP duplicada en directiva dhcp-config."
 
-#: dhcp.c:384
+#: dhcp.c:233
+msgid "Cannot use RTnetlink socket, falling back to ioctl API"
+msgstr ""
+
+#: dhcp.c:394
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr "rango DHCP %s -- %s no coincide con máscara de red %s"
 
-#: dhcp.c:690
+#: dhcp.c:705
 #, c-format
 msgid "failed to read %s:%m"
 msgstr "no se pudo leer %s:%m"
 
-#: dhcp.c:709
+#: dhcp.c:724
 #, fuzzy, c-format
 msgid "bad line at %s line %d"
 msgstr "nombre erróneo en %s línea %d"
 
-#: dhcp.c:810
+#: dhcp.c:825
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "dirección IP %s (%s) duplicada en directiva dhcp-config"
 
-#: dhcp.c:846
+#: dhcp.c:861
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr ""
@@ -787,7 +791,7 @@ msgstr "vía"
 msgid "disabled"
 msgstr "deshabilitado"
 
-#: rfc2131.c:272 rfc2131.c:643
+#: rfc2131.c:272 rfc2131.c:658
 msgid "address in use"
 msgstr "dirección en uso"
 
@@ -795,57 +799,57 @@ msgstr "dirección en uso"
 msgid "no address configured"
 msgstr "ninguna dirección configurada"
 
-#: rfc2131.c:281 rfc2131.c:522
+#: rfc2131.c:288 rfc2131.c:534
 msgid "no address available"
 msgstr "ninguna dirección disponible"
 
-#: rfc2131.c:285 rfc2131.c:646
+#: rfc2131.c:295 rfc2131.c:661
 msgid "no leases left"
 msgstr "no queda ningún arriendo"
 
-#: rfc2131.c:481
+#: rfc2131.c:298 rfc2131.c:634
+msgid "wrong network"
+msgstr "red equivocada"
+
+#: rfc2131.c:493
 #, c-format
 msgid "disabling DHCP static address %s"
 msgstr "deshabilitando dirección DHCP estática %s"
 
-#: rfc2131.c:499
+#: rfc2131.c:511
 msgid "unknown lease"
 msgstr "arriendo desconocido"
 
-#: rfc2131.c:512 rfc2131.c:718
+#: rfc2131.c:524 rfc2131.c:732
 msgid "ignored"
 msgstr "ignorado"
 
-#: rfc2131.c:592
+#: rfc2131.c:607
 msgid "wrong address"
 msgstr "dirección equivocada"
 
-#: rfc2131.c:601
+#: rfc2131.c:616
 msgid "lease not found"
 msgstr "arriendo no encontrado"
 
-#: rfc2131.c:619
-msgid "wrong network"
-msgstr "red equivocada"
-
-#: rfc2131.c:627
+#: rfc2131.c:642
 msgid "address not available"
 msgstr "dirección no disponible"
 
-#: rfc2131.c:636
+#: rfc2131.c:651
 msgid "static lease available"
 msgstr "arriendo estático disponible"
 
-#: rfc2131.c:640
+#: rfc2131.c:655
 msgid "address reserved"
 msgstr "dirección reservada"
 
-#: rfc2131.c:837
+#: rfc2131.c:851
 #, c-format
 msgid "cannot send DHCP option %d: no space left in packet"
 msgstr "no se puede enviar opción DHCP %d: no queda espacio en el paquete"
 
-#: rfc2131.c:1132
+#: rfc2131.c:1146
 #, c-format
 msgid "More than one vendor class matches, using %s"
 msgstr "Más de una clase de vendedor coincide, usando %s"

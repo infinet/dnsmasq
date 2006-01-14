@@ -224,7 +224,17 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 #endif
     {
       struct in_addr iface_netmask, iface_broadcast;
-      
+
+#ifdef HAVE_RTNETLINK
+      static int warned = 0;
+
+      if (!warned)
+	{
+	  syslog(LOG_WARNING, _("Cannot use RTnetlink socket, falling back to ioctl API"));
+	  warned = 1;
+	}
+#endif
+
       if (ioctl(daemon->dhcpfd, SIOCGIFNETMASK, &ifr) < 0)
 	return;
       iface_netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
@@ -447,24 +457,29 @@ struct dhcp_context *address_available(struct dhcp_context *context, struct in_a
 
 struct dhcp_context *narrow_context(struct dhcp_context *context, struct in_addr taddr)
 {
-  /* We start of with a set of possible contexts, all on the current subnet.
+  /* We start of with a set of possible contexts, all on the current physical interface.
      These are chained on ->current.
      Here we have an address, and return the actual context correponding to that
      address. Note that none may fit, if the address came a dhcp-host and is outside
-     any dhcp-range. In that case we return a static range is possible, or failing that,
-     any context on the subnet. (If there's more than one, this is a dodgy configuration: 
-     maybe there should be a warning.) */
+     any dhcp-range. In that case we return a static range if possible, or failing that,
+     any context on the correct subnet. (If there's more than one, this is a dodgy 
+     configuration: maybe there should be a warning.) */
   
-  struct dhcp_context *tmp = address_available(context, taddr);
+  struct dhcp_context *tmp;
 
-  if (tmp)
+  if ((tmp = address_available(context, taddr)))
     return tmp;
   
   for (tmp = context; tmp; tmp = tmp->current)
-    if (tmp->flags & CONTEXT_STATIC)
+    if (is_same_net(taddr, tmp->start, tmp->netmask) && 
+	(tmp->flags & CONTEXT_STATIC))
       return tmp;
 
-  return context;
+  for (tmp = context; tmp; tmp = tmp->current)
+    if (is_same_net(taddr, tmp->start, tmp->netmask))
+      return tmp;
+
+  return NULL;
 }
 
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr)

@@ -5,9 +5,9 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.24
+Version: 2.25
 Release: 1
-Copyright: GPL
+License: GPL
 Group: System Environment/Daemons
 Vendor: Simon Kelley
 Packager: Simon Kelley

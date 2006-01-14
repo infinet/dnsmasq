@@ -12,7 +12,7 @@
 
 /* Author's email: simon@thekelleys.org.uk */
 
-#define COPYRIGHT "Copyright (C) 2000-2005 Simon Kelley" 
+#define COPYRIGHT "Copyright (C) 2000-2006 Simon Kelley" 
 
 #ifdef __linux__
 /* for pselect.... */

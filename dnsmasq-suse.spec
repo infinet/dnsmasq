@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.24
+Version: 2.25
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers
@@ -104,6 +104,7 @@ rm -rf $RPM_BUILD_ROOT
 %config /etc/dnsmasq.conf
 /usr/sbin/rcdnsmasq
 /usr/sbin/dnsmasq
+/usr/share/locale/*/LC_MESSAGES/*
 %doc %{_mandir}/man8/dnsmasq.8.gz
 
 

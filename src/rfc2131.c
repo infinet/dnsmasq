@@ -275,19 +275,31 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	    message = _("no address configured");
 	  else
 	    {
-	      if ((lease = lease_find_by_client(mess->chaddr, NULL, 0)))
+	      if (!(lease = lease_find_by_client(mess->chaddr, NULL, 0)) ||
+		  !address_available(context, lease->addr))
+		{
+		   if (lease)
+		     {
+		       /* lease exists, wrong network. */
+		       lease_prune(lease, now);
+		       lease = NULL;
+		     }
+		   if (!address_allocate(context, daemon, &mess->yiaddr, chaddr, netid, now))
+		     message = _("no address available");
+		}
+	      else
 		mess->yiaddr = lease->addr;
-	      else if (!address_allocate(context, daemon, &mess->yiaddr, chaddr, netid, now))
-		message = _("no address available");
 	    }
 	  
 	  if (!message && !lease && (!(lease = lease_allocate(chaddr, NULL, 0, mess->yiaddr))))
 	    message = _("no leases left");
 	  
+	  if (!message && !(context = narrow_context(context, mess->yiaddr)))
+	    message = _("wrong network");
+	      
 	  if (!message)
 	    {
 	      logaddr = &mess->yiaddr;
-	      context = narrow_context(context, mess->yiaddr);
 		
 	      if (context->netid.net && !(context->flags & CONTEXT_FILTER))
 		{
@@ -523,10 +535,9 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	log_packet("DISCOVER", opt ? &addr : NULL, chaddr, iface_name, message);          
       }
 
-      if (message)
+      if (message || !(context = narrow_context(context, mess->yiaddr)))
 	return 0;
-      
-      context = narrow_context(context, mess->yiaddr);
+
       if (context->netid.net && !(context->flags & CONTEXT_FILTER))
 	{
 	  context->netid.next = netid;
@@ -572,7 +583,11 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  if ((opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)))
 	    {
 	      /* SELECTING */
-	      if (context->local.s_addr != option_addr(opt).s_addr)
+	      for (; context; context = context->current)
+		if (context->local.s_addr == option_addr(opt).s_addr)
+		  break;
+
+	      if (!context)
 		return 0;
 	      
 	      /* If a lease exists for this host and another address, squash it. */
@@ -608,14 +623,14 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	}
       
       log_packet("REQUEST", &mess->yiaddr, chaddr, iface_name, NULL);
-      
+ 
       if (!message)
 	{
 	  struct dhcp_config *addr_config;
 
-	  /* If a machine moves networks whilst it has a lease, we catch that here. */
-	  if (!is_same_net(mess->yiaddr, context->start, context->netmask))
+	  if (!(context = narrow_context(context, mess->yiaddr)))
 	    {
+	      /* If a machine moves networks whilst it has a lease, we catch that here. */
 	      message = _("wrong network");
 	      /* ensure we broadcast NAK */
 	      unicast_dest = 0;
@@ -625,7 +640,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  else if (!address_available(context, mess->yiaddr) &&
 		   (!have_config(config, CONFIG_ADDR) || config->addr.s_addr != mess->yiaddr.s_addr))
 	    message = _("address not available");
-
+	  
 	  /* Check if a new static address has been configured. Be very sure that
 	     when the client does DISCOVER, it will get the static address, otherwise
 	     an endless protocol loop will ensue. */
@@ -674,7 +689,6 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 
 	  log_packet("ACK", &mess->yiaddr, chaddr, iface_name, hostname);
       
-	  context = narrow_context(context, mess->yiaddr);
 	  if (context->netid.net && !(context->flags & CONTEXT_FILTER))
 	    {
 	      context->netid.next = netid;
@@ -719,10 +733,10 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       
       log_packet("INFORM", &mess->ciaddr, chaddr, iface_name, message);
      
-      if (message || mess->ciaddr.s_addr == 0)
+      if (message || mess->ciaddr.s_addr == 0 || 
+	  !(context = narrow_context(context, mess->ciaddr)))
 	return 0;
       
-      context = narrow_context(context, mess->ciaddr);
       if (context->netid.net)
 	{
 	  context->netid.next = netid;
