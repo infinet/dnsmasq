@@ -96,7 +96,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
   unsigned int time;
   struct dhcp_config *config;
   struct dhcp_netid *netid = NULL;
-  struct in_addr subnet_addr;
+  struct in_addr subnet_addr, fallback;
   unsigned short fuzz = 0;
   unsigned int mess_type = 0;
   u8 *chaddr;
@@ -222,6 +222,9 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
              subnet_addr.s_addr ? inet_ntoa(subnet_addr) : (mess->giaddr.s_addr ? inet_ntoa(mess->giaddr) : iface_name));
       return 0;
     }
+  
+  /* keep _a_ local address available. */
+  fallback = context->local;
   
   mess->op = BOOTREPLY;
     
@@ -627,7 +630,7 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
       if (!message)
 	{
 	  struct dhcp_config *addr_config;
-
+	  
 	  if (!(context = narrow_context(context, mess->yiaddr)))
 	    {
 	      /* If a machine moves networks whilst it has a lease, we catch that here. */
@@ -668,7 +671,8 @@ int dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_
 	  mess->siaddr.s_addr = mess->yiaddr.s_addr = 0;
 	  bootp_option_put(mess, NULL, NULL);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
-	  p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
+	  p = option_put(p, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, 
+			 ntohl(context ? context->local.s_addr : fallback.s_addr));
 	  p = option_put_string(p, end, OPTION_MESSAGE, message);
 	  /* This fixes a problem with the DHCP spec, broadcasting a NAK to a host on 
 	     a distant subnet which unicast a REQ to us won't work. */

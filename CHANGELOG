@@ -1631,3 +1631,11 @@ version 2.25
 
 	    Added Norwegian translation - thanks to Jan Erik Askildt.
 
+version 2.26
+	    Fixed SuSe rpm patch problem - thanks to Steven Springl.
+
+	    Fixed crash when attempting to send a DHCP NAK to a host
+	    which believes it has a lease on an unknown
+	    network. Thanks to Lutz Pressler for the bug report and
+	    patch.
+

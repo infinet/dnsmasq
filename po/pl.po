@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-01-13 16:01+0000\n"
+"POT-Creation-Date: 2006-01-22 13:12+0000\n"
 "PO-Revision-Date: 2005-10-04 19:17+0100\n"
 "Last-Translator: Tomasz Sochañski <nerdhero@gmail.com>\n"
 "Language-Team: Polish <translation-team-pl@lists.sourceforge.net>\n"
@@ -789,69 +789,69 @@ msgstr "z selekcj± podsieci"
 msgid "via"
 msgstr "przez"
 
-#: rfc2131.c:238 rfc2131.c:262
+#: rfc2131.c:241 rfc2131.c:265
 msgid "disabled"
 msgstr "wy³±czony(a)"
 
-#: rfc2131.c:272 rfc2131.c:658
+#: rfc2131.c:275 rfc2131.c:661
 msgid "address in use"
 msgstr "adres w u¿yciu"
 
-#: rfc2131.c:275
+#: rfc2131.c:278
 msgid "no address configured"
 msgstr "brak skonfigurowanego adresu"
 
-#: rfc2131.c:288 rfc2131.c:534
+#: rfc2131.c:291 rfc2131.c:537
 msgid "no address available"
 msgstr "brak dostêpnego adresu"
 
-#: rfc2131.c:295 rfc2131.c:661
+#: rfc2131.c:298 rfc2131.c:664
 msgid "no leases left"
 msgstr "brak wolnych dzier¿aw"
 
-#: rfc2131.c:298 rfc2131.c:634
+#: rfc2131.c:301 rfc2131.c:637
 msgid "wrong network"
 msgstr "nieprawid³owa sieæ"
 
-#: rfc2131.c:493
+#: rfc2131.c:496
 #, c-format
 msgid "disabling DHCP static address %s"
 msgstr "wy³±czanie statycznego adresu DHCP %s"
 
-#: rfc2131.c:511
+#: rfc2131.c:514
 msgid "unknown lease"
 msgstr "nieznana dzier¿awa"
 
-#: rfc2131.c:524 rfc2131.c:732
+#: rfc2131.c:527 rfc2131.c:736
 msgid "ignored"
 msgstr "ignorujê"
 
-#: rfc2131.c:607
+#: rfc2131.c:610
 msgid "wrong address"
 msgstr "b³êdny adres"
 
-#: rfc2131.c:616
+#: rfc2131.c:619
 msgid "lease not found"
 msgstr "dzier¿awa nie znaleziona"
 
-#: rfc2131.c:642
+#: rfc2131.c:645
 msgid "address not available"
 msgstr "adres niedostêpny"
 
-#: rfc2131.c:651
+#: rfc2131.c:654
 msgid "static lease available"
 msgstr "dostêpna statyczna dzier¿awa"
 
-#: rfc2131.c:655
+#: rfc2131.c:658
 msgid "address reserved"
 msgstr "adres zarezerwowany"
 
-#: rfc2131.c:851
+#: rfc2131.c:855
 #, c-format
 msgid "cannot send DHCP option %d: no space left in packet"
 msgstr ""
 
-#: rfc2131.c:1146
+#: rfc2131.c:1150
 #, c-format
 msgid "More than one vendor class matches, using %s"
 msgstr "Wiêcej ni¿ jeden dystrybutor pasuj±cy, u¿ywam %s"
