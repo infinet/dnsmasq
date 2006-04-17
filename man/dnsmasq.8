@@ -525,6 +525,13 @@ with care, since each address allocated to a BOOTP client is leased
 forever, and therefore becomes permanently unavailable for re-use by
 other hosts.
 .TP
+.B \-5, --no-ping
+By default, the DHCP server will attempt to ensure that an address in
+not in use before allocating it to a host. It does this by sending an
+ICMP echo request (aka "ping") to the address in question. If it gets
+a reply, then the address must already be in use, and another is
+tried. This flag disables this check. Use with caution.
+.TP
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information. If this option
 is given but no dhcp-range option is given then dnsmasq version 1

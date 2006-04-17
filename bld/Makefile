@@ -1,12 +1,9 @@
-# Uncomment this on Solaris.
-#LIBS = -lsocket -lnsl
-
 CFLAGS ?= -O2
 PKG_CONFIG ?= pkg-config
 
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o isc.o network.o \
-       dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o
+       dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o
 
 .c.o:
 	$(CC) $(CFLAGS) $(I18N) `../bld/pkg-wrapper $(PKG_CONFIG) --cflags dbus-1` $(RPM_OPT_FLAGS) -Wall -W -c $<

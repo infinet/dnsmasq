@@ -17,6 +17,8 @@
 
 #ifdef HAVE_ISC_READER
 
+#define MAXTOK 50
+
 struct isc_lease {
   char *name, *fqdn;
   time_t expires;
