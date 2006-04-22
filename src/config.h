@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.28"
+#define VERSION "2.29"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -165,10 +165,10 @@ NOTES:
 
 */
 
-/* platform independent options. */
-#undef HAVE_BROKEN_RTC
-#undef HAVE_ISC_READER
-#undef HAVE_DBUS
+/* platform independent options- uncomment to enable */
+/* #define HAVE_BROKEN_RTC */
+/* #define HAVE_ISC_READER */
+/* #define HAVE_DBUS */
 
 #if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC

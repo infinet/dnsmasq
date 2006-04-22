@@ -141,7 +141,7 @@ void send_via_bpf(struct daemon *daemon, struct dhcp_packet *mess, size_t len,
 int iface_enumerate(struct daemon *daemon, void *parm, int (*ipv4_callback)(), int (*ipv6_callback)())
 {
   char *ptr;
-  struct ifreq *ifr, ifaux;
+  struct ifreq *ifr;
   struct ifconf ifc;
   int fd, errsav, ret = 0;
   int lastlen = 0;
@@ -186,14 +186,10 @@ int iface_enumerate(struct daemon *daemon, void *parm, int (*ipv4_callback)(), i
 
       ifr = ifreq.iov_base;
       memcpy(ifr, ptr, len);
-      
-      strncpy(ifaux.ifr_name, ifr->ifr_name, IF_NAMESIZE);
            
       if (ifr->ifr_addr.sa_family == AF_INET && ipv4_callback)
 	{
 	  struct in_addr addr, netmask, broadcast;
-	  if (ioctl(fd, SIOCGIFINDEX, &ifaux) == -1)
-	    continue;
 	  broadcast.s_addr = 0;
 	  addr = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr;
 	  if (ioctl(fd, SIOCGIFNETMASK, ifr) == -1)
@@ -201,7 +197,10 @@ int iface_enumerate(struct daemon *daemon, void *parm, int (*ipv4_callback)(), i
 	  netmask = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr;
 	  if (ioctl(fd, SIOCGIFBRDADDR, ifr) != -1)
 	    broadcast = ((struct sockaddr_in *) &ifr->ifr_addr)->sin_addr; 
-	  if (!((*ipv4_callback)(daemon, addr, (int)ifaux.ifr_index, netmask, broadcast, parm)))
+	  if (!((*ipv4_callback)(daemon, addr, 
+				 (int)if_nametoindex(ifr->ifr_name),
+				 netmask, broadcast, 
+				 parm)))
 	    goto err;
 	}
 #ifdef HAVE_IPV6
@@ -214,11 +213,9 @@ int iface_enumerate(struct daemon *daemon, void *parm, int (*ipv4_callback)(), i
 	      addr->s6_addr[2] = 0;
 	      addr->s6_addr[3] = 0;
 	    }
-	  if (ioctl(fd, SIOCGIFINDEX, &ifaux) == -1)
-	    continue;
 	  if (!((*ipv6_callback)(daemon, addr,
 				 (int)((struct sockaddr_in6 *)&ifr->ifr_addr)->sin6_scope_id,
-				 (int)ifaux.ifr_index,
+				 (int)if_nametoindex(ifr->ifr_name),
 				 parm)))
 	    goto err;
 	}

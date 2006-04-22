@@ -15,43 +15,39 @@
 int iface_check(struct daemon *daemon, int family, struct all_addr *addr, char *name)
 {
   struct iname *tmp;
+  int ret = 1;
 
-  for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, name) == 0))
-      return 0;
+  /* Note: have to check all and not bail out early, so that we set the
+     "used" flags. */
 
   if (daemon->if_names || daemon->if_addrs)
     {
+      ret = 0;
+
       for (tmp = daemon->if_names; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
-	  {
-	    tmp->used = 1;
-	    return 1;
-	  }
-      
+	  ret = tmp->used = 1;
+	        
       for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
 	if (tmp->addr.sa.sa_family == family)
 	  {
 	    if (family == AF_INET &&
 		tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
-	      {
-		tmp->used = 1;
-		return 1;
-	      }
+	      ret = tmp->used = 1;
 #ifdef HAVE_IPV6
 	    else if (family == AF_INET6 &&
 		     IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, 
 					&addr->addr.addr6))
-	      {
-		tmp->used = 1;
-		return 1;
-	      }
+	      ret = tmp->used = 1;
 #endif
 	  }          
-      return 0;
     }
   
-  return 1; 
+  for (tmp = daemon->if_except; tmp; tmp = tmp->next)
+    if (tmp->name && (strcmp(tmp->name, name) == 0))
+      ret = 0;
+  
+  return ret; 
 }
       
 static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_index, 
@@ -184,9 +180,7 @@ int enumerate_interfaces(struct daemon *daemon)
 #endif
 }
 
-#if defined(HAVE_IPV6) && \
-       (defined(HAVE_LINUX_NETWORK) || \
-       (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
+#if defined(HAVE_IPV6)
 static int create_ipv6_listener(struct listener **link, int port)
 {
   union mysockaddr addr;
@@ -254,10 +248,6 @@ static int create_ipv6_listener(struct listener **link, int port)
 
 struct listener *create_wildcard_listeners(int port)
 {
-#if !(defined(HAVE_LINUX_NETWORK) || (defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR)))
-  port = 0; /* eliminate warning */
-  return NULL;
-#else
   union mysockaddr addr;
   int opt = 1;
   struct listener *l, *l6 = NULL;
@@ -311,8 +301,6 @@ struct listener *create_wildcard_listeners(int port)
   l->next = l6;
 
   return l;
-
-#endif
 }
 
 struct listener *create_bound_listeners(struct daemon *daemon)

@@ -1785,3 +1785,23 @@ version 2.28
             ignored, since this may be unreliable. This means that a DHCP 
             client must use the standard port to do full configuration.
  
+version 2.29
+	    Fixed compilation on OpenBSD (thanks to Tom Hensel for the
+	    report). 
+
+	    Fixed false "no interface" errors when --bind-interfaces is
+	    set along with --interface=lo or --listen-address. Thanks
+	    to Paul Wise for the report.
+
+	    Updated patch for SuSE rpm. Thanks to Steven Springl.
+
+	    It turns out that there are some Linux kernel
+	    configurations which make using the capability system
+	    impossible. If this situation occurs then continue, running
+	    as root, and log a warning. Thanks to Scott Wehrenberg
+	    for help tracking this down.
+
+
+
+
+

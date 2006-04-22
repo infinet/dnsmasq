@@ -48,6 +48,7 @@ int main (int argc, char **argv)
 {
   struct daemon *daemon;
   int bind_fallback = 0;
+  int bad_capabilities = 0;
   time_t now, last = 0;
   struct sigaction sigact;
   struct iname *if_tmp;
@@ -95,18 +96,19 @@ int main (int argc, char **argv)
   
 #ifdef HAVE_LINUX_NETWORK
   netlink_init(daemon);
-#endif
-  
-  daemon->interfaces = NULL;
-  if (!enumerate_interfaces(daemon))
-    die(_("failed to find list of interfaces: %s"), NULL);
-
-  if (!(daemon->options & OPT_NOWILD) && 
-      !(daemon->listeners = create_wildcard_listeners(daemon->port)))
+#elif !(defined(IP_RECVDSTADDR) && \
+	defined(IP_RECVIF) && \
+	defined(IP_SENDSRCADDR))
+  if (!(daemon->options & OPT_NOWILD))
     {
       bind_fallback = 1;
       daemon->options |= OPT_NOWILD;
     }
+#endif
+
+  daemon->interfaces = NULL;
+  if (!enumerate_interfaces(daemon))
+    die(_("failed to find list of interfaces: %s"), NULL);
     
   if (daemon->options & OPT_NOWILD) 
     {
@@ -123,6 +125,8 @@ int main (int argc, char **argv)
 	    die(_("no interface with address %s"), daemon->namebuff);
 	  }
     }
+  else if (!(daemon->listeners = create_wildcard_listeners(daemon->port)))
+    die(_("failed to create listening socket: %s"), NULL);
   
   forward_init(1);
   cache_init(daemon->cachesize, daemon->options & OPT_LOG);
@@ -222,7 +226,10 @@ int main (int argc, char **argv)
 	  	  
 	  /* Tell kernel to not clear capabilities when dropping root */
 	  if (capset(hdr, data) == -1 || prctl(PR_SET_KEEPCAPS, 1) == -1)
-	    die(_("Cannot set capabilities: %s"), NULL);
+	    {
+	      bad_capabilities = errno;
+	      ent_pw = NULL;
+	    }
 	}
 #endif
 
@@ -362,7 +369,14 @@ int main (int argc, char **argv)
     }
 
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
-    syslog(LOG_WARNING, _("running as root"));
+    {
+      if (bad_capabilities)
+	{
+	  errno = bad_capabilities;
+	  syslog(LOG_WARNING, _("warning: setting capabilities failed: %m"));
+	}
+      syslog(LOG_WARNING, _("running as root"));
+    }
   
   check_servers(daemon);
   

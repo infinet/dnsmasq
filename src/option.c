@@ -648,8 +648,6 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		   "interface=" to disable all interfaces except loop. */
 		new->name = safe_string_alloc(arg);
 		new->isloop = new->used = 0;
-		if (safe_strchr(new->name, ':'))
-		  daemon->options |= OPT_NOWILD;
 		arg = comma;
 	      } while (arg);
 	      break;
@@ -665,8 +663,6 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 		  {
 		    new->next = daemon->if_except;
 		    daemon->if_except = new;
-		    if (safe_strchr(new->name, ':'))
-		      daemon->options |= OPT_NOWILD;
 		  }
 		else
 		  {

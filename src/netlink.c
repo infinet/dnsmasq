@@ -36,8 +36,18 @@ void netlink_init(struct daemon *daemon)
   addr.nl_groups = RTMGRP_IPV4_ROUTE;
 #endif
   
-  if ((daemon->netlinkfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) == -1 ||
-      bind(daemon->netlinkfd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+  /* May not be able to have permission to set multicast groups don't die in that case */
+  if ((daemon->netlinkfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) != -1)
+    {
+      if (bind(daemon->netlinkfd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+	{
+	  addr.nl_groups = 0;
+	  if (errno != EPERM || bind(daemon->netlinkfd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+	    daemon->netlinkfd = -1;
+	}
+    }
+  
+  if (daemon->netlinkfd == -1)
     die(_("cannot create RTnetlink socket: %s"), NULL);
   
   iov.iov_len = 200;
