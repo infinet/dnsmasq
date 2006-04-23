@@ -184,7 +184,7 @@ int enumerate_interfaces(struct daemon *daemon)
 static int create_ipv6_listener(struct listener **link, int port)
 {
   union mysockaddr addr;
-  int tcpfd, fd, flags, save;
+  int tcpfd, fd, flags;
   struct listener *l;
   int opt = 1;
 
@@ -204,13 +204,8 @@ static int create_ipv6_listener(struct listener **link, int port)
 	    errno == EINVAL);
   
   if ((tcpfd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
-    {
-      save = errno;
-      close(fd);
-      errno = save;
-      return 0;
-    }
-  
+    return 0;
+      
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
@@ -227,14 +222,8 @@ static int create_ipv6_listener(struct listener **link, int port)
       bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
       listen(tcpfd, 5) == -1 ||
       bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1) 
-    {
-      save = errno;
-      close(fd);
-      close(tcpfd);
-      errno = save;
-      return 0;
-    }
-  
+    return 0;
+      
   l = safe_malloc(sizeof(struct listener));
   l->fd = fd;
   l->tcpfd = tcpfd;
@@ -261,14 +250,9 @@ struct listener *create_wildcard_listeners(int port)
   addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
 
-  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ||
+      (tcpfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     return NULL;
-  
-  if ((tcpfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    {
-      close (fd);
-      return NULL;
-    }
   
   if (setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
@@ -288,12 +272,8 @@ struct listener *create_wildcard_listeners(int port)
       setsockopt(fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
 #endif 
       bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-    {
-      close(fd);
-      close(tcpfd);
-      return NULL;
-    }
-  
+    return NULL;
+      
   l = safe_malloc(sizeof(struct listener));
   l->family = AF_INET;
   l->fd = fd;

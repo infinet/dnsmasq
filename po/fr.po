@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-04-21 19:59+0100\n"
+"POT-Creation-Date: 2006-04-23 19:58+0100\n"
 "PO-Revision-Date: 2005-10-02 19:05+0100\n"
 "Last-Translator:  Lionel Tricon <lionel.tricon@free.fr>\n"
 "Language-Team: French <traduc@traduc.org>\n"
@@ -20,17 +20,17 @@ msgstr ""
 msgid "failed to load names from %s: %m"
 msgstr "Impossible de charger les noms a partir de %s: %m"
 
-#: cache.c:606 dhcp.c:654
+#: cache.c:606 dhcp.c:655
 #, fuzzy, c-format
 msgid "bad address at %s line %d"
 msgstr "mauvais nom dans %s ligne %d"
 
-#: cache.c:633 dhcp.c:668
+#: cache.c:633 dhcp.c:669
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "mauvais nom dans %s ligne %d"
 
-#: cache.c:639 dhcp.c:722
+#: cache.c:639 dhcp.c:723
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "lecture %s - %d adresses"
@@ -519,7 +519,7 @@ msgstr ""
 "on doit avoir exactement un seul fichier resolv.conf pour y recuperer le nom "
 "de domaine."
 
-#: option.c:1884 network.c:501
+#: option.c:1884 network.c:481
 #, c-format
 msgid "failed to read %s: %m"
 msgstr "impossible de lire %s: %m"
@@ -550,7 +550,7 @@ msgstr "impossible d'acceder a %s: %m"
 msgid "failed to load %s: %m"
 msgstr "impossible de charger %s: %m"
 
-#: isc.c:93 network.c:505
+#: isc.c:93 network.c:485
 #, c-format
 msgid "reading %s"
 msgstr "Lecture %s"
@@ -566,59 +566,59 @@ msgid "Ignoring DHCP lease for %s because it has an illegal domain part"
 msgstr ""
 "On ignore le bail DHCP pour %s car il possede un nom de domaine illegal"
 
-#: network.c:328 dnsmasq.c:129
+#: network.c:308 dnsmasq.c:129
 #, c-format
 msgid "failed to create listening socket: %s"
 msgstr "impossible de creer une socket de lecture: %s"
 
-#: network.c:335
+#: network.c:315
 #, c-format
 msgid "failed to set IPV6 options on listening socket: %s"
 msgstr "impossible d'activer les options IPV6 sur la socket de lecture: %s"
 
-#: network.c:353
+#: network.c:333
 #, c-format
 msgid "failed to bind listening socket for %s: %s"
 msgstr "impossible de lier la socket de lecture pour %s: %s"
 
-#: network.c:361
+#: network.c:341
 #, c-format
 msgid "failed to listen on socket: %s"
 msgstr "impossible de lire sur la socket: %s"
 
-#: network.c:431
+#: network.c:411
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "on ignore le serveur de nom %s - interface locale"
 
-#: network.c:440
+#: network.c:420
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %m"
 msgstr "on ignore le serveur de nom %s - ne peut construire/lier la socket: %m"
 
-#: network.c:454
+#: network.c:434
 msgid "domain"
 msgstr "domaine"
 
-#: network.c:456
+#: network.c:436
 msgid "unqualified"
 msgstr "non-qualifie"
 
-#: network.c:456
+#: network.c:436
 msgid "domains"
 msgstr "domaines"
 
-#: network.c:459
+#: network.c:439
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "on utilise les adresses locales seulement pour %s %s"
 
-#: network.c:461
+#: network.c:441
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "on utilise le serveur de nom %s#%d pour %s %s"
 
-#: network.c:464
+#: network.c:444
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "on utilise le serveur de nom %s#%d"
@@ -754,29 +754,29 @@ msgstr "ne peut creer de socket en mode raw pour ICMP: %s."
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "adresse IP %s dupliquee dans la directive dhcp-config."
 
-#: dhcp.c:306
+#: dhcp.c:307
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr ""
 "La plage d'adresses DHCP %s -- %s n'est pas coherente avec le masque de "
 "reseau %s"
 
-#: dhcp.c:622
+#: dhcp.c:623
 #, c-format
 msgid "failed to read %s:%m"
 msgstr "impossible de lire %s:%m"
 
-#: dhcp.c:641
+#: dhcp.c:642
 #, fuzzy, c-format
 msgid "bad line at %s line %d"
 msgstr "mauvais nom dans %s ligne %d"
 
-#: dhcp.c:745
+#: dhcp.c:746
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "adresse IP %s (%s) dupliquee dans la directive dhcp-config."
 
-#: dhcp.c:781
+#: dhcp.c:782
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr ""

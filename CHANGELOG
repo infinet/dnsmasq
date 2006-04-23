@@ -1801,6 +1801,11 @@ version 2.29
 	    as root, and log a warning. Thanks to Scott Wehrenberg
 	    for help tracking this down.
 
+version 2.30
+            Fixed crash when a DHCP client requested a broadcast
+            reply. This problem was introduced in version 2.29.
+	    Thanks to Sandra Dekkers for the bug report.
+
 
 
 

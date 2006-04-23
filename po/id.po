@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-04-21 19:59+0100\n"
+"POT-Creation-Date: 2006-04-23 19:58+0100\n"
 "PO-Revision-Date: 2005-10-07 11:45+0100\n"
 "Last-Translator: Salman AS <sas@salman.or.id>\n"
 "Language-Team: Indonesian <translation-team-id@lists.sourceforge.net>\n"
@@ -21,19 +21,19 @@ msgid "failed to load names from %s: %m"
 msgstr "gagal memuat nama-nama dari %s: %m"
 
 # OK
-#: cache.c:606 dhcp.c:654
+#: cache.c:606 dhcp.c:655
 #, fuzzy, c-format
 msgid "bad address at %s line %d"
 msgstr "kesalahan nama pada %s baris %d"
 
 # OK
-#: cache.c:633 dhcp.c:668
+#: cache.c:633 dhcp.c:669
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "kesalahan nama pada %s baris %d"
 
 # OK
-#: cache.c:639 dhcp.c:722
+#: cache.c:639 dhcp.c:723
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "membaca %s - %d alamat"
@@ -605,7 +605,7 @@ msgid "must have exactly one resolv.conf to read domain from."
 msgstr "harus mempunyai tepat satu resolv.conf untuk mendapatkan nama domain."
 
 # OK
-#: option.c:1884 network.c:501
+#: option.c:1884 network.c:481
 #, c-format
 msgid "failed to read %s: %m"
 msgstr "gagal membaca %s: %m"
@@ -640,7 +640,7 @@ msgid "failed to load %s: %m"
 msgstr "gagal memuat %S: %m"
 
 # OK
-#: isc.c:93 network.c:505
+#: isc.c:93 network.c:485
 #, c-format
 msgid "reading %s"
 msgstr "membaca %s"
@@ -659,69 +659,69 @@ msgstr ""
 "Mengabaikan lease DHCP untuk %s sebab terdapat bagian domain yang tidak sah"
 
 # OK
-#: network.c:328 dnsmasq.c:129
+#: network.c:308 dnsmasq.c:129
 #, c-format
 msgid "failed to create listening socket: %s"
 msgstr "gagal membuat socket: %s "
 
 # OK
-#: network.c:335
+#: network.c:315
 #, c-format
 msgid "failed to set IPV6 options on listening socket: %s"
 msgstr "gagal menyetel IPV6 pada socket: %s"
 
-#: network.c:353
+#: network.c:333
 #, c-format
 msgid "failed to bind listening socket for %s: %s"
 msgstr "gagal mem-bind socket untuk mendengarkan %s: %s"
 
 # OK
-#: network.c:361
+#: network.c:341
 #, c-format
 msgid "failed to listen on socket: %s"
 msgstr "gagal mendengarkan di socket: %s"
 
 # OK
-#: network.c:431
+#: network.c:411
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "mengabaikan nameserver %s - antarmuka lokal"
 
 # OK
-#: network.c:440
+#: network.c:420
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %m"
 msgstr "mengabaikan nameserver %s - tak dapat membuat/mem-bind socket: %m"
 
 # OK
-#: network.c:454
+#: network.c:434
 msgid "domain"
 msgstr "domain"
 
 # OK
-#: network.c:456
+#: network.c:436
 msgid "unqualified"
 msgstr "tidak memenuhi syarat"
 
 # OK
-#: network.c:456
+#: network.c:436
 msgid "domains"
 msgstr "domain-domain"
 
 # OK
-#: network.c:459
+#: network.c:439
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "menggunakan alamat lokal saja untuk %s %s"
 
 # OK
-#: network.c:461
+#: network.c:441
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "menggunakan nameserver %s#%d untuk %s %s"
 
 # OK
-#: network.c:464
+#: network.c:444
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "menggunakan nameserver %s#%d"
@@ -883,31 +883,31 @@ msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "alamat IP kembar %s dalam direktif dhcp-config"
 
 # OK
-#: dhcp.c:306
+#: dhcp.c:307
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr "jangkauan DHCP %s -- %s tidak konsisten dengan netmask %s"
 
 # OK
-#: dhcp.c:622
+#: dhcp.c:623
 #, c-format
 msgid "failed to read %s:%m"
 msgstr "gagal membaca %s:%m"
 
 # OK
-#: dhcp.c:641
+#: dhcp.c:642
 #, fuzzy, c-format
 msgid "bad line at %s line %d"
 msgstr "kesalahan nama pada %s baris %d"
 
 # OK
-#: dhcp.c:745
+#: dhcp.c:746
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "alamat IP kembar %s (%s) dalam direktif dhcp-config"
 
 # OK
-#: dhcp.c:781
+#: dhcp.c:782
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr ""

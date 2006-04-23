@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.29"
+#define VERSION "2.30"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */

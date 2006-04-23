@@ -241,6 +241,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     {
       /* broadcast to 255.255.255.255 */
       struct in_pktinfo *pkt;
+      msg.msg_control = control_u.control;
       msg.msg_controllen = sizeof(control_u);
       cmptr = CMSG_FIRSTHDR(&msg);
       dest.sin_addr.s_addr = INADDR_BROADCAST;

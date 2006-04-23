@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-04-21 19:59+0100\n"
+"POT-Creation-Date: 2006-04-23 19:58+0100\n"
 "PO-Revision-Date: 2005-09-27 09:37+0100\n"
 "Last-Translator: Simon Kelley <simon@thekelleys.org.uk>\n"
 "Language-Team: German <de@li.org>\n"
@@ -20,19 +20,19 @@ msgstr ""
 msgid "failed to load names from %s: %m"
 msgstr ""
 
-#: cache.c:606 dhcp.c:654
+#: cache.c:606 dhcp.c:655
 #, c-format
 msgid "bad address at %s line %d"
 msgstr ""
 
 # @Simon: Here I need an example to understand it :)
-#: cache.c:633 dhcp.c:668
+#: cache.c:633 dhcp.c:669
 #, c-format
 msgid "bad name at %s line %d"
 msgstr ""
 
 # @Simon: Here I need an example to understand it :)
-#: cache.c:639 dhcp.c:722
+#: cache.c:639 dhcp.c:723
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "lese %s - %d Adressen"
@@ -537,7 +537,7 @@ msgstr ""
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr ""
 
-#: option.c:1884 network.c:501
+#: option.c:1884 network.c:481
 #, c-format
 msgid "failed to read %s: %m"
 msgstr ""
@@ -566,7 +566,7 @@ msgstr ""
 msgid "failed to load %s: %m"
 msgstr ""
 
-#: isc.c:93 network.c:505
+#: isc.c:93 network.c:485
 #, c-format
 msgid "reading %s"
 msgstr ""
@@ -581,59 +581,59 @@ msgstr ""
 msgid "Ignoring DHCP lease for %s because it has an illegal domain part"
 msgstr ""
 
-#: network.c:328 dnsmasq.c:129
+#: network.c:308 dnsmasq.c:129
 #, c-format
 msgid "failed to create listening socket: %s"
 msgstr ""
 
-#: network.c:335
+#: network.c:315
 #, c-format
 msgid "failed to set IPV6 options on listening socket: %s"
 msgstr ""
 
-#: network.c:353
+#: network.c:333
 #, c-format
 msgid "failed to bind listening socket for %s: %s"
 msgstr ""
 
-#: network.c:361
+#: network.c:341
 #, c-format
 msgid "failed to listen on socket: %s"
 msgstr ""
 
-#: network.c:431
+#: network.c:411
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr ""
 
-#: network.c:440
+#: network.c:420
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %m"
 msgstr ""
 
-#: network.c:454
+#: network.c:434
 msgid "domain"
 msgstr ""
 
-#: network.c:456
+#: network.c:436
 msgid "unqualified"
 msgstr ""
 
-#: network.c:456
+#: network.c:436
 msgid "domains"
 msgstr ""
 
-#: network.c:459
+#: network.c:439
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr ""
 
-#: network.c:461
+#: network.c:441
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr ""
 
-#: network.c:464
+#: network.c:444
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr ""
@@ -765,27 +765,27 @@ msgstr ""
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr ""
 
-#: dhcp.c:306
+#: dhcp.c:307
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr ""
 
-#: dhcp.c:622
+#: dhcp.c:623
 #, c-format
 msgid "failed to read %s:%m"
 msgstr ""
 
-#: dhcp.c:641
+#: dhcp.c:642
 #, c-format
 msgid "bad line at %s line %d"
 msgstr ""
 
-#: dhcp.c:745
+#: dhcp.c:746
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr ""
 
-#: dhcp.c:781
+#: dhcp.c:782
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr ""
