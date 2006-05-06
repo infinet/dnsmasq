@@ -396,3 +396,17 @@ int expand_buf(struct iovec *iov, size_t size)
 
   return 1;
 }
+
+char *print_mac(struct daemon *daemon, unsigned char *mac, int len)
+{
+  char *p = daemon->namebuff;
+  int i;
+   
+  if (len == 0)
+    sprintf(p, "<null>");
+  else
+    for (i = 0; i < len; i++)
+      p += sprintf(p, "%.2x%s", mac[i], (i == len - 1) ? "" : ":");
+  
+  return daemon->namebuff;
+}

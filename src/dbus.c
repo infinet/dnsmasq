@@ -240,7 +240,7 @@ DBusHandlerResult message_handler(DBusConnection *connection,
       check_servers(daemon);
     }
   else if (strcmp(method, "ClearCache") == 0)
-    clear_cache_and_reload(daemon);
+    clear_cache_and_reload(daemon, dnsmasq_time());
   else
     return (DBUS_HANDLER_RESULT_NOT_YET_HANDLED);
   
@@ -260,7 +260,7 @@ char *dbus_init(struct daemon *daemon)
   dbus_error_init (&dbus_error);
   if (!(connection = dbus_bus_get (DBUS_BUS_SYSTEM, &dbus_error)))
     return NULL;
-
+    
   dbus_connection_set_exit_on_disconnect(connection, FALSE);
   dbus_connection_set_watch_functions(connection, add_watch, remove_watch, 
 				      NULL, (void *)daemon, NULL);

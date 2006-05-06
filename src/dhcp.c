@@ -25,14 +25,13 @@ void dhcp_init(struct daemon *daemon)
 {
   int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   struct sockaddr_in saddr;
-  int flags, oneopt = 1;
+  int oneopt = 1;
   struct dhcp_config *configs, *cp;
 
   if (fd == -1)
     die (_("cannot create DHCP socket : %s"), NULL);
   
-  if ((flags = fcntl(fd, F_GETFL, 0)) == -1 ||
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+  if (!fix_fd(fd) ||
 #if defined(HAVE_LINUX_NETWORK)
       setsockopt(fd, SOL_IP, IP_PKTINFO, &oneopt, sizeof(oneopt)) == -1 ||
 #elif defined(IP_RECVIF)
@@ -203,8 +202,9 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     return;
   lease_prune(NULL, now); /* lose any expired leases */
   iov.iov_len = dhcp_reply(daemon, parm.current, ifr.ifr_name, (size_t)sz, now, unicast_dest);
-  lease_update_file(daemon);
+  lease_update_file(daemon, now);
   lease_update_dns(daemon);
+  lease_collect(daemon);
   
   if (iov.iov_len == 0)
     return;
@@ -258,9 +258,18 @@ void dhcp_packet(struct daemon *daemon, time_t now)
       /* unicast to unconfigured client */
       dest.sin_addr = mess->yiaddr;
       dest.sin_port = htons(DHCP_CLIENT_PORT);
-      if (mess->hlen != 0 && mess->htype != 0)
-	arp_inject(daemon->netlinkfd, mess->yiaddr, iface_index,
-		   mess->chaddr, mess->hlen);
+      if (mess->hlen != 0 && mess->hlen <= 14 && mess->htype != 0)
+	{
+	  /* inject mac address direct into ARP cache. 
+	     struct sockaddr limits size to 14 bytes. */
+	  struct arpreq req;
+	  *((struct sockaddr_in *)&req.arp_pa) = dest;
+	  req.arp_ha.sa_family = mess->htype;
+	  memcpy(req.arp_ha.sa_data, mess->chaddr, mess->hlen);
+	  strncpy(req.arp_dev, ifr.ifr_name, 16);
+	  req.arp_flags = ATF_COM;
+	  ioctl(daemon->dhcpfd, SIOCSARP, &req);
+	}
     }
 #else
   else 

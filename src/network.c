@@ -180,11 +180,25 @@ int enumerate_interfaces(struct daemon *daemon)
 #endif
 }
 
+/* set NONBLOCK and CLOEXEC bits on fd: See Stevens 16.6 */
+int fix_fd(int fd)
+{
+  int flags;
+
+  if ((flags = fcntl(fd, F_GETFL)) == -1 ||
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+      (flags = fcntl(fd, F_GETFD)) == -1 ||
+      fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
+    return 0;
+
+  return 1;
+}
+
 #if defined(HAVE_IPV6)
 static int create_ipv6_listener(struct listener **link, int port)
 {
   union mysockaddr addr;
-  int tcpfd, fd, flags;
+  int tcpfd, fd;
   struct listener *l;
   int opt = 1;
 
@@ -210,10 +224,8 @@ static int create_ipv6_listener(struct listener **link, int port)
       setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
       setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
-      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-      (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
-      fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+      !fix_fd(fd) ||
+      !fix_fd(tcpfd) ||
 #ifdef IPV6_RECVPKTINFO
       setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1 ||
 #else
@@ -240,7 +252,6 @@ struct listener *create_wildcard_listeners(int port)
   union mysockaddr addr;
   int opt = 1;
   struct listener *l, *l6 = NULL;
-  int flags;
   int tcpfd, fd;
 
   addr.in.sin_family = AF_INET;
@@ -257,14 +268,12 @@ struct listener *create_wildcard_listeners(int port)
   if (setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
       listen(tcpfd, 5) == -1 ||
-      (flags = fcntl(tcpfd, F_GETFL, 0)) == -1 ||
-      fcntl(tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+      !fix_fd(tcpfd) ||
 #ifdef HAVE_IPV6
       !create_ipv6_listener(&l6, port) ||
 #endif
       setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-      (flags = fcntl(fd, F_GETFL, 0)) == -1 ||
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
+      !fix_fd(fd) ||
 #if defined(HAVE_LINUX_NETWORK) 
       setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
@@ -288,7 +297,7 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 
   struct listener *listeners = NULL;
   struct irec *iface;
-  int flags, opt = 1;
+  int opt = 1;
   
   for (iface = daemon->interfaces; iface; iface = iface->next)
     {
@@ -300,11 +309,8 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 	  (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
 	  setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 	  setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  /* See Stevens 16.6 */
-	  (flags = fcntl(new->tcpfd, F_GETFL, 0)) == -1 ||
-	  fcntl(new->tcpfd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-	  (flags = fcntl(new->fd, F_GETFL, 0)) == -1 ||
-	  fcntl(new->fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	  !fix_fd(new->tcpfd) ||
+	  !fix_fd(new->fd))
 	die(_("failed to create listening socket: %s"), NULL);
       
 #ifdef HAVE_IPV6
@@ -348,7 +354,6 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
 {
   struct serverfd *sfd;
-  int flags;
 
   /* may have a suitable one already */
   for (sfd = *sfds; sfd; sfd = sfd->next )
@@ -367,8 +372,7 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
     }
   
   if (bind(sfd->fd, (struct sockaddr *)addr, sa_len(addr)) == -1 ||
-      (flags = fcntl(sfd->fd, F_GETFL, 0)) == -1 ||
-      fcntl(sfd->fd, F_SETFL, flags | O_NONBLOCK) == -1)
+      !fix_fd(sfd->fd))
     {
       int errsave = errno; /* save error from bind. */
       close(sfd->fd);

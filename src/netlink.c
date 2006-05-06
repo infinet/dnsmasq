@@ -48,8 +48,14 @@ void netlink_init(struct daemon *daemon)
     }
   
   if (daemon->netlinkfd == -1)
-    die(_("cannot create RTnetlink socket: %s"), NULL);
-  
+    die(_("cannot create netlink socket: %s"), NULL);
+  else
+    {
+      int flags = fcntl(daemon->netlinkfd, F_GETFD);
+      if (flags != -1)
+	fcntl(daemon->netlinkfd, F_SETFD, flags | FD_CLOEXEC); 
+    }
+
   iov.iov_len = 200;
   iov.iov_base = safe_malloc(iov.iov_len);
 }
@@ -114,7 +120,7 @@ int iface_enumerate(struct daemon *daemon, void *parm, int (*ipv4_callback)(), i
  again:
   req.nlh.nlmsg_len = sizeof(req);
   req.nlh.nlmsg_type = RTM_GETADDR;
-  req.nlh.nlmsg_flags = NLM_F_ROOT | NLM_F_MATCH | NLM_F_REQUEST;
+  req.nlh.nlmsg_flags = NLM_F_ROOT | NLM_F_MATCH | NLM_F_REQUEST | NLM_F_ACK; 
   req.nlh.nlmsg_pid = 0;
   req.nlh.nlmsg_seq = ++seq;
   req.g.rtgen_family = family; 
@@ -215,7 +221,7 @@ static void nl_err(struct nlmsghdr *h)
 {
   struct nlmsgerr *err = NLMSG_DATA(h);
   if (err->error != 0)
-    syslog(LOG_ERR, _("RTnetlink returns error: %s"), strerror(-(err->error)));
+    syslog(LOG_ERR, _("netlink returns error: %s"), strerror(-(err->error)));
 }
 
 /* We arrange to receive netlink multicast messages whenever the network route is added.
@@ -234,45 +240,6 @@ static void nl_routechange(struct daemon *daemon, struct nlmsghdr *h)
 		     &daemon->srv_save->addr.sa, sa_len(&daemon->srv_save->addr)) == -1 && retry_send()); 
     }
 }
-
-void arp_inject(int fd, struct in_addr ip_addr, int iface, 
-		unsigned char *mac, unsigned int mac_len)
-{
-  struct sockaddr_nl addr;
-  struct {
-    struct nlmsghdr nlh;
-    struct ndmsg m;
-    struct rtattr addr_attr;
-    struct in_addr addr;
-    struct rtattr ll_attr;
-    char mac[DHCP_CHADDR_MAX];
-  } req;
-  
-  memset(&req, 0, sizeof(req));
-  memset(&addr, 0, sizeof(addr));
-
-  addr.nl_family = AF_NETLINK;
-
-  req.nlh.nlmsg_len = sizeof(req);
-  req.nlh.nlmsg_type = RTM_NEWNEIGH;
-  req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE | NLM_F_CREATE;
-
-  req.m.ndm_family = AF_INET;
-  req.m.ndm_ifindex = iface;
-  req.m.ndm_state = NUD_REACHABLE;
-
-  req.addr_attr.rta_type = NDA_DST;
-  req.addr_attr.rta_len = RTA_LENGTH(sizeof(struct in_addr));
-  req.addr = ip_addr;
-
-  req.ll_attr.rta_type = NDA_LLADDR;
-  req.ll_attr.rta_len = RTA_LENGTH(mac_len);
-  memcpy(req.mac, mac, mac_len);
-
-  while(sendto(fd, (void *)&req, sizeof(req), 0, (struct sockaddr *)&addr, sizeof(addr)) == -1 && 
-	retry_send());
-}
-
 #endif
 
       

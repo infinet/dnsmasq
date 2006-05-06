@@ -19,7 +19,7 @@ struct myoption {
   int val;
 };
 
-#define OPTSTRING "531yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:4:"
+#define OPTSTRING "531yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:4:6:"
 
 static const struct myoption opts[] = { 
   {"version", 0, 0, 'v'},
@@ -82,6 +82,7 @@ static const struct myoption opts[] = {
   {"bootp-dynamic", 0, 0, '3'},
   {"dhcp-mac", 1, 0, '4'},
   {"no-ping", 0, 0, '5'},
+  {"dhcp-script", 1, 0, '6'},
   {0, 0, 0, 0}
 };
 
@@ -180,6 +181,7 @@ static const struct {
   { "-3, --bootp-dynamic", gettext_noop("Enable dynamic address allocation for bootp."), NULL },
   { "-4, --dhcp-mac=<id>,<mac address>", gettext_noop("Map MAC address (with wildcards) to option set."), NULL },
   { "-5, --no-ping", gettext_noop("Disable ICMP echo address checking in the DHCP server."), NULL },
+  { "-6, --dhcp-script=path", gettext_noop("Script to run on DHCP lease creation and destruction."), NULL },
   { NULL, NULL, NULL }
 }; 
 
@@ -608,6 +610,15 @@ struct daemon *read_opts (int argc, char **argv, char *compile_opts)
 	      
 	    case 'l':
 	      daemon->lease_file = safe_string_alloc(arg);
+	      break;
+
+	    case '6':
+#ifdef NO_FORK
+	      problem = _("cannot run scripts under uClinux");
+	      option = '?';
+#else
+	      daemon->lease_change_command = safe_string_alloc(arg);
+#endif
 	      break;
 	      
 	    case 'H':

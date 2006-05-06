@@ -288,7 +288,9 @@ struct dhcp_lease {
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
   char *hostname, *fqdn; /* name from client-hostname option or config */
-  int auth_name;         /* hostname came from config, not from client */
+  char auth_name;        /* hostname came from config, not from client */
+  char new;              /* newly created */
+  char old;              /* read from leasefile */
   time_t expires;        /* lease expiry */
 #ifdef HAVE_BROKEN_RTC
   unsigned int length;
@@ -411,6 +413,7 @@ struct daemon {
   char *username, *groupname;
   char *domain_suffix;
   char *runfile; 
+  char *lease_change_command;
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except;
   struct bogus_addr *bogus_addr;
   struct server *servers;
@@ -440,6 +443,7 @@ struct daemon {
   struct server *last_server;
   struct server *srv_save; /* Used for resend on DoD */
   size_t packet_len;       /*      "        "        */
+  pid_t script_pid, tcp_pids[MAX_PROCS];
   int num_kids;
   
   /* DHCP state */
@@ -522,6 +526,8 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, 
 		  unsigned int mask);
 int expand_buf(struct iovec *iov, size_t size);
+char *print_mac(struct daemon *daemon, unsigned char *mac, int len);
+
 /* option.c */
 struct daemon *read_opts (int argc, char **argv, char *compile_opts);
 
@@ -541,6 +547,7 @@ struct listener *create_wildcard_listeners(int port);
 struct listener *create_bound_listeners(struct daemon *daemon);
 int iface_check(struct daemon *daemon, int family, 
 		struct all_addr *addr, char *name);
+int fix_fd(int fd);
 
 /* dhcp.c */
 void dhcp_init(struct daemon *daemon);
@@ -564,12 +571,11 @@ char *strip_hostname(struct daemon *daemon, char *hostname);
 char *host_from_dns(struct daemon *daemon, struct in_addr addr);
 
 /* lease.c */
-void lease_update_file(struct daemon *daemon);
+void lease_update_file(struct daemon *daemon, time_t now);
 void lease_update_dns(struct daemon *daemon);
 void lease_init(struct daemon *daemon, time_t now);
-struct dhcp_lease *lease_allocate(unsigned char *hwaddr, unsigned char *clid,
-				  int hw_len, int hw_type, int clid_len, struct in_addr addr);
-int lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
+struct dhcp_lease *lease_allocate(struct in_addr addr);
+void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int hw_len, int hw_type, int clid_len);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, 
 			char *suffix, int auth);
@@ -579,6 +585,7 @@ struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr, int hw_len, int h
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
 void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(struct daemon *daemon);
+void lease_collect(struct daemon *daemon);
 
 /* rfc2131.c */
 size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, size_t sz, time_t now, int unicast_dest);
@@ -586,7 +593,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 /* dnsmasq.c */
 int make_icmp_sock(void);
 int icmp_ping(struct daemon *daemon, struct in_addr addr);
-void clear_cache_and_reload(struct daemon *daemon);
+void clear_cache_and_reload(struct daemon *daemon, time_t now);
 
 /* isc.c */
 #ifdef HAVE_ISC_READER
@@ -599,8 +606,6 @@ void netlink_init(struct daemon *daemon);
 int iface_enumerate(struct daemon *daemon, void *parm,
 		    int (*ipv4_callback)(), int (*ipv6_callback)());
 void netlink_multicast(struct daemon *daemon);
-void arp_inject(int fd, struct in_addr addr, 
-		int iface, unsigned char *mac, unsigned int mac_len);
 #endif
 
 /* bpf.c */

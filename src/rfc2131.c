@@ -72,7 +72,6 @@ static void bootp_option_put(struct dhcp_packet *mess,
 			     struct dhcp_boot *boot_opts, struct dhcp_netid *netids);
 static struct in_addr option_addr(unsigned char *opt);
 static unsigned int option_uint(unsigned char *opt, int size);
-static char *print_mac(struct daemon *daemon, unsigned char *mac, int len);
 static void log_packet(struct daemon *daemon, char *type, struct in_addr *addr, 
 		       struct dhcp_packet *mess, char *interface, char *string);
 static unsigned char *option_find(struct dhcp_packet *mess, size_t size, int opt_type, int minsize);
@@ -329,7 +328,9 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 		mess->yiaddr = lease->addr;
 	    }
 	  
-	  if (!message && !lease && (!(lease = lease_allocate(mess->chaddr, NULL, mess->hlen, mess->htype, 0, mess->yiaddr))))
+	  if (!message && 
+	      !lease && 
+	      (!(lease = lease_allocate(mess->yiaddr))))
 	    message = _("no leases left");
 	  
 	  if (!message && !(context = narrow_context(context, mess->yiaddr)))
@@ -730,7 +731,11 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  else if ((ltmp = lease_find_by_addr(mess->yiaddr)) && ltmp != lease)
 	    message = _("address in use");
 	  
-	  else if (!lease && !(lease = lease_allocate(mess->chaddr, clid, mess->hlen, mess->htype, clid_len, mess->yiaddr)))
+	  else if (!clid && mess->hlen == 0)
+	    message = _("no unique-id");
+	  
+	  else if (!lease && 
+		   !(lease = lease_allocate(mess->yiaddr)))
 	    message = _("no leases left");
 	}
       
@@ -855,25 +860,10 @@ static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *
   return time;
 }
 
-static char *print_mac(struct daemon *daemon, unsigned char *mac, int len)
-{
-  char *p = daemon->namebuff;
-  int i;
-   
-  if (len == 0)
-    sprintf(p, "<null> ");
-  else
-    for (i = 0; i < len; i++)
-      p += sprintf(p, "%.2x%s", mac[i], (i == len - 1) ? " " : ":");
-  
-  return daemon->namebuff;
-}
-
-
 static void log_packet(struct daemon *daemon, char *type, struct in_addr *addr, 
 		       struct dhcp_packet *mess, char *interface, char *string)
 {
-  syslog(LOG_INFO, "%s%s(%s) %s%s%s%s",
+  syslog(LOG_INFO, "%s%s(%s) %s%s%s %s",
 	 type ? "DHCP" : "BOOTP",
 	 type ? type : "",
 	 interface, 

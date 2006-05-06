@@ -1803,9 +1803,35 @@ version 2.29
 
 version 2.30
             Fixed crash when a DHCP client requested a broadcast
-            reply. This problem was introduced in version 2.29.
+            reply. This problem was introduced in version 2.28.
 	    Thanks to Sandra Dekkers for the bug report.
 
+version 2.31
+	    Added --dhcp-script option. There have been calls for this
+	    for a long time from many good people. Fabio Muzzi gets
+	    the prize for finally convincing me.
+
+	    Added example dbus config file and moved dbus stuff into
+	    its own directory.
+
+	    Removed horribly outdated Redhat RPM build files. These
+	    are obsolete now that dnsmasq in in Fedora extras. Thanks
+	    to Patrick "Jima" Laughton, the Fedora package
+	    maintainer.
+
+	    Added workaround for Linux kernel bug. This manifests
+	    itself as failure of DHCP on kernels with "support for
+	    classical IP over ATM" configured. That includes most
+	    Debian kernel packages. Many thanks to A. Costa and
+	    Benjamin Kudria for their huge efforts in chasing this
+	    down.
+
+	    Force-kill child processes when dnsmasq is sent a sigterm,
+	    otherwise an unclosed TCP connection could keep dnsmasq
+	    hanging round for a few minutes.
+
+	    Tweaked config.h logic for uclibc build. It will now pick
+	    up MMU and IPV6 status correctly on every system I tested.
 
 
 

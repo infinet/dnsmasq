@@ -48,7 +48,12 @@ void init_bpf(struct daemon *daemon)
 	{
 	  sprintf(ifreq.iov_base, "/dev/bpf%d", i++);
 	  if ((daemon->dhcp_raw_fd = open(ifreq.iov_base, O_RDWR, 0)) != -1)
-	    return;
+	    {
+	      int flags = fcntl(daemon->dhcp_raw_fd, F_GETFD);
+	      if (flags != -1)
+		fcntl(daemon->dhcp_raw_fd, F_SETFD, flags | FD_CLOEXEC); 
+	      return;
+	    }
 	}
       if (errno != EBUSY)
 	die(_("cannot create DHCP BPF socket: %s"), NULL);

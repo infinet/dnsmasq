@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.30"
+#define VERSION "2.31"
 
 #define FTABSIZ 150 /* max number of outstanding requests */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -79,7 +79,8 @@
 
 /* Get linux C library versions. */
 #if defined(__linux__) && !defined(__UCLIBC__) && !defined(__uClinux__)
-#  include <libio.h> 
+/*#  include <libio.h> */
+#  include <features.h> 
 #endif
 
 
@@ -203,11 +204,13 @@ NOTES:
 #define HAVE_DEV_URANDOM
 #define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
-#if !defined(__UCLIBC_HAS_MMU__)
+#if !defined(__ARCH_HAS_MMU__) && !defined(__UCLIBC_HAS_MMU__)
 #  define NO_FORK
 #endif
-#if !defined(__UCLIBC_HAS_IPV6__)
-#  define NO_IPV6
+#if defined(__UCLIBC_HAS_IPV6__)
+#  ifndef IPV6_V6ONLY
+#    define IPV6_V6ONLY 26
+#  endif
 #endif
 
 /* This is for glibc 2.x */
@@ -281,5 +284,4 @@ typedef unsigned long in_addr_t;
 #  undef HAVE_IPV6
 #  define ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
 #endif
-
 
