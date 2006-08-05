@@ -5,7 +5,7 @@
 ###############################################################################
 
 Name: dnsmasq
-Version: 2.32
+Version: 2.33
 Release: 1
 Copyright: GPL
 Group: Productivity/Networking/DNS/Servers
@@ -106,6 +106,6 @@ rm -rf $RPM_BUILD_ROOT
 /usr/sbin/dnsmasq
 /usr/share/locale/*/LC_MESSAGES/*
 %doc %{_mandir}/man8/dnsmasq.8.gz
-
+%doc %{_mandir}/*/man8/dnsmasq.8.gz
 
 

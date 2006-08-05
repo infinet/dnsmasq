@@ -9,12 +9,14 @@ MAN = man
 
 CFLAGS?= -O2
 
-all : 
+all :   dnsmasq
+
+dnsmasq :
 	$(MAKE) I18N=-DNO_GETTEXT -f ../bld/Makefile -C $(SRC) dnsmasq 
 
 clean :
 	rm -f *~ $(SRC)/*.mo contrib/*/*~ */*~ $(SRC)/*.pot 
-	rm -f $(SRC)/*.o $(SRC)/dnsmasq core */core
+	rm -f $(SRC)/*.o $(SRC)/dnsmasq.a $(SRC)/dnsmasq core */core
 
 install : all install-common
 
@@ -26,7 +28,7 @@ install-common :
 all-i18n :
 	$(MAKE) I18N=-DLOCALEDIR='\"$(LOCALEDIR)\"' -f ../bld/Makefile -C $(SRC) dnsmasq
 	cd $(PO); for f in *.po; do \
-		$(MAKE) -f ../bld/Makefile -C ../$(SRC) $${f/.po/.mo}; \
+		$(MAKE) -f ../bld/Makefile -C ../$(SRC) $${f%.po}.mo; \
 	done
 
 install-i18n : all-i18n install-common

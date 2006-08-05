@@ -24,7 +24,7 @@ struct myoption {
 };
 #endif
 
-#define OPTSTRING "531yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:4:6:7:8:"
+#define OPTSTRING "9531yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:4:6:7:8:0:"
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -95,6 +95,8 @@ static const struct myoption opts[] =
     {"dhcp-script", 1, 0, '6'},
     {"conf-dir", 1, 0, '7'},
     {"log-facility", 1, 0 ,'8'},
+    {"leasefile-ro", 0, 0, '9'},
+    {"dns-forward-max", 1, 0, '0'},
     { NULL, 0, 0, 0 }
   };
 
@@ -125,6 +127,7 @@ static const struct optflags optmap[] = {
   { '1', OPT_DBUS },
   { '3', OPT_BOOTP_DYNAMIC },
   { '5', OPT_NO_PING },
+  { '9', OPT_LEASE_RO },
   { 'v', 0},
   { 'w', 0},
   { 0, 0 }
@@ -195,7 +198,9 @@ static const struct {
   { "-5, --no-ping", gettext_noop("Disable ICMP echo address checking in the DHCP server."), NULL },
   { "-6, --dhcp-script=path", gettext_noop("Script to run on DHCP lease creation and destruction."), NULL },
   { "-7, --conf-dir=path", gettext_noop("Read configuration from all the files in this directory."), NULL },
-  { "-8, --log-facility=facilty", gettext_noop("Log to this syslog facility."), NULL },
+  { "-8, --log-facility=facilty", gettext_noop("Log to this syslog facility. (defaults to DAEMON)"), NULL },
+  { "-9, --leasefile-ro", gettext_noop("Read leases at startup, but never write the lease file."), NULL },
+  { "-0, --dns-forward-max=<queries>", gettext_noop("Maximum number of concurrent DNS queries. (defaults to %s)"), "!" }, 
   { NULL, NULL, NULL }
 }; 
 
@@ -324,6 +329,8 @@ static void do_usage(void)
 	    sprintf(buff, "%d", EDNS_PKTSZ);
 	  else if (strcmp(usage[i].arg, "&") == 0)
 	    sprintf(buff, "%d", MAXLEASES);
+	  else if (strcmp(usage[i].arg, "!") == 0)
+	    sprintf(buff, "%d", FTABSIZ);
 	  else 
 	    strcpy(buff, usage[i].arg);
 	}
@@ -810,7 +817,12 @@ static char *one_opt(struct daemon *daemon, int option, char *arg, char *problem
       if (!atoi_check(arg, &daemon->port))
 	option = '?';
       break;
-      
+    
+    case '0':
+      if (!atoi_check(arg, &daemon->ftabsize))
+	option = '?';
+      break;  
+    
     case 'P':
       {
 	int i;
@@ -1818,6 +1830,7 @@ struct daemon *read_opts(int argc, char **argv, char *compile_opts)
 
   /* Set defaults - everything else is zero or NULL */
   daemon->cachesize = CACHESIZ;
+  daemon->ftabsize = FTABSIZ;
   daemon->port = NAMESERVER_PORT;
   daemon->default_resolv.is_default = 1;
   daemon->default_resolv.name = RESOLVFILE;
@@ -1956,11 +1969,10 @@ struct daemon *read_opts(int argc, char **argv, char *compile_opts)
 	  mx->target = daemon->mxtarget;
     }
 
-  if (daemon->options & OPT_NO_RESOLV)
-    daemon->resolv_files = 0;
-  else if (daemon->resolv_files && 
-	   (daemon->resolv_files)->next && 
-	   (daemon->options & OPT_NO_POLL))
+  if (!(daemon->options & OPT_NO_RESOLV) &&
+      daemon->resolv_files && 
+      daemon->resolv_files->next && 
+      (daemon->options & OPT_NO_POLL))
     die(_("only one resolv.conf file allowed in no-poll mode."), NULL);
   
   if (daemon->options & OPT_RESOLV_DOMAIN)
@@ -1968,11 +1980,13 @@ struct daemon *read_opts(int argc, char **argv, char *compile_opts)
       char *line;
       FILE *f;
 
-      if (!daemon->resolv_files || (daemon->resolv_files)->next)
+      if ((daemon->options & OPT_NO_RESOLV) ||
+	  !daemon->resolv_files || 
+	  (daemon->resolv_files)->next)
 	die(_("must have exactly one resolv.conf to read domain from."), NULL);
       
       if (!(f = fopen((daemon->resolv_files)->name, "r")))
-	die(_("failed to read %s: %m"), (daemon->resolv_files)->name);
+	die(_("failed to read %s: %s"), (daemon->resolv_files)->name);
       
       while ((line = fgets(buff, MAXDNAME, f)))
 	{

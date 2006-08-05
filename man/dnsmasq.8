@@ -326,6 +326,12 @@ Disable negative caching. Negative caching allows dnsmasq to remember
 identical queries without forwarding them again. This flag disables
 negative caching.
 .TP
+.B \-0, --dns-forward-max
+Set the maximum number of concurrent DNS queries. Unanswered queries
+time out after 20 seconds. If you sometimes see the log message 
+"forwarding table overflow: check for server loops." then it is worth
+experimenting with this setting. The default value is 150.
+.TP
 .B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<default lease time>]
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
@@ -541,22 +547,27 @@ excluded from dnsmasq at compile time, in which case an error will
 occur. In any case note that ISC leasefile integration is a deprecated
 feature. It should not be used in new installations, and will be
 removed in a future release.
-.TP
+.TP 
 .B \-6 --dhcp-script=<path>
 Whenever a new DHCP lease is created, or an old one destroyed, the
-binary specified by this option is run. The arguments to the binary
+binary specified by this option is run. The arguments to the process
 are "add", "old" or "del", the MAC
 address of the host (or "<null>"), the IP address, and the hostname,
 if known. "add" means a lease has been created, "del" means it has
 been destroyed, "old" is a notification of an existing lease when
-dnsmasq starts or a change to MAC address or hostname of an existing lease.
+dnsmasq starts or a change to MAC address or hostname of an existing
+lease (also, lease length or expiry and client-id, if leasefile-ro is set).
 The process is run as any unprivileged user which dnsmasq
 runs as, so it may be necessary to inhibit dropping of the root user,
 using the
 .B -u
 directive, if the script needs root privs.
-The environment is inherited from the invoker of dnsmasq,
-and all file decriptors are
+The environment is inherited from the invoker of dnsmasq, and if the
+host provided a client-id, this is stored in the variable
+DNSMASQ_CLIENT_ID. If dnsmasq was compiled with HAVE_BROKEN_RTC, then
+the length of the lease (in seconds) is stored in
+DNSMASQ_LEASE_LENGTH, otherwise the time of lease expiry is stored in DNSMASQ_LEASE_EXPIRES.
+All file decriptors are
 closed except stdin, stdout and stderr which are open to /dev/null
 (except in debug mode).
 The script is not invoked concurrently: if subsequent lease 
@@ -565,6 +576,20 @@ invokation exits. At dnsmasq startup, the script will be invoked for
 all existing leases as they are read from the lease file. Expired
 leases will be called with "del" and others with "old". <path>
 must be an absolute pathname, no PATH search occurs.
+.TP 
+.B \-9, --leasefile-ro
+Completely suppress use of the lease database file. The file will not
+be created, read, or written. Change the way the lease-change
+script (if one is provided) is called, so that the lease database may
+be maintained in external storage by the script. In addition to the
+invokations  given in 
+.B  --dhcp-script
+the lease-change script is called once, at dnsmasq startup, with the
+single argument "init". When called like this the script should write
+the saved state of the lease database, in dnsmasq leasefile format, to
+stdout and exit with zero exit code. Setting this
+option also forces the leasechange script to be called on changes
+to the client-id and lease length and expiry time.
 .TP
 .B \-s, --domain=<domain>
 Specifies the domain for the DHCP server. This has two effects;
