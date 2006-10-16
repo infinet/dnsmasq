@@ -138,7 +138,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   msg.msg_name = &dest;
   msg.msg_namelen = sizeof(dest);
 
-  while ((sz = recvmsg(daemon->dhcpfd, &msg, 0)) && errno == EINTR);
+  while ((sz = recvmsg(daemon->dhcpfd, &msg, 0)) == -1 && errno == EINTR);
  
   if ((msg.msg_flags & MSG_TRUNC) ||
       sz < (ssize_t)(sizeof(*mess) - sizeof(mess->options)))
@@ -205,8 +205,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   iov.iov_len = dhcp_reply(daemon, parm.current, ifr.ifr_name, (size_t)sz, now, unicast_dest);
   lease_update_file(daemon, now);
   lease_update_dns(daemon);
-  lease_collect(daemon);
-  
+    
   if (iov.iov_len == 0)
     return;
   
@@ -625,7 +624,7 @@ void dhcp_read_ethers(struct daemon *daemon)
   struct in_addr addr;
   unsigned char hwaddr[ETHER_ADDR_LEN];
   struct dhcp_config **up, *tmp;
-  struct dhcp_config *config, *configs = daemon->dhcp_conf;
+  struct dhcp_config *config;
   int count = 0, lineno = 0;
 
   addr.s_addr = 0; /* eliminate warning */
@@ -637,7 +636,7 @@ void dhcp_read_ethers(struct daemon *daemon)
     }
 
   /* This can be called again on SIGHUP, so remove entries created last time round. */
-  for (up = &daemon->dhcp_conf, config = configs; config; config = tmp)
+  for (up = &daemon->dhcp_conf, config = daemon->dhcp_conf; config; config = tmp)
     {
       tmp = config->next;
       if (config->flags & CONFIG_FROM_ETHERS)
@@ -686,7 +685,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 
 	  flags = CONFIG_ADDR;
 	  
-	  for (config = configs; config; config = config->next)
+	  for (config = daemon->dhcp_conf; config; config = config->next)
 	    if ((config->flags & CONFIG_ADDR) && config->addr.s_addr == addr.s_addr)
 	      break;
 	}
@@ -700,14 +699,14 @@ void dhcp_read_ethers(struct daemon *daemon)
 
 	  flags = CONFIG_NAME;
 
-	  for (config = configs; config; config = config->next)
+	  for (config = daemon->dhcp_conf; config; config = config->next)
 	    if ((config->flags & CONFIG_NAME) && hostname_isequal(config->hostname, ip))
 	      break;
 	}
       
       if (!config)
 	{ 
-	  for (config = configs; config; config = config->next)
+	  for (config = daemon->dhcp_conf; config; config = config->next)
 	    if ((config->flags & CONFIG_HWADDR) && 
 		config->wildcard_mask == 0 &&
 		config->hwaddr_len == ETHER_ADDR_LEN &&
@@ -721,8 +720,8 @@ void dhcp_read_ethers(struct daemon *daemon)
 		continue;
 	      config->flags = CONFIG_FROM_ETHERS;
 	      config->wildcard_mask = 0;
-	      config->next = configs;
-	      configs = config;
+	      config->next = daemon->dhcp_conf;
+	      daemon->dhcp_conf = config;
 	    }
 	  
 	  config->flags |= flags;
@@ -749,8 +748,6 @@ void dhcp_read_ethers(struct daemon *daemon)
   fclose(f);
 
   syslog(LOG_INFO, _("read %s - %d addresses"), ETHERSFILE, count);
-  
-  daemon->dhcp_conf =  configs;
 }
 
 void dhcp_update_configs(struct dhcp_config *configs)

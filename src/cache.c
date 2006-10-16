@@ -20,6 +20,40 @@ static int bignames_left, log_queries, cache_size, hash_size;
 static int uid;
 static char *addrbuff;
 
+/* type->string mapping: this is also used by the name-hash function as a mixing table. */
+static const struct {
+  unsigned int type;
+  const char * const name;
+} typestr[] = {
+  { 1,   "A" },
+  { 2,   "NS" },
+  { 5,   "CNAME" },
+  { 6,   "SOA" },
+  { 10,  "NULL" },
+  { 11,  "WKS" },
+  { 12,  "PTR" },
+  { 13,  "HINFO" },	
+  { 15,  "MX" },
+  { 16,  "TXT" },
+  { 22,  "NSAP" },
+  { 23,  "NSAP_PTR" },
+  { 24,  "SIG" },
+  { 25,  "KEY" },
+  { 28,  "AAAA" },
+  { 33,  "SRV" },
+  { 36,  "KX" },
+  { 37,  "CERT" },
+  { 38,  "A6" },
+  { 39,  "DNAME" },
+  { 41,  "OPT" },
+  { 250, "TSIG" },
+  { 251, "IXFR" },
+  { 252, "AXFR" },
+  { 253, "MAILB" },
+  { 254, "MAILA" },
+  { 255, "ANY" }
+};
+
 static void cache_free(struct crec *crecp);
 static void cache_unlink(struct crec *crecp);
 static void cache_link(struct crec *crecp);
@@ -66,17 +100,19 @@ void cache_init(int size, int logq)
 
 static struct crec **hash_bucket(char *name)
 {
-  unsigned int c, val = 0;
-  
-  /* don't use tolower and friends here - they may be messed up by LOCALE */
+  unsigned int c, val = 017465; /* Barker code - minimum self-correlationin cyclic shift */
+  const unsigned char *mix_tab = (const unsigned char*)typestr; 
+
   while((c = (unsigned char) *name++))
-    if (c >= 'A' && c <= 'Z')
-      val += c + 'a' - 'A';
-    else
-      val += c;
+    {
+      /* don't use tolower and friends here - they may be messed up by LOCALE */
+      if (c >= 'A' && c <= 'Z')
+	c += 'a' - 'A';
+      val = ((val << 7) | (val >> (32 - 7))) + (mix_tab[(val + c) & 0x1F] ^ c);
+    } 
   
   /* hash_size is a power of two */
-  return hash_table + (val & (hash_size - 1));
+  return hash_table + ((val ^ (val >> 16)) & (hash_size - 1));
 }
 
 static void cache_hash(struct crec *crecp)
@@ -909,38 +945,6 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
   else if (flags & F_QUERY)
     {
       unsigned int i;
-      static const struct {
-	unsigned int type;
-	const char * const name;
-      } typestr[] = {
-	{ 1,   "A" },
-	{ 2,   "NS" },
-	{ 5,   "CNAME" },
-	{ 6,   "SOA" },
-	{ 10,  "NULL" },
-	{ 11,  "WKS" },
-	{ 12,  "PTR" },
-	{ 13,  "HINFO" },	
-        { 15,  "MX" },
-	{ 16,  "TXT" },
-	{ 22,  "NSAP" },
-	{ 23,  "NSAP_PTR" },
-	{ 24,  "SIG" },
-	{ 25,  "KEY" },
-	{ 28,  "AAAA" },
- 	{ 33,  "SRV" },
-        { 36,  "KX" },
-        { 37,  "CERT" },
-        { 38,  "A6" },
-        { 39,  "DNAME" },
-	{ 41,  "OPT" },
-	{ 250, "TSIG" },
-	{ 251, "IXFR" },
-	{ 252, "AXFR" },
-        { 253, "MAILB" },
-	{ 254, "MAILA" },
-	{ 255, "ANY" }
-      };
       
       if (type != 0)
         {
