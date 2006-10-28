@@ -58,6 +58,8 @@ static void cache_free(struct crec *crecp);
 static void cache_unlink(struct crec *crecp);
 static void cache_link(struct crec *crecp);
 static char *record_source(struct hostsfile *add_hosts, int index);
+static void rehash(int size);
+static void cache_hash(struct crec *crecp);
 
 void cache_init(int size, int logq)
 {
@@ -72,6 +74,7 @@ void cache_init(int size, int logq)
   cache_head = cache_tail = NULL;
   dhcp_inuse = dhcp_spare = NULL;
   new_chain = NULL;
+  hash_table = NULL;
   cache_size = size;
   big_free = NULL;
   bignames_left = size/10;
@@ -91,16 +94,51 @@ void cache_init(int size, int logq)
 	}
     }
   
-  /* hash_size is a power of two. */
-  for (hash_size = 64; hash_size < cache_size/10; hash_size = hash_size << 1);
-  hash_table = safe_malloc(hash_size*sizeof(struct crec *));
-  for(i=0; i < hash_size; i++)
-    hash_table[i] = NULL;
+  /* create initial hash table*/
+  rehash(cache_size);
 }
 
+/* In most cases, we create the hash table once here by calling this with (hash_table == NULL)
+   but if the hosts file(s) are big (some people have 50000 ad-block entries), the table
+   will be much too small, so the hosts reading code calls rehash every 1000 addresses, to
+   expand the table. */
+static void rehash(int size)
+{
+  struct crec **new, **old, *p, *tmp;
+  int i, new_size, old_size;
+
+  /* hash_size is a power of two. */
+  for (new_size = 64; new_size < size/10; new_size = new_size << 1);
+  
+  /* must succeed in getting first instance, failure later is non-fatal */
+  if (!hash_table)
+    new = safe_malloc(new_size * sizeof(struct crec *));
+  else if (new_size <= hash_size || !(new = malloc(new_size * sizeof(struct crec *))))
+    return;
+
+  for(i = 0; i < new_size; i++)
+    new[i] = NULL;
+
+  old = hash_table;
+  old_size = hash_size;
+  hash_table = new;
+  hash_size = new_size;
+  
+  if (old)
+    {
+      for (i = 0; i < old_size; i++)
+	for (p = old[i]; p ; p = tmp)
+	  {
+	    tmp = p->hash_next;
+	    cache_hash(p);
+	  }
+      free(old);
+    }
+}
+  
 static struct crec **hash_bucket(char *name)
 {
-  unsigned int c, val = 017465; /* Barker code - minimum self-correlationin cyclic shift */
+  unsigned int c, val = 017465; /* Barker code - minimum self-correlation in cyclic shift */
   const unsigned char *mix_tab = (const unsigned char*)typestr; 
 
   while((c = (unsigned char) *name++))
@@ -108,7 +146,7 @@ static struct crec **hash_bucket(char *name)
       /* don't use tolower and friends here - they may be messed up by LOCALE */
       if (c >= 'A' && c <= 'Z')
 	c += 'a' - 'A';
-      val = ((val << 7) | (val >> (32 - 7))) + (mix_tab[(val + c) & 0x1F] ^ c);
+      val = ((val << 7) | (val >> (32 - 7))) + (mix_tab[(val + c) & 0x3F] ^ c);
     } 
   
   /* hash_size is a power of two */
@@ -204,7 +242,7 @@ static int is_expired(time_t now, struct crec *crecp)
 
   if (difftime(now, crecp->ttd) < 0)
     return 0;
-
+  
   return 1;
 }
 
@@ -575,19 +613,38 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
 }
 
 static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, 
-			    unsigned short flags, int index)
+			    unsigned short flags, int index, int addr_dup)
 {
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
-
+  int i;
+  
   /* Remove duplicates in hosts files. */
   if (lookup && (lookup->flags & F_HOSTS) &&
       memcmp(&lookup->addr.addr, addr, addrlen) == 0)
     free(cache);
   else
     {
-      /* Ensure there is only one address -> name mapping (first one trumps) */
-      if (cache_find_by_addr(NULL, addr, 0, flags & (F_IPV4 | F_IPV6)))
+      /* Ensure there is only one address -> name mapping (first one trumps) 
+	 We do this by steam here, first we see if the address is the same as
+	 the last one we saw, which eliminates most in the case of an ad-block 
+	 file with thousands of entries for the same address.
+	 Then we search and bail at the first matching address that came from
+	 a HOSTS file. Since the first host entry gets reverse, we know 
+	 then that it must exist without searching exhaustively for it. */
+     
+      if (addr_dup)
 	flags &= ~F_REVERSE;
+      else
+	for (i=0; i<hash_size; i++)
+	  for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
+	    if ((lookup->flags & F_HOSTS) && 
+		(lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+		memcmp(&lookup->addr.addr, addr, addrlen) == 0)
+	      {
+		flags &= ~F_REVERSE;
+		break;
+	      }
+    
       cache->flags = flags;
       cache->uid = index;
       memcpy(&cache->addr.addr, addr, addrlen);
@@ -595,25 +652,25 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
     }
 }
 
-static void read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int index)
+static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int index, int cache_size)
 {  
   FILE *f = fopen(filename, "r");
   char *line;
-  int count = 0, lineno = 0;
-  
+  int addr_count = 0, name_count = cache_size, lineno = 0;
+  unsigned short flags, saved_flags = 0;
+  struct all_addr addr, saved_addr;
+
   if (!f)
     {
       syslog(LOG_ERR, _("failed to load names from %s: %m"), filename);
-      return;
+      return 0;
     }
     
   while ((line = fgets(buff, MAXDNAME, f)))
     {
-      struct all_addr addr;
       char *token = strtok(line, " \t\n\r");
-      int addrlen;
-      unsigned short flags;
-          
+      int addrlen, addr_dup = 0;
+              
       lineno++;
 
       if (!token || (*token == '#')) 
@@ -643,12 +700,28 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 	  continue;
 	}
 
+     if (saved_flags == flags && memcmp(&addr, &saved_addr, addrlen) == 0)
+       addr_dup = 1;
+     else
+       {
+	 saved_flags = flags;
+	 saved_addr = addr;
+       }
+     
+     addr_count++;
+     
+     /* rehash every 1000 names. */
+     if ((name_count - cache_size) > 1000)
+       {
+	 rehash(name_count);
+	 cache_size = name_count;
+       }
+     
      while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
        {
 	 struct crec *cache;
 	 if (canonicalise(token))
 	   {
-	     count++;
 	     /* If set, add a version of the name with a default domain appended */
 	     if ((opts & OPT_EXPAND) && domain_suffix && !strchr(token, '.') && 
 		 (cache = malloc(sizeof(struct crec) + 
@@ -657,12 +730,15 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
 		 strcpy(cache->name.sname, token);
 		 strcat(cache->name.sname, ".");
 		 strcat(cache->name.sname, domain_suffix);
-		 add_hosts_entry(cache, &addr, addrlen, flags, index);
+		 add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
+		 addr_dup = 1;
+		 name_count++;
 	       }
 	     if ((cache = malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
 	       {
 		 strcpy(cache->name.sname, token);
-		 add_hosts_entry(cache, &addr, addrlen, flags, index);
+		 add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
+		 name_count++;
 	       }
 	   }
 	 else
@@ -671,14 +747,17 @@ static void read_hostsfile(char *filename, int opts, char *buff, char *domain_su
     }
   
   fclose(f);
+  rehash(name_count);
 
-  syslog(LOG_INFO, _("read %s - %d addresses"), filename, count);
+  syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
+
+  return name_count;
 }
 	    
 void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *addn_hosts)
 {
   struct crec *cache, **up, *tmp;
-  int i;
+  int i, total_size = cache_size;
 
   cache_inserted = cache_live_freed = 0;
   
@@ -713,10 +792,10 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
     }
 
   if (!(opts & OPT_NO_HOSTS))
-    read_hostsfile(HOSTSFILE, opts, buff, domain_suffix, 0);
+    total_size = read_hostsfile(HOSTSFILE, opts, buff, domain_suffix, 0, total_size);
   while (addn_hosts)
     {
-      read_hostsfile(addn_hosts->fname, opts, buff, domain_suffix, addn_hosts->index);
+      total_size = read_hostsfile(addn_hosts->fname, opts, buff, domain_suffix, addn_hosts->index, total_size);
       addn_hosts = addn_hosts->next;
     }  
 } 

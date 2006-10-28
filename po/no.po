@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.25\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-10-13 18:20+0100\n"
+"POT-Creation-Date: 2006-10-28 15:42+0100\n"
 "PO-Revision-Date: 2006-01-11 17:39+0000\n"
 "Last-Translator: Jan Erik Askildt <jeaskildt@gmail.com>\n"
 "Language-Team: Norwegian <i18n-nb@lister.ping.uio.no>\n"
@@ -17,31 +17,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: cache.c:606
+#: cache.c:665
 #, c-format
 msgid "failed to load names from %s: %m"
 msgstr "feilet å laste navn fra %s: %m"
 
-#: cache.c:642 dhcp.c:682
+#: cache.c:699 dhcp.c:701
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "dårlig adresse ved %s linje %d"
 
-#: cache.c:669 dhcp.c:696
+#: cache.c:745 dhcp.c:715
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "dårlig navn ved %s linje %d"
 
-#: cache.c:675 dhcp.c:750
+#: cache.c:752 dhcp.c:769
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "les %s - %d adresser"
 
-#: cache.c:711
+#: cache.c:790
 msgid "cleared cache"
 msgstr "mellomlager tømt"
 
-#: cache.c:764
+#: cache.c:843
 #, c-format
 msgid ""
 "not giving name %s to the DHCP lease of %s because the name exists in %s "
@@ -50,7 +50,7 @@ msgstr ""
 "gir ikke navnet %s til DHCP leien for %s fordi navnet eksisterer i %s med "
 "adressen %s"
 
-#: cache.c:808
+#: cache.c:887
 #, fuzzy, c-format
 msgid ""
 "time %lu, cache size %d, %d/%d cache insertions re-used unexpired cache "
@@ -760,47 +760,47 @@ msgstr "kan ikke lage DHCP socket : %s"
 msgid "failed to set options on DHCP socket: %s"
 msgstr "feilet å sette opsjoner på DHCP socket: %s"
 
-#: dhcp.c:48
-#, c-format
-msgid "failed to set SO_REUSEADDR on DHCP socket: %s"
+#: dhcp.c:59
+#, fuzzy, c-format
+msgid "failed to set SO_REUSE{ADDR|PORT} on DHCP socket: %s"
 msgstr "feilet å sette SO_REUSEADDR på DHCP socket: %s"
 
-#: dhcp.c:59
+#: dhcp.c:72
 #, c-format
 msgid "failed to bind DHCP server socket: %s"
 msgstr "feilet å binde DHCP tjener socket: %s"
 
-#: dhcp.c:72
+#: dhcp.c:85
 #, c-format
 msgid "cannot create ICMP raw socket: %s."
 msgstr "kan ikke lage ICMP raw socket: %s"
 
-#: dhcp.c:84
+#: dhcp.c:97
 #, c-format
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "dubliserte IP adresser i %s dhcp-config direktiv."
 
-#: dhcp.c:317
+#: dhcp.c:336
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr "DHCP område %s -- %s er ikke konsistent med nettmaske %s"
 
-#: dhcp.c:634
+#: dhcp.c:653
 #, c-format
 msgid "failed to read %s:%m"
 msgstr "feilet å lese %s:%m"
 
-#: dhcp.c:669
+#: dhcp.c:688
 #, c-format
 msgid "bad line at %s line %d"
 msgstr "dårlig linje ved %s linje %d"
 
-#: dhcp.c:776
+#: dhcp.c:795
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "dubliserte IP adresser i %s (%s) i dhcp-config direktiv"
 
-#: dhcp.c:812
+#: dhcp.c:831
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr "Ignorerer DHCP verts navn %s på grunn av ulovlig domene del"
@@ -846,7 +846,7 @@ msgstr "via"
 msgid "disabled"
 msgstr "deaktivert"
 
-#: rfc2131.c:324 rfc2131.c:759
+#: rfc2131.c:324 rfc2131.c:762
 msgid "address in use"
 msgstr "adresse i bruk"
 
@@ -858,11 +858,11 @@ msgstr "ingen adresse konfigurert"
 msgid "no address available"
 msgstr "ingen adresse tilgjengelig"
 
-#: rfc2131.c:349 rfc2131.c:767
+#: rfc2131.c:349 rfc2131.c:772
 msgid "no leases left"
 msgstr "ingen leier igjen"
 
-#: rfc2131.c:352 rfc2131.c:733
+#: rfc2131.c:352 rfc2131.c:736
 msgid "wrong network"
 msgstr "galt nettverk"
 
@@ -875,7 +875,7 @@ msgstr "deaktiverer DHCP statisk adresse %s"
 msgid "unknown lease"
 msgstr "ukjent leie"
 
-#: rfc2131.c:589 rfc2131.c:862
+#: rfc2131.c:589 rfc2131.c:873
 msgid "ignored"
 msgstr "oversett"
 
@@ -895,36 +895,36 @@ msgstr ""
 msgid "not using configured address %s because it was previously declined"
 msgstr ""
 
-#: rfc2131.c:696
+#: rfc2131.c:699
 msgid "wrong address"
 msgstr "gal adresse"
 
-#: rfc2131.c:709
+#: rfc2131.c:712
 msgid "lease not found"
 msgstr "leie ikke funnet"
 
-#: rfc2131.c:741
+#: rfc2131.c:744
 msgid "address not available"
 msgstr "adresse ikke tilgjengelig"
 
-#: rfc2131.c:752
+#: rfc2131.c:755
 msgid "static lease available"
 msgstr "statisk leie tilgjengelig"
 
-#: rfc2131.c:756
+#: rfc2131.c:759
 msgid "address reserved"
 msgstr "adresse reservert"
 
-#: rfc2131.c:762
+#: rfc2131.c:765
 msgid "no unique-id"
 msgstr ""
 
-#: rfc2131.c:1000
+#: rfc2131.c:1011
 #, c-format
 msgid "cannot send DHCP option %d: no space left in packet"
 msgstr "kan ikke sende DHCP opsjon %d: ikke mer plass i pakken"
 
-#: rfc2131.c:1301
+#: rfc2131.c:1312
 #, c-format
 msgid "More than one vendor class matches, using %s"
 msgstr "Mer enn en produsent klasse som passer, bruker %s"

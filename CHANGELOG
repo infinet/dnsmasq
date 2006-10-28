@@ -2009,6 +2009,32 @@ version 2.34
             Added Webmin module in contrib/webmin. Thanks to Neil
             Fisher for that.
 
+version 2.35
+	    Generate an "old" script event when a client does a DHCPREQUEST
+	    in INIT-REBOOT or SELECTING state and the lease already
+	    exists. Supply vendor and user class information to these
+	    script calls.
+
+	    Added support for Dragonfly BSD to src/config.h
+
+	    Removed "Upgrading to 2.0" document, which is ancient
+	    history now.
+
+	    Tweak DHCP networking code for BSD, esp OpenBSD. Added a 
+	    workaround for a bug in OpenBSD 4.0: there should finally
+            be support for multiple interfaces under OpenBSD now.
+	    Note that no version of dnsmasq before 2.35 will work for 
+	    DHCP under OpenBSD 4.0 because of a kernel bug.
+	    Thanks to Claudio Jeker, Jeb Campbell and Cristobal 
+	    Palmer for help with this.
+
+	    Optimised the cache code for the case of large
+	    /etc/hosts. This is mainly to remove the O(n-squared)
+	    algorithm which made reading large (50000 lines) files 
+	    slow, but it also takes into account the size of 
+	    /etc/hosts when building hash tables, so overall 
+	    performance should be better. Thanks to "koko" for 
+	    pointing out the problem.
 
 
  

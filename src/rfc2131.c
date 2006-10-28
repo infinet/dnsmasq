@@ -95,7 +95,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   struct dhcp_vendor *vendor;
   struct dhcp_mac *mac;
   struct dhcp_netid_list *id_list;
-  int clid_len = 0, ignore = 0;
+  int clid_len = 0, ignore = 0, do_classes = 0;
   struct dhcp_packet *mess = daemon->dhcp_packet.iov_base;
   unsigned char *p, *end = (unsigned char *)(mess + 1);
   char *hostname = NULL, *offer_hostname = NULL, *client_hostname = NULL;
@@ -669,6 +669,9 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  /* SELECTING  or INIT_REBOOT */
 	  mess->yiaddr = option_addr(opt);
 	  
+	  /* send vendor and user class info for new or recreated lease */
+	  do_classes = 1;
+	  
 	  if ((opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)))
 	    {
 	      /* SELECTING */
@@ -763,37 +766,10 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  
 	  else if (!lease)
 	    {	     
-	      if (!(lease = lease_allocate(mess->yiaddr)))
-		message = _("no leases left");
+	      if ((lease = lease_allocate(mess->yiaddr)))
+		do_classes = 1;
 	      else
-		{
-		  /* copy user-class and vendor class into new lease, for the script */
-		  if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
-		    {
-		      int len = option_len(opt);
-		      unsigned char *ucp = option_ptr(opt);
-		      /* If the user-class option started as counted strings, the first byte will be zero. */
-		      if (len != 0 && ucp[0] == 0)
-			ucp++, len--;
-		      if ((lease->userclass = malloc(len+1)))
-			{
-			  memcpy(lease->userclass, ucp, len);
-			  lease->userclass[len] = 0;
-			  lease->userclass_len = len+1;
-			}
-		    }
-		  if ((opt = option_find(mess, sz, OPTION_VENDOR_ID, 1)))
-		    {
-		      int len = option_len(opt);
-		      unsigned char *ucp = option_ptr(opt);
-		      if ((lease->vendorclass = malloc(len+1)))
-			{
-			  memcpy(lease->vendorclass, ucp, len);
-			  lease->vendorclass[len] = 0;
-			  lease->vendorclass_len = len+1;
-			}
-		    }
-		}  
+		message = _("no leases left");
 	    }
 	}
 
@@ -818,8 +794,43 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	}
       else
 	{
-	  if (!hostname_auth && (client_hostname = host_from_dns(daemon, mess->yiaddr)))
-	    {
+	   if (do_classes)
+	     {
+	       lease->changed = 1;
+	       /* copy user-class and vendor class into new lease, for the script */
+	       if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
+		 {
+		   int len = option_len(opt);
+		   unsigned char *ucp = option_ptr(opt);
+		   /* If the user-class option started as counted strings, the first byte will be zero. */
+		   if (len != 0 && ucp[0] == 0)
+		     ucp++, len--;
+		   if (lease->userclass)
+		     free(lease->userclass);
+		   if ((lease->userclass = malloc(len+1)))
+		     {
+		       memcpy(lease->userclass, ucp, len);
+		       lease->userclass[len] = 0;
+		       lease->userclass_len = len+1;
+		     }
+		 }
+	       if ((opt = option_find(mess, sz, OPTION_VENDOR_ID, 1)))
+		 {
+		   int len = option_len(opt);
+		   unsigned char *ucp = option_ptr(opt);
+		   if (lease->vendorclass)
+		     free(lease->vendorclass);
+		   if ((lease->vendorclass = malloc(len+1)))
+		     {
+		       memcpy(lease->vendorclass, ucp, len);
+		       lease->vendorclass[len] = 0;
+		       lease->vendorclass_len = len+1;
+		     }
+		 }
+	     }
+	   
+	   if (!hostname_auth && (client_hostname = host_from_dns(daemon, mess->yiaddr)))
+	     {
 	      hostname = client_hostname;
 	      hostname_auth = 1;
 	    }

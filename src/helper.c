@@ -230,13 +230,10 @@ void queue_script(struct daemon *daemon, int action, struct dhcp_lease *lease, c
   if (daemon->helperfd == -1)
     return;
 
-  if (action == ACTION_ADD)
-    {
-      if (lease->vendorclass)
-	vclass_len = lease->vendorclass_len;
-      if (lease->userclass)
-	uclass_len = lease->userclass_len;
-    }
+  if (lease->vendorclass)
+    vclass_len = lease->vendorclass_len;
+  if (lease->userclass)
+    uclass_len = lease->userclass_len;
   if (lease->clid)
     clid_len = lease->clid_len;
   if (hostname)

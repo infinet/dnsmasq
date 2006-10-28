@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.34\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2006-10-13 18:20+0100\n"
+"POT-Creation-Date: 2006-10-28 15:42+0100\n"
 "PO-Revision-Date: 2005-10-02 19:05+0100\n"
 "Last-Translator:  Lionel Tricon <lionel.tricon@free.fr>\n"
 "Language-Team: French <traduc@traduc.org>\n"
@@ -16,31 +16,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: cache.c:606
+#: cache.c:665
 #, c-format
 msgid "failed to load names from %s: %m"
 msgstr "Impossible de charger les noms à partir de %s : %m"
 
-#: cache.c:642 dhcp.c:682
+#: cache.c:699 dhcp.c:701
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "mauvaise adresse dans %s ligne %d"
 
-#: cache.c:669 dhcp.c:696
+#: cache.c:745 dhcp.c:715
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "mauvais nom dans %s ligne %d"
 
-#: cache.c:675 dhcp.c:750
+#: cache.c:752 dhcp.c:769
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "lecture %s - %d adresses"
 
-#: cache.c:711
+#: cache.c:790
 msgid "cleared cache"
 msgstr "cache vidé"
 
-#: cache.c:764
+#: cache.c:843
 #, c-format
 msgid ""
 "not giving name %s to the DHCP lease of %s because the name exists in %s "
@@ -49,7 +49,7 @@ msgstr ""
 "ne donne pas de nom %s au bail DHCP de %s parce-que le nom existe dans %s "
 "avec l'adresse %s"
 
-#: cache.c:808
+#: cache.c:887
 #, c-format
 msgid ""
 "time %lu, cache size %d, %d/%d cache insertions re-used unexpired cache "
@@ -793,49 +793,49 @@ msgstr "ne peut créer la socket DHCP : %s"
 msgid "failed to set options on DHCP socket: %s"
 msgstr "impossible d'appliquer les options sur la socket DHCP : %s"
 
-#: dhcp.c:48
-#, c-format
-msgid "failed to set SO_REUSEADDR on DHCP socket: %s"
+#: dhcp.c:59
+#, fuzzy, c-format
+msgid "failed to set SO_REUSE{ADDR|PORT} on DHCP socket: %s"
 msgstr "impossible de déclarer SO_REUSEADDR sur la socket DHCP : %s"
 
-#: dhcp.c:59
+#: dhcp.c:72
 #, c-format
 msgid "failed to bind DHCP server socket: %s"
 msgstr "impossible de lier la socket serveur DHCP : %s"
 
-#: dhcp.c:72
+#: dhcp.c:85
 #, c-format
 msgid "cannot create ICMP raw socket: %s."
 msgstr "ne peut créer de socket en mode raw pour ICMP : %s."
 
-#: dhcp.c:84
+#: dhcp.c:97
 #, c-format
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "adresse IP %s dupliquée dans la directive dhcp-config."
 
-#: dhcp.c:317
+#: dhcp.c:336
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
 msgstr ""
 "La plage d'adresses DHCP %s -- %s n'est pas cohérente avec le masque de "
 "réseau %s"
 
-#: dhcp.c:634
+#: dhcp.c:653
 #, c-format
 msgid "failed to read %s:%m"
 msgstr "impossible de lire %s : %m"
 
-#: dhcp.c:669
+#: dhcp.c:688
 #, fuzzy, c-format
 msgid "bad line at %s line %d"
 msgstr "mauvais nom dans %s ligne %d"
 
-#: dhcp.c:776
+#: dhcp.c:795
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "adresse IP %s (%s) dupliquée dans la directive dhcp-config."
 
-#: dhcp.c:812
+#: dhcp.c:831
 #, c-format
 msgid "Ignoring DHCP host name %s because it has an illegal domain part"
 msgstr ""
@@ -883,7 +883,7 @@ msgstr "par l'intermédiaire de"
 msgid "disabled"
 msgstr "désactivé"
 
-#: rfc2131.c:324 rfc2131.c:759
+#: rfc2131.c:324 rfc2131.c:762
 msgid "address in use"
 msgstr "adresse déjà utilisée"
 
@@ -895,11 +895,11 @@ msgstr "pas d'adresse configurée"
 msgid "no address available"
 msgstr "pas d'adresse disponible"
 
-#: rfc2131.c:349 rfc2131.c:767
+#: rfc2131.c:349 rfc2131.c:772
 msgid "no leases left"
 msgstr "plus aucun bail disponible"
 
-#: rfc2131.c:352 rfc2131.c:733
+#: rfc2131.c:352 rfc2131.c:736
 msgid "wrong network"
 msgstr "mauvais réseau"
 
@@ -912,7 +912,7 @@ msgstr "désactive l'adresse statique DHCP %s pour %s"
 msgid "unknown lease"
 msgstr "bail inconnu"
 
-#: rfc2131.c:589 rfc2131.c:862
+#: rfc2131.c:589 rfc2131.c:873
 msgid "ignored"
 msgstr "ignoré"
 
@@ -937,37 +937,37 @@ msgstr ""
 "L'adresse statique %s ne sera pas utilisée car elle a préalablement été "
 "refusée"
 
-#: rfc2131.c:696
+#: rfc2131.c:699
 msgid "wrong address"
 msgstr "mauvaise adresse"
 
-#: rfc2131.c:709
+#: rfc2131.c:712
 msgid "lease not found"
 msgstr "bail non trouvé"
 
-#: rfc2131.c:741
+#: rfc2131.c:744
 msgid "address not available"
 msgstr "adresse non disponible"
 
-#: rfc2131.c:752
+#: rfc2131.c:755
 msgid "static lease available"
 msgstr "bail statique disponible"
 
-#: rfc2131.c:756
+#: rfc2131.c:759
 msgid "address reserved"
 msgstr "adresse reservée"
 
-#: rfc2131.c:762
+#: rfc2131.c:765
 msgid "no unique-id"
 msgstr "pas d'identifiant unique"
 
-#: rfc2131.c:1000
+#: rfc2131.c:1011
 #, c-format
 msgid "cannot send DHCP option %d: no space left in packet"
 msgstr ""
 "Impossible d'envoyer l'option DHCP %d : pas assez d'espace dans le paquet"
 
-#: rfc2131.c:1301
+#: rfc2131.c:1312
 #, c-format
 msgid "More than one vendor class matches, using %s"
 msgstr "Plusieurs classes de fournisseurs correspondent, %s sera utilisé"

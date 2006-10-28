@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.34"
+#define VERSION "2.35"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -33,7 +33,7 @@
 #  define RESOLVFILE "/etc/resolv.conf"
 #endif
 #define RUNFILE "/var/run/dnsmasq.pid"
-#if defined(__FreeBSD__) || defined (__OpenBSD__)
+#if defined(__FreeBSD__) || defined (__OpenBSD__) || defined(__DragonFly__)
 #   define LEASEFILE "/var/db/dnsmasq.leases"
 #else
 #   define LEASEFILE "/var/lib/misc/dnsmasq.leases"
@@ -216,7 +216,7 @@ typedef unsigned long in_addr_t;
 #   define HAVE_BROKEN_SOCKADDR_IN6
 #endif
 
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
 #undef HAVE_LINUX_NETWORK
 /* Later verions of FreeBSD have getopt_long() */
 #if defined(optional_argument) && defined(required_argument)

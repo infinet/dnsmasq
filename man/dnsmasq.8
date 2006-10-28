@@ -354,7 +354,7 @@ always optional. On some broken systems, dnsmasq can listen on only
 one interface when using DHCP, and the name of that interface must be
 given using the
 .B interface
-option. This limitation currently affects OpenBSD. It is always
+option. This limitation currently affects OpenBSD before version 4.0. It is always
 allowed to have more than one dhcp-range in a single subnet. The optional
 network-id is a alphanumeric label which marks this network so that
 dhcp options may be specified on a per-network basis. 
@@ -568,8 +568,9 @@ The environment is inherited from the invoker of dnsmasq, and if the
 host provided a client-id, this is stored in the environment variable
 DNSMASQ_CLIENT_ID. If the client provides vendor-class or user-class 
 information, these are provided in DNSMASQ_VENDOR_CLASS and 
-DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn variables, but only for the
-"add" actions, since these data are not held in dnsmasq's lease
+DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn variables, but only fory
+"add" actions or "old" actions when a host resumes an existing lease,
+since these data are not held in dnsmasq's lease
 database. If dnsmasq was compiled with HAVE_BROKEN_RTC, then
 the length of the lease (in seconds) is stored in
 DNSMASQ_LEASE_LENGTH, otherwise the time of lease expiry is stored in
