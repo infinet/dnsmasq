@@ -117,7 +117,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   struct iovec iov;
   ssize_t sz; 
   int iface_index = 0, unicast_dest = 0;
-  struct in_addr iface_addr;
+  struct in_addr iface_addr, *addrp = NULL;
   struct iface_param parm;
 
   union {
@@ -185,7 +185,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
   if (!(msg.msg_flags & MSG_BCAST))
     unicast_dest = 1;
 #endif
- 
+
 #else
   /* fallback for systems without IP_RECVIF - allow only one interface
      and assume packets arrive from it - yuk. */
@@ -198,16 +198,30 @@ void dhcp_packet(struct daemon *daemon, time_t now)
 #endif
 
   ifr.ifr_addr.sa_family = AF_INET;
-  if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) == -1 )
-    return;
-  iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+  if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) != -1 )
+    {
+      addrp = &iface_addr;
+      iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+    }
 
+  if (!iface_check(daemon, AF_INET, (struct all_addr *)addrp, &ifr, &iface_index))
+    return;
+  
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
     if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
       return;
   
-  if (!iface_check(daemon, AF_INET, (struct all_addr *)&iface_addr, ifr.ifr_name))
-    return;
+  /* interface may have been changed by alias in iface_check */
+  if (!addrp)
+    {
+      if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) != -1)
+	{
+	  syslog(LOG_WARNING, _("DHCP packet received on %s which has no address"), ifr.ifr_name);
+	  return;
+	}
+      else
+	iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+    }
   
   /* unlinked contexts are marked by context->current == context */
   for (context = daemon->dhcp; context; context = context->next)

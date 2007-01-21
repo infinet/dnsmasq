@@ -88,30 +88,32 @@ extern int capset(cap_user_header_t header, cap_user_data_t data);
 */
 #define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
 
-#define OPT_BOGUSPRIV      1
-#define OPT_FILTER         2
-#define OPT_LOG            4
-#define OPT_SELFMX         8
-#define OPT_NO_HOSTS       16
-#define OPT_NO_POLL        32
-#define OPT_DEBUG          64
-#define OPT_ORDER          128
-#define OPT_NO_RESOLV      256
-#define OPT_EXPAND         512
-#define OPT_LOCALMX        1024
-#define OPT_NO_NEG         2048
-#define OPT_NODOTS_LOCAL   4096
-#define OPT_NOWILD         8192
-#define OPT_ETHERS         16384
-#define OPT_RESOLV_DOMAIN  32768
-#define OPT_NO_FORK        65536
-#define OPT_AUTHORITATIVE  131072
-#define OPT_LOCALISE       262144
-#define OPT_DBUS           524288
-#define OPT_BOOTP_DYNAMIC  1048576
-#define OPT_NO_PING        2097152
-#define OPT_LEASE_RO       4194304
-#define OPT_RELOAD         8388608
+#define OPT_BOGUSPRIV      (1<<0)
+#define OPT_FILTER         (1<<1)
+#define OPT_LOG            (1<<2)
+#define OPT_SELFMX         (1<<3)
+#define OPT_NO_HOSTS       (1<<4)
+#define OPT_NO_POLL        (1<<5)
+#define OPT_DEBUG          (1<<6)
+#define OPT_ORDER          (1<<7)
+#define OPT_NO_RESOLV      (1<<8)
+#define OPT_EXPAND         (1<<9)
+#define OPT_LOCALMX        (1<<10)
+#define OPT_NO_NEG         (1<<11)
+#define OPT_NODOTS_LOCAL   (1<<12)
+#define OPT_NOWILD         (1<<13)
+#define OPT_ETHERS         (1<<14)
+#define OPT_RESOLV_DOMAIN  (1<<15)
+#define OPT_NO_FORK        (1<<16)
+#define OPT_AUTHORITATIVE  (1<<17)
+#define OPT_LOCALISE       (1<<18)
+#define OPT_DBUS           (1<<19)
+#define OPT_BOOTP_DYNAMIC  (1<<20)
+#define OPT_NO_PING        (1<<21)
+#define OPT_LEASE_RO       (1<<22)
+#define OPT_RELOAD         (1<<24)
+#define OPT_TFTP           (1<<25)
+#define OPT_TFTP_SECURE    (1<<26)
 
 struct all_addr {
   union {
@@ -144,6 +146,11 @@ struct txt_record {
   char *name, *txt;
   unsigned short class, len;
   struct txt_record *next;
+};
+
+struct ptr_record {
+  char *name, *ptr;
+  struct ptr_record *next;
 };
 
 union bigname {
@@ -239,11 +246,12 @@ struct server {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
+  int dhcp_ok;
   struct irec *next;
 };
 
 struct listener {
-  int fd, tcpfd, family;
+  int fd, tcpfd, tftpfd, family;
   struct irec *iface; /* only valid for non-wildcard */
   struct listener *next;
 };
@@ -274,7 +282,7 @@ struct hostsfile {
 struct frec {
   union mysockaddr source;
   struct all_addr dest;
-  struct server *sentto;
+  struct server *sentto; /* NULL means free */
   unsigned int iface;
   unsigned short orig_id, new_id;
   int fd, forwardall;
@@ -380,6 +388,13 @@ struct dhcp_mac {
   struct dhcp_mac *next;
 };
 
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+struct dhcp_bridge {
+  char iface[IF_NAMESIZE];
+  struct dhcp_bridge *alias, *next;
+};
+#endif
+
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
   struct in_addr netmask, broadcast;
@@ -415,6 +430,23 @@ struct ping_result {
   struct ping_result *next;
 };
 
+struct tftp_file {
+  int refcount, fd;
+  off_t size;
+  char filename[];
+};
+
+struct tftp_transfer {
+  int sockfd;
+  time_t timeout;
+  int backoff;
+  unsigned int block, blocksize;
+  struct sockaddr_in peer;
+  char opt_blocksize, opt_transize;
+  struct tftp_file *file;
+  struct tftp_transfer *next;
+};
+
 struct daemon {
   /* datastuctures representing the command-line and 
      config file arguments. All set (including defaults)
@@ -424,6 +456,7 @@ struct daemon {
   struct resolvc default_resolv, *resolv_files;
   struct mx_srv_record *mxnames;
   struct txt_record *txt;
+  struct ptr_record *ptr;
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname;
@@ -444,8 +477,8 @@ struct daemon {
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;
-  struct dhcp_netid_list *dhcp_ignore;
-  int dhcp_max; 
+  struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names;
+  int dhcp_max, tftp_max; 
   unsigned int min_leasetime;
   struct doctor *doctors;
   unsigned short edns_pktsz;
@@ -473,14 +506,20 @@ struct daemon {
   char *dhcp_buff, *dhcp_buff2;
   struct ping_result *ping_results;
   FILE *lease_stream;
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+  struct dhcp_bridge *bridges;
+#endif
 
   /* DBus stuff */
-#ifdef HAVE_DBUS
   /* void * here to avoid depending on dbus headers outside dbus.c */
   void *dbus;
+#ifdef HAVE_DBUS
   struct watch *watches;
 #endif
 
+  /* TFTP stuff */
+  struct tftp_transfer *tftp_trans;
+  char *tftp_prefix; 
 };
 
 /* cache.c */
@@ -515,7 +554,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(HEADER *header, size_t plen,
-				 size_t *len, unsigned char **p);
+				 size_t *len, unsigned char **p, int *is_sign);
 int check_for_local_domain(char *name, time_t now, struct daemon *daemon);
 unsigned int questions_crc(HEADER *header, size_t plen, char *buff);
 size_t resize_packet(HEADER *header, size_t plen, 
@@ -563,10 +602,10 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds);
 int reload_servers(char *fname, struct daemon *daemon);
 void check_servers(struct daemon *daemon);
 int enumerate_interfaces(struct daemon *daemon);
-struct listener *create_wildcard_listeners(int port);
+struct listener *create_wildcard_listeners(int port, int have_tftp);
 struct listener *create_bound_listeners(struct daemon *daemon);
-int iface_check(struct daemon *daemon, int family, 
-		struct all_addr *addr, char *name);
+int iface_check(struct daemon *daemon, int family, struct all_addr *addr, 
+		struct ifreq *ifr, int *indexp);
 int fix_fd(int fd);
 
 /* dhcp.c */
@@ -652,3 +691,9 @@ void helper_write(struct daemon *daemon);
 void queue_script(struct daemon *daemon, int action, 
 		  struct dhcp_lease *lease, char *hostname);
 int helper_buf_empty(void);
+
+/* tftp.c */
+#ifdef HAVE_TFTP
+void tftp_request(struct listener *listen, struct daemon *daemon, time_t now);
+void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now);
+#endif

@@ -109,6 +109,11 @@ int main (int argc, char **argv)
     }
 #endif
 
+#ifndef HAVE_TFTP
+  if (daemon->options & OPT_TFTP)
+    die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL);
+#endif
+
   daemon->interfaces = NULL;
   if (!enumerate_interfaces(daemon))
     die(_("failed to find list of interfaces: %s"), NULL);
@@ -128,7 +133,7 @@ int main (int argc, char **argv)
 	    die(_("no interface with address %s"), daemon->namebuff);
 	  }
     }
-  else if (!(daemon->listeners = create_wildcard_listeners(daemon->port)))
+  else if (!(daemon->listeners = create_wildcard_listeners(daemon->port, daemon->options & OPT_TFTP)))
     die(_("failed to create listening socket: %s"), NULL);
   
   cache_init(daemon->cachesize, daemon->options & OPT_LOG);
@@ -270,7 +275,7 @@ int main (int argc, char **argv)
     }
   
   /* if we are to run scripts, we need to fork a helper before dropping root. */
-      daemon->helperfd = create_helper(daemon);
+  daemon->helperfd = create_helper(daemon);
     
   if (!(daemon->options & OPT_DEBUG))   
     {
@@ -381,6 +386,45 @@ int main (int argc, char **argv)
 	}
     }
 
+#ifdef HAVE_TFTP
+  if (daemon->options & OPT_TFTP)
+    {
+      long max_fd = sysconf(_SC_OPEN_MAX);
+
+#ifdef FD_SETSIZE
+      if (FD_SETSIZE < max_fd)
+	max_fd = FD_SETSIZE;
+#endif
+
+      syslog(LOG_INFO, "TFTP %s%s %s", 
+	     daemon->tftp_prefix ? _("root is ") : _("enabled"),
+	     daemon->tftp_prefix ? daemon->tftp_prefix: "",
+	     daemon->options & OPT_TFTP_SECURE ? _("secure mode") : "");
+
+      /* This is a guess, it assumes that for small limits, 
+	 disjoint files might be servered, but for large limits, 
+	 a single file will be sent to may clients (the file only needs
+	 one fd). */
+
+      max_fd -= 30; /* use other than TFTP */
+      
+      if (max_fd < 0)
+	max_fd = 5;
+      else if (max_fd < 100)
+	max_fd = max_fd/2;
+      else
+	max_fd = max_fd - 20;
+
+      if (daemon->tftp_max > max_fd)
+	{
+	  daemon->tftp_max = max_fd;
+	  syslog(LOG_WARNING, 
+		 _("restricting maximum simultaneous TFTP transfers to %d"), 
+		 daemon->tftp_max);
+	}
+    }
+#endif
+
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
     {
       if (bad_capabilities)
@@ -414,15 +458,16 @@ int main (int argc, char **argv)
 	  tp = &t;
 	}
 
-#ifdef HAVE_DBUS
-      /* Whilst polling for the dbus, wake every quarter second */
-      if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+      /* Whilst polling for the dbus, or doing a tftp transfer, wake every quarter second */
+      if (daemon->tftp_trans ||
+	  ((daemon->options & OPT_DBUS) && !daemon->dbus))
 	{
 	  t.tv_sec = 0;
 	  t.tv_usec = 250000;
 	  tp = &t;
 	}
 
+#ifdef HAVE_DBUS
       set_dbus_listeners(daemon, &maxfd, &rset, &wset, &eset);
 #endif	
   
@@ -614,7 +659,11 @@ int main (int argc, char **argv)
 #endif
 
       check_dns_listeners(daemon, &rset, now);
-      
+
+#ifdef HAVE_TFTP
+      check_tftp_listeners(daemon, &rset, now);
+#endif      
+
       if (daemon->dhcp && FD_ISSET(daemon->dhcpfd, &rset))
 	dhcp_packet(daemon, now);
 
@@ -668,7 +717,18 @@ static int set_dns_listeners(struct daemon *daemon, time_t now, fd_set *set, int
   struct serverfd *serverfdp;
   struct listener *listener;
   int wait, i;
-
+  
+#ifdef HAVE_TFTP
+  int  tftp = 0;
+  struct tftp_transfer *transfer;
+  for (transfer = daemon->tftp_trans; transfer; transfer = transfer->next)
+    {
+      tftp++;
+      FD_SET(transfer->sockfd, set);
+      bump_maxfd(transfer->sockfd, maxfdp);
+    }
+#endif
+  
   /* will we be able to get memory? */
   get_new_frec(daemon, now, &wait);
   
@@ -696,8 +756,17 @@ static int set_dns_listeners(struct daemon *daemon, time_t now, fd_set *set, int
 	    bump_maxfd(listener->tcpfd, maxfdp);
 	    break;
 	  }
-    }
 
+#ifdef HAVE_TFTP
+      if (tftp <= daemon->tftp_max && listener->tftpfd != -1)
+	{
+	  FD_SET(listener->tftpfd, set);
+	  bump_maxfd(listener->tftpfd, maxfdp);
+	}
+#endif
+
+    }
+  
   return wait;
 }
 
@@ -705,116 +774,121 @@ static void check_dns_listeners(struct daemon *daemon, fd_set *set, time_t now)
 {
   struct serverfd *serverfdp;
   struct listener *listener;	  
-
-   for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
-     if (FD_ISSET(serverfdp->fd, set))
-       reply_query(serverfdp, daemon, now);
-
-   for (listener = daemon->listeners; listener; listener = listener->next)
-     {
-       if (FD_ISSET(listener->fd, set))
-	 receive_query(listener, daemon, now);
-       
-       if (FD_ISSET(listener->tcpfd, set))
-	 {
-	   int confd;
-	   struct irec *iface = NULL;
-	   pid_t p;
-	   
-	   while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
-	      
-	   if (confd == -1)
-	     continue;
-	     
-	   if (daemon->options & OPT_NOWILD)
-	     iface = listener->iface;
-	   else
-	     {
-	       union mysockaddr tcp_addr;
-	       socklen_t tcp_len = sizeof(union mysockaddr);
-	       /* Check for allowed interfaces when binding the wildcard address:
-		  we do this by looking for an interface with the same address as 
-		  the local address of the TCP connection, then looking to see if that's
-		  an allowed interface. As a side effect, we get the netmask of the
-		  interface too, for localisation. */
-	       
-	       /* interface may be new since startup */
-	       if (enumerate_interfaces(daemon) &&
-		   getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) != -1)
-		 for (iface = daemon->interfaces; iface; iface = iface->next)
-		   if (sockaddr_isequal(&iface->addr, &tcp_addr))
-		     break;
-	     }
-	   
-	   if (!iface)
-	     {
-	       shutdown(confd, SHUT_RDWR);
-	       close(confd);
-	     }
-#ifndef NO_FORK
-	   else if (!(daemon->options & OPT_DEBUG) && (p = fork()) != 0)
-	     {
-	       if (p != -1)
-		 {
-		   int i;
-		   for (i = 0; i < MAX_PROCS; i++)
-		     if (daemon->tcp_pids[i] == 0)
-		       {
-			 daemon->tcp_pids[i] = p;
-			 break;
-		       }
-		 }
-	       close(confd);
-	     }
+  
+  for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
+    if (FD_ISSET(serverfdp->fd, set))
+      reply_query(serverfdp, daemon, now);
+  
+  for (listener = daemon->listeners; listener; listener = listener->next)
+    {
+      if (FD_ISSET(listener->fd, set))
+	receive_query(listener, daemon, now); 
+ 
+#ifdef HAVE_TFTP     
+      if (listener->tftpfd != -1 && FD_ISSET(listener->tftpfd, set))
+	tftp_request(listener, daemon, now);
 #endif
-	   else
-	     {
-	       unsigned char *buff;
-	       struct server *s; 
-	       int flags;
-	       struct in_addr dst_addr_4;
-	       
-	       dst_addr_4.s_addr = 0;
-	       
+
+      if (FD_ISSET(listener->tcpfd, set))
+	{
+	  int confd;
+	  struct irec *iface = NULL;
+	  pid_t p;
+	  
+	  while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
+	  
+	  if (confd == -1)
+	    continue;
+	  
+	  if (daemon->options & OPT_NOWILD)
+	    iface = listener->iface;
+	  else
+	    {
+	      union mysockaddr tcp_addr;
+	      socklen_t tcp_len = sizeof(union mysockaddr);
+	      /* Check for allowed interfaces when binding the wildcard address:
+		 we do this by looking for an interface with the same address as 
+		 the local address of the TCP connection, then looking to see if that's
+		 an allowed interface. As a side effect, we get the netmask of the
+		 interface too, for localisation. */
+	      
+	      /* interface may be new since startup */
+	      if (enumerate_interfaces(daemon) &&
+		  getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) != -1)
+		for (iface = daemon->interfaces; iface; iface = iface->next)
+		  if (sockaddr_isequal(&iface->addr, &tcp_addr))
+		    break;
+	    }
+	  
+	  if (!iface)
+	    {
+	      shutdown(confd, SHUT_RDWR);
+	      close(confd);
+	    }
+#ifndef NO_FORK
+	  else if (!(daemon->options & OPT_DEBUG) && (p = fork()) != 0)
+	    {
+	      if (p != -1)
+		{
+		  int i;
+		  for (i = 0; i < MAX_PROCS; i++)
+		    if (daemon->tcp_pids[i] == 0)
+		      {
+			daemon->tcp_pids[i] = p;
+			break;
+		      }
+		}
+	      close(confd);
+	    }
+#endif
+	  else
+	    {
+	      unsigned char *buff;
+	      struct server *s; 
+	      int flags;
+	      struct in_addr dst_addr_4;
+	      
+	      dst_addr_4.s_addr = 0;
+	      
 	       /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
 		  terminate the process. */
-	       if (!(daemon->options & OPT_DEBUG))
-		 alarm(CHILD_LIFETIME);
-	       
-	       /* start with no upstream connections. */
-	       for (s = daemon->servers; s; s = s->next)
+	      if (!(daemon->options & OPT_DEBUG))
+		alarm(CHILD_LIFETIME);
+	      
+	      /* start with no upstream connections. */
+	      for (s = daemon->servers; s; s = s->next)
 		 s->tcpfd = -1; 
+	      
+	      /* The connected socket inherits non-blocking
+		 attribute from the listening socket. 
+		 Reset that here. */
+	      if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
+		fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
+	      
+	      if (listener->family == AF_INET)
+		dst_addr_4 = iface->addr.in.sin_addr;
+	      
+	      buff = tcp_request(daemon, confd, now, dst_addr_4, iface->netmask);
 	       
-	       /* The connected socket inherits non-blocking
-		  attribute from the listening socket. 
-		  Reset that here. */
-	       if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
-		 fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
-	       
-	       if (listener->family == AF_INET)
-		 dst_addr_4 = iface->addr.in.sin_addr;
-	       
-	       buff = tcp_request(daemon, confd, now, dst_addr_4, iface->netmask);
-	       
-	       shutdown(confd, SHUT_RDWR);
-	       close(confd);
-	       
-	       if (buff)
-		 free(buff);
-	       
-	       for (s = daemon->servers; s; s = s->next)
-		 if (s->tcpfd != -1)
-		   {
-		     shutdown(s->tcpfd, SHUT_RDWR);
-		     close(s->tcpfd);
-		   }
+	      shutdown(confd, SHUT_RDWR);
+	      close(confd);
+	      
+	      if (buff)
+		free(buff);
+	      
+	      for (s = daemon->servers; s; s = s->next)
+		if (s->tcpfd != -1)
+		  {
+		    shutdown(s->tcpfd, SHUT_RDWR);
+		    close(s->tcpfd);
+		  }
 #ifndef NO_FORK		   
-	       if (!(daemon->options & OPT_DEBUG))
-		 _exit(0);
+	      if (!(daemon->options & OPT_DEBUG))
+		_exit(0);
 #endif
-	     }
-	 }
-     }
+	    }
+	}
+    }
 }
 
 
@@ -841,7 +915,7 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
   /* Try and get an ICMP echo from a machine. */
 
   /* Note that whilst in the three second wait, we check for 
-     (and service) events on the DNS sockets, (so doing that
+     (and service) events on the DNS and TFTP  sockets, (so doing that
      better not use any resources our caller has in use...)
      but we remain deaf to signals or further DHCP packets. */
 
@@ -900,13 +974,17 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
       FD_ZERO(&rset);
       FD_SET(fd, &rset);
       set_dns_listeners(daemon, now, &rset, &maxfd);
-		
+      
       if (select(maxfd+1, &rset, NULL, NULL, &tv) < 0)
 	FD_ZERO(&rset);
       
       now = dnsmasq_time();
       check_dns_listeners(daemon, &rset, now);
-      
+
+#ifdef HAVE_TFTP
+      check_tftp_listeners(daemon, &rset, now);
+#endif
+
       if (FD_ISSET(fd, &rset) &&
 	  recvfrom(fd, &packet, sizeof(packet), 0,
 		   (struct sockaddr *)&faddr, &len) == sizeof(packet) &&

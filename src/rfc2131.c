@@ -95,7 +95,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   struct dhcp_vendor *vendor;
   struct dhcp_mac *mac;
   struct dhcp_netid_list *id_list;
-  int clid_len = 0, ignore = 0, do_classes = 0;
+  int clid_len = 0, ignore = 0, do_classes = 0, selecting = 0;
   struct dhcp_packet *mess = daemon->dhcp_packet.iov_base;
   unsigned char *p, *end = (unsigned char *)(mess + 1);
   char *hostname = NULL, *offer_hostname = NULL, *client_hostname = NULL;
@@ -446,10 +446,9 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
     {
       hostname = config->hostname;
       hostname_auth = 1;
-      /* be careful not to send an OFFER with a hostname not 
-	 matching the DISCOVER. */
+      /* be careful not to send an OFFER with a hostname not matching the DISCOVER. */
       if (fqdn_flags != 0 || !client_hostname || hostname_isequal(hostname, client_hostname))
-	offer_hostname = hostname;
+        offer_hostname = hostname;
     }
   else if (client_hostname && (hostname = strip_hostname(daemon, client_hostname)) && !config)
     {
@@ -510,7 +509,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
     if (match_netid(id_list->list, netid, 0))
       ignore = 1;
-  
+   
   /* Can have setting to ignore the client ID for a particular MAC address or hostname */
   if (have_config(config, CONFIG_NOCLID))
     clid = NULL;
@@ -675,6 +674,8 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  if ((opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)))
 	    {
 	      /* SELECTING */
+	      selecting = 1;
+	      
 	      for (; context; context = context->current)
 		if (context->local.s_addr == option_addr(opt).s_addr)
 		  break;
@@ -746,7 +747,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  /* Check if a new static address has been configured. Be very sure that
 	     when the client does DISCOVER, it will get the static address, otherwise
 	     an endless protocol loop will ensue. */
-	  else if (!tmp &&
+	  else if (!tmp && !selecting &&
 		   have_config(config, CONFIG_ADDR) && 
 		   (!have_config(config, CONFIG_DECLINED) ||
 		    difftime(now, config->decline_time) > (float)DECLINE_BACKOFF) &&
@@ -834,8 +835,6 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	      hostname = client_hostname;
 	      hostname_auth = 1;
 	    }
-
-	  log_packet(daemon, "ACK", &mess->yiaddr, mess, iface_name, hostname);
       
 	  if (context->netid.net)
 	    {
@@ -845,10 +844,23 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	
 	  time = calc_time(context, config, NULL, option_find(mess, sz, OPTION_LEASE_TIME, 4), now);
 	  lease_set_hwaddr(lease, mess->chaddr, clid, mess->hlen, mess->htype, clid_len);
+	   
+	  /* if all the netids in the ignore_name list are present, ignore client-supplied name */
+	  if (!hostname_auth)
+	    {
+	      for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
+		if ((!id_list->list) || match_netid(id_list->list, netid, 0))
+		  break;
+	      if (id_list)
+		hostname = NULL;
+	    }
 	  if (hostname)
 	    lease_set_hostname(lease, hostname, daemon->domain_suffix, hostname_auth);
+	  
 	  lease_set_expires(lease, time, now);
-	  	  
+	  	
+	  log_packet(daemon, "ACK", &mess->yiaddr, mess, iface_name, hostname);  
+	  
 	  mess->siaddr = context->local;
 	  bootp_option_put(mess, daemon->boot_config, netid);
 	  p = option_put(p, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
@@ -1200,14 +1212,12 @@ static unsigned char *do_req_options(struct dhcp_context *context,
   if (subnet_addr.s_addr)
     p = option_put(p, end, OPTION_SUBNET_SELECT, INADDRSZ, ntohl(subnet_addr.s_addr));
 
-  if (in_list(req_options, OPTION_NETMASK) &&
-      !option_find2(netid, config_opts, OPTION_NETMASK))
+  if (!option_find2(netid, config_opts, OPTION_NETMASK))
     p = option_put(p, end, OPTION_NETMASK, INADDRSZ, ntohl(context->netmask.s_addr));
   
   /* May not have a "guessed" broadcast address if we got no packets via a relay
      from this net yet (ie just unicast renewals after a restart */
   if (context->broadcast.s_addr &&
-      in_list(req_options, OPTION_BROADCAST) &&
       !option_find2(netid, config_opts, OPTION_BROADCAST))
     p = option_put(p, end, OPTION_BROADCAST, INADDRSZ, ntohl(context->broadcast.s_addr));
   

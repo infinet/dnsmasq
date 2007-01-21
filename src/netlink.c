@@ -18,6 +18,14 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 
+/* linux 2.6.19 buggers up the headers, patch it up here. */ 
+#ifndef IFA_RTA
+#  define IFA_RTA(r)  \
+       ((struct rtattr*)(((char*)(r)) + NLMSG_ALIGN(sizeof(struct ifaddrmsg))))
+
+#  include <linux/if_addr.h>
+#endif
+
 static struct iovec iov;
 
 static void nl_err(struct nlmsghdr *h);

@@ -2036,5 +2036,54 @@ version 2.35
 	    performance should be better. Thanks to "koko" for 
 	    pointing out the problem.
 
+version 2.36
+	    Added --dhcp-ignore-names flag which tells dnsmasq not to
+	    use names provided by DHCP clients. Suggestion from 
+	    Thomas M Steenholdt.
 
+	    Send netmask and broadcast address DHCP options always,
+	    even if the client doesn't request them. This makes a few
+	    odd clients work better.
+
+	    Added simple TFTP function, optimised for net-boot. It is
+	    now possible to net boot hosts using only dnsmasq. The
+	    TFTP server is read-only, binary-mode only, and designed to be
+	    secure; it adds about 4K to the dnsmasq binary. 
  
+	    Support DHCP option 120, SIP servers, (RFC 3361). Both
+            encodings are supported, so both --dhcp-option=120,192.168.2.3
+            and	--dhcp-option=120,sip.example.net will work. Brian
+            Candler pointed out the need for this.
+
+	    Allow spaces in domain names, to support DNS-SD.
+
+	    Add --ptr-record flag, again for DNS-SD. Thanks to Stephan 
+	    Sokolow for the suggestion.
+	    
+	    Tolerate leading space on lines in the config file. Thanks
+	    to Luigi Rizzo for pointing this out.
+
+	    Fixed netlink.c to cope with headers from the Linux 2.6.19
+	    kernel. Thanks to Philip Wall for the bug report.
+
+	    Added --dhcp-bridge option, but only to the FreeBSD
+	    build. This fixes an oddity with a a particular bridged
+	    network configuration on FreeBSD. Thanks to Luigi Rizzo
+	    for the patch.
+
+	    Added FAQ entry about running dnsmasq in a Linux
+	    vserver. Thanks to Gildas le Nadan for the information.  
+
+	    Fixed problem with option parsing which interpreted "/" as
+	    an address and not a string. Thanks to Luigi Rizzo
+	    for the patch.
+
+	    Ignore the --domain-needed flag when forwarding NS
+	    and SOA queries, since NS queries of TLDs are always legit.
+	    Marcus Better pointed out this problem.
+
+	    Take care to forward signed DNS requests bit-perfect, so
+	    as not to affect the validity of the signature. This
+	    should allow DDNS updates to be forwarded.
+
+

@@ -24,7 +24,7 @@ Dnsmasq
 supports IPv6.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
-functions, for instance "--pid-file=" disables writing a PID file. On
+functions, for instance "--pid-file" disables writing a PID file. On
 BSD, unless the GNU getopt library is linked, the long form of the
 options does not work on the command line; it is still recognised in
 the configuration file.
@@ -36,6 +36,10 @@ Don't read the hostnames in /etc/hosts.
 Additional hosts file. Read the specified file as well as /etc/hosts. If -h is given, read
 only the specified file. This option may be repeated for more than one
 additional hosts file.
+.TP
+.B \-E, --expand-hosts
+Add the domain to simple names (without a period) in /etc/hosts
+in the same way as for DHCP-derived names.
 .TP
 .B \-T, --local-ttl=<time>
 When replying with information from /etc/hosts or the DHCP leases
@@ -123,7 +127,7 @@ options does not matter and that
 options always override the others.
 .TP 
 .B \-2, --no-dhcp-interface=<interface name>
-Do not provide DHCP on the specified interface, but do provide DNS service.
+Do not provide DHCP or TFTP on the specified interface, but do provide DNS service.
 .TP
 .B \-a, --listen-address=<ipaddr>
 Listen on the given IP address(es). Both 
@@ -229,7 +233,7 @@ Tells dnsmasq to never forward queries for plain names, without dots
 or domain parts, to upstream nameservers. If the name is not known
 from /etc/hosts or DHCP then a "not found" answer is returned.
 .TP
-.B \-S, --server=[/[<domain>]/[domain/]][<ipaddr>[#<port>][@<source>[#<port>]]]
+.B \-S, ,--local, --server=[/[<domain>]/[domain/]][<ipaddr>[#<port>][@<source>[#<port>]]]
 Specify IP address of upstream severs directly. Setting this flag does
 not suppress reading of /etc/resolv.conf, use -R to do that. If one or
 more 
@@ -322,6 +326,9 @@ all that match are returned.
 Return a TXT DNS record. The value of TXT record is a set of strings,
 so  any number may be included, split by commas.
 .TP
+.B --ptr-record=<name>[,<target>]
+Return a PTR DNS record.
+.TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.
 .TP
@@ -368,7 +375,7 @@ addresses given via
 .B dhcp-host
 or from /etc/ethers will be served.
 .TP
-.B \-G, --dhcp-host=[[<hwaddr>]|[id:[<client_id>][*]]][,net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
+.B \-G, --dhcp-host=[<hwaddr>][,id:<client_id>|*][,net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
 Specify per host parameters for the DHCP server. This allows a machine
 with a particular hardware address to be always allocated the same
 hostname, IP address and lease time. A hostname specified like this
@@ -449,9 +456,10 @@ and a text string. If the optional network-ids are given then
 this option is only sent when all the network-ids are matched.
 
 Special processing is done on a text argument for option 119, to
-conform with RFC 3397, and dotted-quad IP addresses which are followed
-by a slash and then a netmask size are encoded as described in RFC
-3442.
+conform with RFC 3397. Text or dotted-quad IP addresses as arguments
+to option 120 are handled as per RFC 3361. Dotted-quad IP addresses 
+which are followed by a slash and then a netmask size are encoded as
+described in RFC 3442.
 
 Be careful: no checking is done that the correct type of data for the
 option number is sent, it is quite possible to
@@ -508,10 +516,23 @@ When all the given network-ids match the set of network-ids derived
 from the net, host, vendor and user classes, ignore the host and do
 not allocate it a DHCP lease.
 .TP
+.B --dhcp-ignore-name[=<network-id>[,<network-id>]]
+When all the given network-ids match the set of network-ids derived
+from the net, host, vendor and user classes, ignore any hostname
+provided by the host. Note that, unlike dhcp-ignore, it is permissable
+to supply no netid tags, in which case DHCP-client supplied hostnames
+are always ignored, and DHCP hosts are added to the DNS using only
+dhcp-host configuration in dnsmasq and the contents of /etc/hosts and
+/etc/ethers.
+.TP
 .B \-M, --dhcp-boot=[net:<network-id>,]<filename>,[<servername>[,<server address>]]
-Set BOOTP options to be returned by the DHCP server. These are needed
-for machines which network boot, and tell the machine where to collect
-its initial configuration. If the optional network-id(s) are given,
+Set BOOTP options to be returned by the DHCP server. Server name and
+address are optional: if not provided, the name is left empty, and the
+address set to the address of the machine running dnsmasq. If dnsmasq
+is providing a TFTP service (see 
+.B --enable-tftp
+) then only the filename is required here to enable network booting.
+If the optional network-id(s) are given,
 they must match for this configuration to be sent. Note that
 network-ids are prefixed by "net:" to distinguish them.
 .TP  
@@ -602,6 +623,12 @@ stdout and exit with zero exit code. Setting this
 option also forces the leasechange script to be called on changes
 to the client-id and lease length and expiry time.
 .TP
+.B --bridge-interface=<interface>,<alias>[,<alias>]
+Treat DHCP request packets arriving at any of the <alias> interfaces
+as if they had arrived at <interface>. This option is only available
+on FreeBSD and Dragonfly BSD, and is necessary when using "old style" bridging, since
+packets arrive at tap interfaces which don't have an IP address.
+.TP
 .B \-s, --domain=<domain>
 Specifies the domain for the DHCP server. This has two effects;
 firstly it causes the DHCP server to return the domain to any hosts
@@ -614,10 +641,37 @@ both as "laptop" and "laptop.thekelleys.org.uk". If the domain is
 given as "#" then the domain is read from the first "search" directive
 in /etc/resolv.conf (or equivalent). 
 .TP
-.B \-E, --expand-hosts
-Add the domain to simple names (without a period) in /etc/hosts
-in the same way as for DHCP-derived names.
+.B --enable-tftp
+Enable the TFTP server function. This is deliberately limited to that
+needed to net-boot a client: Only reading is allowed, and only in
+binary/octet mode. The tsize and blksize extensions are supported.
 .TP
+.B --tftp-root=<directory>
+Look for files to transfer using TFTP relative to the given
+directory. When this is set, TFTP paths which include ".." are
+rejected, to stop clients getting outside the specified root.
+.TP
+.B --tftp-secure
+Enable TFTP secure mode: without this, any file which is readble by
+the dnsmasq process under normal unix access-control rules is
+available via TFTP. When the --tftp-secure flag is given, only files
+owned by the user running the dnsmasq process are accessible. If
+dnsmasq is being run as root, different rules apply: --tftp-secure
+has not effect, but only files which have the world-readable bit set
+are accessible. It is not recommended to run dnsmasq as root with TFTP
+enabled, and certainly not without specifying --tftp-root. Doing so
+can expose any world-readable file on the server to any host on the net. 
+.TP
+.B --tftp-max=<connections>
+Set the maximum number of concurrent TFTP connections allowed. This
+defaults to 50. When serving a large number of TFTP connections,
+per-process file descriptor limits may be encountered. Dnsmasq needs
+one file descriptor for each concurrent TFTP connection and one
+file descriptor per unique file (plus a few others). So serving the
+same file simultaneously to n clients will use require about n + 10 file
+descriptors, serving different files simultaneously to n clients will
+require about (2*n) + 10 descriptors.
+.TP  
 .B \-C, --conf-file=<file>
 Specify a different configuration file. The conf-file option is also allowed in
 configuration files, to include multiple configuration files.

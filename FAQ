@@ -311,7 +311,7 @@ A: Because when a Gentoo box shuts down, it releases its lease with
 
 Q: My laptop has two network interfaces, a wired one and a wireless
    one. I never use both interfaces at the same time, and I'd like the
-   same IP and configuration to be used irrespcetive of which
+   same IP and configuration to be used irrespective of which
    interface is in use. How can I do that?
 
 A: By default, the identity of a machine is determined by using the
@@ -391,6 +391,28 @@ Q: Where can I get .rpms Suitable for Suse?
 
 A: Dnsmasq is in Suse itself, and the latest releases are also
    available at ftp://ftp.suse.com/pub/people/ug/
+
+
+Q: Can I run dnsmasq in a Linux vserver?
+
+A: Yes, as a DNS server, dnsmasq will just work in a vserver.
+   To use dnsmasq's DHCP function you need to give the vserver
+   extra system capabilities. Please note that doing so will lesser 
+   the overall security of your system. The capabilities 
+   required are NET_ADMIN and NET_RAW. NET_ADMIN is essential, NET_RAW
+   is required to do an ICMP "ping" check on newly allocated
+   addresses. If you don't need this check, you can disable it with
+   --no-ping and omit the NET_RAW capability. 
+   Adding the capabilities is done by adding them, one per line, to
+   either /etc/vservers/<vservername>/ccapabilities for a 2.4 kernel or
+   /etc/vservers/<vservername>/bcapabilities for a 2.6 kernel (please
+   refer to the vserver documentation for more information).
+
+
+
+
+
+
 
 
 

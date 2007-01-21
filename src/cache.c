@@ -46,6 +46,8 @@ static const struct {
   { 38,  "A6" },
   { 39,  "DNAME" },
   { 41,  "OPT" },
+  { 48,  "DNSKEY" },
+  { 249, "TKEY" },
   { 250, "TSIG" },
   { 251, "IXFR" },
   { 252, "AXFR" },
@@ -636,15 +638,19 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
 	flags &= ~F_REVERSE;
       else
 	for (i=0; i<hash_size; i++)
-	  for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
-	    if ((lookup->flags & F_HOSTS) && 
-		(lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
-		memcmp(&lookup->addr.addr, addr, addrlen) == 0)
-	      {
-		flags &= ~F_REVERSE;
-		break;
-	      }
-    
+	  {
+	    for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
+	      if ((lookup->flags & F_HOSTS) && 
+		  (lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+		  memcmp(&lookup->addr.addr, addr, addrlen) == 0)
+		{
+		  flags &= ~F_REVERSE;
+		  break;
+		}
+	    if (lookup)
+	      break;
+	  }
+      
       cache->flags = flags;
       cache->uid = index;
       memcpy(&cache->addr.addr, addr, addrlen);
@@ -997,6 +1003,8 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
 	strcpy(addrbuff, "<SRV>");
       else if (flags & F_NXDOMAIN)
 	strcpy(addrbuff, "<TXT>");
+      else if (flags & F_BIGNAME)
+	strcpy(addrbuff, "<PTR>");
       else
 	strcpy(addrbuff, "<CNAME>");
     }

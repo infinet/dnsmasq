@@ -37,7 +37,7 @@
 
 # If you don't want dnsmasq to read /etc/resolv.conf or any other
 # file, getting its servers from this file instead (see below), then
-# uncomment this
+# uncomment this.
 #no-resolv
 
 # If you don't want dnsmasq to poll /etc/resolv.conf or other resolv
@@ -206,11 +206,18 @@
 # subnet mask - 1
 # default router - 3
 # DNS server - 6
+# hostname - 12
 # broadcast address - 28
 
 # Override the default route supplied by dnsmasq, which assumes the
 # router is the same machine as the one running dnsmasq.
 #dhcp-option=3,1.2.3.4
+
+# Override the default route supplied by dnsmasq and send no default
+# route at all. Note that this only works for the options sent by
+# default (1, 3, 6, 12, 28) the same line will send a zero-length option 
+# for all other option numbers.
+#dhcp-option=3
 
 # Set the NTP time server addresses to 192.168.0.4 and 10.10.0.5
 #dhcp-option=42,192.168.0.4,10.10.0.5
@@ -262,9 +269,27 @@
 # mtftp address to 0.0.0.0 for PXEClients
 #dhcp-option=vendor:PXEClient,1,0.0.0.0
 
-# Set the boot filename and tftpd server name and address
-# for BOOTP. You will only need this is you want to
-# boot machines over the network.
+# Set the boot filename for BOOTP. You will only need 
+# this is you want to boot machines over the network and you will need
+# a TFTP server; either dnsmasq's built in TFTP server or an
+# external one. (See below for how to enable the TFTP server.)
+#dhcp-boot=pxelinux.0
+
+# Enable dnsmasq's built-in TFTP server
+#enable-tftp
+
+# Set the root directory for files availble via FTP.
+#tftp-root=/var/ftpd
+
+# Make the TFTP server more secure: with this set, only files owned by
+# the user dnsmasq is running as will be send over the net.
+#tftp-secure
+
+# Set the boot file name only when the "red" tag is set.
+#dhcp-boot=net:red,pxelinux.red-net
+
+# An example of dhcp-boot with an external server: the name and IP
+# address of the server are given after the filename.
 #dhcp-boot=/var/ftpd/pxelinux.0,boothost,192.168.0.3
 
 # Set the limit on DHCP leases, the default is 150
@@ -363,6 +388,11 @@
 # example.com
 #srv-host=_ldap._tcp.example.com
 
+# The following line shows how to make dnsmasq serve an arbitrary PTR
+# record. This is useful for DNS-SD. (Note that the
+# domain-name expansion done for SRV records _does_not
+# occur for PTR records.)
+#ptr-record=_http._tcp.dns-sd-services,"New Employee Page._http._tcp.dns-sd-services"
 
 # Change the following lines to enable dnsmasq to serve TXT records.
 # These are used for things like SPF and zeroconf. (Note that the
@@ -370,7 +400,7 @@
 # occur for TXT records.)
 
 #Example SPF.
-#txt-record=example.com,v=spf1 a -all
+#txt-record=example.com,"v=spf1 a -all"
 
 #Example zeroconf
 #txt-record=_http._tcp.example.com,name=value,paper=A4

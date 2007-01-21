@@ -12,7 +12,8 @@
 
 #include "dnsmasq.h"
 
-int iface_check(struct daemon *daemon, int family, struct all_addr *addr, char *name)
+int iface_check(struct daemon *daemon, int family, struct all_addr *addr, 
+		struct ifreq *ifr, int *indexp)
 {
   struct iname *tmp;
   int ret = 1;
@@ -20,16 +21,49 @@ int iface_check(struct daemon *daemon, int family, struct all_addr *addr, char *
   /* Note: have to check all and not bail out early, so that we set the
      "used" flags. */
 
-  if (daemon->if_names || daemon->if_addrs)
+  if (indexp)
+    {
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+      /* One form of bridging on FreeBSD has the property that packets
+	 can be recieved on bridge interfaces which do not have an IP address.
+	 We allow these to be treated as aliases of another interface which does have
+	 an IP address with --dhcp-bridge=interface,alias,alias */
+      struct dhcp_bridge *bridge, *alias;
+      for (bridge = daemon->bridges; bridge; bridge = bridge->next)
+	{
+	  for (alias = bridge->alias; alias; alias = alias->next)
+	    if (strncmp(ifr->ifr_name, alias->iface, IF_NAMESIZE) == 0)
+	      {
+		int newindex;
+		
+		if (!(newindex = if_nametoindex(bridge->iface)))
+		  {
+		    syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), ifr->ifr_name);
+		    return 0;
+		  }
+		else 
+		  {
+		    *indexp = newindex;
+		    strncpy(ifr->ifr_name,  bridge->iface, IF_NAMESIZE);
+		    break;
+		  }
+	      }
+	  if (alias)
+	    break;
+	}
+#endif
+    }
+  
+  if (daemon->if_names || (addr && daemon->if_addrs))
     {
       ret = 0;
 
       for (tmp = daemon->if_names; tmp; tmp = tmp->next)
-	if (tmp->name && (strcmp(tmp->name, name) == 0))
+	if (tmp->name && (strcmp(tmp->name, ifr->ifr_name) == 0))
 	  ret = tmp->used = 1;
 	        
       for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
-	if (tmp->addr.sa.sa_family == family)
+	if (addr && tmp->addr.sa.sa_family == family)
 	  {
 	    if (family == AF_INET &&
 		tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
@@ -44,7 +78,7 @@ int iface_check(struct daemon *daemon, int family, struct all_addr *addr, char *
     }
   
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, name) == 0))
+    if (tmp->name && (strcmp(tmp->name, ifr->ifr_name) == 0))
       ret = 0;
   
   return ret; 
@@ -56,6 +90,8 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
   struct irec *iface;
   int fd;
   struct ifreq ifr;
+  int dhcp_ok = 1;
+  struct iname *tmp;
   
   /* check whether the interface IP has been added already 
      we call this routine multiple times. */
@@ -109,12 +145,16 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
     }
   
   if (addr->sa.sa_family == AF_INET &&
-      !iface_check(daemon, AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name))
+      !iface_check(daemon, AF_INET, (struct all_addr *)&addr->in.sin_addr, &ifr, NULL))
     return 1;
-
+  
+  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+      dhcp_ok = 0;
+  
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family == AF_INET6 &&
-      !iface_check(daemon, AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name))
+      !iface_check(daemon, AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, &ifr, NULL))
     return 1;
 #endif
 
@@ -123,8 +163,9 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
     {
       iface->addr = *addr;
       iface->netmask = netmask;
+      iface->dhcp_ok = dhcp_ok;
       iface->next = *irecp;
-      *irecp = iface; 
+      *irecp = iface;
       return 1;
     }
   
@@ -239,6 +280,7 @@ static int create_ipv6_listener(struct listener **link, int port)
   l = safe_malloc(sizeof(struct listener));
   l->fd = fd;
   l->tcpfd = tcpfd;
+  l->tftpfd = -1;
   l->family = AF_INET6;
   l->next = NULL;
   *link = l;
@@ -247,12 +289,12 @@ static int create_ipv6_listener(struct listener **link, int port)
 }
 #endif
 
-struct listener *create_wildcard_listeners(int port)
+struct listener *create_wildcard_listeners(int port, int have_tftp)
 {
   union mysockaddr addr;
   int opt = 1;
   struct listener *l, *l6 = NULL;
-  int tcpfd, fd;
+  int tcpfd, fd, tftpfd = -1;
 
   memset(&addr, 0, sizeof(addr));
   addr.in.sin_family = AF_INET;
@@ -283,11 +325,32 @@ struct listener *create_wildcard_listeners(int port)
 #endif 
       bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
     return NULL;
+
+#ifdef HAVE_TFTP
+  if (have_tftp)
+    {
+      addr.in.sin_port = htons(TFTP_PORT);
+      if ((tftpfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+	return NULL;
       
+      if (setsockopt(tftpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	  !fix_fd(tftpfd) ||
+#if defined(HAVE_LINUX_NETWORK) 
+	  setsockopt(tftpfd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
+#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
+	  setsockopt(tftpfd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
+	  setsockopt(tftpfd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
+#endif 
+	  bind(tftpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
+	return NULL;
+    }
+#endif
+  
   l = safe_malloc(sizeof(struct listener));
   l->family = AF_INET;
   l->fd = fd;
   l->tcpfd = tcpfd;
+  l->tftpfd = tftpfd;
   l->next = l6;
 
   return l;
@@ -295,7 +358,6 @@ struct listener *create_wildcard_listeners(int port)
 
 struct listener *create_bound_listeners(struct daemon *daemon)
 {
-
   struct listener *listeners = NULL;
   struct irec *iface;
   int opt = 1;
@@ -306,6 +368,8 @@ struct listener *create_bound_listeners(struct daemon *daemon)
       new->family = iface->addr.sa.sa_family;
       new->iface = iface;
       new->next = listeners;
+      new->tftpfd = -1;
+
       if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
 	  (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
 	  setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
@@ -347,8 +411,20 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 	   if (listen(new->tcpfd, 5) == -1)
 	     die(_("failed to listen on socket: %s"), NULL);
 	 }
+
+      if ((daemon->options & OPT_TFTP) && iface->addr.sa.sa_family == AF_INET && iface->dhcp_ok)
+	{
+	  short save = iface->addr.in.sin_port;
+	  iface->addr.in.sin_port = htons(TFTP_PORT);
+	  if ((new->tftpfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ||
+	      setsockopt(new->tftpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
+	      !fix_fd(new->tftpfd) ||
+	      bind(new->tftpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
+	    die(_("failed to create TFTP socket: %s"), NULL);
+	  iface->addr.in.sin_port = save;
+	}
     }
-  
+
   return listeners;
 }
 

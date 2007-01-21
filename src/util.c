@@ -92,11 +92,12 @@ unsigned short rand16(void)
 int legal_char(char c)
 {
   /* check for legal char a-z A-Z 0-9 - 
-     (also / , used for RFC2317 and _ used in windows queries) */
+     (also / , used for RFC2317 and _ used in windows queries
+     and space, for DNS-SD stuff) */
   if ((c >= 'A' && c <= 'Z') ||
       (c >= 'a' && c <= 'z') ||
       (c >= '0' && c <= '9') ||
-      c == '-' || c == '/' || c == '_')
+      c == '-' || c == '/' || c == '_' || c == ' ')
     return 1;
   
   return 0;

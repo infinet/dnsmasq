@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.35"
+#define VERSION "2.36"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -48,12 +48,18 @@
 #define CHGRP "dip"
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
+#define TFTP_PORT 69
+#define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
 
 /* DBUS interface specifics */
 #define DNSMASQ_SERVICE "uk.org.thekelleys.dnsmasq"
 #define DNSMASQ_PATH "/uk/org/thekelleys/dnsmasq"
 
 /* A small collection of RR-types which are missing on some platforms */
+
+#ifndef T_SIG
+#  define T_SIG 24
+#endif
 
 #ifndef T_SRV
 #  define T_SRV 33
@@ -62,6 +68,15 @@
 #ifndef T_OPT
 #  define T_OPT 41
 #endif
+
+#ifndef T_TKEY
+#  define T_TKEY 249
+#endif
+
+#ifndef T_TSIG
+#  define T_TSIG 250
+#endif
+
 
 /* Get linux C library versions. */
 #if defined(__linux__) && !defined(__UCLIBC__) && !defined(__uClinux__)
@@ -97,6 +112,9 @@ HAVE_BROKEN_RTC
 HAVE_ISC_READER 
    define this to include the old ISC dhcpcd integration. Note that you cannot
    set both HAVE_ISC_READER and HAVE_BROKEN_RTC.
+
+HAVE_TFTP
+   define this to get dnsmasq's built-in TFTP server.
 
 HAVE_GETOPT_LONG
    define this if you have GNU libc or GNU getopt. 
@@ -153,12 +171,18 @@ NOTES:
 */
 
 /* platform independent options- uncomment to enable */
+#define HAVE_TFTP
 /* #define HAVE_BROKEN_RTC */
 /* #define HAVE_ISC_READER */
 /* #define HAVE_DBUS */
 
 #if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
+#endif
+
+/* Allow TFTP to be disabled with CFLAGS=-DNO_TFTP */
+#ifdef NO_TFTP
+#undef HAVE_TFTP
 #endif
 
 /* platform dependent options. */

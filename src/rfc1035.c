@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000 - 2005 Simon Kelley
+/* dnsmasq is Copyright (c) 2000 - 2006 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -341,7 +341,8 @@ static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *heade
    retransmision and to detect answers to questions we didn't ask, which 
    might be poisoning attacks. Note that we decode the name rather 
    than CRC the raw bytes, since replies might be compressed differently. 
-   We ignore case in the names for the same reason. */
+   We ignore case in the names for the same reason. Return all-ones
+   if there is not question section. */
 unsigned int questions_crc(HEADER *header, size_t plen, char *name)
 {
   int q;
@@ -407,21 +408,44 @@ size_t resize_packet(HEADER *header, size_t plen, unsigned char *pheader, size_t
   return ansp - (unsigned char *)header;
 }
 
-unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsigned char **p)
+unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsigned char **p, int *is_sign)
 {
   /* See if packet has an RFC2671 pseudoheader, and if so return a pointer to it. 
-     also return length of pseudoheader in *len and pointer to the UDP size in *p */
+     also return length of pseudoheader in *len and pointer to the UDP size in *p
+     Finally, check to see if a packet is signed. If it is we cannot change a single bit before
+     forwarding. We look for SIG and TSIG in the addition section, and TKEY queries (for GSS-TSIG) */
   
   int i, arcount = ntohs(header->arcount);
-  unsigned char *ansp;
-  unsigned short rdlen, type;
-
-  if (arcount == 0 || !(ansp = skip_questions(header, plen)))
+  unsigned char *ansp = (unsigned char *)(header+1);
+  unsigned short rdlen, type, class;
+  unsigned char *ret = NULL;
+  
+  if (is_sign && header->opcode == QUERY)
+    {
+      for (i = 0; i < ntohs(header->qdcount); i++)
+	{
+	  if (!(ansp = skip_name(ansp, header, plen)))
+	    return NULL;
+	  
+	  GETSHORT(type, ansp); 
+	  GETSHORT(class, ansp);
+	  
+	  if (class == C_IN && type == T_TKEY)
+	    *is_sign = 1;
+	}
+    }
+  else
+    {
+      if (!(ansp = skip_questions(header, plen)))
+	return NULL;
+    }
+    
+  if (arcount == 0)
     return NULL;
   
   if (!(ansp = skip_section(ansp, ntohs(header->ancount) + ntohs(header->nscount), header, plen)))
     return NULL; 
-    
+  
   for (i = 0; i < arcount; i++)
     {
       unsigned char *save, *start = ansp;
@@ -430,22 +454,28 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
 
       GETSHORT(type, ansp);
       save = ansp;
-      ansp += 6; /* class, TTL */
+      GETSHORT(class, ansp);
+      ansp += 4; /* TTL */
       GETSHORT(rdlen, ansp);
       if ((size_t)(ansp + rdlen - (unsigned char *)header) > plen) 
 	return NULL;
-       ansp += rdlen;
-       if (type == T_OPT)
+      ansp += rdlen;
+      if (type == T_OPT)
 	{
 	  if (len)
 	    *len = ansp - start;
 	  if (p)
 	    *p = save;
-	  return start;
+	  ret = start;
 	}
+      else if (is_sign && 
+	       i == arcount - 1 && 
+	       class == C_ANY && 
+	       (type == T_SIG || type == T_TSIG))
+	*is_sign = 1;
     }
   
-  return NULL;
+  return ret;
 }
       
   
@@ -744,7 +774,8 @@ void extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, stru
 }
 
 /* If the packet holds exactly one query
-   return 1 and leave the name from the query in name. */
+   return F_IPV4 or F_IPV6  and leave the name from the query in name. 
+   Abuse F_BIGNAME to indicate an NS query - yuck. */
 
 unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned short *typep)
 {
@@ -774,6 +805,8 @@ unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned
 	return F_IPV6;
       if (qtype == T_ANY)
 	return  F_IPV4 | F_IPV6;
+      if (qtype == T_NS || qtype == T_SOA)
+	return F_QUERY | F_BIGNAME;
     }
   
   return F_QUERY;
@@ -975,27 +1008,25 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 {
   char *name = daemon->namebuff;
   unsigned char *p, *ansp, *pheader;
-  int qtype, qclass, is_arpa;
+  int qtype, qclass;
   struct all_addr addr;
   unsigned int nameoffset;
   unsigned short flag;
   int qdcount = ntohs(header->qdcount); 
   int q, ans, anscount = 0, addncount = 0;
   int dryrun = 0, sec_reqd = 0;
+  int is_sign;
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0;
   struct mx_srv_record *rec;
  
-  if (!qdcount || header->opcode != QUERY )
-    return 0;
-
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
      the query. We check to see if the do bit is set, if so we always
      forward rather than answering from the cache, which doesn't include
      security information. */
 
-  if (find_pseudoheader(header, qlen, NULL, &pheader))
+  if (find_pseudoheader(header, qlen, NULL, &pheader, &is_sign))
     { 
       unsigned short udpsz, ext_rcode, flags;
       unsigned char *psave = pheader;
@@ -1010,12 +1041,15 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 	 than we allow, trim it so that we don't get an overlarge
 	 response from upstream */
 
-      if (udpsz > daemon->edns_pktsz)
+      if (!is_sign && (udpsz > daemon->edns_pktsz))
 	PUTSHORT(daemon->edns_pktsz, psave); 
 
       dryrun = 1;
     }
 
+  if (!qdcount || header->opcode != QUERY )
+    return 0;
+  
   for (rec = daemon->mxnames; rec; rec = rec->next)
     rec->offset = 0;
   
@@ -1035,11 +1069,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
       /* now extract name as .-concatenated string into name */
       if (!extract_name(header, qlen, &p, name, 1))
 	return 0; /* bad packet */
-      
-      /* see if it's w.z.y.z.in-addr.arpa format */
-
-      is_arpa = in_arpa_name_2_addr(name, &addr);
-      
+            
       GETSHORT(qtype, p); 
       GETSHORT(qclass, p);
 
@@ -1070,7 +1100,16 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 	{
 	  if (qtype == T_PTR || qtype == T_ANY)
 	    {
-	      if (!(crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
+	      /* see if it's w.z.y.z.in-addr.arpa format */
+	      int is_arpa = in_arpa_name_2_addr(name, &addr);
+	      struct ptr_record *ptr;
+
+	      for (ptr = daemon->ptr; ptr; ptr = ptr->next)
+		if (hostname_isequal(name, ptr->name))
+		  break;
+
+	      if (!ptr &&
+		  !(crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
 		{ 
 		  if (is_arpa == F_IPV4 && (daemon->options & OPT_BOGUSPRIV) && private_net(&addr))
 		    {
@@ -1079,6 +1118,21 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 		      nxdomain = 1;
 		      if (!dryrun)
 			log_query(F_CONFIG | F_REVERSE | F_IPV4 | F_NEG | F_NXDOMAIN, name, &addr, 0, NULL, 0);
+		    }
+		}
+	      else if (ptr)
+		{
+		  ans = 1;
+		  if (!dryrun)
+		    {
+		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_BIGNAME, name, NULL, 0, NULL, 0);
+		      for (ptr = daemon->ptr; ptr; ptr = ptr->next)
+			if (hostname_isequal(name, ptr->name))
+			  {
+			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, NULL,
+						    T_PTR, C_IN, "d", ptr->ptr))
+			      anscount++;
+			  }
 		    }
 		}
 	      else do 
