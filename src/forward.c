@@ -365,7 +365,7 @@ static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now,
 	PUTSHORT(daemon->edns_pktsz, psave);
     }
 
-  if (is_sign || header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
+  if (header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
     return n;
   
   /* Complain loudly if the upstream server is non-recursive. */

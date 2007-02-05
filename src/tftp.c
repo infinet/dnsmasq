@@ -14,8 +14,10 @@
 
 #ifdef HAVE_TFTP
 
+static struct tftp_file *check_tftp_fileperm(struct daemon *daemon, ssize_t *len);
 static void free_transfer(struct tftp_transfer *transfer);
 static ssize_t tftp_err(int err, char *packet, char *mess, char *file);
+static ssize_t tftp_err_oops(char *packet, char *file);
 static ssize_t get_block(char *packet, struct tftp_transfer *transfer);
 static char *next(char **p, char *end);
 
@@ -37,7 +39,6 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
   ssize_t len;
   char *packet = daemon->packet;
   char *filename, *mode, *p, *end, *opt;
-  struct stat statbuf;
   struct sockaddr_in addr, peer;
   struct msghdr msg;
   struct cmsghdr *cmptr;
@@ -46,7 +47,6 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
   int is_err = 1, if_index = 0;
   struct iname *tmp;
   struct tftp_transfer *transfer, *t;
-  struct tftp_file *file;
 
   union {
     struct cmsghdr align; /* this ensures alignment */
@@ -74,55 +74,55 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
   if ((len = recvmsg(listen->tftpfd, &msg, 0)) < 2)
     return;
   
- if (daemon->options & OPT_NOWILD)
-   addr = listen->iface->addr.in;
- else
-   {
-     addr.sin_addr.s_addr = 0;
-
+  if (daemon->options & OPT_NOWILD)
+    addr = listen->iface->addr.in;
+  else
+    {
+      addr.sin_addr.s_addr = 0;
+      
 #if defined(HAVE_LINUX_NETWORK)
-     for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-       if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
-	 {
-	   addr.sin_addr = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
-	   if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
-	 }
-     if (!(ifr.ifr_ifindex = if_index) || 
-	 ioctl(listen->tftpfd, SIOCGIFNAME, &ifr) == -1)
-       return;
-     
+      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+	  {
+	    addr.sin_addr = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
+	    if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
+	  }
+      if (!(ifr.ifr_ifindex = if_index) || 
+	  ioctl(listen->tftpfd, SIOCGIFNAME, &ifr) == -1)
+	return;
+      
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
-     for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-       if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
-	 addr.sin_addr = *((struct in_addr *)CMSG_DATA(cmptr));
-       else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-	 if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
-     
-     if (if_index == 0 || !if_indextoname(if_index, ifr.ifr_name))
-       return;
-
+      for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
+	  addr.sin_addr = *((struct in_addr *)CMSG_DATA(cmptr));
+	else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
+	  if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
+      
+      if (if_index == 0 || !if_indextoname(if_index, ifr.ifr_name))
+	return;
+      
 #endif
-     
-     if (addr.sin_addr.s_addr == 0)
-       return;
-     
-     if (!iface_check(daemon, AF_INET, (struct all_addr *)&addr, &ifr, &if_index))
-       return;
-     
-     /* allowed interfaces are the same as for DHCP */
-     for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-       if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
-	 return;
-     
-   }
- 
+      
+      if (addr.sin_addr.s_addr == 0)
+	return;
+      
+      if (!iface_check(daemon, AF_INET, (struct all_addr *)&addr, &ifr, &if_index))
+	return;
+      
+      /* allowed interfaces are the same as for DHCP */
+      for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+	if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+	  return;
+      
+    }
+  
   /* tell kernel to use ephemeral port */
   addr.sin_port = 0;
   addr.sin_family = AF_INET;
 #ifdef HAVE_SOCKADDR_SA_LEN
   addr.sin_len = sizeof(addr);
 #endif
-
+  
   if (!(transfer = malloc(sizeof(struct tftp_transfer))))
     return;
   
@@ -205,81 +205,17 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
 	  /* file already open */
 	  transfer->file = t->file;
 	  transfer->file->refcount++;
-	  if ((len = get_block(packet, transfer)) == -1)
-	    goto oops;
-	  is_err = 0;
 	}
-      else
+      else 
+	/* check permissions and open file */
+	transfer->file = check_tftp_fileperm(daemon, &len);
+      
+      if (transfer->file)
 	{
-	  /* check permissions and open file */
-	  
-	  /* trick to ban moving out of the subtree */
-	  if (daemon->tftp_prefix && strstr(daemon->namebuff, "/../"))
-	    {
-	      errno =  EACCES;
-	      goto perm;
-	    }
-	  
-	  if (stat(daemon->namebuff, &statbuf) == -1)
-	    {
-	      if (errno == ENOENT || errno == ENOTDIR)
-		len = tftp_err(ERR_FNF, packet, _("file %s not found"), daemon->namebuff);
-	      else if (errno == EACCES)
-		{
-		perm:
-		  len = tftp_err(ERR_PERM, packet, _("cannot access %s: %s"), daemon->namebuff);
-		}
-	      else
-		{
-		oops:
-		  len = tftp_err(ERR_NOTDEF, packet, _("cannot read %s: %s"), daemon->namebuff);
-		}
-	    }
-	  else 
-	    { 
-	      uid_t uid = geteuid();
-	      /* running as root, must be world-readable */
-	      if (uid == 0)
-		{
-		  if (!(statbuf.st_mode & S_IROTH))
-		    {
-		      errno = EACCES;
-		      goto perm;
-		    }
-		}
-	      /* in secure mode, must be owned by user running dnsmasq */
-	      else if ((daemon->options & OPT_TFTP_SECURE) && uid != statbuf.st_uid)
-		{
-		  errno = EACCES;
-		  goto perm;
-		}
-	      
-	      if (!(file = malloc(sizeof(struct tftp_file) + strlen(daemon->namebuff) + 1)))
-		{
-		  errno = ENOMEM;
-		  goto oops;
-		}
-
-	      if ((file->fd = open(daemon->namebuff, O_RDONLY)) == -1)
-		{
-		  free(file);
-		  
-		  if (errno == EACCES || errno == EISDIR)
-		    goto perm;
-		  else
-		    goto oops;
-		}
-	      else
-		{
-		  transfer->file = file;
-		  file->refcount = 1;
-		  file->size = statbuf.st_size;
-		  strcpy(file->filename, daemon->namebuff); 
-		  if ((len = get_block(packet, transfer)) == -1)
-		    goto oops;
-		  is_err = 0;
-		}
-	    }
+	  if ((len = get_block(packet, transfer)) == -1)
+	    len = tftp_err_oops(packet, daemon->namebuff);
+	  else
+	    is_err = 0;
 	}
     }
   
@@ -295,7 +231,80 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
       daemon->tftp_trans = transfer;
     }
 }
-  
+ 
+static struct tftp_file *check_tftp_fileperm(struct daemon *daemon, ssize_t *len)
+{
+  char *packet = daemon->packet, *namebuff = daemon->namebuff;
+  struct tftp_file *file;
+  uid_t uid = geteuid();
+  struct stat statbuf;
+
+  /* trick to ban moving out of the subtree */
+  if (daemon->tftp_prefix && strstr(namebuff, "/../"))
+    {
+      errno = EACCES;
+      goto perm;
+    }
+
+  if (stat(namebuff, &statbuf) == -1)
+    {
+      if (errno == ENOENT || errno == ENOTDIR)
+	goto nofile;
+      else if (errno == EACCES)
+	goto perm;
+      else
+	goto oops;
+    }
+
+  /* running as root, must be world-readable */
+  if (uid == 0)
+    {
+      if (!(statbuf.st_mode & S_IROTH))
+	{
+	  errno = EACCES;
+	  goto perm;
+	}
+    }
+  /* in secure mode, must be owned by user running dnsmasq */
+  else if ((daemon->options & OPT_TFTP_SECURE) && uid != statbuf.st_uid)
+    {
+      errno = EACCES;
+      goto perm;
+    }
+
+  if (!(file = malloc(sizeof(struct tftp_file) + strlen(namebuff) + 1)))
+    {
+      errno = ENOMEM;
+      goto oops;
+    }
+
+  if ((file->fd = open(namebuff, O_RDONLY)) == -1)
+    {
+      free(file);
+      if (errno == EACCES || errno == EISDIR)
+	goto perm;
+      else
+	goto oops;
+    }
+
+  file->size = statbuf.st_size;
+  file->refcount = 1;
+  strcpy(file->filename, namebuff);
+  return file;
+
+nofile:
+  *len = tftp_err(ERR_FNF, packet, _("file %s not found"), namebuff);
+  return NULL;
+
+ perm:
+  *len =  tftp_err(ERR_PERM, packet, _("cannot access %s: %s"), namebuff);
+  return NULL;
+
+oops:
+  *len =  tftp_err_oops(packet, namebuff);
+  return NULL;
+}
+
 void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
 {
   struct tftp_transfer *transfer, *tmp, **up;
@@ -363,7 +372,7 @@ void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
 	 
 	  if ((len = get_block(daemon->packet, transfer)) == -1)
 	    {
-	      len = tftp_err(ERR_NOTDEF, daemon->packet, _("cannot read %s: %s"), transfer->file->filename);
+	      len = tftp_err_oops(daemon->packet, transfer->file->filename);
 	      endcon = 1;
 	    }
 	  else if (++transfer->backoff > 5)
@@ -434,6 +443,11 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
     syslog(LOG_ERR, "TFTP %s", mess->message);
   
   return  ret;
+}
+
+static ssize_t tftp_err_oops(char *packet, char *file)
+{
+  return tftp_err(ERR_NOTDEF, packet, _("cannot read %s: %s"), file);
 }
 
 /* return -1 for error, zero for done. */

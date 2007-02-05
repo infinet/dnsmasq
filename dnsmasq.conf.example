@@ -262,12 +262,19 @@
 # Send RFC-3442 classless static routes (note the netmask encoding)
 #dhcp-option=121,192.168.1.0/24,1.2.3.4,10.0.0.0/8,5.6.7.8
 
-# Send encapsulated vendor-class specific options. The vendor-class
-# is sent as DHCP option 60, and all the options marked with the
-# vendor class are send encapsulated in DHCP option 43. The meaning of
-# the options is defined by the vendor-class. This example sets the
-# mtftp address to 0.0.0.0 for PXEClients
+# Send vendor-class specific options encapsulated in DHCP option 43. 
+# The meaning of the options is defined by the vendor-class so
+# options are sent only when the client supplied vendor class
+# matches the class given here. (A substring match is OK, so "MSFT" 
+# matches "MSFT" and "MSFT 5.0"). This example sets the
+# mtftp address to 0.0.0.0 for PXEClients.
 #dhcp-option=vendor:PXEClient,1,0.0.0.0
+
+# Send microsoft-specific option to tell windows to release the DHCP lease
+# when it shuts down. Note the "i" flag, to tell dnsmasq to send the
+# value as a four-byte integer - that's what microsoft wants. See
+# http://technet2.microsoft.com/WindowsServer/en/library/a70f1bb7-d2d4-49f0-96d6-4b7414ecfaae1033.mspx?mfr=true
+#dhcp-option=vendor:MSFT,2,1i
 
 # Set the boot filename for BOOTP. You will only need 
 # this is you want to boot machines over the network and you will need

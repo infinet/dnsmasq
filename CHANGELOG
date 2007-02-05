@@ -2086,4 +2086,40 @@ version 2.36
 	    as not to affect the validity of the signature. This
 	    should allow DDNS updates to be forwarded.
 
+version 2.37
+            Add better support for RFC-2855 DHCP-over-firewire and RFC
+           -4390 DHCP-over-InfiniBand. A good suggestion from Karl Svec.
+
+	    Some efficiency tweaks to the cache code for very large
+	    /etc/hosts files. Should improve reverse (address->name)
+	    lookups and garbage collection. Thanks to Jan 'RedBully'
+	    Seiffert for input on this.
+
+	    Fix regression in 2.36 which made bogus-nxdomain
+	    and DNS caching unreliable. Thanks to Dennis DeDonatis
+	    and Jan Seiffert for bug reports.
+
+	    Make DHCP encapsulated vendor-class	options sane. Be
+	    warned that some conceivable existing configurations 
+	    using these may break, but they work in a much 
+	    simpler and more logical way now. Prepending
+	    "vendor:<client-id>" to an option encapsulates it 
+	    in option 43, and the option is sent only if the 
+	    client-supplied vendor-class substring-matches with 
+	    the given client-id. Thanks to Dennis DeDonatis for 
+	    help with this.
+
+	    Apply patch from Jan Seiffert to tidy up tftp.c
+
+	    Add support for overloading the filename and servername 
+	    fields in DHCP packet. This gives extra option-space when
+	    these fields are not being used or with a modern client
+	    which supports moving them into options.
+
+	    Added a LIMITS section to the man-page, with guidance on
+	    maximum numbers of clients, file sizes and tuning.
+
+
+
+	
 

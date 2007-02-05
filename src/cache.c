@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -157,9 +157,24 @@ static struct crec **hash_bucket(char *name)
 
 static void cache_hash(struct crec *crecp)
 {
-  struct crec **bucket = hash_bucket(cache_get_name(crecp));
-  crecp->hash_next = *bucket;
-  *bucket = crecp;
+  /* maintain an invariant that all entries with F_REVERSE set
+     are at the start of the hash-chain  and all non-reverse
+     immortal entries are at the end of the hash-chain.
+     This allows reverse searches and garbage collection to be optimised */
+
+  struct crec **up = hash_bucket(cache_get_name(crecp));
+
+  if (!(crecp->flags & F_REVERSE))
+    {
+      while (*up && ((*up)->flags & F_REVERSE))
+	up = &((*up)->hash_next); 
+      
+      if (crecp->flags & F_IMMORTAL)
+	while (*up && (!(*up)->flags & F_IMMORTAL))
+	  up = &((*up)->hash_next);
+    }
+  crecp->hash_next = *up;
+  *up = crecp;
 }
  
 static void cache_free(struct crec *crecp)
@@ -258,13 +273,18 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
      If (flags == 0) remove any expired entries in the whole cache. 
 
      In the flags & F_FORWARD case, the return code is valid, and returns zero if the
-     name exists in the cache as a HOSTS or DHCP entry (these are never deleted) */
-  
-  struct crec *crecp, **up;
+     name exists in the cache as a HOSTS or DHCP entry (these are never deleted)
 
+     We take advantage of the fact that hash chains have stuff in the order <reverse>,<other>,<immortal>
+     so that when we hit an entry which isn't reverse and is immortal, we're done. */
+ 
+  struct crec *crecp, **up;
+  
   if (flags & F_FORWARD)
     {
-      for (up = hash_bucket(name), crecp = *up; crecp; crecp = crecp->hash_next)
+      for (up = hash_bucket(name), crecp = *up; 
+	   crecp && ((crecp->flags & F_REVERSE) || !(crecp->flags & F_IMMORTAL));
+	   crecp = crecp->hash_next)
 	if (is_expired(now, crecp) || is_outdated_cname_pointer(crecp))
 	  { 
 	    *up = crecp->hash_next;
@@ -296,7 +316,9 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
       int addrlen = INADDRSZ;
 #endif 
       for (i = 0; i < hash_size; i++)
-	for (crecp = hash_table[i], up = &hash_table[i]; crecp; crecp = crecp->hash_next)
+	for (crecp = hash_table[i], up = &hash_table[i]; 
+	     crecp && ((crecp->flags & F_REVERSE) || !(crecp->flags & F_IMMORTAL));
+	     crecp = crecp->hash_next)
 	  if (is_expired(now, crecp))
 	    {
 	      *up = crecp->hash_next;
@@ -567,12 +589,16 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
   else
     {  
       /* first search, look for relevant entries and push to top of list
-	 also free anything which has expired */
+	 also free anything which has expired. All the reverse entries are at the
+	 start of the hash chain, so we can give up when we find the first 
+	 non-REVERSE one.  */
        int i;
        struct crec **up, **chainp = &ans;
        
-       for(i=0; i<hash_size; i++)
-	 for (crecp = hash_table[i], up = &hash_table[i]; crecp; crecp = crecp->hash_next)
+       for (i=0; i<hash_size; i++)
+	 for (crecp = hash_table[i], up = &hash_table[i]; 
+	      crecp && (crecp->flags & F_REVERSE);
+	      crecp = crecp->hash_next)
 	   if (!is_expired(now, crecp))
 	     {      
 	       if ((crecp->flags & F_REVERSE) && 

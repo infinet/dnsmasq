@@ -6,7 +6,7 @@ dnsmasq \- A lightweight DHCP and caching DNS server.
 .I [OPTION]...
 .SH "DESCRIPTION"
 .BR dnsmasq
-is a lightweight DNS and DHCP server. It is intended to provide coupled DNS and DHCP service to a
+is a lightweight DNS, TFTP and DHCP server. It is intended to provide coupled DNS and DHCP service to a
 LAN.
 .PP
 Dnsmasq accepts DNS queries and either answers them from a small, local,
@@ -18,10 +18,12 @@ DNS queries for DHCP configured hosts.
 The dnsmasq DHCP server supports static address assignments, multiple
 networks, DHCP-relay and RFC3011 subnet specifiers. It automatically
 sends a sensible default set of DHCP options, and can be configured to
-send any desired set of DHCP options. It also supports BOOTP.
+send any desired set of DHCP options, inlcuding vendor-encapsulated
+options. It includes a secure, read-only,
+TFTP server to allow net/PXE boot of DHCP hosts and also supports BOOTP.
 .PP
 Dnsmasq 
-supports IPv6.
+supports IPv6 for DNS, but not DHCP.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
 functions, for instance "--pid-file" disables writing a PID file. On
@@ -233,7 +235,7 @@ Tells dnsmasq to never forward queries for plain names, without dots
 or domain parts, to upstream nameservers. If the name is not known
 from /etc/hosts or DHCP then a "not found" answer is returned.
 .TP
-.B \-S, ,--local, --server=[/[<domain>]/[domain/]][<ipaddr>[#<port>][@<source>[#<port>]]]
+.B \-S, --local, --server=[/[<domain>]/[domain/]][<ipaddr>[#<port>][@<source>[#<port>]]]
 Specify IP address of upstream severs directly. Setting this flag does
 not suppress reading of /etc/resolv.conf, use -R to do that. If one or
 more 
@@ -436,7 +438,7 @@ have exactly the same effect as
 .B --dhcp-host
 options containing the same information.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:<vendor-class>]<opt>,[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 Specify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -478,10 +480,15 @@ a literal IP address as TFTP server name, it is necessary to do
 
 Encapsulated Vendor-class options may also be specified using
 --dhcp-option: for instance 
-.B --dhcp-option=vendor:PXEClient,1,0.0.0.0
-sends the vendor class "PXEClient" and the encapsulated vendor class-specific option "mftp-address=0.0.0.0" Only one vendor class is allowed for any
-host, but multiple options are allowed, provided they all have
-the same vendor class. The address 0.0.0.0 is not treated specially in
+.B --dhcp-option=vendor:PXEClient,1,0.0.0.0 
+sends the encapsulated vendor
+class-specific option "mftp-address=0.0.0.0" to any client whose
+vendor-class matches "PXEClient". The vendor-class matching is
+substring based (see --dhcp-vendorclass for details) and it is
+possible to omit the vendorclass completely;
+.B --dhcp-option=vendor:,1,0.0.0.0
+in which case the encapsulated option is always sent.
+The address 0.0.0.0 is not treated specially in
 encapsulated vendor class options.
 .TP
 .B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
@@ -589,7 +596,7 @@ The environment is inherited from the invoker of dnsmasq, and if the
 host provided a client-id, this is stored in the environment variable
 DNSMASQ_CLIENT_ID. If the client provides vendor-class or user-class 
 information, these are provided in DNSMASQ_VENDOR_CLASS and 
-DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn variables, but only fory
+DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn variables, but only for
 "add" actions or "old" actions when a host resumes an existing lease,
 since these data are not held in dnsmasq's lease
 database. If dnsmasq was compiled with HAVE_BROKEN_RTC, then
@@ -633,7 +640,15 @@ packets arrive at tap interfaces which don't have an IP address.
 Specifies the domain for the DHCP server. This has two effects;
 firstly it causes the DHCP server to return the domain to any hosts
 which request it, and secondly it sets the domain which it is legal
-for DHCP-configured hosts to claim. The intention is to constrain hostnames so that an untrusted host on the LAN cannot advertise it's name via dhcp as e.g. "microsoft.com" and capture traffic not meant for it. If no domain suffix is specified, then any DHCP hostname with a domain part (ie with a period) will be disallowed and logged. If suffix is specified, then hostnames with a domain part are allowed, provided the domain part matches the suffix. In addition, when a suffix is set then hostnames without a domain part have the suffix added as an optional domain part. Eg on my network I can set 
+for DHCP-configured hosts to claim. The intention is to constrain
+hostnames so that an untrusted host on the LAN cannot advertise 
+its name via dhcp as e.g. "microsoft.com" and capture traffic not 
+meant for it. If no domain suffix is specified, then any DHCP
+hostname with a domain part (ie with a period) will be disallowed 
+and logged. If suffix is specified, then hostnames with a domain 
+part are allowed, provided the domain part matches the suffix. In
+addition, when a suffix is set then hostnames without a domain
+part have the suffix added as an optional domain part. Eg on my network I can set 
 .B --domain=thekelleys.org.uk
 and have a machine whose DHCP hostname is "laptop". The IP address for that machine is available from 
 .B dnsmasq
@@ -657,7 +672,7 @@ the dnsmasq process under normal unix access-control rules is
 available via TFTP. When the --tftp-secure flag is given, only files
 owned by the user running the dnsmasq process are accessible. If
 dnsmasq is being run as root, different rules apply: --tftp-secure
-has not effect, but only files which have the world-readable bit set
+has no effect, but only files which have the world-readable bit set
 are accessible. It is not recommended to run dnsmasq as root with TFTP
 enabled, and certainly not without specifying --tftp-root. Doing so
 can expose any world-readable file on the server to any host on the net. 
@@ -822,6 +837,50 @@ parameter in a BOOTP request is matched against netids in
 .B  dhcp-option 
 configurations, allowing some control over the options returned to
 different classes of hosts.
+
+.SH LIMITS
+The default values for resource limits in dnsmasq are generally
+conservative, and appropriate for embedded router type devices with
+slow processors and limited memory. On more capable hardware, it is
+possible to increase the limits, and handle many more clients. The
+following applies to dnsmasq-2.37: earlier versions did not scale as well.
+ 
+.PP
+Dnsmasq is capable of handling DNS and DHCP for at least a thousand
+clients. Clearly to do this the value of 
+.B --dhcp-max
+must be increased,
+and lease times should not be very short (less than one hour). The
+value of 
+.B --dns-forward-max 
+can be increased: start with it equal to
+the number of clients and increase if DNS seems slow. Note that DNS
+performance depends too on the performance of the upstream
+nameservers. The size of the DNS cache may be increased: the hard
+limit is 10000 names and the default (150) is very low. Sending
+SIGUSR1 to dnsmasq makes it log information which is useful for tuning
+the cache size. See the 
+.B NOTES
+section for details.
+
+.PP
+The built-in TFTP server is capable of many simultaneous file
+transfers: the absolute limit is related to the number of file-handles
+allowed to a process and the ability of the select() system call to
+cope with large numbers of file handles. If the limit is set too high
+using 
+.B --tftp-max
+it will be scaled down and the actual limit logged at
+start-up. Note that more transfers are possible when the same file is
+being sent than when each transfer sends a different file.
+
+.PP
+It is possible to use dnsmasq to block Web advertising by using a list
+of known banner-ad servers, all resolving to 127.0.0.1 or 0.0.0.0, in
+.B /etc/hosts 
+or an additional hosts file. The list can be very long, 
+dnsmasq has been tested successfully with one million names. That size
+file needs a 1GHz processor and about 60Mb of RAM.
 
 .SH FILES
 .IR /etc/dnsmasq.conf 

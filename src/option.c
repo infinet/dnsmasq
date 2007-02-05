@@ -384,7 +384,7 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 {
   struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
   char lenchar = 0, *cp;
-  int addrs, digs, is_addr, is_hex, is_dec;
+  int addrs, digs, is_addr, is_hex, is_dec, is_vend = 0;
   char *comma, *problem = NULL;
 
   new->len = 0;
@@ -406,7 +406,10 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 	  break;
 	
 	if (strstr(arg, "vendor:") == arg)
-	  new->vendor_class = (unsigned char *)safe_string_alloc(arg+7);
+	  {
+	    new->vendor_class = (unsigned char *)safe_string_alloc(arg+7);
+	    is_vend = 1;
+	  }
 	else
 	  {
 	    new->netid = safe_malloc(sizeof (struct dhcp_netid));
@@ -640,7 +643,7 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 	free(new->vendor_class);
       free(new);
     }
-  else if (new->vendor_class)
+  else if (is_vend)
     {
       new->next = daemon->vendor_opts;
       daemon->vendor_opts = new;

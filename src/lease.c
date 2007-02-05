@@ -312,7 +312,7 @@ struct dhcp_lease *lease_allocate(struct in_addr addr)
   memset(lease, 0, sizeof(struct dhcp_lease));
   lease->new = 1;
   lease->addr = addr;
-  lease->hwaddr_len = 225; /* illegal value */
+  lease->hwaddr_len = 256; /* illegal value */
   lease->expires = 1;
 #ifdef HAVE_BROKEN_RTC
   lease->length = 0xffffffff; /* illegal value */

@@ -38,7 +38,11 @@ static char *compile_opts =
 #ifdef NO_GETTEXT
 "no-"
 #endif
-"I18N ";
+"I18N "
+#ifndef HAVE_TFTP
+"no-"
+#endif
+"TFTP";
 
 static pid_t pid;
 static int pipewrite;
@@ -368,6 +372,8 @@ int main (int argc, char **argv)
       if (daemon->resolv_files && !daemon->resolv_files->is_default)
 	syslog(LOG_WARNING, _("warning: ignoring resolv-file flag because no-resolv is set"));
       daemon->resolv_files = NULL;
+      if (!daemon->servers)
+	syslog(LOG_WARNING, _("warning: no upstream servers configured"));
     } 
 
   if (daemon->dhcp)

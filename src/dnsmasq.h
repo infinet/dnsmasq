@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2005 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define COPYRIGHT "Copyright (C) 2000-2006 Simon Kelley" 
+#define COPYRIGHT "Copyright (C) 2000-2007 Simon Kelley" 
 
 /* get these before config.h  for IPv6 stuff... */
 #include <sys/types.h> 
@@ -365,6 +365,7 @@ struct dhcp_opt {
 
 #define DHOPT_ADDR               1
 #define DHOPT_STRING             2
+#define DHOPT_VENDOR_MATCH       4
 
 struct dhcp_boot {
   char *file, *sname;

@@ -419,19 +419,24 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
   unsigned char *ansp = (unsigned char *)(header+1);
   unsigned short rdlen, type, class;
   unsigned char *ret = NULL;
-  
-  if (is_sign && header->opcode == QUERY)
+
+  if (is_sign)
     {
-      for (i = 0; i < ntohs(header->qdcount); i++)
+      *is_sign = 0;
+
+      if (header->opcode == QUERY)
 	{
-	  if (!(ansp = skip_name(ansp, header, plen)))
-	    return NULL;
-	  
-	  GETSHORT(type, ansp); 
-	  GETSHORT(class, ansp);
-	  
-	  if (class == C_IN && type == T_TKEY)
-	    *is_sign = 1;
+	  for (i = 0; i < ntohs(header->qdcount); i++)
+	    {
+	      if (!(ansp = skip_name(ansp, header, plen)))
+		return NULL;
+	      
+	      GETSHORT(type, ansp); 
+	      GETSHORT(class, ansp);
+	      
+	      if (class == C_IN && type == T_TKEY)
+		*is_sign = 1;
+	    }
 	}
     }
   else
