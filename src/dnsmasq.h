@@ -114,6 +114,7 @@ extern int capset(cap_user_header_t header, cap_user_data_t data);
 #define OPT_RELOAD         (1<<24)
 #define OPT_TFTP           (1<<25)
 #define OPT_TFTP_SECURE    (1<<26)
+#define OPT_TFTP_NOBLOCK   (1<<27)
 
 struct all_addr {
   union {
@@ -365,7 +366,9 @@ struct dhcp_opt {
 
 #define DHOPT_ADDR               1
 #define DHOPT_STRING             2
-#define DHOPT_VENDOR_MATCH       4
+#define DHOPT_ENCAPSULATE        4
+#define DHOPT_VENDOR_MATCH       8
+#define DHOPT_FORCE             16
 
 struct dhcp_boot {
   char *file, *sname;
@@ -474,7 +477,7 @@ struct daemon {
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp;
   struct dhcp_config *dhcp_conf;
-  struct dhcp_opt *dhcp_opts, *vendor_opts;
+  struct dhcp_opt *dhcp_opts;
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;

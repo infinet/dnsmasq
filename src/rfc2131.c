@@ -87,35 +87,10 @@ static void do_options(struct dhcp_context *context,
 		       unsigned char fqdn_flags,
 		       int null_term,
 		       unsigned char *agent_id);
-
-/* find a good value to use as MAC address for logging and address-allocation hashing.
-   This is normally just the chaddr field from the DHCP packet,
-   but eg Firewire will have hlen == 0 and use the client-id instead. 
-   This could be anything, but will normally be EUI64 for Firewire.
-   We assume that if the first byte of the client-id equals the htype byte
-   then the client-id is using the usual encoding and use the rest of the 
-   client-id: if not we can use the whole client-id. This should give
-   sane MAC address logs. */
 static unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
-				      int clid_len, unsigned char *clid, int *len_out)
-{
-  if (hwlen == 0 && clid && clid_len > 3)
-    {
-      if ((clid[0] ==  ARPHRD_EUI64 && hwtype == ARPHRD_IEEE1394) || clid[0]  == hwtype)
-	{
-	  *len_out = clid_len - 1 ;
-	  return clid + 1;
-	}
-      else
-	{
-	  *len_out = clid_len;
-	  return clid;
-	}
-    }
-  
-  *len_out = hwlen;
-  return hwaddr;
-}
+				      int clid_len, unsigned char *clid, int *len_out);
+static void match_vendor_opts(unsigned char *opt, struct dhcp_opt *dopt); 
+
 	  
 size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *iface_name, 
 		  size_t sz, time_t now, int unicast_dest)
@@ -123,7 +98,6 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   unsigned char *opt, *clid = NULL;
   struct dhcp_lease *ltmp, *lease = NULL;
   struct dhcp_vendor *vendor;
-  struct dhcp_opt *dopt;
   struct dhcp_mac *mac;
   struct dhcp_netid_list *id_list;
   int clid_len = 0, ignore = 0, do_classes = 0, selecting = 0;
@@ -311,7 +285,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   if (mess_type == 0)
     {
       /* BOOTP request */
-      struct dhcp_netid id;
+      struct dhcp_netid id, bootp_id;
       struct in_addr *logaddr = NULL;
 
       /* must have a MAC addr for bootp */
@@ -341,6 +315,12 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  id.next = netid;
 	  netid = &id;
 	}
+
+      /* Add "bootp" as a tag to allow different options, address ranges etc
+	 for BOOTP clients */
+      bootp_id.net = "bootp";
+      bootp_id.next = netid;
+      netid = &bootp_id;
       
       for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
 	if (match_netid(id_list->list, netid, 0))
@@ -409,7 +389,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
       
       log_packet(daemon, NULL, logaddr, mess->chaddr, mess->hlen, iface_name, message);
       
-      return message ? dhcp_packet_size(mess) : 0;
+      return message ? 0 : dhcp_packet_size(mess);
     }
       
   if ((opt = option_find(mess, sz, OPTION_CLIENT_FQDN, 4)))
@@ -534,23 +514,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
       }
   
   /* mark vendor-encapsulated options which match the client-supplied vendor class */
-  opt = option_find(mess, sz, OPTION_VENDOR_ID, 1);
-  for (dopt = daemon->vendor_opts; dopt; dopt = dopt->next)
-    {
-      int i, len = 0;
-      dopt->flags &= ~DHOPT_VENDOR_MATCH;
-      if (opt)
-	{
-	  if (dopt->vendor_class)
-	    len = strlen((char *)dopt->vendor_class);
-	  for (i = 0; i <= (option_len(opt) - len); i++)
-	    if (len == 0 || memcmp(dopt->vendor_class, option_ptr(opt)+i, len) == 0)
-	      {
-		dopt->flags |= DHOPT_VENDOR_MATCH;
-		break;
-	      }
-	}
-    }
+  match_vendor_opts(option_find(mess, sz, OPTION_VENDOR_ID, 1), daemon->dhcp_opts);
     
   /* if all the netids in the ignore list are present, ignore this client */
   for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
@@ -961,6 +925,41 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   return 0;
 }
 
+/* find a good value to use as MAC address for logging and address-allocation hashing.
+   This is normally just the chaddr field from the DHCP packet,
+   but eg Firewire will have hlen == 0 and use the client-id instead. 
+   This could be anything, but will normally be EUI64 for Firewire.
+   We assume that if the first byte of the client-id equals the htype byte
+   then the client-id is using the usual encoding and use the rest of the 
+   client-id: if not we can use the whole client-id. This should give
+   sane MAC address logs. */
+static unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
+				      int clid_len, unsigned char *clid, int *len_out)
+{
+  if (hwlen == 0 && clid && clid_len > 3)
+    {
+      if (clid[0]  == hwtype)
+	{
+	  *len_out = clid_len - 1 ;
+	  return clid + 1;
+	}
+
+#if defined(ARPHRD_EUI64) && defined(ARPHRD_IEEE1394)
+      if (clid[0] ==  ARPHRD_EUI64 && hwtype == ARPHRD_IEEE1394)
+	{
+	  *len_out = clid_len - 1 ;
+	  return clid + 1;
+	}
+#endif
+      
+      *len_out = clid_len;
+      return clid;
+    }
+  
+  *len_out = hwlen;
+  return hwaddr;
+}
+
 static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *config, 
 			      struct dhcp_lease *lease, unsigned char *opt, time_t now)
 {
@@ -1178,7 +1177,7 @@ static unsigned char *free_space(struct dhcp_packet *mess, unsigned char *end, i
 	}
       
       if (!p)
-	syslog(LOG_WARNING, _("cannot send DHCP option %d: no space left in packet"), opt);
+	syslog(LOG_WARNING, _("cannot send DHCP/BOOTP option %d: no space left in packet"), opt);
     }
  
   if (p)
@@ -1223,7 +1222,7 @@ static int do_opt(struct dhcp_opt *opt, unsigned char *p, struct in_addr local, 
 
   if (p && len != 0)
     {
-      if (opt->flags & DHOPT_ADDR)
+      if ((opt->flags & DHOPT_ADDR) && !(opt->flags & DHOPT_ENCAPSULATE))
 	{
 	  int j;
 	  struct in_addr *a = (struct in_addr *)opt->val;
@@ -1246,8 +1245,8 @@ static int do_opt(struct dhcp_opt *opt, unsigned char *p, struct in_addr local, 
 static int in_list(unsigned char *list, int opt)
 {
   int i;
-  
-  /* If no requested options, send everything, not nothing. */
+
+   /* If no requested options, send everything, not nothing. */
   if (!list)
     return 1;
   
@@ -1262,11 +1261,33 @@ static struct dhcp_opt *option_find2(struct dhcp_netid *netid, struct dhcp_opt *
 {
   struct dhcp_opt *tmp;  
   for (tmp = opts; tmp; tmp = tmp->next)
-    if (tmp->opt == opt)
+    if (tmp->opt == opt && !(tmp->flags & DHOPT_ENCAPSULATE))
       if (match_netid(tmp->netid, netid, 1) || match_netid(tmp->netid, netid, 0))
 	return tmp;
 	      
   return netid ? option_find2(NULL, opts, opt) : NULL;
+}
+
+/* mark vendor-encapsulated options which match the client-supplied  or
+   config-supplied vendor class */
+static void match_vendor_opts(unsigned char *opt, struct dhcp_opt *dopt)
+{
+  for (; dopt; dopt = dopt->next)
+    {
+      dopt->flags &= ~DHOPT_VENDOR_MATCH;
+      if (opt && (dopt->flags & DHOPT_ENCAPSULATE))
+	{
+	  int i, len = 0;
+	  if (dopt->vendor_class)
+	    len = strlen((char *)dopt->vendor_class);
+	  for (i = 0; i <= (option_len(opt) - len); i++)
+	    if (len == 0 || memcmp(dopt->vendor_class, option_ptr(opt)+i, len) == 0)
+	      {
+		dopt->flags |= DHOPT_VENDOR_MATCH;
+		break;
+	      }
+	}
+    }
 }
 
 static void clear_packet(struct dhcp_packet *mess, unsigned char *end)
@@ -1292,7 +1313,7 @@ static void do_options(struct dhcp_context *context,
   struct dhcp_opt *opt, *config_opts = daemon->dhcp_opts;
   struct dhcp_boot *boot;
   unsigned char *p, *end = agent_id ? agent_id : real_end;
-  int len;
+  int len, force_encap = 0;
   unsigned char f0 = 0, s0 = 0;
 
   /* decide which dhcp-boot option we're using */
@@ -1428,17 +1449,23 @@ static void do_options(struct dhcp_context *context,
 	}
     }      
 
-  for (opt=config_opts; opt; opt = opt->next)
+  for (opt = config_opts; opt; opt = opt->next)
     {
+      /* was it asked for, or are we sending it anyway? */
+      if (!(opt->flags & DHOPT_FORCE) && !in_list(req_options, opt->opt))
+	continue;
+      
+      /* prohibit some used-internally options */
       if (opt->opt == OPTION_HOSTNAME ||
 	  opt->opt == OPTION_CLIENT_FQDN ||
 	  opt->opt == OPTION_MAXMESSAGE ||
-	  opt->opt == OPTION_VENDOR_CLASS_OPT ||
 	  opt->opt == OPTION_OVERLOAD ||
 	  opt->opt == OPTION_PAD ||
-	  opt->opt == OPTION_END ||
-	  !in_list(req_options, opt->opt) ||
-	  opt != option_find2(netid, config_opts, opt->opt))
+	  opt->opt == OPTION_END)
+	continue;
+      
+      /* netids match and not encapsulated? */
+      if (opt != option_find2(netid, config_opts, opt->opt))
 	continue;
       
       /* For the options we have default values on
@@ -1453,41 +1480,66 @@ static void do_options(struct dhcp_context *context,
 
       len = do_opt(opt, NULL, context->local, null_term);
       if ((p = free_space(mess, end, opt->opt, len)))
-	do_opt(opt, p, context->local, null_term);
-    }  
+	{
+	  do_opt(opt, p, context->local, null_term);
 
-  if (in_list(req_options, OPTION_VENDOR_CLASS_OPT))
+	  /* If we send a vendor-id, revisit which vendor-ops we consider 
+	     it appropriate to send. */
+	  if (opt->opt == OPTION_VENDOR_ID)
+	    match_vendor_opts(p - 2, config_opts);
+	}  
+    }
+
+  /* prune encapsulated options based on netid, and look if we're forcing them to be sent */
+  for (opt = config_opts; opt; opt = opt->next)
+    if (opt->flags & DHOPT_VENDOR_MATCH)
+      {
+	if (!match_netid(opt->netid, netid, 1) && !match_netid(opt->netid, netid, 0))
+	  opt->flags &= ~DHOPT_VENDOR_MATCH;
+	else if (opt->flags & DHOPT_FORCE)
+	  force_encap = 1;
+      }
+  
+  if (force_encap || in_list(req_options, OPTION_VENDOR_CLASS_OPT))
     {
       int enc_len = 0;
-      
+      struct dhcp_opt *start;
+
       /* find size in advance */
-      for (opt = daemon->vendor_opts; opt; opt = opt->next)
+      for (start = opt = config_opts; opt; opt = opt->next)
 	if (opt->flags & DHOPT_VENDOR_MATCH)
 	  {
-	    if (!match_netid(opt->netid, netid, 1) && !match_netid(opt->netid, netid, 0))
-	      opt->flags &= ~DHOPT_VENDOR_MATCH;
+	    int new = do_opt(opt, NULL, context->local, null_term) + 2;
+	    if (enc_len + new <= 255)
+	      enc_len += new;
 	    else
 	      {
-		int new = enc_len + do_opt(opt, NULL, context->local, null_term) + 2;
-		if (new <= 255)
-		  enc_len = new;
-		else
-		  {
-		    syslog(LOG_WARNING, _("cannot send encapsulated option %d: no space left in wrapper"), opt->opt);
-		    opt->flags &= ~DHOPT_VENDOR_MATCH;
-		  }
+		p = free_space(mess, end, OPTION_VENDOR_CLASS_OPT, enc_len);
+		for (; start && start != opt; start = start->next)
+		  if (p && (start->flags & DHOPT_VENDOR_MATCH))
+		    {
+		      len = do_opt(start, p + 2, context->local, null_term);
+		      *(p++) = start->opt;
+		      *(p++) = len;
+		      p += len;
+		    }
+		enc_len = new;
+		start = opt;
 	      }
 	  }
-      
-      if ((p = free_space(mess, end, OPTION_VENDOR_CLASS_OPT, enc_len)))
+	      
+      if (enc_len != 0 &&
+	  (p = free_space(mess, end, OPTION_VENDOR_CLASS_OPT, enc_len + 1)))
 	{
-	  for (opt = daemon->vendor_opts; opt; opt = opt->next)
-	    if (opt->flags & DHOPT_VENDOR_MATCH)
+	  for (; start; start = start->next)
+	    if (start->flags & DHOPT_VENDOR_MATCH)
 	      {
-		 len = do_opt(opt, p + 2, context->local, null_term);
-		 *(p++) = opt->opt;
+		 len = do_opt(start, p + 2, context->local, null_term);
+		 *(p++) = start->opt;
 		 *(p++) = len;
+		 p += len;
 	      }
+	  *p = OPTION_END;
 	}
     }
   

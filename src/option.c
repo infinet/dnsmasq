@@ -35,6 +35,8 @@ struct myoption {
 #define LOPT_PTR       261
 #define LOPT_BRIDGE    262
 #define LOPT_TFTP_MAX  263
+#define LOPT_FORCE     264
+#define LOPT_NOBLOCK   265
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -117,6 +119,8 @@ static const struct myoption opts[] =
 #if defined(__FreeBSD__) || defined(__DragonFly__)
     {"bridge-interface", 1, 0 , LOPT_BRIDGE },
 #endif
+    {"dhcp-option-force", 1, 0, LOPT_FORCE },
+    {"tftp-no-blocksize", 0, 0, LOPT_NOBLOCK },
     { NULL, 0, 0, 0 }
   };
 
@@ -151,6 +155,7 @@ static const struct optflags optmap[] = {
   { LOPT_RELOAD,    OPT_RELOAD },
   { LOPT_TFTP,      OPT_TFTP },
   { LOPT_SECURE,    OPT_TFTP_SECURE },
+  { LOPT_NOBLOCK,   OPT_TFTP_NOBLOCK },
   { 'v',            0},
   { 'w',            0},
   { 0, 0 }
@@ -190,7 +195,8 @@ static const struct {
   { "-n, --no-poll", gettext_noop("Do NOT poll %s file, reload only on SIGHUP."), RESOLVFILE }, 
   { "-N, --no-negcache", gettext_noop("Do NOT cache failed search results."), NULL },
   { "-o, --strict-order", gettext_noop("Use nameservers strictly in the order given in %s."), RESOLVFILE },
-  { "-O, --dhcp-option=<optspec>", gettext_noop("Set extra options to be set to DHCP clients."), NULL },
+  { "-O, --dhcp-option=<optspec>", gettext_noop("Specify options to be sent to DHCP clients."), NULL },
+  { "    --dhcp-option-force=<optspec>", gettext_noop("DHCP option sent even if the client does not request it."), NULL},
   { "-p, --port=number", gettext_noop("Specify port to listen for DNS requests on (defaults to 53)."), NULL },
   { "-P, --edns-packet-max=<size>", gettext_noop("Maximum supported UDP packet size for EDNS.0 (defaults to %s)."), "*" },
   { "-q, --log-queries", gettext_noop("Log queries."), NULL },
@@ -234,17 +240,18 @@ static const struct {
   { "    --tftp-root=<directory>", gettext_noop("Export files by TFTP only from the specified subtree."), NULL },
   { "    --tftp-secure", gettext_noop("Allow access only to files owned by the user running dnsmasq."), NULL },
   { "    --tftp-max=<connections>", gettext_noop("Maximum number of conncurrent TFTP transfers (defaults to %s)."), "#" },
+  { "    --tftp-no-blocksize", gettext_noop("Disable the TFTP blocksize extension."), NULL },
   { NULL, NULL, NULL }
 }; 
 
 /* We hide metacharaters in quoted strings by mapping them into the ASCII control
-   character space. Note that the \0, \t \a \b \r  and \n characters are carefully placed in the
+   character space. Note that the \0, \t \a \b \r \033 and \n characters are carefully placed in the
    following sequence so that they map to themselves: it is therefore possible to call
    unhide_metas repeatedly on string without breaking things.
    The transformation gets undone by opt_canonicalise, atoi_check and safe_string_alloc, and a 
    couple of other places. */
 
-static const char meta[] = "\000123456\a\b\t\n78\r90abcdefABCDEF:,.";
+static const char meta[] = "\000123456\a\b\t\n78\r90abcdefABCDE\033F:,.";
 
 static void one_file(struct daemon *daemon, char *file, int nest);
 
@@ -380,15 +387,15 @@ static void do_usage(void)
 }
 
 /* This is too insanely large to keep in-line in the switch */
-static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
+static char *parse_dhcp_opt(struct daemon *daemon, char *arg, int forced)
 {
   struct dhcp_opt *new = safe_malloc(sizeof(struct dhcp_opt));
   char lenchar = 0, *cp;
-  int addrs, digs, is_addr, is_hex, is_dec, is_vend = 0;
+  int addrs, digs, is_addr, is_hex, is_dec;
   char *comma, *problem = NULL;
 
   new->len = 0;
-  new->flags = 0;
+  new->flags = forced ? DHOPT_FORCE : 0;
   new->netid = NULL;
   new->val = NULL;
   new->vendor_class = NULL;
@@ -408,7 +415,7 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 	if (strstr(arg, "vendor:") == arg)
 	  {
 	    new->vendor_class = (unsigned char *)safe_string_alloc(arg+7);
-	    is_vend = 1;
+	    new->flags |= DHOPT_ENCAPSULATE;
 	  }
 	else
 	  {
@@ -488,7 +495,7 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 	    new->len = 2;
 	  else if (lenchar == 'i')
 	    new->len = 4;
-	  else if (new->vendor_class)
+	  else if (new->flags & DHOPT_ENCAPSULATE)
 	    {
 	      if (val & 0xffff0000)
 		new->len = 4;
@@ -517,12 +524,12 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
 	  /* max length of address/subnet descriptor is five bytes,
 	     add one for the option 120 enc byte too */
 	  new->val = op = safe_malloc((5 * addrs) + 1);
-	  if (!new->vendor_class)
+	  new->flags |= DHOPT_ADDR;
+
+	  if (!(new->flags & DHOPT_ENCAPSULATE) && new->opt == 120)
 	    {
-	      if (new->opt == 120)
-		*(op++) = 1; /* RFC 3361 "enc byte" */
-	      else
-		new->flags |= DHOPT_ADDR;
+	      *(op++) = 1; /* RFC 3361 "enc byte" */
+	      new->flags &= ~DHOPT_ADDR;
 	    }
 	  while (addrs--) 
 	    {
@@ -558,7 +565,7 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
       else
 	{
 	  /* text arg */
-	  if ((new->opt == 119 || new->opt == 120) && !new->vendor_class)
+	  if ((new->opt == 119 || new->opt == 120) && !(new->flags & DHOPT_ENCAPSULATE))
 	    {
 	      /* dns search, RFC 3397, or SIP, RFC 3361 */
 	      unsigned char *q, *r, *tail;
@@ -642,11 +649,6 @@ static char *parse_dhcp_opt(struct daemon *daemon, char *arg)
       if (new->vendor_class)
 	free(new->vendor_class);
       free(new);
-    }
-  else if (is_vend)
-    {
-      new->next = daemon->vendor_opts;
-      daemon->vendor_opts = new;
     }
   else
     {
@@ -1501,7 +1503,8 @@ static char *one_opt(struct daemon *daemon, int option, char *arg, char *problem
       }
       
     case 'O':
-      if ((problem = parse_dhcp_opt(daemon, arg)))
+    case LOPT_FORCE:
+      if ((problem = parse_dhcp_opt(daemon, arg, option == LOPT_FORCE)))
 	option = '?';
       break;
       
@@ -1899,6 +1902,8 @@ static void one_file(struct daemon *daemon, char *file, int nest)
 			p[1] = '\b';
 		      else if (p[1] == 'r')
 			p[1] = '\r';
+		      else if (p[1] == 'e') /* escape */
+			p[1] = '\033';
 		      memmove(p, p+1, strlen(p+1)+1);
 		    }
 		  *p = hide_meta(*p);

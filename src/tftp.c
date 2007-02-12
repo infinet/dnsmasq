@@ -160,7 +160,8 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
       while ((opt = next(&p, end)))
 	{
 	  if (strcasecmp(opt, "blksize") == 0 &&
-	      (opt = next(&p, end)))
+	      (opt = next(&p, end)) &&
+	      !(daemon->options & OPT_TFTP_NOBLOCK))
 	    {
 	      transfer->blocksize = atoi(opt);
 	      if (transfer->blocksize < 1)

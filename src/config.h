@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.37"
+#define VERSION "2.38"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -180,7 +180,7 @@ NOTES:
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
 #endif
 
-/* Allow TFTP to be disabled with CFLAGS=-DNO_TFTP */
+/* Allow TFTP to be disabled with COPT=-DNO_TFTP */
 #ifdef NO_TFTP
 #undef HAVE_TFTP
 #endif
@@ -276,6 +276,7 @@ typedef unsigned long in_addr_t;
  
 #endif
 /* Decide if we're going to support IPv6 */
+/* IPv6 can be forced off with "make COPTS=-DNO_IPV6" */
 /* We assume that systems which don't have IPv6
    headers don't have ntop and pton either */
 

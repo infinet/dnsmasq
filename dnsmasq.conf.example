@@ -276,6 +276,23 @@
 # http://technet2.microsoft.com/WindowsServer/en/library/a70f1bb7-d2d4-49f0-96d6-4b7414ecfaae1033.mspx?mfr=true
 #dhcp-option=vendor:MSFT,2,1i
 
+# Send the Encapsulated-vendor-class ID needed by some configurations of
+# Etherboot to allow is to recognise the DHCP server.
+#dhcp-option=vendor:Etherboot,60,"Etherboot"
+
+# Send options to PXELinux. Note that we need to send the options even
+# though they don't appear in the parameter request list, so we need
+# to use dhcp-option-force here. 
+# See http://syslinux.zytor.com/pxe.php#special for details.
+# Magic number - needed before anything else is recognised
+#dhcp-option-force=208,f1:00:74:7e
+# Configuration file name
+#dhcp-option-force=209,configs/common
+# Path prefix
+#dhcp-option-force=210,/tftpboot/pxelinux/files/
+# Reboot time. (Note 'i' to send 32-bit value)
+#dhcp-option-force=211,30i
+
 # Set the boot filename for BOOTP. You will only need 
 # this is you want to boot machines over the network and you will need
 # a TFTP server; either dnsmasq's built in TFTP server or an

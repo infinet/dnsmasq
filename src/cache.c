@@ -13,7 +13,7 @@
 #include "dnsmasq.h"
 
 static struct crec *cache_head, *cache_tail, **hash_table;
-static struct crec *dhcp_inuse, *dhcp_spare, *new_chain;
+static struct crec *dhcp_spare, *new_chain;
 static int cache_inserted, cache_live_freed, insert_error;
 static union bigname *big_free;
 static int bignames_left, log_queries, cache_size, hash_size;
@@ -74,7 +74,7 @@ void cache_init(int size, int logq)
     addrbuff = NULL;
       
   cache_head = cache_tail = NULL;
-  dhcp_inuse = dhcp_spare = NULL;
+  dhcp_spare = NULL;
   new_chain = NULL;
   hash_table = NULL;
   cache_size = size;
@@ -170,7 +170,7 @@ static void cache_hash(struct crec *crecp)
 	up = &((*up)->hash_next); 
       
       if (crecp->flags & F_IMMORTAL)
-	while (*up && (!(*up)->flags & F_IMMORTAL))
+	while (*up && !((*up)->flags & F_IMMORTAL))
 	  up = &((*up)->hash_next);
     }
   crecp->hash_next = *up;
@@ -282,9 +282,7 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
   
   if (flags & F_FORWARD)
     {
-      for (up = hash_bucket(name), crecp = *up; 
-	   crecp && ((crecp->flags & F_REVERSE) || !(crecp->flags & F_IMMORTAL));
-	   crecp = crecp->hash_next)
+      for (up = hash_bucket(name), crecp = *up; crecp; crecp = crecp->hash_next)
 	if (is_expired(now, crecp) || is_outdated_cname_pointer(crecp))
 	  { 
 	    *up = crecp->hash_next;
@@ -601,8 +599,7 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
 	      crecp = crecp->hash_next)
 	   if (!is_expired(now, crecp))
 	     {      
-	       if ((crecp->flags & F_REVERSE) && 
-		   (crecp->flags & prot) &&
+	       if ((crecp->flags & prot) &&
 		   memcmp(&crecp->addr.addr, addr, addrlen) == 0)
 		 {	    
 		   if (crecp->flags & (F_HOSTS | F_DHCP))
@@ -834,25 +831,19 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
 
 void cache_unhash_dhcp(void)
 {
-  struct crec *tmp, *cache, **up;
+  struct crec *cache, **up;
   int i;
 
   for (i=0; i<hash_size; i++)
     for (cache = hash_table[i], up = &hash_table[i]; cache; cache = cache->hash_next)
       if (cache->flags & F_DHCP)
-	*up = cache->hash_next;
+	{
+	  *up = cache->hash_next;
+	  cache->next = dhcp_spare;
+	  dhcp_spare = cache;
+	}
       else
 	up = &cache->hash_next;
-
-  /* prev field links all dhcp entries */
-  for (cache = dhcp_inuse; cache; cache = tmp)
-    {
-      tmp = cache->prev;
-      cache->prev = dhcp_spare;
-      dhcp_spare = cache;
-    }
-    
-  dhcp_inuse = NULL;
 }
 
 void cache_add_dhcp_entry(struct daemon *daemon, char *host_name, 
@@ -893,7 +884,7 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
     }
 
   if ((crec = dhcp_spare))
-    dhcp_spare = dhcp_spare->prev;
+    dhcp_spare = dhcp_spare->next;
   else /* need new one */
     crec = malloc(sizeof(struct crec));
   
@@ -906,13 +897,9 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 	crec->ttd = ttd;
       crec->addr.addr.addr.addr4 = *host_address;
       crec->name.namep = host_name;
-      crec->prev = dhcp_inuse;
-      dhcp_inuse = crec;
       cache_hash(crec);
     }
 }
-
-
 
 void dump_cache(struct daemon *daemon, time_t now)
 {

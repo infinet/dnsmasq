@@ -2119,7 +2119,36 @@ version 2.37
 	    Added a LIMITS section to the man-page, with guidance on
 	    maximum numbers of clients, file sizes and tuning.
 
+release 2.38
+	    Fix compilation on *BSD. Thanks to Tom Hensel.
 
+	    Don't send length zero DHCP option 43 and cope with 
+	    encapsulated options whose total length exceeds 255 octets
+	    by splitting them into multiple option 43 pieces.
 
-	
+	    Avoid queries being retried forever when --strict-order is
+	    set and an upstream server returns a SERVFAIL
+	    error. Thanks to Johannes Stezenbach for spotting this.
 
+	    Fix BOOTP support, broken in version 2.37.
+
+	    Add example dhcp-options for Etherboot.
+
+	    Add \e (for ASCII ESCape) to the set of valid escapes
+	    in config-file strings.
+
+	    Added --dhcp-option-force flag and examples in the
+	    configuration file which use this to control PXELinux.
+
+	    Added --tftp-no-blocksize option.
+
+	    Set netid tag "bootp" when BOOTP (rather than DHCP) is in
+	    use. This makes it easy to customise which options are
+	    sent to BOOTP clients. (BOOTP allows only 64 octets for
+	    options, so it can be necessary to trim things.)
+
+	    Fix rare hang in cache code, a 2.37 regression. This
+	    probably needs an infinite DHCP lease and some bad luck to
+	    trigger. Thanks to Detlef Reichelt for bug reports and testing.
+
+	    

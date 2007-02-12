@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.25\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2007-02-05 14:27+0000\n"
+"POT-Creation-Date: 2007-02-12 17:55+0000\n"
 "PO-Revision-Date: 2006-01-11 17:39+0000\n"
 "Last-Translator: Jan Erik Askildt <jeaskildt@gmail.com>\n"
 "Language-Team: Norwegian <i18n-nb@lister.ping.uio.no>\n"
@@ -17,31 +17,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: cache.c:697
+#: cache.c:694
 #, c-format
 msgid "failed to load names from %s: %m"
 msgstr "feilet å laste navn fra %s: %m"
 
-#: cache.c:731 dhcp.c:715
+#: cache.c:728 dhcp.c:715
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "dårlig adresse ved %s linje %d"
 
-#: cache.c:777 dhcp.c:729
+#: cache.c:774 dhcp.c:729
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "dårlig navn ved %s linje %d"
 
-#: cache.c:784 dhcp.c:783
+#: cache.c:781 dhcp.c:783
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "les %s - %d adresser"
 
-#: cache.c:822
+#: cache.c:819
 msgid "cleared cache"
 msgstr "mellomlager tømt"
 
-#: cache.c:875
+#: cache.c:866
 #, c-format
 msgid ""
 "not giving name %s to the DHCP lease of %s because the name exists in %s "
@@ -50,7 +50,7 @@ msgstr ""
 "gir ikke navnet %s til DHCP leien for %s fordi navnet eksisterer i %s med "
 "adressen %s"
 
-#: cache.c:919
+#: cache.c:906
 #, fuzzy, c-format
 msgid ""
 "time %lu, cache size %d, %d/%d cache insertions re-used unexpired cache "
@@ -59,7 +59,7 @@ msgstr ""
 "mellomlager størrelse %d, %d/%d mellomlager innsettinger re-bruker "
 "mellomlager plasser som ikke er utløpt"
 
-#: util.c:154 option.c:582
+#: util.c:154 option.c:589
 msgid "could not get memory"
 msgstr "kunne ikke få minne"
 
@@ -77,311 +77,320 @@ msgstr "FEILET å starte opp"
 msgid "infinite"
 msgstr "uendelig"
 
-#: option.c:164
+#: option.c:169
 msgid "Specify local address(es) to listen on."
 msgstr "Spesifiser lokal(e) adresse(r) å lytte på."
 
-#: option.c:165
+#: option.c:170
 msgid "Return ipaddr for all hosts in specified domains."
 msgstr "Returner ipaddr for alle verter i det spesifiserte domenet."
 
-#: option.c:166
+#: option.c:171
 msgid "Fake reverse lookups for RFC1918 private address ranges."
 msgstr "Forfalsk revers oppslag for RFC1918 private adresse områder."
 
-#: option.c:167
+#: option.c:172
 msgid "Treat ipaddr as NXDOMAIN (defeats Verisign wildcard)."
 msgstr "Behandle ipaddr som NXDOMAIN (omgår Verisign wildcard)."
 
-#: option.c:168
+#: option.c:173
 #, c-format
 msgid "Specify the size of the cache in entries (defaults to %s)."
 msgstr "Spesifiser størrelsen på mellomlager plassene (standard er %s)."
 
-#: option.c:169
+#: option.c:174
 #, c-format
 msgid "Specify configuration file (defaults to %s)."
 msgstr "Spesifiser konfigurasjonsfil (standard er %s)."
 
-#: option.c:170
+#: option.c:175
 msgid "Do NOT fork into the background: run in debug mode."
 msgstr "IKKE legg (fork) som bakgrunnsprosess: kjør i debug modus."
 
-#: option.c:171
+#: option.c:176
 msgid "Do NOT forward queries with no domain part."
 msgstr "IKKE videresend oppslag som mangler domene del."
 
-#: option.c:172
+#: option.c:177
 msgid "Return self-pointing MX records for local hosts."
 msgstr "Returner selv-pekende MX post for lokale verter."
 
-#: option.c:173
+#: option.c:178
 msgid "Expand simple names in /etc/hosts with domain-suffix."
 msgstr "Utvid enkle navn i /etc/hosts med domene-suffiks."
 
-#: option.c:174
+#: option.c:179
 msgid "Don't forward spurious DNS requests from Windows hosts."
 msgstr "Ikke videresend falske/uekte DNS forespørsler fra Windows verter."
 
-#: option.c:175
+#: option.c:180
 msgid "Enable DHCP in the range given with lease duration."
 msgstr "Aktiver DHCP i det gitte området med leie varighet"
 
-#: option.c:176
+#: option.c:181
 #, c-format
 msgid "Change to this group after startup (defaults to %s)."
 msgstr "Skift til denne gruppen etter oppstart (standard er %s)."
 
-#: option.c:177
+#: option.c:182
 msgid "Set address or hostname for a specified machine."
 msgstr "Sett adresse eller vertsnavn for en spesifikk maskin."
 
-#: option.c:178
+#: option.c:183
 #, c-format
 msgid "Do NOT load %s file."
 msgstr "IKKE last %s filen."
 
-#: option.c:179
+#: option.c:184
 #, c-format
 msgid "Specify a hosts file to be read in addition to %s."
 msgstr "Spesifiser en verts (hosts) fil som skal leses i tilleg til %s."
 
-#: option.c:180
+#: option.c:185
 msgid "Specify interface(s) to listen on."
 msgstr "Spesifiser nettverkskort det skal lyttes på."
 
-#: option.c:181
+#: option.c:186
 msgid "Specify interface(s) NOT to listen on."
 msgstr "Spesifiser nettverkskort det IKKE skal lyttes på."
 
-#: option.c:182
+#: option.c:187
 msgid "Map DHCP user class to option set."
 msgstr "Map DHCP bruker klasse til opsjon sett."
 
-#: option.c:183
+#: option.c:188
 msgid "Don't do DHCP for hosts in option set."
 msgstr "Ikke utfør DHCP for klienter i opsjon sett."
 
-#: option.c:184
+#: option.c:189
 msgid "Do NOT fork into the background, do NOT run in debug mode."
 msgstr "IKKE last (fork) som bakgrunnsprosess, IKKE kjør i debug modus."
 
-#: option.c:185
+#: option.c:190
 msgid "Assume we are the only DHCP server on the local network."
 msgstr "Anta at vi er den eneste DHCP tjeneren på det lokale nettverket."
 
-#: option.c:186
+#: option.c:191
 #, c-format
 msgid "Specify where to store DHCP leases (defaults to %s)."
 msgstr "Spesifiser hvor DHCP leiene skal lagres (standard er %s)."
 
-#: option.c:187
+#: option.c:192
 msgid "Return MX records for local hosts."
 msgstr "Returner MX records for lokale verter."
 
-#: option.c:188
+#: option.c:193
 msgid "Specify an MX record."
 msgstr "Spesifiser en MX post."
 
-#: option.c:189
+#: option.c:194
 msgid "Specify BOOTP options to DHCP server."
 msgstr "Spesifiser BOOTP opsjoner til DHCP tjener."
 
-#: option.c:190
+#: option.c:195
 #, c-format
 msgid "Do NOT poll %s file, reload only on SIGHUP."
 msgstr "IKKE spør (poll) %s fil, les på nytt kun ved SIGHUP"
 
-#: option.c:191
+#: option.c:196
 msgid "Do NOT cache failed search results."
 msgstr "IKKE mellomlagre søkeresultater som feiler."
 
-#: option.c:192
+#: option.c:197
 #, c-format
 msgid "Use nameservers strictly in the order given in %s."
 msgstr "Bruk navnetjenere kun som bestemt i rekkefølgen gitt i %s."
 
-#: option.c:193
-msgid "Set extra options to be set to DHCP clients."
+#: option.c:198
+#, fuzzy
+msgid "Specify options to be sent to DHCP clients."
 msgstr "Sett ekstra opsjoner som skal fordeles til DHCP klientene."
 
-#: option.c:194
+#: option.c:199
+msgid "DHCP option sent even if the client does not request it."
+msgstr ""
+
+#: option.c:200
 msgid "Specify port to listen for DNS requests on (defaults to 53)."
 msgstr "Spesifiser lytteport for DNS oppslag (standard er 53)."
 
-#: option.c:195
+#: option.c:201
 #, c-format
 msgid "Maximum supported UDP packet size for EDNS.0 (defaults to %s)."
 msgstr "Maksimal støttet UDP pakkestørrelse for EDNS.0 (standard er %s)."
 
-#: option.c:196
+#: option.c:202
 msgid "Log queries."
 msgstr "Logg oppslag."
 
-#: option.c:197
+#: option.c:203
 msgid "Force the originating port for upstream queries."
 msgstr "Tving bruk av opprinnelig port for oppstrøms oppslag."
 
-#: option.c:198
+#: option.c:204
 msgid "Do NOT read resolv.conf."
 msgstr "IKKE les resolv.conf."
 
-#: option.c:199
+#: option.c:205
 #, c-format
 msgid "Specify path to resolv.conf (defaults to %s)."
 msgstr "Spesifiser stien til resolv.conf (standard er %s)."
 
-#: option.c:200
+#: option.c:206
 msgid "Specify address(es) of upstream servers with optional domains."
 msgstr "Spesifiser adressen(e) til oppstrøms tjenere med valgfrie domener."
 
-#: option.c:201
+#: option.c:207
 msgid "Never forward queries to specified domains."
 msgstr "Aldri videresend oppslag til spesifiserte domener."
 
-#: option.c:202
+#: option.c:208
 msgid "Specify the domain to be assigned in DHCP leases."
 msgstr "Spesifiser domenet som skal tildeles i DHCP leien."
 
-#: option.c:203
+#: option.c:209
 msgid "Specify default target in an MX record."
 msgstr "Spesifiser default mål i en MX post."
 
-#: option.c:204
+#: option.c:210
 msgid "Specify time-to-live in seconds for replies from /etc/hosts."
 msgstr "Spesifiser time-to-live i sekunder for svar fra /etc/hosts."
 
-#: option.c:205
+#: option.c:211
 #, c-format
 msgid "Change to this user after startup. (defaults to %s)."
 msgstr "Skift til denne bruker etter oppstart (standard er %s)."
 
-#: option.c:206
+#: option.c:212
 msgid "Map DHCP vendor class to option set."
 msgstr "Map DHCP produsent klasse til opsjon sett."
 
-#: option.c:207
+#: option.c:213
 msgid "Display dnsmasq version and copyright information."
 msgstr "Vis dnsmasq versjon og copyright informasjon."
 
-#: option.c:208
+#: option.c:214
 msgid "Translate IPv4 addresses from upstream servers."
 msgstr "Oversett IPv4 adresser fra oppstrøms tjenere."
 
-#: option.c:209
+#: option.c:215
 msgid "Specify a SRV record."
 msgstr "Spesifiser en SRV post."
 
-#: option.c:210
+#: option.c:216
 msgid "Display this message."
 msgstr "Vis denne meldingen."
 
-#: option.c:211
+#: option.c:217
 #, fuzzy, c-format
 msgid "Specify path of PID file (defaults to %s)."
 msgstr "Spesifiser stien til PID fil. (standard er %s)."
 
-#: option.c:212
+#: option.c:218
 #, c-format
 msgid "Specify maximum number of DHCP leases (defaults to %s)."
 msgstr "Spesifiser maksimum antall DHCP leier (standard er %s)"
 
-#: option.c:213
+#: option.c:219
 msgid "Answer DNS queries based on the interface a query was sent to."
 msgstr "Svar DNS oppslag basert på nettverkskortet oppslaget ble sendt til."
 
-#: option.c:214
+#: option.c:220
 msgid "Specify TXT DNS record."
 msgstr "Spesifiser TXT DNS post."
 
-#: option.c:215
+#: option.c:221
 #, fuzzy
 msgid "Specify PTR DNS record."
 msgstr "Spesifiser TXT DNS post."
 
-#: option.c:216
+#: option.c:222
 msgid "Bind only to interfaces in use."
 msgstr "Bind kun til nettverkskort som er i bruk."
 
-#: option.c:217
+#: option.c:223
 #, c-format
 msgid "Read DHCP static host information from %s."
 msgstr "Les DHCP statisk vert informasjon fra %s."
 
-#: option.c:218
+#: option.c:224
 msgid "Enable the DBus interface for setting upstream servers, etc."
 msgstr "Aktiver DBus interface for å sette oppstrøms tjenere, osv."
 
-#: option.c:219
+#: option.c:225
 msgid "Do not provide DHCP on this interface, only provide DNS."
 msgstr "Ikke lever DHCP på dette nettverkskortet, kun lever DNS."
 
-#: option.c:220
+#: option.c:226
 msgid "Enable dynamic address allocation for bootp."
 msgstr "Aktiver dynamisk adresse allokering for bootp."
 
-#: option.c:221
+#: option.c:227
 #, fuzzy
 msgid "Map MAC address (with wildcards) to option set."
 msgstr "Map DHCP produsent klasse til opsjon sett."
 
-#: option.c:223
+#: option.c:229
 msgid "Treat DHCP requests on aliases as arriving from interface."
 msgstr ""
 
-#: option.c:225
+#: option.c:231
 msgid "Disable ICMP echo address checking in the DHCP server."
 msgstr ""
 
-#: option.c:226
+#: option.c:232
 msgid "Script to run on DHCP lease creation and destruction."
 msgstr ""
 
-#: option.c:227
+#: option.c:233
 msgid "Read configuration from all the files in this directory."
 msgstr ""
 
-#: option.c:228
+#: option.c:234
 #, fuzzy
 msgid "Log to this syslog facility. (defaults to DAEMON)"
 msgstr "Skift til denne bruker etter oppstart (standard er %s)."
 
-#: option.c:229
-msgid "Read leases at startup, but never write the lease file."
-msgstr ""
-
-#: option.c:230
-#, fuzzy, c-format
-msgid "Maximum number of concurrent DNS queries. (defaults to %s)"
-msgstr "Spesifiser maksimum antall DHCP leier (standard er %s)"
-
-#: option.c:231
-#, c-format
-msgid "Clear DNS cache when reloading %s."
-msgstr ""
-
-#: option.c:232
-msgid "Ignore hostnames provided by DHCP clients."
-msgstr ""
-
-#: option.c:233
-msgid "Enable integrated read-only TFTP server."
-msgstr ""
-
-#: option.c:234
-msgid "Export files by TFTP only from the specified subtree."
-msgstr ""
-
 #: option.c:235
-msgid "Allow access only to files owned by the user running dnsmasq."
+msgid "Read leases at startup, but never write the lease file."
 msgstr ""
 
 #: option.c:236
 #, fuzzy, c-format
+msgid "Maximum number of concurrent DNS queries. (defaults to %s)"
+msgstr "Spesifiser maksimum antall DHCP leier (standard er %s)"
+
+#: option.c:237
+#, c-format
+msgid "Clear DNS cache when reloading %s."
+msgstr ""
+
+#: option.c:238
+msgid "Ignore hostnames provided by DHCP clients."
+msgstr ""
+
+#: option.c:239
+msgid "Enable integrated read-only TFTP server."
+msgstr ""
+
+#: option.c:240
+msgid "Export files by TFTP only from the specified subtree."
+msgstr ""
+
+#: option.c:241
+msgid "Allow access only to files owned by the user running dnsmasq."
+msgstr ""
+
+#: option.c:242
+#, fuzzy, c-format
 msgid "Maximum number of conncurrent TFTP transfers (defaults to %s)."
 msgstr "Spesifiser maksimum antall DHCP leier (standard er %s)"
 
-#: option.c:361
+#: option.c:243
+msgid "Disable the TFTP blocksize extension."
+msgstr ""
+
+#: option.c:368
 #, c-format
 msgid ""
 "Usage: dnsmasq [options]\n"
@@ -390,147 +399,147 @@ msgstr ""
 "Bruk: dnsmasq [opsjoner]\n"
 "\n"
 
-#: option.c:363
+#: option.c:370
 #, c-format
 msgid "Use short options only on the command line.\n"
 msgstr "Bruk korte opsjoner kun på kommandolinjen.\n"
 
-#: option.c:365
+#: option.c:372
 #, c-format
 msgid "Valid options are :\n"
 msgstr "Gyldige opsjoner er :\n"
 
-#: option.c:431
+#: option.c:438
 msgid "bad dhcp-option"
 msgstr "dårlig dhcp-opsjon"
 
-#: option.c:577
+#: option.c:584
 msgid "bad domain in dhcp-option"
 msgstr "dårlig domene i dhcp-opsjon"
 
-#: option.c:634
+#: option.c:641
 msgid "dhcp-option too long"
 msgstr "dhcp-opsjon for lang"
 
-#: option.c:696
+#: option.c:698
 #, fuzzy, c-format
 msgid "cannot access directory %s: %s"
 msgstr "kan ikke lese %s: %s"
 
-#: option.c:715 tftp.c:300
+#: option.c:717 tftp.c:301
 #, fuzzy, c-format
 msgid "cannot access %s: %s"
 msgstr "kan ikke lese %s: %s"
 
-#: option.c:792
+#: option.c:794
 msgid "bad MX preference"
 msgstr "dårlig MX preferanse"
 
-#: option.c:801
+#: option.c:803
 msgid "bad MX name"
 msgstr "dårlig MX navn"
 
-#: option.c:819
+#: option.c:821
 msgid "bad MX target"
 msgstr "dårlig MX mål"
 
-#: option.c:831
+#: option.c:833
 msgid "cannot run scripts under uClinux"
 msgstr ""
 
-#: option.c:1030 option.c:1041
+#: option.c:1032 option.c:1043
 msgid "bad port"
 msgstr "dårlig port"
 
-#: option.c:1185
+#: option.c:1187
 msgid "bad bridge-interface"
 msgstr ""
 
-#: option.c:1229
+#: option.c:1231
 msgid "bad dhcp-range"
 msgstr "dårlig dhcp-område"
 
-#: option.c:1258
+#: option.c:1260
 msgid "only one netid tag allowed"
 msgstr ""
 
-#: option.c:1303
+#: option.c:1305
 msgid "inconsistent DHCP range"
 msgstr "ikke konsistent DHCP område"
 
-#: option.c:1488
+#: option.c:1490
 msgid "bad dhcp-host"
 msgstr "dårlig dhcp-vert"
 
-#: option.c:1688
+#: option.c:1691
 #, fuzzy
 msgid "bad PTR record"
 msgstr "dårlig SRV post"
 
-#: option.c:1713
+#: option.c:1716
 msgid "bad TXT record"
 msgstr "dårlig TXT post"
 
-#: option.c:1745
+#: option.c:1748
 msgid "TXT record string too long"
 msgstr "TXT post streng for lang"
 
-#: option.c:1784
+#: option.c:1787
 msgid "bad SRV record"
 msgstr "dårlig SRV post"
 
-#: option.c:1797
+#: option.c:1800
 msgid "bad SRV target"
 msgstr "dårlig SRV mål"
 
-#: option.c:1809
+#: option.c:1812
 msgid "invalid port number"
 msgstr "ugyldig portnummer"
 
-#: option.c:1820
+#: option.c:1823
 msgid "invalid priority"
 msgstr "ugyldig prioritet"
 
-#: option.c:1831
+#: option.c:1834
 msgid "invalid weight"
 msgstr "ugyldig vekt"
 
-#: option.c:1862
+#: option.c:1865
 #, c-format
 msgid "files nested too deep in %s"
 msgstr ""
 
-#: option.c:1869 tftp.c:450
+#: option.c:1872 tftp.c:451
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "kan ikke lese %s: %s"
 
-#: option.c:1912
+#: option.c:1917
 msgid "missing \""
 msgstr "mangler \""
 
-#: option.c:1951
+#: option.c:1956
 msgid "bad option"
 msgstr "dårlig opsjon"
 
-#: option.c:1953
+#: option.c:1958
 msgid "extraneous parameter"
 msgstr "overflødig parameter"
 
-#: option.c:1955
+#: option.c:1960
 msgid "missing parameter"
 msgstr "mangler parameter"
 
-#: option.c:1957
+#: option.c:1962
 msgid "error"
 msgstr "feil"
 
-#: option.c:2025
+#: option.c:2030
 #, c-format
 msgid "Dnsmasq version %s  %s\n"
 msgstr "Dnsmasq versjon %s %s\n"
 
-#: option.c:2026
+#: option.c:2031
 #, c-format
 msgid ""
 "Compile time options %s\n"
@@ -539,53 +548,53 @@ msgstr ""
 "Kompileringsopsjoner %s\n"
 "\n"
 
-#: option.c:2027
+#: option.c:2032
 #, c-format
 msgid "This software comes with ABSOLUTELY NO WARRANTY.\n"
 msgstr "Denne programvaren kommer med ABSOLUTT INGEN GARANTI.\n"
 
-#: option.c:2028
+#: option.c:2033
 #, c-format
 msgid "Dnsmasq is free software, and you are welcome to redistribute it\n"
 msgstr "DNsmasq er fri programvare, du er velkommen til å redistribuere den\n"
 
-#: option.c:2029
+#: option.c:2034
 #, c-format
 msgid "under the terms of the GNU General Public License, version 2.\n"
 msgstr "under vilkårene gitt i GNU General Public License, versjon 2.\n"
 
-#: option.c:2040
+#: option.c:2045
 msgid "try --help"
 msgstr ""
 
-#: option.c:2042
+#: option.c:2047
 msgid "try -w"
 msgstr ""
 
-#: option.c:2045
+#: option.c:2050
 #, fuzzy, c-format
 msgid "bad command line options: %s"
 msgstr "dårlige kommandlinje opsjoner: %s."
 
-#: option.c:2096
+#: option.c:2101
 #, c-format
 msgid "cannot get host-name: %s"
 msgstr "klarer ikke å få vertsnavn: %s"
 
-#: option.c:2124
+#: option.c:2129
 msgid "only one resolv.conf file allowed in no-poll mode."
 msgstr "kun en resolv.conf fil tillat i no-poll modus."
 
-#: option.c:2134
+#: option.c:2139
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "må ha nøyaktig en resolv.conf å lese domene fra."
 
-#: option.c:2137
+#: option.c:2142
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "feilet å lese %s: %m"
 
-#: option.c:2155
+#: option.c:2160
 #, c-format
 msgid "no search directive found in %s"
 msgstr "intet søke direktiv funnet i %s"
@@ -911,104 +920,99 @@ msgstr ""
 msgid "failed to write %s: %s (retry in %us)"
 msgstr "feilet å lese %s: %m"
 
-#: rfc2131.c:297
+#: rfc2131.c:271
 #, c-format
 msgid "no address range available for DHCP request %s %s"
 msgstr "ingen adresse område tilgjengelig for DHCP krav %s %s"
 
-#: rfc2131.c:298
+#: rfc2131.c:272
 msgid "with subnet selector"
 msgstr "med subnet velger"
 
-#: rfc2131.c:298
+#: rfc2131.c:272
 msgid "via"
 msgstr "via"
 
-#: rfc2131.c:322 rfc2131.c:347
+#: rfc2131.c:296 rfc2131.c:327
 msgid "disabled"
 msgstr "deaktivert"
 
-#: rfc2131.c:359 rfc2131.c:814
+#: rfc2131.c:339 rfc2131.c:778
 msgid "address in use"
 msgstr "adresse i bruk"
 
-#: rfc2131.c:362
+#: rfc2131.c:342
 msgid "no address configured"
 msgstr "ingen adresse konfigurert"
 
-#: rfc2131.c:375 rfc2131.c:682
+#: rfc2131.c:355 rfc2131.c:646
 msgid "no address available"
 msgstr "ingen adresse tilgjengelig"
 
-#: rfc2131.c:384 rfc2131.c:824
+#: rfc2131.c:364 rfc2131.c:788
 msgid "no leases left"
 msgstr "ingen leier igjen"
 
-#: rfc2131.c:387 rfc2131.c:788
+#: rfc2131.c:367 rfc2131.c:752
 msgid "wrong network"
 msgstr "galt nettverk"
 
-#: rfc2131.c:605
+#: rfc2131.c:569
 #, fuzzy, c-format
 msgid "disabling DHCP static address %s for %s"
 msgstr "deaktiverer DHCP statisk adresse %s"
 
-#: rfc2131.c:626
+#: rfc2131.c:590
 msgid "unknown lease"
 msgstr "ukjent leie"
 
-#: rfc2131.c:635 rfc2131.c:934
+#: rfc2131.c:599 rfc2131.c:898
 msgid "ignored"
 msgstr "oversett"
 
-#: rfc2131.c:655
+#: rfc2131.c:619
 #, c-format
 msgid "not using configured address %s because it is leased to %s"
 msgstr ""
 
-#: rfc2131.c:665
+#: rfc2131.c:629
 #, c-format
 msgid ""
 "not using configured address %s because it is in use by the server or relay"
 msgstr ""
 
-#: rfc2131.c:668
+#: rfc2131.c:632
 #, c-format
 msgid "not using configured address %s because it was previously declined"
 msgstr ""
 
-#: rfc2131.c:751
+#: rfc2131.c:715
 msgid "wrong address"
 msgstr "gal adresse"
 
-#: rfc2131.c:764
+#: rfc2131.c:728
 msgid "lease not found"
 msgstr "leie ikke funnet"
 
-#: rfc2131.c:796
+#: rfc2131.c:760
 msgid "address not available"
 msgstr "adresse ikke tilgjengelig"
 
-#: rfc2131.c:807
+#: rfc2131.c:771
 msgid "static lease available"
 msgstr "statisk leie tilgjengelig"
 
-#: rfc2131.c:811
+#: rfc2131.c:775
 msgid "address reserved"
 msgstr "adresse reservert"
 
-#: rfc2131.c:817
+#: rfc2131.c:781
 msgid "no unique-id"
 msgstr ""
 
-#: rfc2131.c:1181
-#, c-format
-msgid "cannot send DHCP option %d: no space left in packet"
-msgstr "kan ikke sende DHCP opsjon %d: ikke mer plass i pakken"
-
-#: rfc2131.c:1476
+#: rfc2131.c:1180
 #, fuzzy, c-format
-msgid "cannot send encapsulated option %d: no space left in wrapper"
+msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr "kan ikke sende DHCP opsjon %d: ikke mer plass i pakken"
 
 #: netlink.c:59
@@ -1063,25 +1067,29 @@ msgstr "feilet å få tilgang til %s: %m"
 msgid "unsupported request from %s"
 msgstr ""
 
-#: tftp.c:229
+#: tftp.c:230
 #, c-format
 msgid "TFTP sent %s to %s"
 msgstr ""
 
-#: tftp.c:296
+#: tftp.c:297
 #, fuzzy, c-format
 msgid "file %s not found"
 msgstr "leie ikke funnet"
 
-#: tftp.c:352
+#: tftp.c:353
 #, c-format
 msgid "TFTP error %d %s received from %s"
 msgstr ""
 
-#: tftp.c:383
+#: tftp.c:384
 #, fuzzy, c-format
 msgid "TFTP failed sending %s to %s"
 msgstr "feilet å lese %s: %m"
+
+#, fuzzy
+#~ msgid "cannot send encapsulated option %d: no space left in wrapper"
+#~ msgstr "kan ikke sende DHCP opsjon %d: ikke mer plass i pakken"
 
 #~ msgid "More than one vendor class matches, using %s"
 #~ msgstr "Mer enn en produsent klasse som passer, bruker %s"

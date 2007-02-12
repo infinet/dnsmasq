@@ -447,7 +447,9 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
     {
       struct server *server = forward->sentto;
       
-      if ((header->rcode == SERVFAIL || header->rcode == REFUSED) && forward->forwardall == 0)
+      if ((header->rcode == SERVFAIL || header->rcode == REFUSED) &&
+	  !(daemon->options & OPT_ORDER) &&
+	  forward->forwardall == 0)
 	/* for broken servers, attempt to send to another one. */
 	{
 	  unsigned char *pheader;

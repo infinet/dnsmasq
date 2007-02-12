@@ -484,12 +484,22 @@ Encapsulated Vendor-class options may also be specified using
 sends the encapsulated vendor
 class-specific option "mftp-address=0.0.0.0" to any client whose
 vendor-class matches "PXEClient". The vendor-class matching is
-substring based (see --dhcp-vendorclass for details) and it is
+substring based (see --dhcp-vendorclass for details). If a
+vendor-class option (number 60) is sent by dnsmasq, then that is used 
+for selecting encapsulated options in preference to any sent by the
+client. It is
 possible to omit the vendorclass completely;
 .B --dhcp-option=vendor:,1,0.0.0.0
 in which case the encapsulated option is always sent.
 The address 0.0.0.0 is not treated specially in
 encapsulated vendor class options.
+.TP
+.B --dhcp-option-force=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+This works in exactly the same way as
+.B --dhcp-otion
+except that the option will always be sent, even of the client does
+not ask for it in the parameter request list. This is sometimes
+needed, for example when sending options to PXELinux.
 .TP
 .B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
 Map from a vendor-class string to a network id. Most DHCP clients provide a 
@@ -686,6 +696,11 @@ file descriptor per unique file (plus a few others). So serving the
 same file simultaneously to n clients will use require about n + 10 file
 descriptors, serving different files simultaneously to n clients will
 require about (2*n) + 10 descriptors.
+.TP
+.B --tftp-no-blocksize
+Stop the TFTP server from negotiating the "blocksize" option with a
+client. Some buggy clients request this option but then behave badly
+when it is granted.
 .TP  
 .B \-C, --conf-file=<file>
 Specify a different configuration file. The conf-file option is also allowed in
@@ -835,7 +850,7 @@ on a particular network. (Setting --bootp-dynamic removes the need for
 static address mappings.) The filename
 parameter in a BOOTP request is matched against netids in
 .B  dhcp-option 
-configurations, allowing some control over the options returned to
+configurations, as is the tag "bootp", allowing some control over the options returned to
 different classes of hosts.
 
 .SH LIMITS
