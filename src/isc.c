@@ -70,7 +70,7 @@ void load_dhcp(struct daemon *daemon, time_t now)
   if (stat(daemon->lease_file, &statbuf) == -1)
     {
       if (!logged_lease)
-	syslog(LOG_WARNING, _("failed to access %s: %m"), daemon->lease_file);
+	my_syslog(LOG_WARNING, _("failed to access %s: %s"), daemon->lease_file, strerror(errno));
       logged_lease = 1;
       return;
     }
@@ -86,11 +86,11 @@ void load_dhcp(struct daemon *daemon, time_t now)
   
   if (!(fp = fopen (daemon->lease_file, "r")))
     {
-      syslog (LOG_ERR, _("failed to load %s: %m"), daemon->lease_file);
+      my_syslog (LOG_ERR, _("failed to load %s: %s"), daemon->lease_file, strerror(errno));
       return;
     }
   
-  syslog (LOG_INFO, _("reading %s"), daemon->lease_file);
+  my_syslog (LOG_INFO, _("reading %s"), daemon->lease_file);
 
   while ((next_token(token, MAXTOK, fp)))
     {
@@ -112,7 +112,7 @@ void load_dhcp(struct daemon *daemon, time_t now)
 			    if (!canonicalise(hostname))
 			      {
 				*hostname = 0;
-				syslog(LOG_ERR, _("bad name in %s"), daemon->lease_file); 
+				my_syslog(LOG_ERR, _("bad name in %s"), daemon->lease_file); 
 			      }
 			}
                       else if ((strcmp(token, "ends") == 0) ||
@@ -173,9 +173,9 @@ void load_dhcp(struct daemon *daemon, time_t now)
 		    { 
 		      if (!daemon->domain_suffix || hostname_isequal(dot+1, daemon->domain_suffix))
 			{
-			  syslog(LOG_WARNING, 
-				 _("Ignoring DHCP lease for %s because it has an illegal domain part"), 
-				 hostname);
+			  my_syslog(LOG_WARNING, 
+				    _("Ignoring DHCP lease for %s because it has an illegal domain part"), 
+				    hostname);
 			  continue;
 			}
 		      *dot = 0;

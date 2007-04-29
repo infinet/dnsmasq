@@ -156,35 +156,6 @@ void *safe_malloc(size_t size)
   return ret;
 }    
 
-static void log_err(char *message, char *arg1)
-{
-  char *errmess = strerror(errno);
-  
-  if (!arg1)
-    arg1 = errmess;
-  
-  fprintf(stderr, "dnsmasq: ");
-  fprintf(stderr, message, arg1, errmess);
-  fprintf(stderr, "\n");
-  
-  syslog(LOG_CRIT, message, arg1, errmess);
-}
-
-void complain(char *message, int lineno, char *file)
-{
-  char buff[256];
-  
-  sprintf(buff, _("%s at line %d of %%s"), message, lineno);
-  log_err(buff, file);
-}
-
-void die(char *message, char *arg1)
-{
-  log_err(message, arg1);
-  syslog(LOG_CRIT, _("FAILED to start up"));
-  exit(1);
-}
-
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2)
 {
   if (s1->sa.sa_family == s2->sa.sa_family)
@@ -416,20 +387,6 @@ void bump_maxfd(int fd, int *max)
 {
   if (fd > *max)
     *max = fd;
-}
-
-void log_start(struct daemon *daemon)
-{
-  if (daemon->options & OPT_DEBUG)   
-    {
-#ifdef LOG_PERROR
-      openlog("dnsmasq", LOG_PERROR, daemon->log_fac);
-#else
-      openlog("dnsmasq", 0, daemon->log_fac);
-#endif
-    }
-  else
-    openlog("dnsmasq", LOG_PID, daemon->log_fac);
 }
 
 int read_write(int fd, unsigned char *packet, int size, int rw)

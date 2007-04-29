@@ -38,7 +38,7 @@ int iface_check(struct daemon *daemon, int family, struct all_addr *addr,
 		
 		if (!(newindex = if_nametoindex(bridge->iface)))
 		  {
-		    syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), ifr->ifr_name);
+		    my_syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), ifr->ifr_name);
 		    return 0;
 		  }
 		else 
@@ -492,7 +492,7 @@ void check_servers(struct daemon *daemon)
 	      break;
 	  if (iface)
 	    {
-	      syslog(LOG_WARNING, _("ignoring nameserver %s - local interface"), daemon->namebuff);
+	      my_syslog(LOG_WARNING, _("ignoring nameserver %s - local interface"), daemon->namebuff);
 	      free(new);
 	      continue;
 	    }
@@ -500,8 +500,9 @@ void check_servers(struct daemon *daemon)
 	  /* Do we need a socket set? */
 	  if (!new->sfd && !(new->sfd = allocate_sfd(&new->source_addr, &daemon->sfds)))
 	    {
-	      syslog(LOG_WARNING, 
-		     _("ignoring nameserver %s - cannot make/bind socket: %m"), daemon->namebuff);
+	      my_syslog(LOG_WARNING, 
+			_("ignoring nameserver %s - cannot make/bind socket: %s"),
+			daemon->namebuff, strerror(errno));
 	      free(new);
 	      continue;
 	    }
@@ -520,12 +521,12 @@ void check_servers(struct daemon *daemon)
 	    s1 = _("unqualified"), s2 = _("domains");
 	  
 	  if (new->flags & SERV_NO_ADDR)
-	    syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
+	    my_syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
 	  else if (!(new->flags & SERV_LITERAL_ADDRESS))
-	    syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
+	    my_syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
 	}
       else
-	syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
+	my_syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
     }
   
   daemon->servers = ret;
@@ -545,7 +546,7 @@ int reload_servers(char *fname, struct daemon *daemon)
   /* buff happens to be MAXDNAME long... */
   if (!(f = fopen(fname, "r")))
     {
-      syslog(LOG_ERR, _("failed to read %s: %m"), fname);
+      my_syslog(LOG_ERR, _("failed to read %s: %s"), fname, strerror(errno));
       return 0;
     }
   
@@ -644,8 +645,22 @@ int reload_servers(char *fname, struct daemon *daemon)
 }
 
 
+/* Use an IPv4 listener socket for ioctling */
+struct in_addr get_ifaddr(struct daemon* daemon, char *intr)
+{
+  struct listener *l;
+  struct ifreq ifr;
 
-
+  for (l = daemon->listeners; l && l->family != AF_INET; l = l->next);
+  
+  strncpy(ifr.ifr_name, intr, IF_NAMESIZE);
+  ifr.ifr_addr.sa_family = AF_INET;
+  
+  if (!l || ioctl(l->fd, SIOCGIFADDR, &ifr) == -1)
+    ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr.s_addr = -1;
+  
+  return ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+}
 
 
 

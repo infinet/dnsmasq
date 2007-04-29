@@ -691,7 +691,7 @@ static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suf
 
   if (!f)
     {
-      syslog(LOG_ERR, _("failed to load names from %s: %m"), filename);
+      my_syslog(LOG_ERR, _("failed to load names from %s: %s"), filename, strerror(errno));
       return 0;
     }
     
@@ -725,7 +725,7 @@ static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suf
 #endif
       else
 	{
-	  syslog(LOG_ERR, _("bad address at %s line %d"), filename, lineno); 
+	  my_syslog(LOG_ERR, _("bad address at %s line %d"), filename, lineno); 
 	  continue;
 	}
 
@@ -749,10 +749,11 @@ static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suf
      while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
        {
 	 struct crec *cache;
+	 int fqdn = !!strchr(token, '.');
 	 if (canonicalise(token))
 	   {
 	     /* If set, add a version of the name with a default domain appended */
-	     if ((opts & OPT_EXPAND) && domain_suffix && !strchr(token, '.') && 
+	     if ((opts & OPT_EXPAND) && domain_suffix && !fqdn && 
 		 (cache = malloc(sizeof(struct crec) + 
 				 strlen(token)+2+strlen(domain_suffix)-SMALLDNAME)))
 	       {
@@ -771,14 +772,14 @@ static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suf
 	       }
 	   }
 	 else
-	   syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
+	   my_syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
        }
     }
   
   fclose(f);
   rehash(name_count);
 
-  syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
+  my_syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
 
   return name_count;
 }
@@ -816,7 +817,7 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
   if ((opts & OPT_NO_HOSTS) && !addn_hosts)
     {
       if (cache_size > 0)
-	syslog(LOG_INFO, _("cleared cache"));
+	my_syslog(LOG_INFO, _("cleared cache"));
       return;
     }
 
@@ -862,11 +863,11 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 	  if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
 	    {
 	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
-	      syslog(LOG_WARNING, 
-		     _("not giving name %s to the DHCP lease of %s because "
-		       "the name exists in %s with address %s"), 
-		     host_name, inet_ntoa(*host_address),
-		     record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
+	      my_syslog(LOG_WARNING, 
+			_("not giving name %s to the DHCP lease of %s because "
+			  "the name exists in %s with address %s"), 
+			host_name, inet_ntoa(*host_address),
+			record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
 	    }
 	  return;
 	}
@@ -903,62 +904,63 @@ void cache_add_dhcp_entry(struct daemon *daemon, char *host_name,
 
 void dump_cache(struct daemon *daemon, time_t now)
 {
-  syslog(LOG_INFO, _("time %lu, cache size %d, %d/%d cache insertions re-used unexpired cache entries."), 
-	 (unsigned long)now, daemon->cachesize, cache_live_freed, cache_inserted); 
+  my_syslog(LOG_INFO, _("time %lu, cache size %d, %d/%d cache insertions re-used unexpired cache entries."), 
+	    (unsigned long)now, daemon->cachesize, cache_live_freed, cache_inserted); 
   
   if ((daemon->options & (OPT_DEBUG | OPT_LOG)) &&
       (addrbuff || (addrbuff = malloc(ADDRSTRLEN))))
     {
       struct crec *cache ;
       int i;
-      syslog(LOG_DEBUG, "Host                                     Address                        Flags     Expires");
+      my_syslog(LOG_DEBUG, "Host                                     Address                        Flags     Expires");
     
       for (i=0; i<hash_size; i++)
 	for (cache = hash_table[i]; cache; cache = cache->hash_next)
 	  {
+	    char *a, *p = daemon->namebuff;
+	    p += sprintf(p, "%-40.40s ", cache_get_name(cache));
 	    if ((cache->flags & F_NEG) && (cache->flags & F_FORWARD))
-	      addrbuff[0] = 0;
+	      a = ""; 
 	    else if (cache->flags & F_CNAME) 
 	      {
-		addrbuff[0] = 0;
-		addrbuff[ADDRSTRLEN-1] = 0;
+		a = "";
 		if (!is_outdated_cname_pointer(cache))
-		  strncpy(addrbuff, cache_get_name(cache->addr.cname.cache), ADDRSTRLEN);
+		  a = cache_get_name(cache->addr.cname.cache);
 	      }
 #ifdef HAVE_IPV6
-	    else if (cache->flags & F_IPV4)
-	      inet_ntop(AF_INET, &cache->addr.addr, addrbuff, ADDRSTRLEN);
-	    else if (cache->flags & F_IPV6)
-	      inet_ntop(AF_INET6, &cache->addr.addr, addrbuff, ADDRSTRLEN);
+	    else 
+	      { 
+		a = addrbuff;
+		if (cache->flags & F_IPV4)
+		  inet_ntop(AF_INET, &cache->addr.addr, addrbuff, ADDRSTRLEN);
+		else if (cache->flags & F_IPV6)
+		  inet_ntop(AF_INET6, &cache->addr.addr, addrbuff, ADDRSTRLEN);
+	      }
 #else
             else 
-	      strcpy(addrbuff, inet_ntoa(cache->addr.addr.addr.addr4));
+	      a = inet_ntoa(cache->addr.addr.addr.addr4);
 #endif
-	    syslog(LOG_DEBUG, 
+	    p += sprintf(p, "%-30.30s %s%s%s%s%s%s%s%s%s%s  ", a, 
+			 cache->flags & F_IPV4 ? "4" : "",
+			 cache->flags & F_IPV6 ? "6" : "",
+			 cache->flags & F_CNAME ? "C" : "",
+			 cache->flags & F_FORWARD ? "F" : " ",
+			 cache->flags & F_REVERSE ? "R" : " ",
+			 cache->flags & F_IMMORTAL ? "I" : " ",
+			 cache->flags & F_DHCP ? "D" : " ",
+			 cache->flags & F_NEG ? "N" : " ",
+			 cache->flags & F_NXDOMAIN ? "X" : " ",
+			 cache->flags & F_HOSTS ? "H" : " ");
 #ifdef HAVE_BROKEN_RTC
-		   "%-40.40s %-30.30s %s%s%s%s%s%s%s%s%s%s  %lu",
+	    p += sprintf(p, "%lu", cache->flags & F_IMMORTAL ? 0: (unsigned long)(cache->ttd - now));
 #else
-		   "%-40.40s %-30.30s %s%s%s%s%s%s%s%s%s%s  %s",
+	    p += sprintf(p, "%s", cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd)));
+	    /* ctime includes trailing \n - eat it */
+	    *(p-1) = 0;
 #endif
-		   cache_get_name(cache), addrbuff,
-		   cache->flags & F_IPV4 ? "4" : "",
-		   cache->flags & F_IPV6 ? "6" : "",
-		   cache->flags & F_CNAME ? "C" : "",
-		   cache->flags & F_FORWARD ? "F" : " ",
-		   cache->flags & F_REVERSE ? "R" : " ",
-		   cache->flags & F_IMMORTAL ? "I" : " ",
-		   cache->flags & F_DHCP ? "D" : " ",
-		   cache->flags & F_NEG ? "N" : " ",
-		   cache->flags & F_NXDOMAIN ? "X" : " ",
-		   cache->flags & F_HOSTS ? "H" : " ",
-#ifdef HAVE_BROKEN_RTC
-		   cache->flags & F_IMMORTAL ? 0: (unsigned long)(cache->ttd - now)
-#else
-	           cache->flags & F_IMMORTAL ? "\n" : ctime(&(cache->ttd)) 
-#endif
-		   );
-	  }  
-    } 
+	    my_syslog(LOG_DEBUG, daemon->namebuff);
+	  }
+    }
 }
 
 static char *record_source(struct hostsfile *addn_hosts, int index)
@@ -1063,8 +1065,8 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr,
     name = ".";
 
   if ((flags & F_FORWARD) | (flags & F_NEG))
-    syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, addrbuff);
+    my_syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, addrbuff);
   else if (flags & F_REVERSE)
-    syslog(LOG_DEBUG, "%s %s is %s", source, addrbuff, name);
+    my_syslog(LOG_DEBUG, "%s %s is %s", source, addrbuff, name);
 }
 

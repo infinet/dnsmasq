@@ -73,8 +73,8 @@ void send_via_bpf(struct daemon *daemon, struct dhcp_packet *mess, size_t len,
   /* Only know how to do ethernet on *BSD */
   if (mess->htype != ARPHRD_ETHER || mess->hlen != ETHER_ADDR_LEN)
     {
-      syslog(LOG_WARNING, _("DHCP request for unsupported hardware type (%d) received on %s"), 
-	     mess->htype, ifr->ifr_name);
+      my_syslog(LOG_WARNING, _("DHCP request for unsupported hardware type (%d) received on %s"), 
+		mess->htype, ifr->ifr_name);
       return;
     }
    

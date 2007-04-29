@@ -48,7 +48,10 @@
 #define OPTION_SUBNET_SELECT     118
 #define OPTION_END               255
 
+#define SUBOPT_CIRCUIT_ID        1
+#define SUBOPT_REMOTE_ID         2
 #define SUBOPT_SUBNET_SELECT     5     /* RFC 3527 */
+#define SUBOPT_SUBSCR_ID         6     /* RFC 3393 */
 
 #define DHCPDISCOVER             1
 #define DHCPOFFER                2
@@ -63,6 +66,7 @@
 #define option_len(opt) ((int)(((unsigned char *)(opt))[1]))
 #define option_ptr(opt) ((void *)&(((unsigned char *)(opt))[2]))
 
+static int sanitise(unsigned char *opt, char *buf);
 static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *config, 
 			      struct dhcp_lease *lease, unsigned char *opt, time_t now);
 static void option_put(struct dhcp_packet *mess, unsigned char *end, int opt, int len, unsigned int val);
@@ -74,7 +78,7 @@ static void log_packet(struct daemon *daemon, char *type, void *addr,
 		       unsigned char *ext_mac, int mac_len, char *interface, char *string);
 static unsigned char *option_find(struct dhcp_packet *mess, size_t size, int opt_type, int minsize);
 static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt, int minsize);
-static size_t dhcp_packet_size(struct dhcp_packet *mess);
+static size_t dhcp_packet_size(struct daemon *daemon, struct dhcp_packet *mess, struct dhcp_netid *netid);
 static void clear_packet(struct dhcp_packet *mess, unsigned char *end);
 static void do_options(struct dhcp_context *context,
 		       struct dhcp_packet *mess,
@@ -166,6 +170,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	     get overwritten, then it will be shuffled back at the end of processing.
 	     Note that the incoming options must not be overwritten here, so there has to 
 	     be enough free space at the end of the packet to copy the option. */
+	  unsigned char *sopt;
 	  unsigned int total = option_len(opt) + 2;
 	  unsigned char *last_opt = option_find(mess, sz, OPTION_END, 0);
 	  if (last_opt && last_opt < end - total)
@@ -175,10 +180,34 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	    }
 
 	  /* look for RFC3527 Link selection sub-option */
-	  if ((opt = option_find1(option_ptr(opt), option_ptr(opt) + option_len(opt), SUBOPT_SUBNET_SELECT, INADDRSZ)))
-	    subnet_addr = option_addr(opt);
+	  if ((sopt = option_find1(option_ptr(opt), option_ptr(opt) + option_len(opt), SUBOPT_SUBNET_SELECT, INADDRSZ)))
+	    subnet_addr = option_addr(sopt);
+	  
+	  /* if a circuit-id or remote-is option is provided, exact-match to options. */ 
+	  for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
+	    {
+	      int search;
+	      
+	      if (vendor->match_type == MATCH_CIRCUIT)
+		search = SUBOPT_CIRCUIT_ID;
+	      else if (vendor->match_type == MATCH_REMOTE)
+		search = SUBOPT_REMOTE_ID;
+	      else if (vendor->match_type == MATCH_SUBSCRIBER)
+		search = SUBOPT_SUBSCR_ID;
+	      else 
+		continue;
+
+	      if ((sopt = option_find1(option_ptr(opt), option_ptr(opt) + option_len(opt), search, 1)) &&
+		  vendor->len == option_len(sopt) &&
+		  memcmp(option_ptr(sopt), vendor->data, vendor->len) == 0)
+		{
+		  vendor->netid.next = netid;
+		  netid = &vendor->netid;
+		  break;
+		} 
+	    }
 	}
-      
+
       /* Check for RFC3011 subnet selector - only if RFC3527 one not present */
       if (subnet_addr.s_addr == 0 && (opt = option_find(mess, sz, OPTION_SUBNET_SELECT, INADDRSZ)))
 	subnet_addr = option_addr(opt);
@@ -268,15 +297,29 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
   
   if (!context)
     {
-      syslog(LOG_WARNING, _("no address range available for DHCP request %s %s"), 
-             subnet_addr.s_addr ? _("with subnet selector") : _("via"),
-             subnet_addr.s_addr ? inet_ntoa(subnet_addr) : (mess->giaddr.s_addr ? inet_ntoa(mess->giaddr) : iface_name));
+      my_syslog(LOG_WARNING, _("no address range available for DHCP request %s %s"), 
+		subnet_addr.s_addr ? _("with subnet selector") : _("via"),
+		subnet_addr.s_addr ? inet_ntoa(subnet_addr) : (mess->giaddr.s_addr ? inet_ntoa(mess->giaddr) : iface_name));
       return 0;
     }
-  
+
   /* keep _a_ local address available. */
   fallback = context->local;
   
+  if (daemon->options & OPT_LOG_OPTS)
+    {
+      struct dhcp_context *context_tmp;
+      my_syslog(LOG_INFO, _("DHCP packet: transaction-id is %u"), mess->xid);
+      for (context_tmp = context; context_tmp; context_tmp = context_tmp->current)
+	{
+	  strcpy(daemon->namebuff, inet_ntoa(context_tmp->start));
+	  if (context_tmp->flags & CONTEXT_STATIC)
+	    my_syslog(LOG_INFO, _("Available DHCP subnet: %s/%s"), daemon->namebuff, inet_ntoa(context_tmp->netmask));
+	  else
+	    my_syslog(LOG_INFO, _("Available DHCP range: %s -- %s"), daemon->namebuff, inet_ntoa(context_tmp->end));
+	}
+    }
+
   mess->op = BOOTREPLY;
   
   config = find_config(daemon->dhcp_conf, context, clid, clid_len, 
@@ -361,7 +404,10 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  if (!message && 
 	      !lease && 
 	      (!(lease = lease_allocate(mess->yiaddr))))
-	    message = _("no leases left");
+	    {
+	      my_syslog(LOG_WARNING, _("Limit of %d leases exceeded."), daemon->dhcp_max);
+	      message = _("no leases left");
+	    }
 	  
 	  if (!message && !(context = narrow_context(context, mess->yiaddr)))
 	    message = _("wrong network");
@@ -389,7 +435,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
       
       log_packet(daemon, NULL, logaddr, mess->chaddr, mess->hlen, iface_name, message);
       
-      return message ? 0 : dhcp_packet_size(mess);
+      return message ? 0 : dhcp_packet_size(daemon, mess, netid);
     }
       
   if ((opt = option_find(mess, sz, OPTION_CLIENT_FQDN, 4)))
@@ -501,21 +547,40 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
     }
   
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
-    if ((opt = option_find(mess, sz, vendor->is_vendor ? OPTION_VENDOR_ID : OPTION_USER_CLASS, 1)))
-      {
-	int i;
-	for (i = 0; i <= (option_len(opt) - vendor->len); i++)
-	  if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
-	    {
-	      vendor->netid.next = netid;
-	      netid = &vendor->netid;
-	      break;
-	    }
-      }
-  
+    {
+      int mopt;
+      
+      if (vendor->match_type == MATCH_VENDOR)
+	mopt = OPTION_VENDOR_ID;
+      else if (vendor->match_type == MATCH_USER)
+	mopt = OPTION_USER_CLASS; 
+      else
+	continue;
+
+      if ((opt = option_find(mess, sz, mopt, 1)))
+	{
+	  int i;
+	  for (i = 0; i <= (option_len(opt) - vendor->len); i++)
+	    if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
+	      {
+		vendor->netid.next = netid;
+		netid = &vendor->netid;
+		break;
+	      }
+	}
+    }
+
   /* mark vendor-encapsulated options which match the client-supplied vendor class */
   match_vendor_opts(option_find(mess, sz, OPTION_VENDOR_ID, 1), daemon->dhcp_opts);
     
+  if (daemon->options & OPT_LOG_OPTS)
+    {
+      if (sanitise(option_find(mess, sz, OPTION_VENDOR_ID, 1), daemon->namebuff))
+	my_syslog(LOG_INFO, _("Vendor class: %s"), daemon->namebuff);
+      if (sanitise(option_find(mess, sz, OPTION_USER_CLASS, 1), daemon->namebuff))
+	my_syslog(LOG_INFO, _("User class: %s"), daemon->namebuff);
+    }
+
   /* if all the netids in the ignore list are present, ignore this client */
   for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
     if (match_netid(id_list->list, netid, 0))
@@ -540,19 +605,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	return 0;
 
       /* sanitise any message. Paranoid? Moi? */
-      if ((opt = option_find(mess, sz, OPTION_MESSAGE, 1)))
-	{ 
-	  char *p = option_ptr(opt), *q = daemon->dhcp_buff;
-	  int i;
-	  
-	  for (i = option_len(opt); i > 0; i--)
-	    {
-	      char c = *p++;
-	      if (isprint(c))
-		*q++ = c;
-	    }
-	  *q++ = 0; /* add terminator */
-	}
+      sanitise(option_find(mess, sz, OPTION_MESSAGE, 1), daemon->dhcp_buff);
       
       if (!(opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))
 	return 0;
@@ -566,8 +619,8 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 	  config->addr.s_addr == option_addr(opt).s_addr)
 	{
 	  prettyprint_time(daemon->dhcp_buff, DECLINE_BACKOFF);
-	  syslog(LOG_WARNING, _("disabling DHCP static address %s for %s"), 
-		 inet_ntoa(config->addr), daemon->dhcp_buff);
+	  my_syslog(LOG_WARNING, _("disabling DHCP static address %s for %s"), 
+		    inet_ntoa(config->addr), daemon->dhcp_buff);
 	  config->flags |= CONFIG_DECLINED;
 	  config->decline_time = now;
 	}
@@ -616,8 +669,8 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 		  int len;
 		  unsigned char *mac = extended_hwaddr(ltmp->hwaddr_type, ltmp->hwaddr_len,
 						       ltmp->hwaddr, ltmp->clid_len, ltmp->clid, &len);
-		  syslog(LOG_WARNING, _("not using configured address %s because it is leased to %s"),
-			 addrs, print_mac(daemon, mac, len));
+		  my_syslog(LOG_WARNING, _("not using configured address %s because it is leased to %s"),
+			    addrs, print_mac(daemon, mac, len));
 		}
 	      else
 		{
@@ -626,10 +679,10 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 		    if (context->router.s_addr == config->addr.s_addr)
 		      break;
 		  if (tmp)
-		    syslog(LOG_WARNING, _("not using configured address %s because it is in use by the server or relay"), addrs);
+		    my_syslog(LOG_WARNING, _("not using configured address %s because it is in use by the server or relay"), addrs);
 		  else if (have_config(config, CONFIG_DECLINED) &&
 			   difftime(now, config->decline_time) < (float)DECLINE_BACKOFF)
-		    syslog(LOG_WARNING, _("not using configured address %s because it was previously declined"), addrs);
+		    my_syslog(LOG_WARNING, _("not using configured address %s because it was previously declined"), addrs);
 		  else
 		    conf = config->addr;
 		}
@@ -673,7 +726,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
       do_options(context, mess, end, req_options, daemon, offer_hostname, 
 		 netid, subnet_addr, fqdn_flags, borken_opt, agent_id);
       
-      return dhcp_packet_size(mess);
+      return dhcp_packet_size(daemon, mess, netid);
       
     case DHCPREQUEST:
       if (ignore || have_config(config, CONFIG_DISABLE))
@@ -891,7 +944,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
 		     netid, subnet_addr, fqdn_flags, borken_opt, agent_id);
 	}
 
-      return dhcp_packet_size(mess); 
+      return dhcp_packet_size(daemon, mess, netid); 
       
     case DHCPINFORM:
       if (ignore || have_config(config, CONFIG_DISABLE))
@@ -919,7 +972,7 @@ size_t dhcp_reply(struct daemon *daemon, struct dhcp_context *context, char *ifa
       do_options(context, mess, end, req_options, daemon, hostname, 
 		 netid, subnet_addr, fqdn_flags, borken_opt, agent_id);
       
-      return dhcp_packet_size(mess); 
+      return dhcp_packet_size(daemon, mess, netid); 
     }
   
   return 0;
@@ -988,6 +1041,29 @@ static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *
   return time;
 }
 
+static int sanitise(unsigned char *opt, char *buf)
+{
+  char *p;
+  int i;
+  
+  *buf = 0;
+  
+  if (!opt)
+    return 0;
+
+  p = option_ptr(opt);
+
+  for (i = option_len(opt); i > 0; i--)
+    {
+      char c = *p++;
+      if (isprint(c))
+	*buf++ = c;
+    }
+  *buf = 0; /* add terminator */
+  
+  return 1;
+}
+
 static void log_packet(struct daemon *daemon, char *type, void *addr, 
 		       unsigned char *ext_mac, int mac_len, char *interface, char *string)
 {
@@ -997,14 +1073,30 @@ static void log_packet(struct daemon *daemon, char *type, void *addr,
   if (addr)
     memcpy(&a, addr, sizeof(a));
   
-  syslog(LOG_INFO, "%s%s(%s) %s%s%s %s",
-	 type ? "DHCP" : "BOOTP",
-	 type ? type : "",
-	 interface, 
-	 addr ? inet_ntoa(a) : "",
-	 addr ? " " : "",
-	 print_mac(daemon, ext_mac, mac_len),
-	 string ? string : "");
+  my_syslog(LOG_INFO, "%s%s(%s) %s%s%s %s",
+	    type ? "DHCP" : "BOOTP",
+	    type ? type : "",
+	    interface, 
+	    addr ? inet_ntoa(a) : "",
+	    addr ? " " : "",
+	    print_mac(daemon, ext_mac, mac_len),
+	    string ? string : "");
+}
+
+static void log_options(struct daemon *daemon, unsigned char *start)
+{
+  while (*start != OPTION_END)
+    {
+      char *text = option_string(start[0]);
+      unsigned char trunc = start[1] < 13 ? start[1] : 13;
+      my_syslog(LOG_INFO, "sent size:%3d option:%3d%s%s%s%s%s", 
+		start[1], start[0],
+		text ? ":" : "", text ? text : "",
+		start[1] == 0 ? "" : "  ",
+		start[1] == 0 ? "" : print_mac(daemon, &start[2], trunc),
+		trunc == start[1] ? "" : "...");
+      start += start[1] + 2;
+    }
 }
 
 static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt, int minsize)
@@ -1102,28 +1194,53 @@ static unsigned char *find_overload(struct dhcp_packet *mess)
   return NULL;
 }
 
-static size_t dhcp_packet_size(struct dhcp_packet *mess)
+static size_t dhcp_packet_size(struct daemon *daemon, struct dhcp_packet *mess, struct dhcp_netid *netid)
 {
   unsigned char *p = dhcp_skip_opts(&mess->options[0] + sizeof(u32));
   unsigned char *overload;
   size_t ret;
+
+  /* We do logging too */
+  if (netid && (daemon->options & OPT_LOG_OPTS))
+    {
+      char *p = daemon->namebuff;
+      *p = 0;
+      for (; netid; netid = netid->next)
+	{
+	  strncat (p, netid->net, MAXDNAME);
+	  if (netid->next)
+	    strncat (p, ", ", MAXDNAME);
+	}
+      p[MAXDNAME - 1] = 0;
+      my_syslog(LOG_INFO, _("tags: %s"), p);
+    } 
    
   /* add END options to the regions. */
   if ((overload = find_overload(mess)))
     {
       if (option_uint(overload, 1) & 1)
-	*dhcp_skip_opts(mess->file) = OPTION_END;
+	{
+	  *dhcp_skip_opts(mess->file) = OPTION_END;
+	  if (daemon->options & OPT_LOG_OPTS)
+	    log_options(daemon, mess->file);
+	}
       if (option_uint(overload, 1) & 2)
-	*dhcp_skip_opts(mess->sname) = OPTION_END;
+	{
+	  *dhcp_skip_opts(mess->sname) = OPTION_END;
+	  if (daemon->options & OPT_LOG_OPTS)
+	    log_options(daemon, mess->sname);
+	}
     }
 
   *p++ = OPTION_END;
+  if (daemon->options & OPT_LOG_OPTS)
+    log_options(daemon, &mess->options[0] + sizeof(u32));
   
   ret = (size_t)(p - (unsigned char *)mess);
   
   if (ret < MIN_PACKETSZ)
     ret = MIN_PACKETSZ;
-  
+
   return ret;
 }
 
@@ -1177,7 +1294,7 @@ static unsigned char *free_space(struct dhcp_packet *mess, unsigned char *end, i
 	}
       
       if (!p)
-	syslog(LOG_WARNING, _("cannot send DHCP/BOOTP option %d: no space left in packet"), opt);
+	my_syslog(LOG_WARNING, _("cannot send DHCP/BOOTP option %d: no space left in packet"), opt);
     }
  
   if (p)
@@ -1313,9 +1430,30 @@ static void do_options(struct dhcp_context *context,
   struct dhcp_opt *opt, *config_opts = daemon->dhcp_opts;
   struct dhcp_boot *boot;
   unsigned char *p, *end = agent_id ? agent_id : real_end;
-  int len, force_encap = 0;
+  int i, len, force_encap = 0;
   unsigned char f0 = 0, s0 = 0;
 
+  /* logging */
+  if ((daemon->options & OPT_LOG_OPTS) && req_options)
+    {
+      char *q = daemon->namebuff;
+      for (i = 0; req_options[i] != OPTION_END; i++)
+	{
+	  char *s = option_string(req_options[i]);
+	  q +=snprintf(q, MAXDNAME - (q - daemon->namebuff),
+		       "%d%s%s%s", 
+		       req_options[i],
+		       s ? ":" : "",
+		       s ? s : "", 
+		       req_options[i+1] == OPTION_END ? "" : ", ");
+	  if (req_options[i+1] == OPTION_END || (q - daemon->namebuff) > 40)
+	    {
+	      q = daemon->namebuff;
+	      my_syslog(LOG_INFO, _("requested options: %s"), daemon->namebuff);
+	    }
+	}
+    }
+      
   /* decide which dhcp-boot option we're using */
   for (boot = daemon->boot_config; boot; boot = boot->next)
     if (match_netid(boot->netid, netid, 0))
@@ -1340,7 +1478,11 @@ static void do_options(struct dhcp_context *context,
 	  if (req_options && in_list(req_options, OPTION_SNAME))
 	    option_put_string(mess, end, OPTION_SNAME, boot->sname, 1);
 	  else
-	    strncpy((char *)mess->sname, boot->sname, sizeof(mess->sname)-1);
+	    {
+	      if (daemon->options & OPT_LOG_OPTS)
+		my_syslog(LOG_INFO, _("server name: %s"), boot->sname);
+	      strncpy((char *)mess->sname, boot->sname, sizeof(mess->sname)-1);
+	    }
 	}
       
       if (boot->file)
@@ -1348,13 +1490,20 @@ static void do_options(struct dhcp_context *context,
 	  if (req_options && in_list(req_options, OPTION_FILENAME))
 	    option_put_string(mess, end, OPTION_FILENAME, boot->file, 1);
 	  else
-	    strncpy((char *)mess->file, boot->file, sizeof(mess->file)-1);
+	    {
+	      if (daemon->options & OPT_LOG_OPTS)
+		my_syslog(LOG_INFO, _("bootfile name: %s"), boot->file);
+	      strncpy((char *)mess->file, boot->file, sizeof(mess->file)-1);
+	    }
 	}
       
       if (boot->next_server.s_addr)
 	mess->siaddr = boot->next_server;
+	
+      if (daemon->options & OPT_LOG_OPTS)
+	my_syslog(LOG_INFO, _("next server: %s"), inet_ntoa(mess->siaddr));
     }
-
+  
   /* We don't want to do option-overload for BOOTP, so make the file and sname
      fields look like they are in use, even when they aren't. This gets restored
      at the end of this function. */

@@ -106,7 +106,8 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
       if (addr.sin_addr.s_addr == 0)
 	return;
       
-      if (!iface_check(daemon, AF_INET, (struct all_addr *)&addr, &ifr, &if_index))
+      if (!iface_check(daemon, AF_INET, (struct all_addr *)&addr.sin_addr, 
+		       &ifr, &if_index))
 	return;
       
       /* allowed interfaces are the same as for DHCP */
@@ -179,18 +180,26 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
 	    }
 	}
 
+      strcpy(daemon->namebuff, "/");
       if (daemon->tftp_prefix)
 	{
-	  strncpy(daemon->namebuff, daemon->tftp_prefix, MAXDNAME);
-	  if (daemon->tftp_prefix[strlen(daemon->tftp_prefix)-1] != '/' &&
-	      filename[0] != '/')
+	  if (daemon->tftp_prefix[0] == '/')
+	    daemon->namebuff[0] = 0;
+	  strncat(daemon->namebuff, daemon->tftp_prefix, MAXDNAME);
+	  if (daemon->tftp_prefix[strlen(daemon->tftp_prefix)-1] != '/')
 	    strncat(daemon->namebuff, "/", MAXDNAME);
+	  
+	  /* Absolute pathnames OK if they match prefix */
+	  if (filename[0] == '/')
+	    {
+	      if (strstr(filename, daemon->namebuff) == filename)
+		daemon->namebuff[0] = 0;
+	      else
+		filename++;
+	    }
 	}
-      else if (filename[0] != '/')
-	strncpy(daemon->namebuff, "/", MAXDNAME);
-      else
+      else if (filename[0] == '/')
 	daemon->namebuff[0] = 0;
-	
       strncat(daemon->namebuff, filename, MAXDNAME);
       daemon->namebuff[MAXDNAME-1] = 0;
 
@@ -227,7 +236,7 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
     free_transfer(transfer);
   else
     {
-      syslog(LOG_INFO, _("TFTP sent %s to %s"), daemon->namebuff, inet_ntoa(peer.sin_addr));
+      my_syslog(LOG_INFO, _("TFTP sent %s to %s"), daemon->namebuff, inet_ntoa(peer.sin_addr));
       transfer->next = daemon->tftp_trans;
       daemon->tftp_trans = transfer;
     }
@@ -350,9 +359,9 @@ void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
 			  *(q++) = *r;
 		      *q = 0;
 		    }
-		  syslog(LOG_ERR, _("TFTP error %d %s received from %s"),
-			 (int)ntohs(mess->block), err, 
-			 inet_ntoa(transfer->peer.sin_addr));	
+		  my_syslog(LOG_ERR, _("TFTP error %d %s received from %s"),
+			    (int)ntohs(mess->block), err, 
+			    inet_ntoa(transfer->peer.sin_addr));	
 		  
 		  /* Got err, ensure we take abort */
 		  transfer->timeout = now;
@@ -381,8 +390,8 @@ void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
 	      /* don't complain about timeout when we're awaiting the last
 		 ACK, some clients never send it */
 	      if (len != 0)
-		syslog(LOG_ERR, _("TFTP failed sending %s to %s"), 
-		       transfer->file->filename, inet_ntoa(transfer->peer.sin_addr));
+		my_syslog(LOG_ERR, _("TFTP failed sending %s to %s"), 
+			  transfer->file->filename, inet_ntoa(transfer->peer.sin_addr));
 	      len = 0;
 	    }
 	  
@@ -441,7 +450,7 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
   mess->err = htons(err);
   ret += (snprintf(mess->message, 500,  message, file, errstr) + 1);
   if (err != ERR_FNF)
-    syslog(LOG_ERR, "TFTP %s", mess->message);
+    my_syslog(LOG_ERR, "TFTP %s", mess->message);
   
   return  ret;
 }

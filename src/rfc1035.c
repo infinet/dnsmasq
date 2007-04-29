@@ -485,15 +485,16 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
       
   
 /* is addr in the non-globally-routed IP space? */ 
-static int private_net(struct all_addr *addrp) 
+static int private_net(struct in_addr addr) 
 {
-  struct in_addr addr = *(struct in_addr *)addrp;
-  if (inet_netof(addr) == 0xA ||
-      (inet_netof(addr) >= 0xAC10 && inet_netof(addr) < 0xAC20) ||
-      (inet_netof(addr) >> 8) == 0xC0A8) 
-    return 1;
-  else 
-    return 0;
+  in_addr_t ip_addr = ntohl(addr.s_addr);
+
+  return
+    ((ip_addr & 0xFF000000) == 0x7F000000)  /* 127.0.0.0/8    (loopback) */ || 
+    ((ip_addr & 0xFFFF0000) == 0xC0A80000)  /* 192.168.0.0/16 (private)  */ ||
+    ((ip_addr & 0xFF000000) == 0x0A000000)  /* 10.0.0.0/8     (private)  */ ||
+    ((ip_addr & 0xFFF00000) == 0xAC100000)  /* 172.16.0.0/12  (private)  */ ||
+    ((ip_addr & 0xFFFF0000) == 0xA9FE0000)  /* 169.254.0.0/16 (zeroconf) */ ;
 }
  
 static void dns_doctor(HEADER *header, struct doctor *doctor, struct in_addr *addr)
@@ -864,7 +865,9 @@ int check_for_local_domain(char *name, time_t now, struct daemon *daemon)
   struct crec *crecp;
   struct mx_srv_record *mx;
   struct txt_record *txt;
-    
+  struct interface_name *intr;
+  struct ptr_record *ptr;
+  
   if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)) &&
       (crecp->flags & (F_HOSTS | F_DHCP)))
     return 1;
@@ -876,7 +879,15 @@ int check_for_local_domain(char *name, time_t now, struct daemon *daemon)
   for (txt = daemon->txt; txt; txt = txt->next)
     if (hostname_isequal(name, txt->name))
       return 1;
-  
+
+  for (intr = daemon->int_names; intr; intr = intr->next)
+    if (hostname_isequal(name, intr->name))
+      return 1;
+
+  for (ptr = daemon->ptr; ptr; ptr = ptr->next)
+    if (hostname_isequal(name, ptr->name))
+      return 1;
+ 
   return 0;
 }
 
@@ -1108,21 +1119,27 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 	      /* see if it's w.z.y.z.in-addr.arpa format */
 	      int is_arpa = in_arpa_name_2_addr(name, &addr);
 	      struct ptr_record *ptr;
+	      struct interface_name* intr = NULL;
 
 	      for (ptr = daemon->ptr; ptr; ptr = ptr->next)
 		if (hostname_isequal(name, ptr->name))
 		  break;
 
-	      if (!ptr &&
-		  !(crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
-		{ 
-		  if (is_arpa == F_IPV4 && (daemon->options & OPT_BOGUSPRIV) && private_net(&addr))
+	      if (is_arpa == F_IPV4)
+		for (intr = daemon->int_names; intr; intr = intr->next)
+		  if (addr.addr.addr4.s_addr == get_ifaddr(daemon, intr->intr).s_addr)
+		    break;
+	      
+	      if (intr)
+		{
+		  ans = 1;
+		  if (!dryrun)
 		    {
-		      /* if not in cache, enabled and private IPV4 address, return NXDOMAIN */
-		      ans = 1;
-		      nxdomain = 1;
-		      if (!dryrun)
-			log_query(F_CONFIG | F_REVERSE | F_IPV4 | F_NEG | F_NXDOMAIN, name, &addr, 0, NULL, 0);
+		      log_query(F_IPV4 | F_REVERSE | F_CONFIG, intr->name, &addr, 0, NULL, 0);
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->local_ttl, NULL,
+					      T_PTR, C_IN, "d", intr->name))
+			anscount++;
 		    }
 		}
 	      else if (ptr)
@@ -1132,59 +1149,71 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 		    {
 		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_BIGNAME, name, NULL, 0, NULL, 0);
 		      for (ptr = daemon->ptr; ptr; ptr = ptr->next)
-			if (hostname_isequal(name, ptr->name))
-			  {
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, NULL,
-						    T_PTR, C_IN, "d", ptr->ptr))
-			      anscount++;
-			  }
+			if (hostname_isequal(name, ptr->name) &&
+			    add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						daemon->local_ttl, NULL,
+						T_PTR, C_IN, "d", ptr->ptr))
+			  anscount++;
+			 
 		    }
 		}
-	      else do 
-		{ 
-		  /* don't answer wildcard queries with data not from /etc/hosts or dhcp leases */
-		  if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
-		    continue;
-		  
-		  if (crecp->flags & F_NEG)
-		    {
-		      ans = 1;
-		      auth = 0;
-		      if (crecp->flags & F_NXDOMAIN)
-			nxdomain = 1;
-		      if (!dryrun)
-			log_query(crecp->flags & ~F_FORWARD, name, &addr, 0, NULL, 0);
-		    }
-		  else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd)
-		    {
-		      ans = 1;
-		      if (!(crecp->flags & (F_HOSTS | F_DHCP)))
+	      else if ((crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
+		do 
+		  { 
+		    /* don't answer wildcard queries with data not from /etc/hosts or dhcp leases */
+		    if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
+		      continue;
+		    
+		    if (crecp->flags & F_NEG)
+		      {
+			ans = 1;
 			auth = 0;
-		      if (!dryrun)
-			{
-			  unsigned long ttl;
-			  /* Return 0 ttl for DHCP entries, which might change
-			     before the lease expires. */
-			  if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-			    ttl = daemon->local_ttl;
-			  else
-			    ttl = crecp->ttd - now;
-			  
-			  log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr,
-				    0, daemon->addn_hosts, crecp->uid);
-
-			  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, ttl, NULL,
-						  T_PTR, C_IN, "d", cache_get_name(crecp)))
-			    anscount++;
-			}
-		    }
-		} while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
+			if (crecp->flags & F_NXDOMAIN)
+			  nxdomain = 1;
+			if (!dryrun)
+			  log_query(crecp->flags & ~F_FORWARD, name, &addr, 0, NULL, 0);
+		      }
+		    else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd)
+		      {
+			ans = 1;
+			if (!(crecp->flags & (F_HOSTS | F_DHCP)))
+			  auth = 0;
+			if (!dryrun)
+			  {
+			    unsigned long ttl;
+			    /* Return 0 ttl for DHCP entries, which might change
+			       before the lease expires. */
+			    if  (crecp->flags & (F_IMMORTAL | F_DHCP))
+			      ttl = daemon->local_ttl;
+			    else
+			      ttl = crecp->ttd - now;
+			    
+			    log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr,
+				      0, daemon->addn_hosts, crecp->uid);
+			    
+			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, ttl, NULL,
+						    T_PTR, C_IN, "d", cache_get_name(crecp)))
+			      anscount++;
+			  }
+		      }
+		  } while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
+	      else if (is_arpa == F_IPV4 && 
+		       (daemon->options & OPT_BOGUSPRIV) && 
+		       private_net(addr.addr.addr4))
+		{
+		  /* if not in cache, enabled and private IPV4 address, return NXDOMAIN */
+		  ans = 1;
+		  nxdomain = 1;
+		  if (!dryrun)
+		    log_query(F_CONFIG | F_REVERSE | F_IPV4 | F_NEG | F_NXDOMAIN, 
+			      name, &addr, 0, NULL, 0);
+		}
 	    }
-
+	    
 	  for (flag = F_IPV4; flag; flag = (flag == F_IPV4) ? F_IPV6 : 0)
 	    {
 	      unsigned short type = T_A;
-
+	      
 	      if (flag == F_IPV6)
 #ifdef HAVE_IPV6
 		type = T_AAAA;
@@ -1195,7 +1224,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 	      if (qtype != type && qtype != T_ANY)
 		continue;
 	      
-	      /* Check for "A for A"  queries. */
+	      /* Check for "A for A"  queries */
 	      if (qtype == T_A && (addr.addr.addr4.s_addr = inet_addr(name)) != (in_addr_t) -1)
 		{
 		  ans = 1;
@@ -1207,6 +1236,34 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen, struct daemon *d
 			anscount++;
 		    }
 		  continue;
+		}
+
+	      /* interface name stuff */
+	      if (qtype == T_A)
+		{
+		  struct interface_name *intr;
+
+		  for (intr = daemon->int_names; intr; intr = intr->next)
+		    if (hostname_isequal(name, intr->name))
+		      break;
+		  
+		  if (intr)
+		    {
+		      ans = 1;
+		      if (!dryrun)
+			{
+			  if ((addr.addr.addr4 = get_ifaddr(daemon, intr->intr)).s_addr == (in_addr_t) -1)
+			    log_query(F_FORWARD | F_CONFIG | F_IPV4 | F_NEG, name, NULL, 0, NULL, 0);
+			  else
+			    {
+			      log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, 0, NULL, 0);
+			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						      daemon->local_ttl, NULL, type, C_IN, "4", &addr))
+				anscount++;
+			    }
+			}
+		      continue;
+		    }
 		}
 
 	    cname_restart:

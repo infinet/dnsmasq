@@ -214,9 +214,9 @@ void lease_update_file(struct daemon *daemon, time_t now)
       if (next_event == 0 || difftime(next_event, LEASE_RETRY + now) > 0.0)
 	next_event = LEASE_RETRY + now;
       
-      syslog(LOG_ERR, _("failed to write %s: %s (retry in %us)"), 
-	     daemon->lease_file, strerror(err),
-	     (unsigned int)difftime(next_event, now));
+      my_syslog(LOG_ERR, _("failed to write %s: %s (retry in %us)"), 
+		daemon->lease_file, strerror(err),
+		(unsigned int)difftime(next_event, now));
     }
 
   if (next_event != 0)

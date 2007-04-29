@@ -40,7 +40,7 @@ struct script_data
 static struct script_data *buf;
 static size_t bytes_in_buf, buf_size;
 
-int create_helper(struct daemon *daemon)
+int create_helper(struct daemon *daemon, int log_fd)
 {
   pid_t pid;
   int i, pipefd[2];
@@ -72,11 +72,8 @@ int create_helper(struct daemon *daemon)
   /* close all the sockets etc, we don't need them here */
   for (i = 0; i < 64; i++)
     if (i != STDOUT_FILENO && i != STDERR_FILENO && 
-	i != STDIN_FILENO && i != pipefd[0])
+	i != STDIN_FILENO && i != pipefd[0] && i != log_fd)
       close(i);
-
-  /* we open our own log connection. */
-  log_start(daemon);
   
   /* don't give our end of the pipe to our children */
   if ((i = fcntl(pipefd[0], F_GETFD)) != -1)
@@ -142,9 +139,9 @@ int create_helper(struct daemon *daemon)
 	  int status;
 	  waitpid(pid, &status, 0);
 	  if (WIFSIGNALED(status))
-	    syslog(LOG_WARNING, _("child process killed by signal %d"), WTERMSIG(status));
+	    my_syslog(LOG_WARNING, _("child process killed by signal %d"), WTERMSIG(status));
 	  else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-	    syslog(LOG_WARNING, _("child process exited with status %d"), WEXITSTATUS(status));
+	    my_syslog(LOG_WARNING, _("child process exited with status %d"), WEXITSTATUS(status));
 	  continue;
 	}
       
@@ -213,8 +210,8 @@ int create_helper(struct daemon *daemon)
 	    action_str, daemon->dhcp_buff, inet_ntoa(data.addr), hostname, (char*)NULL);
       
       /* log socket should still be open, right? */
-      syslog(LOG_ERR, _("failed to execute %s: %m"), 
-	     daemon->lease_change_command);
+      my_syslog(LOG_ERR, _("failed to execute %s: %s"), 
+		daemon->lease_change_command, strerror(errno));
       _exit(0); 
     }
 }

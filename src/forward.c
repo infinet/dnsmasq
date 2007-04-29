@@ -373,7 +373,7 @@ static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now,
       server && !(server->flags & SERV_WARNED_RECURSIVE))
     {
       prettyprint_addr(&server->addr, daemon->namebuff);
-      syslog(LOG_WARNING, _("nameserver %s refused to do a recursive query"), daemon->namebuff);
+      my_syslog(LOG_WARNING, _("nameserver %s refused to do a recursive query"), daemon->namebuff);
       if (!(daemon->options & OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  

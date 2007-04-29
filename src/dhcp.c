@@ -216,7 +216,7 @@ void dhcp_packet(struct daemon *daemon, time_t now)
     {
       if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) != -1)
 	{
-	  syslog(LOG_WARNING, _("DHCP packet received on %s which has no address"), ifr.ifr_name);
+	  my_syslog(LOG_WARNING, _("DHCP packet received on %s which has no address"), ifr.ifr_name);
 	  return;
 	}
       else
@@ -347,8 +347,8 @@ static int complete_context(struct daemon *daemon, struct in_addr local, int if_
 	  {
 	    strcpy(daemon->dhcp_buff, inet_ntoa(context->start));
 	    strcpy(daemon->dhcp_buff2, inet_ntoa(context->end));
-	    syslog(LOG_WARNING, _("DHCP range %s -- %s is not consistent with netmask %s"),
-		   daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(netmask));
+	    my_syslog(LOG_WARNING, _("DHCP range %s -- %s is not consistent with netmask %s"),
+		      daemon->dhcp_buff, daemon->dhcp_buff2, inet_ntoa(netmask));
 	  }	
  	context->netmask = netmask;
       }
@@ -664,7 +664,7 @@ void dhcp_read_ethers(struct daemon *daemon)
   
   if (!f)
     {
-      syslog(LOG_ERR, _("failed to read %s:%m"), ETHERSFILE);
+      my_syslog(LOG_ERR, _("failed to read %s:%s"), ETHERSFILE, strerror(errno));
       return;
     }
 
@@ -699,7 +699,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 	*ip = 0;
       if (!*ip || parse_hex(buff, hwaddr, ETHER_ADDR_LEN, NULL, NULL) != ETHER_ADDR_LEN)
 	{
-	  syslog(LOG_ERR, _("bad line at %s line %d"), ETHERSFILE, lineno); 
+	  my_syslog(LOG_ERR, _("bad line at %s line %d"), ETHERSFILE, lineno); 
 	  continue;
 	}
       
@@ -712,7 +712,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 	{
 	  if ((addr.s_addr = inet_addr(ip)) == (in_addr_t)-1)
 	    {
-	      syslog(LOG_ERR, _("bad address at %s line %d"), ETHERSFILE, lineno); 
+	      my_syslog(LOG_ERR, _("bad address at %s line %d"), ETHERSFILE, lineno); 
 	      continue;
 	    }
 
@@ -726,7 +726,7 @@ void dhcp_read_ethers(struct daemon *daemon)
 	{
 	  if (!canonicalise(ip))
 	    {
-	      syslog(LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
+	      my_syslog(LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
 	      continue;
 	    }
 
@@ -780,7 +780,7 @@ void dhcp_read_ethers(struct daemon *daemon)
   
   fclose(f);
 
-  syslog(LOG_INFO, _("read %s - %d addresses"), ETHERSFILE, count);
+  my_syslog(LOG_INFO, _("read %s - %d addresses"), ETHERSFILE, count);
 }
 
 void dhcp_update_configs(struct dhcp_config *configs)
@@ -806,8 +806,8 @@ void dhcp_update_configs(struct dhcp_config *configs)
 	(crec->flags & F_HOSTS))
       {
 	if (config_find_by_address(configs, crec->addr.addr.addr.addr4))
-	  syslog(LOG_WARNING, _("duplicate IP address %s (%s) in dhcp-config directive"), 
-		 inet_ntoa(crec->addr.addr.addr.addr4), config->hostname);
+	  my_syslog(LOG_WARNING, _("duplicate IP address %s (%s) in dhcp-config directive"), 
+		    inet_ntoa(crec->addr.addr.addr.addr4), config->hostname);
 	else
 	  {
 	    config->addr = crec->addr.addr.addr.addr4;
@@ -842,7 +842,7 @@ char *strip_hostname(struct daemon *daemon, char *hostname)
     {
       if (!daemon->domain_suffix || !hostname_isequal(dot+1, daemon->domain_suffix))
 	{
-	  syslog(LOG_WARNING, _("Ignoring DHCP host name %s because it has an illegal domain part"), hostname);
+	  my_syslog(LOG_WARNING, _("Ignoring DHCP host name %s because it has an illegal domain part"), hostname);
 	  hostname = NULL;
 	}
       else

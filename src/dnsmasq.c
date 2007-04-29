@@ -59,7 +59,7 @@ int main (int argc, char **argv)
   time_t now, last = 0;
   struct sigaction sigact;
   struct iname *if_tmp;
-  int piperead, pipefd[2];
+  int piperead, pipefd[2], log_fd;
   unsigned char sig;
   
 #ifndef NO_GETTEXT
@@ -84,6 +84,7 @@ int main (int argc, char **argv)
   sigaction(SIGPIPE, &sigact, NULL);
 
   daemon = read_opts(argc, argv, compile_opts);
+  log_fd = log_start(daemon); 
   
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
@@ -250,7 +251,7 @@ int main (int argc, char **argv)
 #endif
       for (i=0; i<64; i++)
 	{
-	  if (i == piperead || i == pipewrite)
+	  if (i == piperead || i == pipewrite || i == log_fd)
 	    continue;
 
 #ifdef HAVE_LINUX_NETWORK
@@ -279,8 +280,8 @@ int main (int argc, char **argv)
     }
   
   /* if we are to run scripts, we need to fork a helper before dropping root. */
-  daemon->helperfd = create_helper(daemon);
-    
+  daemon->helperfd = create_helper(daemon, log_fd);
+   
   if (!(daemon->options & OPT_DEBUG))   
     {
       /* UID changing, etc */
@@ -335,46 +336,47 @@ int main (int argc, char **argv)
 	}
     }
   
-  log_start(daemon);
-  
 #ifdef HAVE_LINUX_NETWORK
   if (daemon->options & OPT_DEBUG) 
     prctl(PR_SET_DUMPABLE, 1);
 #endif
 
   if (daemon->cachesize != 0)
-    syslog(LOG_INFO, _("started, version %s cachesize %d"), VERSION, daemon->cachesize);
+    my_syslog(LOG_INFO, _("started, version %s cachesize %d"), VERSION, daemon->cachesize);
   else
-    syslog(LOG_INFO, _("started, version %s cache disabled"), VERSION);
+    my_syslog(LOG_INFO, _("started, version %s cache disabled"), VERSION);
   
-  syslog(LOG_INFO, _("compile time options: %s"), compile_opts);
+  my_syslog(LOG_INFO, _("compile time options: %s"), compile_opts);
   
 #ifdef HAVE_DBUS
   if (daemon->options & OPT_DBUS)
     {
       if (daemon->dbus)
-	syslog(LOG_INFO, _("DBus support enabled: connected to system bus"));
+	my_syslog(LOG_INFO, _("DBus support enabled: connected to system bus"));
       else
-	syslog(LOG_INFO, _("DBus support enabled: bus connection pending"));
+	my_syslog(LOG_INFO, _("DBus support enabled: bus connection pending"));
     }
 #endif
 
   if (bind_fallback)
-    syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
+    my_syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
   
   if (!(daemon->options & OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
       if (if_tmp->name && !if_tmp->used)
-	syslog(LOG_WARNING, _("warning: interface %s does not currently exist"), if_tmp->name);
+	my_syslog(LOG_WARNING, _("warning: interface %s does not currently exist"), if_tmp->name);
    
   if (daemon->options & OPT_NO_RESOLV)
     {
       if (daemon->resolv_files && !daemon->resolv_files->is_default)
-	syslog(LOG_WARNING, _("warning: ignoring resolv-file flag because no-resolv is set"));
+	my_syslog(LOG_WARNING, _("warning: ignoring resolv-file flag because no-resolv is set"));
       daemon->resolv_files = NULL;
       if (!daemon->servers)
-	syslog(LOG_WARNING, _("warning: no upstream servers configured"));
+	my_syslog(LOG_WARNING, _("warning: no upstream servers configured"));
     } 
+
+  if (daemon->max_logs != 0)
+    my_syslog(LOG_INFO, _("asynchronous logging enabled, queue limit is %d messages"), daemon->max_logs);
 
   if (daemon->dhcp)
     {
@@ -384,11 +386,11 @@ int main (int argc, char **argv)
 	{
 	  prettyprint_time(daemon->dhcp_buff2, dhcp_tmp->lease_time);
 	  strcpy(daemon->dhcp_buff, inet_ntoa(dhcp_tmp->start));
-	  syslog(LOG_INFO, 
-		 (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		 _("DHCP, static leases only on %.0s%s, lease time %s") :
-		 _("DHCP, IP range %s -- %s, lease time %s"),
-		 daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), daemon->dhcp_buff2);
+	  my_syslog(LOG_INFO, 
+		    (dhcp_tmp->flags & CONTEXT_STATIC) ? 
+		    _("DHCP, static leases only on %.0s%s, lease time %s") :
+		    _("DHCP, IP range %s -- %s, lease time %s"),
+		    daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), daemon->dhcp_buff2);
 	}
     }
 
@@ -402,13 +404,13 @@ int main (int argc, char **argv)
 	max_fd = FD_SETSIZE;
 #endif
 
-      syslog(LOG_INFO, "TFTP %s%s %s", 
-	     daemon->tftp_prefix ? _("root is ") : _("enabled"),
-	     daemon->tftp_prefix ? daemon->tftp_prefix: "",
-	     daemon->options & OPT_TFTP_SECURE ? _("secure mode") : "");
-
+      my_syslog(LOG_INFO, "TFTP %s%s %s", 
+		daemon->tftp_prefix ? _("root is ") : _("enabled"),
+		daemon->tftp_prefix ? daemon->tftp_prefix: "",
+		daemon->options & OPT_TFTP_SECURE ? _("secure mode") : "");
+      
       /* This is a guess, it assumes that for small limits, 
-	 disjoint files might be servered, but for large limits, 
+	 disjoint files might be served, but for large limits, 
 	 a single file will be sent to may clients (the file only needs
 	 one fd). */
 
@@ -424,9 +426,9 @@ int main (int argc, char **argv)
       if (daemon->tftp_max > max_fd)
 	{
 	  daemon->tftp_max = max_fd;
-	  syslog(LOG_WARNING, 
-		 _("restricting maximum simultaneous TFTP transfers to %d"), 
-		 daemon->tftp_max);
+	  my_syslog(LOG_WARNING, 
+		    _("restricting maximum simultaneous TFTP transfers to %d"), 
+		    daemon->tftp_max);
 	}
     }
 #endif
@@ -434,11 +436,9 @@ int main (int argc, char **argv)
   if (!(daemon->options & OPT_DEBUG) && (getuid() == 0 || geteuid() == 0))
     {
       if (bad_capabilities)
-	{
-	  errno = bad_capabilities;
-	  syslog(LOG_WARNING, _("warning: setting capabilities failed: %m"));
-	}
-      syslog(LOG_WARNING, _("running as root"));
+	my_syslog(LOG_WARNING, _("warning: setting capabilities failed: %s"), strerror(bad_capabilities));
+
+      my_syslog(LOG_WARNING, _("running as root"));
     }
   
   check_servers(daemon);
@@ -498,7 +498,11 @@ int main (int argc, char **argv)
 	  FD_SET(daemon->helperfd, &wset);
 	  bump_maxfd(daemon->helperfd, &maxfd);
 	}
-
+      
+      /* must do this just before select(), when we know no
+	 more calls to my_syslog() can occur */
+      set_log_writer(&wset, &maxfd);
+      
       if (select(maxfd+1, &rset, &wset, &eset, tp) < 0)
 	{
 	  /* otherwise undefined after error */
@@ -506,6 +510,8 @@ int main (int argc, char **argv)
 	}
 
       now = dnsmasq_time();
+
+      check_log_writer(&wset);
 
       /* Check for changes to resolv files once per second max. */
       /* Don't go silent for long periods if the clock goes backwards. */
@@ -530,7 +536,7 @@ int main (int argc, char **argv)
 		if (stat(res->name, &statbuf) == -1)
 		  {
 		    if (!res->logged)
-		      syslog(LOG_WARNING, _("failed to access %s: %m"), res->name);
+		      my_syslog(LOG_WARNING, _("failed to access %s: %s"), res->name, strerror(errno));
 		    res->logged = 1;
 		  }
 		else
@@ -552,7 +558,7 @@ int main (int argc, char **argv)
 		  static int warned = 0;
 		  if (reload_servers(latest->name, daemon))
 		    {
-		      syslog(LOG_INFO, _("reading %s"), latest->name);
+		      my_syslog(LOG_INFO, _("reading %s"), latest->name);
 		      warned = 0;
 		      check_servers(daemon);
 		      if (daemon->options & OPT_RELOAD)
@@ -563,7 +569,7 @@ int main (int argc, char **argv)
 		      latest->mtime = 0;
 		      if (!warned)
 			{
-			  syslog(LOG_WARNING, _("no servers found in %s, will retry"), latest->name);
+			  my_syslog(LOG_WARNING, _("no servers found in %s, will retry"), latest->name);
 			  warned = 1;
 			}
 		    }
@@ -622,7 +628,7 @@ int main (int argc, char **argv)
 		  if (daemon->lease_stream)
 		    fclose(daemon->lease_stream);
 
-		  syslog(LOG_INFO, _("exiting on receipt of SIGTERM"));
+		  my_syslog(LOG_INFO, _("exiting on receipt of SIGTERM"));
 		  exit(0);
 		}
 
@@ -657,9 +663,9 @@ int main (int argc, char **argv)
 	{
 	  char *err;
 	  if ((err = dbus_init(daemon)))
-	    syslog(LOG_WARNING, _("DBus error: %s"), err);
+	    my_syslog(LOG_WARNING, _("DBus error: %s"), err);
 	  if (daemon->dbus)
-	    syslog(LOG_INFO, _("connected to system DBus"));
+	    my_syslog(LOG_INFO, _("connected to system DBus"));
 	}
       check_dbus_listeners(daemon, &rset, &wset, &eset);
 #endif
@@ -969,7 +975,7 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
        difftime(now, start) < (float)PING_WAIT;)
     {
       struct timeval tv;
-      fd_set rset;
+      fd_set rset, wset;
       struct sockaddr_in faddr;
       int maxfd = fd; 
       socklen_t len = sizeof(faddr);
@@ -978,13 +984,20 @@ int icmp_ping(struct daemon *daemon, struct in_addr addr)
       tv.tv_sec = 0; 
       
       FD_ZERO(&rset);
+      FD_ZERO(&wset);
       FD_SET(fd, &rset);
       set_dns_listeners(daemon, now, &rset, &maxfd);
-      
-      if (select(maxfd+1, &rset, NULL, NULL, &tv) < 0)
-	FD_ZERO(&rset);
-      
+      set_log_writer(&wset, &maxfd);
+
+      if (select(maxfd+1, &rset, &wset, NULL, &tv) < 0)
+	{
+	  FD_ZERO(&rset);
+	  FD_ZERO(&wset);
+	}
+
       now = dnsmasq_time();
+
+      check_log_writer(&wset);
       check_dns_listeners(daemon, &rset, now);
 
 #ifdef HAVE_TFTP

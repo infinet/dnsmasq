@@ -229,7 +229,7 @@ static void nl_err(struct nlmsghdr *h)
 {
   struct nlmsgerr *err = NLMSG_DATA(h);
   if (err->error != 0)
-    syslog(LOG_ERR, _("netlink returns error: %s"), strerror(-(err->error)));
+    my_syslog(LOG_ERR, _("netlink returns error: %s"), strerror(-(err->error)));
 }
 
 /* We arrange to receive netlink multicast messages whenever the network route is added.

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2006 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,7 +10,7 @@
    GNU General Public License for more details.
 */
 
-#define VERSION "2.38"
+#define VERSION "2.39"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -50,6 +50,7 @@
 #define DHCP_CLIENT_PORT 68
 #define TFTP_PORT 69
 #define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
+#define LOG_MAX 5 /* log-queue length */
 
 /* DBUS interface specifics */
 #define DNSMASQ_SERVICE "uk.org.thekelleys.dnsmasq"

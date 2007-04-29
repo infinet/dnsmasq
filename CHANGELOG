@@ -2151,4 +2151,86 @@ release 2.38
 	    probably needs an infinite DHCP lease and some bad luck to
 	    trigger. Thanks to Detlef Reichelt for bug reports and testing.
 
-	    
+release 2.39
+	    Apply patch from Mike Baker/OpenWRT to ensure that names
+	    like "localhost." in /etc/hosts with trailing period 
+	    are treated as fully-qualified.
+
+	    Tolerate and ignore spaces around commas in the
+	    configuration file in all circumstances. Note that this
+	    may change the meaning of a few existing config files, for
+	    instance
+	    txt-record=mydomain.com, string
+	    would have a leading space in the string before, and now
+	    will not. To get the old behaviour back, use quotes:
+	    txt-record=mydomain.com," string"
+
+	    /a is no longer a valid escape in quoted strings.
+
+	    Added symbolic DHCP option names. Instead of
+	    dhcp-option = 3, 1.2.3.4 
+	    it is now possible to do
+	    dhcp-option = option:router, 1.2.3.4
+	    To see the list of known DHCP options, use the 
+            command "dnsmasq --help dhcp"
+	    Thanks to Luigi Rizzo for a patch and good work on this.
+
+	    Overhauled the log code so that logging can be asynchronous; 
+	    dnsmasq then no longer blocks waiting for the syslog() library
+	    call. This is important on systems where syslog
+	    is being used to log over the network (and therefore doing
+	    DNS lookups) and syslog is using dnsmasq as its DNS
+	    server. Having dnsmasq block awaiting syslog under 
+	    such circumstances can lead to syslog and dnsmasq 
+	    deadlocking. The new behaviour is enabled with a new
+	     --log-async flag, which can also be used to tune the
+	    queue length. Paul Chambers found and diagnosed 
+	    this trap for the unwary. He also did much testing of 
+	    the solution along with Carlos Carvalho.
+
+	    --log-facility can now take a file-name instead of a 
+	    facility name. When this is done, dnsmasq logs to the 
+	    file and not via syslog. (Failures early in startup, 
+	    whilst reading configuration, will still go to syslog, 
+	    and syslog is used as a log-of-last-resort if the file
+	    cannot be written.)
+
+	    Added --log-dhcp flag. Suggestion from Carlos Carvalho.
+
+	    Made BINDIR, MANDIR and LOCALEDIR independently
+	    over-rideable in the makefile. Suggestion from Thomas
+	    Klausner.
+
+	    Added 127.0.0.0/8 and 169.254.0.0/16 to the address
+	    ranges affected by --bogus-priv. Thanks to  Paul 
+	    Chambers for the patch.
+
+	    Fixed failure of TFTP server with --listen-address. Thanks
+	    to William Dinkel for the bug report.
+
+	    Added --dhcp-circuitid and --dhcp-remoteid for RFC3046
+	    relay agent data matching.
+ 
+	    Added --dhcp-subscrid for RFC3993 subscriber-id relay
+	    agent data matching.
+
+	    Correctly garbage-collect connections when upstream
+	    servers go away as a result of DBus transactions.
+
+	    Allow absolute paths for TFTP transfers even when
+	    --tftp-root is set, as long as the path matches the root,
+	    so /var/ftp/myfile is OK with tftp-root=/var/ftp.
+	    Thanks for Thomas Mizzi for the patch.
+
+	    Updated Spanish translation - thanks to Chris Chatham.
+
+	    Updated French translation - thanks to Gildas Le Nadan.
+
+	    Added to example conf file example of routing PTR queries
+	    for a subnet to a different nameserver. Suggestion from
+	    Jon Nicholson.
+
+	    Added --interface-name option. This provides a facility 
+	    to add a domain name with a dynamic IP address taken from
+	    the address of a local network interface. Useful for
+	    networks with dynamic IPs.

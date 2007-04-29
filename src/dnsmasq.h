@@ -43,6 +43,7 @@
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <limits.h>
 #include <net/if.h>
 #include <unistd.h>
@@ -115,6 +116,7 @@ extern int capset(cap_user_header_t header, cap_user_data_t data);
 #define OPT_TFTP           (1<<25)
 #define OPT_TFTP_SECURE    (1<<26)
 #define OPT_TFTP_NOBLOCK   (1<<27)
+#define OPT_LOG_OPTS       (1<<28)
 
 struct all_addr {
   union {
@@ -152,6 +154,12 @@ struct txt_record {
 struct ptr_record {
   char *name, *ptr;
   struct ptr_record *next;
+};
+
+struct interface_name {
+  char *name; /* domain name */
+  char *intr; /* interface name */
+  struct interface_name *next;
 };
 
 union bigname {
@@ -377,8 +385,15 @@ struct dhcp_boot {
   struct dhcp_boot *next;
 };
 
+#define MATCH_VENDOR     1
+#define MATCH_USER       2
+#define MATCH_CIRCUIT    3
+#define MATCH_REMOTE     4
+#define MATCH_SUBSCRIBER 5
+
+/* vendorclass, userclass, remote-id or cicuit-id */
 struct dhcp_vendor {
-  int len, is_vendor;
+  int len, match_type;
   char *data;
   struct dhcp_netid netid;
   struct dhcp_vendor *next;
@@ -461,6 +476,7 @@ struct daemon {
   struct mx_srv_record *mxnames;
   struct txt_record *txt;
   struct ptr_record *ptr;
+  struct interface_name *int_names;
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname;
@@ -471,6 +487,8 @@ struct daemon {
   struct bogus_addr *bogus_addr;
   struct server *servers;
   int log_fac; /* log facility */
+  char *log_file; /* optional log file */
+  int max_logs;  /* queue limit */
   int cachesize, ftabsize;
   int port, query_port;
   unsigned long local_ttl;
@@ -569,8 +587,6 @@ unsigned short rand16(void);
 int legal_char(char c);
 int canonicalise(char *s);
 unsigned char *do_rfc1035_name(unsigned char *p, char *sval);
-void die(char *message, char *arg1);
-void complain(char *message, int lineno, char *file);
 void *safe_malloc(size_t size);
 int sa_len(union mysockaddr *addr);
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
@@ -587,11 +603,18 @@ int memcmp_masked(unsigned char *a, unsigned char *b, int len,
 int expand_buf(struct iovec *iov, size_t size);
 char *print_mac(struct daemon *daemon, unsigned char *mac, int len);
 void bump_maxfd(int fd, int *max);
-void log_start(struct daemon *daemon);
 int read_write(int fd, unsigned char *packet, int size, int rw);
+
+/* log.c */
+void die(char *message, char *arg1);
+int log_start(struct daemon *daemon);
+void my_syslog(int priority, const char *format, ...);
+void set_log_writer(fd_set *set, int *maxfdp);
+void check_log_writer(fd_set *set);
 
 /* option.c */
 struct daemon *read_opts (int argc, char **argv, char *compile_opts);
+char *option_string(unsigned char opt);
 
 /* forward.c */
 void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now);
@@ -611,6 +634,7 @@ struct listener *create_bound_listeners(struct daemon *daemon);
 int iface_check(struct daemon *daemon, int family, struct all_addr *addr, 
 		struct ifreq *ifr, int *indexp);
 int fix_fd(int fd);
+struct in_addr get_ifaddr(struct daemon* daemon, char *intr);
 
 /* dhcp.c */
 void dhcp_init(struct daemon *daemon);
@@ -690,7 +714,7 @@ void set_dbus_listeners(struct daemon *daemon, int *maxfdp,
 #endif
 
 /* helper.c */
-int create_helper(struct daemon *daemon);
+int create_helper(struct daemon *daemon, int log_fd);
 void helper_write(struct daemon *daemon);
 void queue_script(struct daemon *daemon, int action, 
 		  struct dhcp_lease *lease, char *hostname);

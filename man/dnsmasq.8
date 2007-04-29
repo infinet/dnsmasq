@@ -18,7 +18,7 @@ DNS queries for DHCP configured hosts.
 The dnsmasq DHCP server supports static address assignments, multiple
 networks, DHCP-relay and RFC3011 subnet specifiers. It automatically
 sends a sensible default set of DHCP options, and can be configured to
-send any desired set of DHCP options, inlcuding vendor-encapsulated
+send any desired set of DHCP options, including vendor-encapsulated
 options. It includes a secure, read-only,
 TFTP server to allow net/PXE boot of DHCP hosts and also supports BOOTP.
 .PP
@@ -68,7 +68,23 @@ Log the results of DNS queries handled by dnsmasq. Enable a full cache dump on r
 .TP
 .B \-8, --log-facility=<facility>
 Set the facility to which dnsmasq will send syslog entries, this
-defaults to DAEMON, and to LOCAL0 when debug mode is in operation.
+defaults to DAEMON, and to LOCAL0 when debug mode is in operation. If
+the facilty given contains at least one '/' character, it is taken to
+be a filename, and dnsmasq logs to the given file, instead of
+syslog. (Errors whilst reading configuration will still go to syslog,
+but all output from a successful startup, and all output whilst
+running, will go exclusively to the file.) 
+.TP
+.B --log-async[=<lines>]
+Enable asynchronous logging and optionally set the limit on the
+number of lines
+which will be queued by dnsmasq when writing to the syslog is slow. 
+Dnsmasq can log asynchronously: this
+allows it to continue functioning without being blocked by syslog, and
+allows syslog to use dnsmasq for DNS queries without risking deadlock.
+If the queue of log-lines becomes full, dnsmasq will log the
+overflow, and the number of messages  lost. The default queue length is
+5, a sane value would be 5-25, and a maximum limit of 100 is imposed.
 .TP
 .B \-x, --pid-file=<path>
 Specify an alternate path for dnsmasq to record its process-id in. Normally /var/run/dnsmasq.pid.
@@ -331,6 +347,17 @@ so  any number may be included, split by commas.
 .B --ptr-record=<name>[,<target>]
 Return a PTR DNS record.
 .TP
+.B --interface-name=<name>,<interface>
+Return a DNS record associating the name with the primary address on
+the given interface. This flag specifies an A record for the given
+name in the same way as an /etc/hosts line, except that the address is
+not constant, but taken from the given interface. If the interface is
+down, not configured or non-existant, an empty record is returned. The
+matching PTR record is also created, mapping the interface address to
+the name. More than one name may be associated with an interface
+address by repeating the flag; in that case the first instance is used
+for the reverse address-to-name mapping.
+.TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.
 .TP
@@ -438,19 +465,26 @@ have exactly the same effect as
 .B --dhcp-host
 options containing the same information.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
 Specify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
 the DNS server and default route are set to the address of the machine
 running dnsmasq. If the domain name option has been set, that is sent.
-This option allows these defaults to be overridden,
-or other options specified. The <opt> is the number of the option, as
-specified in RFC2132. For example, to set the default route option to 
+This configuration allows these defaults to be overridden,
+or other options specified. The option, to be sent may be given as a
+decimal number or as "option:<option-name>" The option numbers are
+specified in RFC2132 and subsequent RFCs. The set of option-names
+known by dnsmasq can be discovered by running "dnsmasq --help dhcp".
+For example, to set the default route option to 
 192.168.4.4, do 
-.B --dhcp-option=3,192.168.4.4
+.B --dhcp-option=3,192.168.4.4 
+or
+.B --dhcp-option = option:router, 192.168.4.4
 and to set the time-server address to 192.168.0.4, do
-.B --dhcp-option=42,192.168.0.4
+.B --dhcp-option = 42,192.168.0.4 
+or 
+.B --dhcp-option = option:ntp-server, 192.168.0.4
 The special address 0.0.0.0 is taken to mean "the address of the
 machine running dnsmasq". Data types allowed are comma separated
 dotted-quad IP addresses, a decimal number, colon-separated hex digits
@@ -496,15 +530,15 @@ encapsulated vendor class options.
 .TP
 .B --dhcp-option-force=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 This works in exactly the same way as
-.B --dhcp-otion
-except that the option will always be sent, even of the client does
+.B --dhcp-option
+except that the option will always be sent, even if the client does
 not ask for it in the parameter request list. This is sometimes
 needed, for example when sending options to PXELinux.
 .TP
 .B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
-Map from a vendor-class string to a network id. Most DHCP clients provide a 
+Map from a vendor-class string to a network id tag. Most DHCP clients provide a 
 "vendor class" which represents, in some sense, the type of host. This option 
-maps vendor classes to network ids, so that DHCP options may be selectively delivered
+maps vendor classes to tags, so that DHCP options may be selectively delivered
 to different classes of hosts. For example 
 .B dhcp-vendorclass=printers,Hewlett-Packard JetDirect
 will allow options to be set only for HP printers like so:
@@ -514,19 +548,29 @@ substring matched against the vendor-class supplied by the client, to
 allow fuzzy matching.
 .TP
 .B \-j, --dhcp-userclass=<network-id>,<user-class>
-Map from a user-class string to a network id (with substring
+Map from a user-class string to a network id tag (with substring
 matching, like vendor classes). Most DHCP clients provide a 
 "user class" which is configurable. This option
-maps user classes to network ids, so that DHCP options may be selectively delivered
+maps user classes to tags, so that DHCP options may be selectively delivered
 to different classes of hosts. It is possible, for instance to use
 this to set a different printer server for hosts in the class
 "accounts" than for hosts in the class "engineering".
 .TP
 .B \-4, --dhcp-mac=<network-id>,<MAC address>
-Map from a MAC address to a network-id. The MAC address may include
+Map from a MAC address to a network-id tag. The MAC address may include
 wildcards. For example
 .B --dhcp-mac=3com,01:34:23:*:*:*
 will set the tag "3com" for any host whose MAC address matches the pattern.
+.TP
+.B --dhcp-circuitid=<network-id>,<circuit-id>, --dhcp-remoteid=<network-id>,<remote-id>
+Map from RFC3046 relay agent options to network-id tags. This data may
+be provided by DHCP relay agents. The circuit-id or remote-id is
+normally given as colon-separated hex, but is also allowed to be a
+simple string. If an exact match is achieved between the circuit or
+agent ID and one provided by a relay agent, the network-id tag is set.
+.TP
+.B --dhcp-subscrid=<network-id>,<subscriber-id>
+Map from RFC3993 subscriber-d relay agent options to network-id tags.
 .TP
 .B \-J, --dhcp-ignore=<network-id>[,<network-id>]
 When all the given network-ids match the set of network-ids derived
@@ -560,7 +604,7 @@ create thousands of leases and use lots of memory in the dnsmasq
 process.
 .TP
 .B \-K, --dhcp-authoritative
-Should be set when dnsmasq is definately the only DHCP server on a network.
+Should be set when dnsmasq is definitely the only DHCP server on a network.
 It changes the behaviour from strict RFC compliance so that DHCP requests on
 unknown leases from unknown hosts are not ignored. This allows new hosts
 to get a lease without a tedious timeout under all circumstances. It also 
@@ -579,6 +623,10 @@ not in use before allocating it to a host. It does this by sending an
 ICMP echo request (aka "ping") to the address in question. If it gets
 a reply, then the address must already be in use, and another is
 tried. This flag disables this check. Use with caution.
+.TP
+.B --log-dhcp
+Extra logging for DHCP: log all the options sent to DHCP clients and
+the netid tags used to determine them.
 .TP
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information. If this option
@@ -621,7 +669,7 @@ closed except stdin, stdout and stderr which are open to /dev/null
 (except in debug mode).
 The script is not invoked concurrently: if subsequent lease 
 changes occur, the script is not invoked again until any existing 
-invokation exits. At dnsmasq startup, the script will be invoked for
+invocation exits. At dnsmasq startup, the script will be invoked for
 all existing leases as they are read from the lease file. Expired
 leases will be called with "del" and others with "old". <path>
 must be an absolute pathname, no PATH search occurs.
@@ -631,7 +679,7 @@ Completely suppress use of the lease database file. The file will not
 be created, read, or written. Change the way the lease-change
 script (if one is provided) is called, so that the lease database may
 be maintained in external storage by the script. In addition to the
-invokations  given in 
+invocations  given in 
 .B  --dhcp-script
 the lease-change script is called once, at dnsmasq startup, with the
 single argument "init". When called like this the script should write
@@ -675,6 +723,8 @@ binary/octet mode. The tsize and blksize extensions are supported.
 Look for files to transfer using TFTP relative to the given
 directory. When this is set, TFTP paths which include ".." are
 rejected, to stop clients getting outside the specified root.
+Absolute paths (starting with /) are allowed, but they must be within
+the tftp-root.
 .TP
 .B --tftp-secure
 Enable TFTP secure mode: without this, any file which is readble by
@@ -733,7 +783,7 @@ corresponding to tab, bell, backspace, return and newline.
 When it receives a SIGHUP, 
 .B dnsmasq 
 clears its cache and then re-loads 
-.I /etc/hosts.
+.I /etc/hosts and /etc/ethers.
 If 
 .B
 --no-poll
@@ -863,7 +913,7 @@ following applies to dnsmasq-2.37: earlier versions did not scale as well.
 .PP
 Dnsmasq is capable of handling DNS and DHCP for at least a thousand
 clients. Clearly to do this the value of 
-.B --dhcp-max
+.B --dhcp-lease-max
 must be increased,
 and lease times should not be very short (less than one hour). The
 value of 
