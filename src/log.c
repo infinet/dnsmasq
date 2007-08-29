@@ -33,9 +33,11 @@ static int entries_alloced = 0;
 static int entries_lost = 0;
 static int connection_good = 1;
 static int max_logs = 0;
+static int connection_type = SOCK_DGRAM;
 
 struct log_entry {
   int offset, length;
+  pid_t pid; /* to avoid duplicates over a fork */
   struct log_entry *next;
   char payload[MAX_MESSAGE];
 };
@@ -44,10 +46,8 @@ static struct log_entry *entries = NULL;
 static struct log_entry *free_entries = NULL;
 
 
-int log_start(struct daemon *daemon)
+void log_start(struct passwd *ent_pw)
 {
-  int flags;
-
   log_stderr = !!(daemon->options & OPT_DEBUG);
 
   if (daemon->log_fac != -1)
@@ -58,43 +58,78 @@ int log_start(struct daemon *daemon)
 #endif
 
   if (daemon->log_file)
-    {
-      log_fd = open(daemon->log_file, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP); 
+    { 
       log_to_file = 1;
       daemon->max_logs = 0;
     }
-  else
-    log_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
   
-  if (log_fd == -1)
-    die(_("cannot open %s: %s"), daemon->log_file ? daemon->log_file : "log");
+  max_logs = daemon->max_logs;
+
+  if (!log_reopen(daemon->log_file))
+    die(_("cannot open %s: %s"), daemon->log_file ? daemon->log_file : "log", EC_FILE);
   
+  /* If we're running as root and going to change uid later,
+     change the ownership here so that the file is always owned by
+     the dnsmasq user. Then logrotate can just copy the owner.
+     Failure of the chown call is OK, (for instance when started as non-root) */
+  if (log_to_file && ent_pw && ent_pw->pw_uid != 0)
+    fchown(log_fd, ent_pw->pw_uid, -1);
+ 
   /* if queuing is inhibited, make sure we allocate
      the one required buffer now. */
-  if ((max_logs = daemon->max_logs) == 0)
+  if (max_logs == 0)
     {  
       free_entries = safe_malloc(sizeof(struct log_entry));
       free_entries->next = NULL;
       entries_alloced = 1;
     }
+}
 
-  if ((flags = fcntl(log_fd, F_GETFD)) != -1)
-    fcntl(log_fd, F_SETFD, flags | FD_CLOEXEC);
+int log_reopen(char *log_file)
+{
+  int flags;
+  
+  if (log_fd != -1)
+    close(log_fd);
 
-  /* if max_log is zero, leave the socket blocking */
+  /* NOTE: umask is set to 022 by the time this gets called */
+     
+  if (log_file)
+    log_fd = open(log_file, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP); 
+  else
+    log_fd = socket(AF_UNIX, connection_type, 0);
+  
+  if (log_fd == -1)
+    return 0;
+  
+  /* if max_logs is zero, leave the socket blocking */
   if (max_logs != 0 && (flags = fcntl(log_fd, F_GETFL)) != -1)
     fcntl(log_fd, F_SETFL, flags | O_NONBLOCK);
-  
-  return log_fd;
+      
+  return 1;
 }
-  
+
+static void free_entry(void)
+{
+  struct log_entry *tmp = entries;
+  entries = tmp->next;
+  tmp->next = free_entries;
+  free_entries = tmp;
+}      
+
 static void log_write(void)
 {
   ssize_t rc;
-  int tried_stream = 0;
-  
+   
   while (entries)
     {
+      /* Avoid duplicates over a fork() */
+      if (entries->pid != getpid())
+	{
+	  free_entry();
+	  continue;
+	}
+
       connection_good = 1;
 
       if ((rc = write(log_fd, entries->payload + entries->offset, entries->length)) != -1)
@@ -103,11 +138,7 @@ static void log_write(void)
 	  entries->offset += rc;
 	  if (entries->length == 0)
 	    {
-	      struct log_entry *tmp = entries;
-	      entries = tmp->next;
-	      tmp->next = free_entries;
-	      free_entries = tmp;
-	      
+	      free_entry();
 	      if (entries_lost != 0)
 		{
 		  int e = entries_lost;
@@ -129,71 +160,63 @@ static void log_write(void)
 	  connection_good = 0;
 	  return;
 	}
-      
-      /* Once a stream socket hits EPIPE, we have to close and re-open */
-      if (errno == EPIPE)
-	goto reopen_stream;
-      
-      if (!log_to_file &&
-	  (errno == ECONNREFUSED || 
-	   errno == ENOTCONN || 
-	   errno == EDESTADDRREQ || 
-	   errno == ECONNRESET))
+
+      /* errors handling after this assumes sockets */ 
+      if (!log_to_file)
 	{
-	  /* socket went (syslogd down?), try and reconnect. If we fail,
-	     stop trying until the next call to my_syslog() 
-	     ECONNREFUSED -> connection went down
-	     ENOTCONN -> nobody listening
-	     (ECONNRESET, EDESTADDRREQ are *BSD equivalents)
-	     EPIPE comes from broken stream socket (we ignore SIGPIPE) */
-	  
-	  struct sockaddr_un logaddr;
-	  
-#ifdef HAVE_SOCKADDR_SA_LEN
-	  logaddr.sun_len = sizeof(logaddr) - sizeof(logaddr.sun_path) + strlen(_PATH_LOG) + 1; 
-#endif
-	  logaddr.sun_family = AF_LOCAL;
-	  strncpy(logaddr.sun_path, _PATH_LOG, sizeof(logaddr.sun_path));
-
-	  /* Got connection back? try again. */
-	  if (connect(log_fd, (struct sockaddr *)&logaddr, sizeof(logaddr)) != -1)
-	    continue;
-	  
-	  /* errors from connect which mean we should keep trying */
-	  if (errno == ENOENT || 
-	      errno == EALREADY || 
-	      errno == ECONNREFUSED ||
-	      errno == EISCONN || 
-	      errno == EINTR ||
-	      errno == EAGAIN)
+	  /* Once a stream socket hits EPIPE, we have to close and re-open
+	     (we ignore SIGPIPE) */
+	  if (errno == EPIPE)
 	    {
-	      /* try again on next syslog() call */
-	      connection_good = 0;
-	      return;
+	      if (log_reopen(NULL))
+		continue;
 	    }
-
-	  /* we start with a SOCK_DGRAM socket, but syslog may want SOCK_STREAM */
-	  if (!tried_stream && errno == EPROTOTYPE)
+	  else if (errno == ECONNREFUSED || 
+		   errno == ENOTCONN || 
+		   errno == EDESTADDRREQ || 
+		   errno == ECONNRESET)
 	    {
-	    reopen_stream:
-	      tried_stream = 1;
-	      close(log_fd);
-	      if ((log_fd = socket(AF_UNIX, SOCK_STREAM, 0)) != -1)
+	      /* socket went (syslogd down?), try and reconnect. If we fail,
+		 stop trying until the next call to my_syslog() 
+		 ECONNREFUSED -> connection went down
+		 ENOTCONN -> nobody listening
+		 (ECONNRESET, EDESTADDRREQ are *BSD equivalents) */
+	      
+	      struct sockaddr_un logaddr;
+	      
+#ifdef HAVE_SOCKADDR_SA_LEN
+	      logaddr.sun_len = sizeof(logaddr) - sizeof(logaddr.sun_path) + strlen(_PATH_LOG) + 1; 
+#endif
+	      logaddr.sun_family = AF_LOCAL;
+	      strncpy(logaddr.sun_path, _PATH_LOG, sizeof(logaddr.sun_path));
+	      
+	      /* Got connection back? try again. */
+	      if (connect(log_fd, (struct sockaddr *)&logaddr, sizeof(logaddr)) != -1)
+		continue;
+	      
+	      /* errors from connect which mean we should keep trying */
+	      if (errno == ENOENT || 
+		  errno == EALREADY || 
+		  errno == ECONNREFUSED ||
+		  errno == EISCONN || 
+		  errno == EINTR ||
+		  errno == EAGAIN)
 		{
-		  int flags;
-
-		  if ((flags = fcntl(log_fd, F_GETFD)) != -1)
-		    fcntl(log_fd, F_SETFD, flags | FD_CLOEXEC);
-		  
-		  /* if max_log is zero, leave the socket blocking */
-		  if (max_logs != 0 && (flags = fcntl(log_fd, F_GETFL)) != -1)
-		    fcntl(log_fd, F_SETFL, flags | O_NONBLOCK);
-		 
-		  continue;
+		  /* try again on next syslog() call */
+		  connection_good = 0;
+		  return;
+		}
+	      
+	      /* try the other sort of socket... */
+	      if (errno == EPROTOTYPE)
+		{
+		  connection_type = connection_type == SOCK_DGRAM ? SOCK_STREAM : SOCK_DGRAM;
+		  if (log_reopen(NULL))
+		    continue;
 		}
 	    }
 	}
-      
+
       /* give up - fall back to syslog() - this handles out-of-space
 	 when logging to a file, for instance. */
       log_fd = -1;
@@ -209,7 +232,8 @@ void my_syslog(int priority, const char *format, ...)
   time_t time_now;
   char *p;
   size_t len;
-  
+  pid_t pid = getpid();
+
   va_start(ap, format); 
   
   if (log_stderr) 
@@ -258,11 +282,12 @@ void my_syslog(int priority, const char *format, ...)
       if (!log_to_file)
 	p += sprintf(p, "<%d>", priority | log_fac);
       
-      p += sprintf(p, "%.15s dnsmasq[%d]: ", ctime(&time_now) + 4, getpid());
+      p += sprintf(p, "%.15s dnsmasq[%d]: ", ctime(&time_now) + 4, pid);
       len = p - entry->payload;
       len += vsnprintf(p, MAX_MESSAGE - len, format, ap) + 1; /* include zero-terminator */
       entry->length = len > MAX_MESSAGE ? MAX_MESSAGE : len;
       entry->offset = 0;
+      entry->pid = pid;
 
       /* replace terminator with \n */
       if (log_to_file)
@@ -321,11 +346,24 @@ void set_log_writer(fd_set *set, int *maxfdp)
 
 void check_log_writer(fd_set *set)
 {
-  if (log_fd != -1 && FD_ISSET(log_fd, set))
+  if (log_fd != -1 && (!set || FD_ISSET(log_fd, set)))
     log_write();
 }
 
-void die(char *message, char *arg1)
+void flush_log(void)
+{
+  /* block until queue empty */
+  if (log_fd != -1)
+    {
+      int flags;
+      if ((flags = fcntl(log_fd, F_GETFL)) != -1)
+	fcntl(log_fd, F_SETFL, flags & ~O_NONBLOCK);
+      log_write();
+      close(log_fd);
+    }
+}
+
+void die(char *message, char *arg1, int exit_code)
 {
   char *errmess = strerror(errno);
   
@@ -333,10 +371,12 @@ void die(char *message, char *arg1)
     arg1 = errmess;
 
   log_stderr = 1; /* print as well as log when we die.... */
+  fputc('\n', stderr); /* prettyfy  startup-script message */
   my_syslog(LOG_CRIT, message, arg1, errmess);
   
   log_stderr = 0;
   my_syslog(LOG_CRIT, _("FAILED to start up"));
+  flush_log();
   
-  exit(1);
+  exit(exit_code);
 }

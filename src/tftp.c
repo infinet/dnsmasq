@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2006 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 
 #ifdef HAVE_TFTP
 
-static struct tftp_file *check_tftp_fileperm(struct daemon *daemon, ssize_t *len);
+static struct tftp_file *check_tftp_fileperm(ssize_t *len);
 static void free_transfer(struct tftp_transfer *transfer);
 static ssize_t tftp_err(int err, char *packet, char *mess, char *file);
 static ssize_t tftp_err_oops(char *packet, char *file);
@@ -34,7 +34,7 @@ static char *next(char **p, char *end);
 #define ERR_FULL   3
 #define ERR_ILL    4
 
-void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
+void tftp_request(struct listener *listen, time_t now)
 {
   ssize_t len;
   char *packet = daemon->packet;
@@ -46,7 +46,7 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
   struct ifreq ifr;
   int is_err = 1, if_index = 0;
   struct iname *tmp;
-  struct tftp_transfer *transfer, *t;
+  struct tftp_transfer *transfer;
 
   union {
     struct cmsghdr align; /* this ensures alignment */
@@ -106,7 +106,7 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
       if (addr.sin_addr.s_addr == 0)
 	return;
       
-      if (!iface_check(daemon, AF_INET, (struct all_addr *)&addr.sin_addr, 
+      if (!iface_check(AF_INET, (struct all_addr *)&addr.sin_addr, 
 		       &ifr, &if_index))
 	return;
       
@@ -124,7 +124,7 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
   addr.sin_len = sizeof(addr);
 #endif
   
-  if (!(transfer = malloc(sizeof(struct tftp_transfer))))
+  if (!(transfer = whine_malloc(sizeof(struct tftp_transfer))))
     return;
   
   if ((transfer->sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -134,7 +134,7 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
     }
   
   transfer->peer = peer;
-  transfer->timeout = now + 1;
+  transfer->timeout = now + 2;
   transfer->backoff = 1;
   transfer->block = 1;
   transfer->blocksize = 512;
@@ -188,7 +188,20 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
 	  strncat(daemon->namebuff, daemon->tftp_prefix, MAXDNAME);
 	  if (daemon->tftp_prefix[strlen(daemon->tftp_prefix)-1] != '/')
 	    strncat(daemon->namebuff, "/", MAXDNAME);
-	  
+
+	  if (daemon->options & OPT_TFTP_APREF)
+	    {
+	      size_t oldlen = strlen(daemon->namebuff);
+	      struct stat statbuf;
+	      
+	      strncat(daemon->namebuff, inet_ntoa(peer.sin_addr), MAXDNAME);
+	      strncat(daemon->namebuff, "/", MAXDNAME);
+	      
+	      /* remove unique-directory if it doesn't exist */
+	      if (stat(daemon->namebuff, &statbuf) == -1 || !S_ISDIR(statbuf.st_mode))
+		daemon->namebuff[oldlen] = 0;
+	    }
+		
 	  /* Absolute pathnames OK if they match prefix */
 	  if (filename[0] == '/')
 	    {
@@ -203,24 +216,8 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
       strncat(daemon->namebuff, filename, MAXDNAME);
       daemon->namebuff[MAXDNAME-1] = 0;
 
-      /* If we're doing many tranfers from the same file, only 
-	 open it once this saves lots of file descriptors 
-	 when mass-booting a big cluster, for instance. */
-      for (t = daemon->tftp_trans; t; t = t->next)
-	if (strcmp(t->file->filename, daemon->namebuff) == 0)
-	  break;
-
-      if (t)
-	{
-	  /* file already open */
-	  transfer->file = t->file;
-	  transfer->file->refcount++;
-	}
-      else 
-	/* check permissions and open file */
-	transfer->file = check_tftp_fileperm(daemon, &len);
-      
-      if (transfer->file)
+      /* check permissions and open file */
+      if ((transfer->file = check_tftp_fileperm(&len)))
 	{
 	  if ((len = get_block(packet, transfer)) == -1)
 	    len = tftp_err_oops(packet, daemon->namebuff);
@@ -242,80 +239,90 @@ void tftp_request(struct listener *listen, struct daemon *daemon, time_t now)
     }
 }
  
-static struct tftp_file *check_tftp_fileperm(struct daemon *daemon, ssize_t *len)
+static struct tftp_file *check_tftp_fileperm(ssize_t *len)
 {
   char *packet = daemon->packet, *namebuff = daemon->namebuff;
   struct tftp_file *file;
+  struct tftp_transfer *t;
   uid_t uid = geteuid();
   struct stat statbuf;
+  int fd = -1;
 
   /* trick to ban moving out of the subtree */
   if (daemon->tftp_prefix && strstr(namebuff, "/../"))
+    goto perm;
+  
+  if ((fd = open(namebuff, O_RDONLY)) == -1)
     {
-      errno = EACCES;
-      goto perm;
-    }
-
-  if (stat(namebuff, &statbuf) == -1)
-    {
-      if (errno == ENOENT || errno == ENOTDIR)
-	goto nofile;
+      if (errno == ENOENT)
+	{
+	  *len = tftp_err(ERR_FNF, packet, _("file %s not found"), namebuff);
+	  return NULL;
+	}
       else if (errno == EACCES)
 	goto perm;
       else
 	goto oops;
     }
-
+  
+  /* stat the file descriptor to avoid stat->open races */
+  if (fstat(fd, &statbuf) == -1)
+    goto oops;
+  
   /* running as root, must be world-readable */
   if (uid == 0)
     {
       if (!(statbuf.st_mode & S_IROTH))
-	{
-	  errno = EACCES;
-	  goto perm;
-	}
+	goto perm;
     }
   /* in secure mode, must be owned by user running dnsmasq */
   else if ((daemon->options & OPT_TFTP_SECURE) && uid != statbuf.st_uid)
-    {
-      errno = EACCES;
-      goto perm;
-    }
-
-  if (!(file = malloc(sizeof(struct tftp_file) + strlen(namebuff) + 1)))
+    goto perm;
+      
+  /* If we're doing many tranfers from the same file, only 
+     open it once this saves lots of file descriptors 
+     when mass-booting a big cluster, for instance. 
+     Be conservative and only share when inode and name match
+     this keeps error messages sane. */
+  for (t = daemon->tftp_trans; t; t = t->next)
+    if (t->file->dev == statbuf.st_dev && 
+	t->file->inode == statbuf.st_ino &&
+	strcmp(t->file->filename, namebuff) == 0)
+      {
+	close(fd);
+	t->file->refcount++;
+	return t->file;
+      }
+  
+  if (!(file = whine_malloc(sizeof(struct tftp_file) + strlen(namebuff) + 1)))
     {
       errno = ENOMEM;
       goto oops;
     }
 
-  if ((file->fd = open(namebuff, O_RDONLY)) == -1)
-    {
-      free(file);
-      if (errno == EACCES || errno == EISDIR)
-	goto perm;
-      else
-	goto oops;
-    }
-
+  file->fd = fd;
   file->size = statbuf.st_size;
+  file->dev = statbuf.st_dev;
+  file->inode = statbuf.st_ino;
   file->refcount = 1;
   strcpy(file->filename, namebuff);
   return file;
-
-nofile:
-  *len = tftp_err(ERR_FNF, packet, _("file %s not found"), namebuff);
-  return NULL;
-
+  
  perm:
+  errno = EACCES;
   *len =  tftp_err(ERR_PERM, packet, _("cannot access %s: %s"), namebuff);
+  if (fd != -1)
+    close(fd);
   return NULL;
 
-oops:
+ oops:
   *len =  tftp_err_oops(packet, namebuff);
+  if (fd != -1)
+    close(fd);
   return NULL;
 }
 
-void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
+void check_tftp_listeners(fd_set *rset, time_t now)
 {
   struct tftp_transfer *transfer, *tmp, **up;
   ssize_t len;
@@ -375,7 +382,7 @@ void check_tftp_listeners(struct daemon *daemon, fd_set *rset, time_t now)
 	  int endcon = 0;
 
 	  /* timeout, retransmit */
-	  transfer->timeout += 1<<(transfer->backoff);
+	  transfer->timeout += 1 + (1<<transfer->backoff);
 	  	  
 	  /* we overwrote the buffer... */
 	  daemon->srv_save = NULL;

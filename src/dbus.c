@@ -25,28 +25,25 @@ struct watch {
 
 static dbus_bool_t add_watch(DBusWatch *watch, void *data)
 {
-  struct daemon *daemon = data;
   struct watch *w;
 
   for (w = daemon->watches; w; w = w->next)
     if (w->watch == watch)
       return TRUE;
 
-  if (!(w = malloc(sizeof(struct watch))))
+  if (!(w = whine_malloc(sizeof(struct watch))))
     return FALSE;
 
   w->watch = watch;
   w->next = daemon->watches;
   daemon->watches = w;
 
-  dbus_watch_set_data (watch, (void *)daemon, NULL);
-
+  w = data; /* no warning */
   return TRUE;
 }
 
 static void remove_watch(DBusWatch *watch, void *data)
 {
-  struct daemon *daemon = data;
   struct watch **up, *w;  
   
   for (up = &(daemon->watches), w = daemon->watches; w; w = w->next)
@@ -57,9 +54,11 @@ static void remove_watch(DBusWatch *watch, void *data)
       }
     else
       up = &(w->next);
+
+  w = data; /* no warning */
 }
 
-static void dbus_read_servers(struct daemon *daemon, DBusMessage *message)
+static void dbus_read_servers(DBusMessage *message)
 {
   struct server *serv, *tmp, **up;
   DBusMessageIter iter;
@@ -161,11 +160,11 @@ static void dbus_read_servers(struct daemon *daemon, DBusMessage *message)
 		    }
 		}
 	    
-	    if (!serv && (serv = malloc(sizeof (struct server))))
+	    if (!serv && (serv = whine_malloc(sizeof (struct server))))
 	      {
 		/* Not found, create a new one. */
 		if (domain)
-		  serv->domain = malloc(strlen(domain)+1);
+		  serv->domain = whine_malloc(strlen(domain)+1);
 		if (domain && !serv->domain)
 		  {
 		    free(serv);
@@ -208,7 +207,7 @@ static void dbus_read_servers(struct daemon *daemon, DBusMessage *message)
       tmp = serv->next;
       if (serv->flags & SERV_MARK)
 	{
-	  server_gone(daemon, serv);
+	  server_gone(serv);
 	  *up = serv->next;
 	  free(serv);
 	}
@@ -223,8 +222,7 @@ DBusHandlerResult message_handler(DBusConnection *connection,
 				  void *user_data)
 {
   char *method = (char *)dbus_message_get_member(message);
-  struct daemon *daemon = (struct daemon *)user_data;
-  
+   
   if (strcmp(method, "GetVersion") == 0)
     {
       char *v = VERSION;
@@ -237,21 +235,23 @@ DBusHandlerResult message_handler(DBusConnection *connection,
   else if (strcmp(method, "SetServers") == 0)
     {
       my_syslog(LOG_INFO, _("setting upstream servers from DBus"));
-      dbus_read_servers(daemon, message);
-      check_servers(daemon);
+      dbus_read_servers(message);
+      check_servers();
     }
   else if (strcmp(method, "ClearCache") == 0)
-    clear_cache_and_reload(daemon, dnsmasq_time());
+    clear_cache_and_reload(dnsmasq_time());
   else
     return (DBUS_HANDLER_RESULT_NOT_YET_HANDLED);
   
+  method = user_data; /* no warning */
+
   return (DBUS_HANDLER_RESULT_HANDLED);
  
 }
  
 
 /* returns NULL or error message, may fail silently if dbus daemon not yet up. */
-char *dbus_init(struct daemon *daemon)
+char *dbus_init(void)
 {
   DBusConnection *connection = NULL;
   DBusObjectPathVTable dnsmasq_vtable = {NULL, &message_handler, NULL, NULL, NULL, NULL };
@@ -264,14 +264,14 @@ char *dbus_init(struct daemon *daemon)
     
   dbus_connection_set_exit_on_disconnect(connection, FALSE);
   dbus_connection_set_watch_functions(connection, add_watch, remove_watch, 
-				      NULL, (void *)daemon, NULL);
+				      NULL, NULL, NULL);
   dbus_error_init (&dbus_error);
   dbus_bus_request_name (connection, DNSMASQ_SERVICE, 0, &dbus_error);
   if (dbus_error_is_set (&dbus_error))
     return (char *)dbus_error.message;
   
   if (!dbus_connection_register_object_path(connection,  DNSMASQ_PATH, 
-					    &dnsmasq_vtable, daemon))
+					    &dnsmasq_vtable, NULL))
     return _("could not register a DBus message handler");
   
   daemon->dbus = connection; 
@@ -283,7 +283,7 @@ char *dbus_init(struct daemon *daemon)
 }
  
 
-void set_dbus_listeners(struct daemon *daemon, int *maxfdp,
+void set_dbus_listeners(int *maxfdp,
 			fd_set *rset, fd_set *wset, fd_set *eset)
 {
   struct watch *w;
@@ -306,8 +306,7 @@ void set_dbus_listeners(struct daemon *daemon, int *maxfdp,
       }
 }
 
-void check_dbus_listeners(struct daemon *daemon,
-			  fd_set *rset, fd_set *wset, fd_set *eset)
+void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset)
 {
   DBusConnection *connection = (DBusConnection *)daemon->dbus;
   struct watch *w;

@@ -57,7 +57,7 @@ static int next_token (char *token, int buffsize, FILE * fp)
   return count ? 1 : 0;
 }
 
-void load_dhcp(struct daemon *daemon, time_t now)
+void load_dhcp(time_t now)
 {
   char *hostname = daemon->namebuff;
   char token[MAXTOK], *dot;
@@ -189,20 +189,20 @@ void load_dhcp(struct daemon *daemon, time_t now)
 			break;
 		      }
 
-		  if (!lease && (lease = malloc(sizeof(struct isc_lease))))
+		  if (!lease && (lease = whine_malloc(sizeof(struct isc_lease))))
 		    {
 		      lease->expires = ttd;
 		      lease->addr = host_address;
 		      lease->fqdn =  NULL;
 		      lease->next = leases;
-		      if (!(lease->name = malloc(strlen(hostname)+1)))
+		      if (!(lease->name = whine_malloc(strlen(hostname)+1)))
 			free(lease);
 		      else
 			{
 			  leases = lease;
 			  strcpy(lease->name, hostname);
 			  if (daemon->domain_suffix && 
-			      (lease->fqdn = malloc(strlen(hostname) + strlen(daemon->domain_suffix) + 2)))
+			      (lease->fqdn = whine_malloc(strlen(hostname) + strlen(daemon->domain_suffix) + 2)))
 			    {
 			      strcpy(lease->fqdn, hostname);
 			      strcat(lease->fqdn, ".");
@@ -239,8 +239,8 @@ void load_dhcp(struct daemon *daemon, time_t now)
 
   for (lease = leases; lease; lease = lease->next)
     {
-      cache_add_dhcp_entry(daemon, lease->fqdn, &lease->addr, lease->expires);
-      cache_add_dhcp_entry(daemon, lease->name, &lease->addr, lease->expires);
+      cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
+      cache_add_dhcp_entry(lease->name, &lease->addr, lease->expires);
     }
 }
 

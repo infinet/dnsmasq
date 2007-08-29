@@ -24,11 +24,14 @@
    main process.
 */
 
+#ifndef NO_FORK
+
 struct script_data
 {
   unsigned char action, hwaddr_len, hwaddr_type;
   unsigned char clid_len, hostname_len, uclass_len, vclass_len;
   struct in_addr addr;
+  unsigned int remaining_time;
 #ifdef HAVE_BROKEN_RTC
   unsigned int length;
 #else
@@ -37,48 +40,47 @@ struct script_data
   unsigned char hwaddr[DHCP_CHADDR_MAX];
 };
 
-static struct script_data *buf;
-static size_t bytes_in_buf, buf_size;
+static struct script_data *buf = NULL;
+static size_t bytes_in_buf = 0, buf_size = 0;
 
-int create_helper(struct daemon *daemon, int log_fd)
+int create_helper(int event_fd, long max_fd)
 {
   pid_t pid;
   int i, pipefd[2];
   struct sigaction sigact;
 
-  buf = NULL;
-  buf_size = bytes_in_buf = 0;
-
   if (!daemon->dhcp || !daemon->lease_change_command)
     return -1;
-
-  /* create the pipe through which the main program sends us commands,
-   then fork our process. */
-  if (pipe(pipefd) == -1 || !fix_fd(pipefd[1]) || (pid = fork()) == -1)
-    return -1;
   
+  /* create the pipe through which the main program sends us commands,
+     then fork our process. By now it's too late to die(), we just log 
+     any failure via the main process. */
+  if (pipe(pipefd) == -1 || !fix_fd(pipefd[1]) || (pid = fork()) == -1)
+    {
+      send_event(event_fd, EVENT_PIPE_ERR, errno);
+      return -1;
+    }
+
   if (pid != 0)
     {
       close(pipefd[0]); /* close reader side */
       return pipefd[1];
     }
 
-  /* ignore SIGTERM, so that we can clean up when the main process gets hit */
+  /* ignore SIGTERM, so that we can clean up when the main process gets hit
+     and SIGALRM so that we can use sleep() */
   sigact.sa_handler = SIG_IGN;
   sigact.sa_flags = 0;
   sigemptyset(&sigact.sa_mask);
   sigaction(SIGTERM, &sigact, NULL);
+  sigaction(SIGALRM, &sigact, NULL);
 
   /* close all the sockets etc, we don't need them here */
-  for (i = 0; i < 64; i++)
-    if (i != STDOUT_FILENO && i != STDERR_FILENO && 
-	i != STDIN_FILENO && i != pipefd[0] && i != log_fd)
-      close(i);
+  for (max_fd--; max_fd > 0; max_fd--)
+    if (max_fd != STDOUT_FILENO && max_fd != STDERR_FILENO && 
+	max_fd != STDIN_FILENO && max_fd != pipefd[0] && max_fd != event_fd)
+      close(max_fd);
   
-  /* don't give our end of the pipe to our children */
-  if ((i = fcntl(pipefd[0], F_GETFD)) != -1)
-    fcntl(pipefd[0], F_SETFD, i | FD_CLOEXEC); 
-      
   /* loop here */
   while(1)
     {
@@ -130,18 +132,36 @@ int create_helper(struct daemon *daemon, int log_fd)
       if (!read_write(pipefd[0], buf, data.hostname_len + data.uclass_len + data.vclass_len, 1))
 	continue;
       
-      if ((pid = fork()) == -1)
-	continue;
+      /* possible fork errors are all temporary resource problems */
+      while ((pid = fork()) == -1 && (errno == EAGAIN || errno == ENOMEM))
+	sleep(2);
       
+      if (pid == -1)
+	continue;
+	  
       /* wait for child to complete */
       if (pid != 0)
 	{
-	  int status;
-	  waitpid(pid, &status, 0);
-	  if (WIFSIGNALED(status))
-	    my_syslog(LOG_WARNING, _("child process killed by signal %d"), WTERMSIG(status));
-	  else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-	    my_syslog(LOG_WARNING, _("child process exited with status %d"), WEXITSTATUS(status));
+	  /* reap our children's children, if necessary */
+	  while (1)
+	    {
+	      int status;
+	      pid_t rc = wait(&status);
+	      
+	      if (rc == pid)
+		{
+		  /* On error send event back to main process for logging */
+		  if (WIFSIGNALED(status))
+		    send_event(event_fd, EVENT_KILLED, WTERMSIG(status));
+		  else if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+		    send_event(event_fd, EVENT_EXITED, WEXITSTATUS(status));
+		  break;
+		}
+	      
+	      if (rc == -1 && errno != EINTR)
+		break;
+	    }
+	  
 	  continue;
 	}
       
@@ -189,11 +209,15 @@ int create_helper(struct daemon *daemon, int log_fd)
 	    }
 	}
       
+      sprintf(daemon->dhcp_buff2, "%u ", data.remaining_time);
+      setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, 1);
+      
       if (data.hostname_len != 0)
 	{
 	  hostname = (char *)buf;
 	  hostname[data.hostname_len - 1] = 0;
-	  canonicalise(hostname);
+	  if (!canonicalise(hostname))
+	    hostname = NULL;
 	}
       
       if (data.action == ACTION_OLD_HOSTNAME && hostname)
@@ -203,25 +227,29 @@ int create_helper(struct daemon *daemon, int log_fd)
 	}
       else
 	unsetenv("DNSMASQ_OLD_HOSTNAME");
-      
+
+      /* we need to have the event_fd around if exec fails */
+      if ((i = fcntl(event_fd, F_GETFD)) != -1)
+	fcntl(event_fd, F_SETFD, i | FD_CLOEXEC);
+      close(pipefd[0]);
+
       p =  strrchr(daemon->lease_change_command, '/');
       execl(daemon->lease_change_command, 
 	    p ? p+1 : daemon->lease_change_command,
 	    action_str, daemon->dhcp_buff, inet_ntoa(data.addr), hostname, (char*)NULL);
       
-      /* log socket should still be open, right? */
-      my_syslog(LOG_ERR, _("failed to execute %s: %s"), 
-		daemon->lease_change_command, strerror(errno));
+      /* failed, send event so the main process logs the problem */
+      send_event(event_fd, EVENT_EXEC_ERR, errno);
       _exit(0); 
     }
 }
 
 /* pack up lease data into a buffer */    
-void queue_script(struct daemon *daemon, int action, struct dhcp_lease *lease, char *hostname)
+void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t now)
 {
   unsigned char *p;
   size_t size;
-  unsigned int hostname_len = 0, clid_len = 0, vclass_len = 0, uclass_len = 0;
+  unsigned int i, hostname_len = 0, clid_len = 0, vclass_len = 0, uclass_len = 0;
 
   /* no script */
   if (daemon->helperfd == -1)
@@ -246,7 +274,7 @@ void queue_script(struct daemon *daemon, int action, struct dhcp_lease *lease, c
       if (size < sizeof(struct script_data) + 200)
 	size = sizeof(struct script_data) + 200;
 
-      if (!(new = malloc(size)))
+      if (!(new = whine_malloc(size)))
 	return;
       if (buf)
 	free(buf);
@@ -268,29 +296,31 @@ void queue_script(struct daemon *daemon, int action, struct dhcp_lease *lease, c
 #else
   buf->expires = lease->expires;
 #endif
- 
+  buf->remaining_time = (unsigned int)difftime(lease->expires, now);
+
   p = (unsigned char *)(buf+1);
-  if (buf->clid_len != 0)
+  if (clid_len != 0)
     {
       memcpy(p, lease->clid, clid_len);
       p += clid_len;
     }
-  if (buf->vclass_len != 0)
+  if (vclass_len != 0)
     {
       memcpy(p, lease->vendorclass, vclass_len);
       p += vclass_len;
     }
-  if (buf->uclass_len != 0)
+  if (uclass_len != 0)
     {
       memcpy(p, lease->userclass, uclass_len);
       p += uclass_len;
     }
-  if (buf->hostname_len != 0)
-    {
-      memcpy(p, hostname, hostname_len);
-      p += hostname_len;
-    }
-
+  /* substitute * for space */
+  for (i = 0; i < hostname_len; i++)
+    if ((daemon->options & OPT_LEASE_RO) && hostname[i] == ' ')
+      *(p++) = '*';
+    else
+      *(p++) = hostname[i];
+  
   bytes_in_buf = p - (unsigned char *)buf;
 }
 
@@ -299,7 +329,7 @@ int helper_buf_empty(void)
   return bytes_in_buf == 0;
 }
 
-void helper_write(struct daemon *daemon)
+void helper_write(void)
 {
   ssize_t rc;
 
@@ -320,5 +350,6 @@ void helper_write(struct daemon *daemon)
     }
 }
 
+#endif
 
 

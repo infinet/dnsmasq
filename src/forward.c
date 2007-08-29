@@ -107,7 +107,7 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
     }
 }
           
-static unsigned short search_servers(struct daemon *daemon, time_t now, struct all_addr **addrpp, 
+static unsigned short search_servers(time_t now, struct all_addr **addrpp, 
 				     unsigned short qtype, char *qdomain, int *type, char **domain)
 			      
 {
@@ -189,7 +189,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
     /* don't forward simple names, make exception from NS queries and empty name. */
     flags = F_NXDOMAIN;
     
-  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now, daemon))
+  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now))
     flags = F_NOERR;
 
   if (flags == F_NXDOMAIN || flags == F_NOERR)
@@ -199,7 +199,7 @@ static unsigned short search_servers(struct daemon *daemon, time_t now, struct a
 }
 
 /* returns new last_server */	
-static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *udpaddr,
+static void forward_query(int udpfd, union mysockaddr *udpaddr,
 			  struct all_addr *dst_addr, unsigned int dst_iface,
 			  HEADER *header, size_t plen, time_t now, struct frec *forward)
 {
@@ -231,9 +231,9 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   else 
     {
       if (gotname)
-	flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
+	flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain);
       
-      if (!flags && !(forward = get_new_frec(daemon, now, NULL)))
+      if (!flags && !(forward = get_new_frec(now, NULL)))
 	/* table full - server failure. */
 	flags = F_NEG;
       
@@ -344,7 +344,7 @@ static void forward_query(struct daemon *daemon, int udpfd, union mysockaddr *ud
   return;
 }
 
-static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now, 
+static size_t process_reply(HEADER *header, time_t now, 
 			    struct server *server, size_t n)
 {
   unsigned char *pheader, *sizep;
@@ -389,7 +389,7 @@ static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now,
     {
       if (header->rcode == NXDOMAIN && 
 	  extract_request(header, n, daemon->namebuff, NULL) &&
-	  check_for_local_domain(daemon->namebuff, now, daemon))
+	  check_for_local_domain(daemon->namebuff, now))
 	{
 	  /* if we forwarded a query for a locally known name (because it was for 
 	     an unknown type) and the answer is NXDOMAIN, convert that to NODATA,
@@ -399,7 +399,7 @@ static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now,
 	  header->rcode = NOERROR;
 	}
       
-      extract_addresses(header, n, daemon->namebuff, now, daemon);
+      extract_addresses(header, n, daemon->namebuff, now);
     }
   
   /* do this after extract_addresses. Ensure NODATA reply and remove
@@ -419,7 +419,7 @@ static size_t process_reply(struct daemon *daemon, HEADER *header, time_t now,
 }
 
 /* sets new last_server */
-void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
+void reply_query(struct serverfd *sfd, time_t now)
 {
   /* packet from peer server, extract data for cache, and send to
      original requester */
@@ -467,7 +467,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
 		{
 		  header->qr = 0;
 		  header->tc = 0;
-		  forward_query(daemon, -1, NULL, NULL, 0, header, nn, now, forward);
+		  forward_query(-1, NULL, NULL, 0, header, nn, now, forward);
 		  return;
 		}
 	    }
@@ -499,7 +499,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
       if (forward->forwardall == 0 || --forward->forwardall == 1 || 
 	  (header->rcode != REFUSED && header->rcode != SERVFAIL))
 	{
-	  if ((nn = process_reply(daemon, header, now, server, (size_t)n)))
+	  if ((nn = process_reply(header, now, server, (size_t)n)))
 	    {
 	      header->id = htons(forward->orig_id);
 	      header->ra = 1; /* recursion if available */
@@ -511,7 +511,7 @@ void reply_query(struct serverfd *sfd, struct daemon *daemon, time_t now)
     }
 }
 
-void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
+void receive_query(struct listener *listen, time_t now)
 {
   HEADER *header = (HEADER *)daemon->packet;
   union mysockaddr source_addr;
@@ -628,7 +628,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 	return;
 #endif
       
-      if (!iface_check(daemon, listen->family, &dst_addr, &ifr, &if_index))
+      if (!iface_check(listen->family, &dst_addr, &ifr, &if_index))
 	return;
       
       if (listen->family == AF_INET &&
@@ -651,12 +651,12 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
 #endif
     }
 
-  m = answer_request (header, ((char *) header) + PACKETSZ, (size_t)n, daemon, 
+  m = answer_request (header, ((char *) header) + PACKETSZ, (size_t)n, 
 		      dst_addr_4, netmask, now);
   if (m >= 1)
     send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, m, &source_addr, &dst_addr, if_index);
   else
-    forward_query(daemon, listen->fd, &source_addr, &dst_addr, if_index,
+    forward_query(listen->fd, &source_addr, &dst_addr, if_index,
 		  header, (size_t)n, now, NULL);
 }
 
@@ -664,7 +664,7 @@ void receive_query(struct listener *listen, struct daemon *daemon, time_t now)
    blocking as neccessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
    done by the caller. */
-unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
+unsigned char *tcp_request(int confd, time_t now,
 			   struct in_addr local_addr, struct in_addr netmask)
 {
   int size = 0;
@@ -672,7 +672,7 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
   unsigned short qtype, gotname;
   unsigned char c1, c2;
   /* Max TCP packet + slop */
-  unsigned char *packet = malloc(65536 + MAXDNAME + RRFIXEDSZ);
+  unsigned char *packet = whine_malloc(65536 + MAXDNAME + RRFIXEDSZ);
   HEADER *header;
   struct server *last_server;
   
@@ -708,8 +708,11 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
 	}
       
       /* m > 0 if answered from cache */
-      m = answer_request(header, ((char *) header) + 65536, (unsigned int)size, daemon, 
+      m = answer_request(header, ((char *) header) + 65536, (unsigned int)size, 
 			 local_addr, netmask, now);
+
+      /* Do this by steam now we're not in the select() loop */
+      check_log_writer(NULL); 
       
       if (m == 0)
 	{
@@ -719,7 +722,7 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
 	  char *domain = NULL;
 	  
 	  if (gotname)
-	    flags = search_servers(daemon, now, &addrp, gotname, daemon->namebuff, &type, &domain);
+	    flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain);
 	  
 	  if (type != 0  || (daemon->options & OPT_ORDER) || !daemon->last_server)
 	    last_server = daemon->servers;
@@ -799,7 +802,7 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
 		     someone might be attempting to insert bogus values into the cache by 
 		     sending replies containing questions and bogus answers. */
 		  if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
-		    m = process_reply(daemon, header, now, last_server, (unsigned int)m);
+		    m = process_reply(header, now, last_server, (unsigned int)m);
 		  
 		  break;
 		}
@@ -809,6 +812,8 @@ unsigned char *tcp_request(struct daemon *daemon, int confd, time_t now,
 	  if (m == 0)
 	    m = setup_reply(header, (unsigned int)size, addrp, flags, daemon->local_ttl);
 	}
+
+      check_log_writer(NULL);
       
       c1 = m>>8;
       c2 = m;
@@ -823,7 +828,7 @@ static struct frec *allocate_frec(time_t now)
 {
   struct frec *f;
   
-  if ((f = (struct frec *)malloc(sizeof(struct frec))))
+  if ((f = (struct frec *)whine_malloc(sizeof(struct frec))))
     {
       f->next = frec_list;
       f->time = now;
@@ -837,7 +842,7 @@ static struct frec *allocate_frec(time_t now)
 /* if wait==NULL return a free or older than TIMEOUT record.
    else return *wait zero if one available, or *wait is delay to
    when the oldest in-use record will expire. */
-struct frec *get_new_frec(struct daemon *daemon, time_t now, int *wait)
+struct frec *get_new_frec(time_t now, int *wait)
 {
   struct frec *f, *oldest;
   int count;
@@ -918,7 +923,7 @@ static struct frec *lookup_frec_by_sender(unsigned short id,
 }
 
 /* A server record is going away, remove references to it */
-void server_gone(struct daemon *daemon, struct server *server)
+void server_gone(struct server *server)
 {
   struct frec *f;
   

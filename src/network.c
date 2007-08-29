@@ -12,7 +12,7 @@
 
 #include "dnsmasq.h"
 
-int iface_check(struct daemon *daemon, int family, struct all_addr *addr, 
+int iface_check(int family, struct all_addr *addr, 
 		struct ifreq *ifr, int *indexp)
 {
   struct iname *tmp;
@@ -84,7 +84,7 @@ int iface_check(struct daemon *daemon, int family, struct all_addr *addr,
   return ret; 
 }
       
-static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_index, 
+static int iface_allowed(struct irec **irecp, int if_index, 
 			 union mysockaddr *addr, struct in_addr netmask) 
 {
   struct irec *iface;
@@ -134,9 +134,10 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
 	    break;
 	  }
       
-      if (!lo && (lo = malloc(sizeof(struct iname))))
+      if (!lo && 
+	  (lo = whine_malloc(sizeof(struct iname))) &&
+	  (lo->name = whine_malloc(strlen(ifr.ifr_name)+1)))
 	{
-	  lo->name = safe_malloc(strlen(ifr.ifr_name)+1);
 	  strcpy(lo->name, ifr.ifr_name);
 	  lo->isloop = lo->used = 1;
 	  lo->next = daemon->if_names;
@@ -145,7 +146,7 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
     }
   
   if (addr->sa.sa_family == AF_INET &&
-      !iface_check(daemon, AF_INET, (struct all_addr *)&addr->in.sin_addr, &ifr, NULL))
+      !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, &ifr, NULL))
     return 1;
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
@@ -154,12 +155,12 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
   
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family == AF_INET6 &&
-      !iface_check(daemon, AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, &ifr, NULL))
+      !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, &ifr, NULL))
     return 1;
 #endif
 
   /* add to list */
-  if ((iface = malloc(sizeof(struct irec))))
+  if ((iface = whine_malloc(sizeof(struct irec))))
     {
       iface->addr = *addr;
       iface->netmask = netmask;
@@ -174,7 +175,7 @@ static int iface_allowed(struct daemon *daemon, struct irec **irecp, int if_inde
 }
 
 #ifdef HAVE_IPV6
-static int iface_allowed_v6(struct daemon *daemon, struct in6_addr *local, 
+static int iface_allowed_v6(struct in6_addr *local, 
 			    int scope, int if_index, void *vparam)
 {
   union mysockaddr addr;
@@ -191,11 +192,11 @@ static int iface_allowed_v6(struct daemon *daemon, struct in6_addr *local,
   addr.in6.sin6_port = htons(daemon->port);
   addr.in6.sin6_scope_id = scope;
   
-  return iface_allowed(daemon, (struct irec **)vparam, if_index, &addr, netmask);
+  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask);
 }
 #endif
 
-static int iface_allowed_v4(struct daemon *daemon, struct in_addr local, int if_index, 
+static int iface_allowed_v4(struct in_addr local, int if_index, 
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   union mysockaddr addr;
@@ -209,30 +210,28 @@ static int iface_allowed_v4(struct daemon *daemon, struct in_addr local, int if_
   addr.in.sin_addr = local;
   addr.in.sin_port = htons(daemon->port);
 
-  return iface_allowed(daemon, (struct irec **)vparam, if_index, &addr, netmask);
+  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask);
 }
    
 
-int enumerate_interfaces(struct daemon *daemon)
+int enumerate_interfaces(void)
 {
 #ifdef HAVE_IPV6
-  return iface_enumerate(daemon, &daemon->interfaces, iface_allowed_v4, iface_allowed_v6);
+  return iface_enumerate(&daemon->interfaces, iface_allowed_v4, iface_allowed_v6);
 #else
-  return iface_enumerate(daemon, &daemon->interfaces, iface_allowed_v4, NULL);
+  return iface_enumerate(&daemon->interfaces, iface_allowed_v4, NULL);
 #endif
 }
 
-/* set NONBLOCK and CLOEXEC bits on fd: See Stevens 16.6 */
+/* set NONBLOCK bit on fd: See Stevens 16.6 */
 int fix_fd(int fd)
 {
   int flags;
 
   if ((flags = fcntl(fd, F_GETFL)) == -1 ||
-      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 ||
-      (flags = fcntl(fd, F_GETFD)) == -1 ||
-      fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
+      fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
     return 0;
-
+  
   return 1;
 }
 
@@ -289,7 +288,7 @@ static int create_ipv6_listener(struct listener **link, int port)
 }
 #endif
 
-struct listener *create_wildcard_listeners(int port, int have_tftp)
+struct listener *create_wildcard_listeners(void)
 {
   union mysockaddr addr;
   int opt = 1;
@@ -299,7 +298,7 @@ struct listener *create_wildcard_listeners(int port, int have_tftp)
   memset(&addr, 0, sizeof(addr));
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr.s_addr = INADDR_ANY;
-  addr.in.sin_port = htons(port);
+  addr.in.sin_port = htons(daemon->port);
 #ifdef HAVE_SOCKADDR_SA_LEN
   addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -313,7 +312,7 @@ struct listener *create_wildcard_listeners(int port, int have_tftp)
       listen(tcpfd, 5) == -1 ||
       !fix_fd(tcpfd) ||
 #ifdef HAVE_IPV6
-      !create_ipv6_listener(&l6, port) ||
+      !create_ipv6_listener(&l6, daemon->port) ||
 #endif
       setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
       !fix_fd(fd) ||
@@ -327,14 +326,13 @@ struct listener *create_wildcard_listeners(int port, int have_tftp)
     return NULL;
 
 #ifdef HAVE_TFTP
-  if (have_tftp)
+  if (daemon->options & OPT_TFTP)
     {
       addr.in.sin_port = htons(TFTP_PORT);
       if ((tftpfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 	return NULL;
       
-      if (setsockopt(tftpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  !fix_fd(tftpfd) ||
+      if (!fix_fd(tftpfd) ||
 #if defined(HAVE_LINUX_NETWORK) 
 	  setsockopt(tftpfd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
@@ -356,7 +354,7 @@ struct listener *create_wildcard_listeners(int port, int have_tftp)
   return l;
 }
 
-struct listener *create_bound_listeners(struct daemon *daemon)
+struct listener *create_bound_listeners(void)
 {
   struct listener *listeners = NULL;
   struct irec *iface;
@@ -376,14 +374,14 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 	  setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 	  !fix_fd(new->tcpfd) ||
 	  !fix_fd(new->fd))
-	die(_("failed to create listening socket: %s"), NULL);
+	die(_("failed to create listening socket: %s"), NULL, EC_BADNET);
       
 #ifdef HAVE_IPV6
       if (iface->addr.sa.sa_family == AF_INET6)
 	{
 	  if (setsockopt(new->fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
 	      setsockopt(new->tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
-	    die(_("failed to set IPV6 options on listening socket: %s"), NULL);
+	    die(_("failed to set IPV6 options on listening socket: %s"), NULL, EC_BADNET);
 	}
 #endif
       
@@ -402,14 +400,14 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 	    {
 	      prettyprint_addr(&iface->addr, daemon->namebuff);
 	      die(_("failed to bind listening socket for %s: %s"), 
-		  daemon->namebuff);
+		  daemon->namebuff, EC_BADNET);
 	    }
 	}
       else
 	 {
 	   listeners = new;     
 	   if (listen(new->tcpfd, 5) == -1)
-	     die(_("failed to listen on socket: %s"), NULL);
+	     die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
 	 }
 
       if ((daemon->options & OPT_TFTP) && iface->addr.sa.sa_family == AF_INET && iface->dhcp_ok)
@@ -420,7 +418,7 @@ struct listener *create_bound_listeners(struct daemon *daemon)
 	      setsockopt(new->tftpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
 	      !fix_fd(new->tftpfd) ||
 	      bind(new->tftpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
-	    die(_("failed to create TFTP socket: %s"), NULL);
+	    die(_("failed to create TFTP socket: %s"), NULL, EC_BADNET);
 	  iface->addr.in.sin_port = save;
 	}
     }
@@ -439,7 +437,7 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
   
   /* need to make a new one. */
   errno = ENOMEM; /* in case malloc fails. */
-  if (!(sfd = malloc(sizeof(struct serverfd))))
+  if (!(sfd = whine_malloc(sizeof(struct serverfd))))
     return NULL;
   
   if ((sfd->fd = socket(addr->sa.sa_family, SOCK_DGRAM, 0)) == -1)
@@ -465,7 +463,7 @@ struct serverfd *allocate_sfd(union mysockaddr *addr, struct serverfd **sfds)
   return sfd;
 }
 
-void check_servers(struct daemon *daemon)
+void check_servers(void)
 {
   struct irec *iface;
   struct server *new, *tmp, *ret = NULL;
@@ -515,10 +513,12 @@ void check_servers(struct daemon *daemon)
       if (new->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS))
 	{
 	  char *s1, *s2;
-	  if (new->flags & SERV_HAS_DOMAIN)
-	    s1 = _("domain"), s2 = new->domain;
+	  if (!(new->flags & SERV_HAS_DOMAIN))
+	    s1 = _("unqualified"), s2 = _("names");
+	  else if (strlen(new->domain) == 0)
+	    s1 = _("default"), s2 = "";
 	  else
-	    s1 = _("unqualified"), s2 = _("domains");
+	    s1 = _("domain"), s2 = new->domain;
 	  
 	  if (new->flags & SERV_NO_ADDR)
 	    my_syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
@@ -534,7 +534,7 @@ void check_servers(struct daemon *daemon)
 
 /* Return zero if no servers found, in that case we keep polling.
    This is a protection against an update-time/write race on resolv.conf */
-int reload_servers(char *fname, struct daemon *daemon)
+int reload_servers(char *fname)
 {
   FILE *f;
   char *line;
@@ -561,7 +561,7 @@ int reload_servers(char *fname, struct daemon *daemon)
 	  serv->next = old_servers;
 	  old_servers = serv; 
 	  /* forward table rules reference servers, so have to blow them away */
-	  server_gone(daemon, serv);
+	  server_gone(serv);
 	}
       else
 	{
@@ -576,7 +576,9 @@ int reload_servers(char *fname, struct daemon *daemon)
       union mysockaddr addr, source_addr;
       char *token = strtok(line, " \t\n\r");
       
-      if (!token || strcmp(token, "nameserver") != 0)
+      if (!token)
+	continue;
+      if (strcmp(token, "nameserver") != 0 && strcmp(token, "server") != 0)
 	continue;
       if (!(token = strtok(NULL, " \t\n\r")))
 	continue;
@@ -614,7 +616,7 @@ int reload_servers(char *fname, struct daemon *daemon)
 	  serv = old_servers;
 	  old_servers = old_servers->next;
 	}
-      else if (!(serv = malloc(sizeof (struct server))))
+      else if (!(serv = whine_malloc(sizeof (struct server))))
 	continue;
       
       /* this list is reverse ordered: 
@@ -646,7 +648,7 @@ int reload_servers(char *fname, struct daemon *daemon)
 
 
 /* Use an IPv4 listener socket for ioctling */
-struct in_addr get_ifaddr(struct daemon* daemon, char *intr)
+struct in_addr get_ifaddr(char *intr)
 {
   struct listener *l;
   struct ifreq ifr;

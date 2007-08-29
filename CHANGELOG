@@ -2234,3 +2234,114 @@ release 2.39
 	    to add a domain name with a dynamic IP address taken from
 	    the address of a local network interface. Useful for
 	    networks with dynamic IPs.
+
+version 2.40
+            Make SIGUSR2 close-and-reopen the logfile when logging 
+	    direct to a file. Thanks to Carlos Carvalho for 
+	    suggesting this. When a logfile is created, change
+	    its ownership to the user dnsmasq will run as, don't
+	    leave it owned by root.
+
+	    Set a special tag, "known" for hosts which are matched by
+	    a dhcp-host or /etc/ethers line. This is especially
+	    useful to be able to do --dhcp-ignore=#known, like ISCs
+	    "deny unknown-clients".
+
+	    Explicitly set a umask before creating the leases file,
+	    rather than relying on whatever we inherited. The
+	    permissions	are set to 644.
+
+	    Fix handling of fully-qualified names in --dhcp-host
+	    directives and in /etc/ethers. These are now rejected 
+	    if the domain doesn't match that given by --domain,	  
+	    and used correctly otherwise. Before, putting
+	    a FQDN here could cause the whole FQDN to be used as
+	    hostname. Thanks to Michael Heimpold for the bug report.
+
+	    Massive but trivial edit to make the "daemon" variable 
+	    global, instead of copying the same value around as the
+	    first argument to half the functions in the program.
+	    
+	    Updated Spanish manpage and message catalog. Thanks 
+	    to Chris Chatham.
+	    
+	    Added patch for support of DNS LOC records in
+	    contrib/dns-loc. Thanks to Lorenz Schori.
+
+	    Fixed error in manpage: dhcp-ignore-name ->
+	    dhcp-ignore-names. Thanks to Daniel Mentz for spotting
+	    this.
+
+	    Use client-id as hash-seed for DHCP address allocation
+	    with Firewire and Infiniband, as these don't supply an MAC
+	    address. 
+
+	    Tweaked TFTP file-open code to make it behave sensibly
+	    when the filesystem changes under its feet.
+
+	    Added DNSMASQ_TIME_REMAINING environment variable to the 
+	    lease-script.
+
+	    Always send replies to DHCPINFORM requests to the source
+	    of the request and not to the address in ciaddr. This
+	    allows third-party queries.
+	    
+	    Return "lease time remaining" in the reply to a DHCPINFORM
+	    request if there exists a lease for the host sending the
+	    request.
+
+	    Added --dhcp-hostsfile option. This gives a superset of
+	    the functionality provided by /etc/ethers. Thanks to 
+	    Greg Kurtzer for the suggestion.
+
+	    Accept keyword "server" as a synonym for "nameserver" in 
+	    resolv.conf. Thanks to Andrew Bartlett for the report.
+
+	    Add --tftp-unique-root option. Suggestion from Dermot
+	    Bradley.
+
+	    Tweak TFTP retry timer to avoid problems with difficult
+	    clients. Thanks to Dermot Bradley for assistance with
+	    this. 
+	    
+	    Continue to use unqualified hostnames provided by DHCP
+	    clients, even if the domain part is illegal. (The domain
+	    is	ignored, and an error logged.) Previously in this
+	    situation, the whole name whould have been
+	    rejected. Thanks to Jima for the patch.
+	    
+	    Handle EINTR returns from wait() correctly and reap
+	    our children's children if necessary. This fixes 
+	    a problem with zombie-creation under *BSD when using
+	    --dhcp-script.
+
+	    Escape spaces in hostnames when they are stored in the
+	    leases file and passed to the lease-change
+	    script. Suggestion from Ben Voigt.
+
+	    Re-run the lease chamge script with an "old" event for
+	    each lease when dnsmasq receives a SIGHUP.
+
+	    Added more useful exit codes, including passing on a
+	    non-zero exit code from the lease-script "init" call when
+	    --leasefile-ro is set.
+
+	    Log memory allocation failure whilst the daemon is
+	    running. Allocation failures during startup are fatal, 
+	    but lack of memory whilst running is worked around.
+	    This used to be silent, but now is logged.
+
+	    Fixed misaligned memory access which caused problems on
+	    Blackfin CPUs. Thanks to Alex Landau for the patch.
+
+	    Don't include (useless) script-calling code when NO_FORK
+	    is set. Since this tends to be used on very small uclinux 
+	    systems, it's worth-while to save some code-size.
+
+	    Don't set REUSEADDR on TFTP listening socket. There's no
+	    need to do so, and it creates confusing behaviour when
+	    inetd is also listening on the same port. Thanks to Erik
+	    Brown for spotting the problem.
+
+
+

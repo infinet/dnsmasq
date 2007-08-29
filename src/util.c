@@ -109,6 +109,7 @@ int canonicalise(char *s)
      also fail empty string and label > 63 chars */
   size_t dotgap = 0, l = strlen(s);
   char c;
+  int nowhite = 0;
 
   if (l == 0 || l > MAXDNAME) return 0;
 
@@ -124,9 +125,11 @@ int canonicalise(char *s)
 	dotgap = 0;
       else if (!legal_char(c) || (++dotgap > MAXLABEL))
 	return 0;
+      else if (c != ' ')
+	nowhite = 1;
       s++;
     }
-  return 1;
+  return nowhite;
 }
 
 unsigned char *do_rfc1035_name(unsigned char *p, char *sval)
@@ -151,10 +154,20 @@ void *safe_malloc(size_t size)
   void *ret = malloc(size);
   
   if (!ret)
-    die(_("could not get memory"), NULL);
+    die(_("could not get memory"), NULL, EC_NOMEM);
      
   return ret;
 }    
+
+void *whine_malloc(size_t size)
+{
+  void *ret = malloc(size);
+
+  if (!ret)
+    my_syslog(LOG_ERR, _("failed to allocate %d bytes"), (int) size);
+
+  return ret;
+}
 
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2)
 {
@@ -228,23 +241,6 @@ int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
 {
   return (a.s_addr & mask.s_addr) == (b.s_addr & mask.s_addr);
 } 
-
-int retry_send(void)
-{
-   struct timespec waiter;
-   if (errno == EAGAIN)
-     {
-       waiter.tv_sec = 0;
-       waiter.tv_nsec = 10000;
-       nanosleep(&waiter, NULL);
-       return 1;
-     }
-   
-   if (errno == EINTR)
-     return 1;
-
-   return 0;
-}
 
 /* returns port number from address */
 int prettyprint_addr(union mysockaddr *addr, char *buf)
@@ -351,7 +347,7 @@ int expand_buf(struct iovec *iov, size_t size)
   if (size <= iov->iov_len)
     return 1;
 
-  if (!(new = malloc(size)))
+  if (!(new = whine_malloc(size)))
     {
       errno = ENOMEM;
       return 0;
@@ -369,9 +365,9 @@ int expand_buf(struct iovec *iov, size_t size)
   return 1;
 }
 
-char *print_mac(struct daemon *daemon, unsigned char *mac, int len)
+char *print_mac(char *buff, unsigned char *mac, int len)
 {
-  char *p = daemon->namebuff;
+  char *p = buff;
   int i;
    
   if (len == 0)
@@ -380,13 +376,30 @@ char *print_mac(struct daemon *daemon, unsigned char *mac, int len)
     for (i = 0; i < len; i++)
       p += sprintf(p, "%.2x%s", mac[i], (i == len - 1) ? "" : ":");
   
-  return daemon->namebuff;
+  return buff;
 }
 
 void bump_maxfd(int fd, int *max)
 {
   if (fd > *max)
     *max = fd;
+}
+
+int retry_send(void)
+{
+   struct timespec waiter;
+   if (errno == EAGAIN)
+     {
+       waiter.tv_sec = 0;
+       waiter.tv_nsec = 10000;
+       nanosleep(&waiter, NULL);
+       return 1;
+     }
+   
+   if (errno == EINTR)
+     return 1;
+
+   return 0;
 }
 
 int read_write(int fd, unsigned char *packet, int size, int rw)
@@ -405,7 +418,7 @@ int read_write(int fd, unsigned char *packet, int size, int rw)
         return 0;
       else if (n == -1)
         {
-          if (errno == EINTR || errno == ENOMEM || errno == ENOBUFS)
+          if (retry_send() || errno == ENOMEM || errno == ENOBUFS)
             goto retry;
           else
             return 0;
