@@ -1,16 +1,14 @@
-CFLAGS ?= -O2
-PKG_CONFIG ?= pkg-config
-
+CFLAGS = -Wall -W -O2
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o isc.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
        helper.o tftp.o log.o
 
 .c.o:
-	$(CC) $(CFLAGS) $(COPTS) $(I18N) `echo $(COPTS) | ../bld/pkg-wrapper $(PKG_CONFIG) --cflags dbus-1` $(RPM_OPT_FLAGS) -Wall -W -c $<
+	$(CC) $(CFLAGS) $(COPTS) $(DBUS_MINOR) $(I18N) $(DBUS_CFLAGS) $(SUNOS_VER) $(RPM_OPT_FLAGS) -c $<
 
 dnsmasq : $(OBJS)
-	$(CC) $(LDFLAGS) -o $@  $(OBJS) `echo $(COPTS) | ../bld/pkg-wrapper $(PKG_CONFIG) --libs dbus-1` $(LIBS) 
+	$(CC) $(LDFLAGS) -o $@  $(OBJS) $(DBUS_LIBS) $(SUNOS_LIBS) $(LIBS) 
  
 dnsmasq.pot : $(OBJS:.o=.c) dnsmasq.h config.h
 	xgettext -d dnsmasq --foreign-user --keyword=_ -o dnsmasq.pot -i $(OBJS:.o=.c)
