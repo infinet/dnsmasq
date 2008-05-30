@@ -14,7 +14,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.41"
+#define VERSION "2.42"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -54,6 +54,8 @@
 #define CHGRP "dip"
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
+#define DHCP_SERVER_ALTPORT 1067
+#define DHCP_CLIENT_ALTPORT 1068
 #define TFTP_PORT 69
 #define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
 #define LOG_MAX 5 /* log-queue length */
@@ -82,13 +84,6 @@
 
 #ifndef T_TSIG
 #  define T_TSIG 250
-#endif
-
-
-/* Get linux C library versions. */
-#if defined(__linux__) && !defined(__UCLIBC__) && !defined(__uClinux__)
-/*#  include <libio.h> */
-#  include <features.h> 
 #endif
 
 
@@ -153,6 +148,10 @@ HAVE_DBUS
    define some methods to allow (re)configuration of the upstream DNS 
    servers via DBus.
 
+HAVE_BSD_BRIDGE
+   Define this to enable the --bridge-interface option, useful on some
+   BSD systems.
+
 NOTES:
    For Linux you should define 
       HAVE_LINUX_NETWORK
@@ -188,7 +187,7 @@ NOTES:
 #  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
 #endif
 
-/* Allow TFTP to be disabled with COPT=-DNO_TFTP */
+/* Allow TFTP to be disabled with COPTS=-DNO_TFTP */
 #ifdef NO_TFTP
 #undef HAVE_TFTP
 #endif
@@ -249,7 +248,10 @@ typedef unsigned long in_addr_t;
 #   define HAVE_BROKEN_SOCKADDR_IN6
 #endif
 
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+#elif defined(__FreeBSD__) || \
+      defined(__OpenBSD__) || \
+      defined(__DragonFly__) || \
+      defined (__FreeBSD_kernel__)
 #define HAVE_BSD_NETWORK
 /* Later verions of FreeBSD have getopt_long() */
 #if defined(optional_argument) && defined(required_argument)
@@ -261,6 +263,7 @@ typedef unsigned long in_addr_t;
 #define HAVE_RANDOM
 #define HAVE_DEV_URANDOM
 #define HAVE_SOCKADDR_SA_LEN
+#define HAVE_BSD_BRIDGE
 
 #elif defined(__APPLE__)
 #define HAVE_BSD_NETWORK
@@ -282,6 +285,7 @@ typedef unsigned long in_addr_t;
 #define HAVE_DEV_URANDOM
 #define HAVE_DEV_RANDOM
 #define HAVE_SOCKADDR_SA_LEN
+#define HAVE_BSD_BRIDGE
 
 #elif defined(__sun) || defined(__sun__)
 #define HAVE_SOLARIS_NETWORK

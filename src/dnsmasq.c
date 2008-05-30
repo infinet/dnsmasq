@@ -33,6 +33,9 @@ static char *compile_opts =
 #ifdef NO_FORK
 "no-MMU "
 #endif
+#ifdef HAVE_BSD_BRIDGE
+"BSD-bridge "
+#endif
 #ifndef HAVE_ISC_READER
 "no-"
 #endif
@@ -216,6 +219,9 @@ int main (int argc, char **argv)
       /* The following code "daemonizes" the process. 
 	 See Stevens section 12.4 */
 
+      if (chdir("/") != 0)
+	die(_("cannot chdir to filesystem root: %s"), NULL, EC_MISC); 
+
 #ifndef NO_FORK      
       if (!(daemon->options & OPT_NO_FORK))
 	{
@@ -223,7 +229,9 @@ int main (int argc, char **argv)
 	  
 	  if ((pid = fork()) == -1 )
 	    die(_("cannot fork into background: %s"), NULL, EC_MISC);
-	  
+	   
+	  /* NO calls to die() from here on. */
+
 	  if (pid != 0)
 	    _exit(EC_GOOD);
 	  
@@ -234,10 +242,7 @@ int main (int argc, char **argv)
 	    _exit(0);
 	}
 #endif
-      
-      if (chdir("/") != 0)
-	die(_("cannot chdir to filesystem root: %s"), NULL, EC_MISC);
-      
+            
       /* write pidfile _after_ forking ! */
       if (daemon->runfile && (pidfile = fopen(daemon->runfile, "w")))
       	{
@@ -259,8 +264,6 @@ int main (int argc, char **argv)
 #endif
    
   ent_pw = daemon->username ? getpwnam(daemon->username) : NULL;
-
-  /* before here, we should only call die(), after here, only call syslog() */
   log_start(ent_pw); 
 
   if (!(daemon->options & OPT_DEBUG))   
@@ -287,9 +290,20 @@ int main (int argc, char **argv)
 	  /* On linux, we keep CAP_NETADMIN (for ARP-injection) and
 	     CAP_NET_RAW (for icmp) if we're doing dhcp */
 	  cap_user_header_t hdr = safe_malloc(sizeof(*hdr));
-	  cap_user_data_t data = safe_malloc(sizeof(*data));
-	  hdr->version = _LINUX_CAPABILITY_VERSION;
+	  cap_user_data_t data;
+	  int capsize = 1; /* for header version 1 */
+	  hdr->version = 0;
+	  /* find version supported by kernel */
+	  capget(hdr, NULL);
+	  if (hdr->version != LINUX_CAPABILITY_VERSION_1)
+	    {
+	      /* if not version 1, use version 2 */
+	      hdr->version = LINUX_CAPABILITY_VERSION_2;
+	      capsize = 2;
+	    }
 	  hdr->pid = 0; /* this process */
+	  data = safe_malloc(sizeof(*data) * capsize);
+	  memset(hdr, sizeof(*data) * capsize, 0);
 	  data->effective = data->permitted = data->inheritable =
 	    (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW) |
 	    (1 << CAP_SETGID) | (1 << CAP_SETUID);
@@ -688,11 +702,19 @@ static void async_event(int pipe, time_t now)
 	break;
 
       case EVENT_EXEC_ERR:
-	my_syslog(LOG_ERR, _("failed to execute %s: %s"), daemon->lease_change_command, strerror(ev.data));
+	my_syslog(LOG_ERR, _("failed to execute %s: %s"), 
+		  daemon->lease_change_command, strerror(ev.data));
 	break;
 
       case EVENT_PIPE_ERR:
 	my_syslog(LOG_ERR, _("failed to create helper: %s"), strerror(ev.data));
+	break;
+
+      case EVENT_USER_ERR:
+	my_syslog(LOG_ERR, _("cannot change to user %s for script execution%s%s"),
+		  daemon->scriptuser,  
+		  ev.data != 0 ? ": " : "",
+		  ev.data != 0 ? strerror(ev.data) : "");
 	break;
 
       case EVENT_REOPEN:

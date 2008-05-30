@@ -2459,10 +2459,50 @@ version 2.41
 	    SIP, XMPP and Google-talk to the example config file.
 	    
 	    Fix va_list abuse in log.c. This fixes crashes on powerpc
-	    when debug mode is set. Thanks to cedric Duval for the
+	    when debug mode is set. Thanks to Cedric Duval for the
 	    patch. 
 
+version 2.42
+            Define _GNU_SOURCE to avoid problems with later glibc
+            headers. Thanks to Jima for spotting the problem.
 
- 
+	    Add --dhcp-alternate-port option. Thanks to Jan Psota for
+	    the suggestion.
 
+	    Fix typo in code which is only used on BSD, when Dbus and
+	    IPv6 support is enabled. Thanks to Roy Marples.
 	    
+	    Updated Polish translations - thank to Jan Psota.
+
+	    Fix OS detection logic to cope with GNU/FreeBSD.
+
+	    Fix unitialised variable in DBus code - thanks to Roy
+	    Marples.
+
+	    Fix network enumeration code to work on later NetBSD -
+	    thanks to Roy Marples.
+	    
+	    Provide --dhcp-bridge on all BSD variants.
+
+	    Define _LARGEFILE_SOURCE which removes an arbitrary 2GB
+            limit on logfiles. Thanks to Paul Chambers for spotting 
+            the problem.
+
+	    Fix RFC3046 agent-id echo code, broken for many
+	    releases. Thanks to Jeremy Laine for spotting the problem
+	    and providing a patch.
+
+	    Added Solaris 10 service manifest from David Connelly in
+	    contrib/Solaris10
+ 	    	     
+	    Add --dhcp-scriptuser option.	    
+
+	    Support new capability interface on suitable Linux 
+	    kernels, removes "legacy support in use" messages. Thanks 
+            to Jorge Bastos for pointing this out. 
+
+	    Fix subtle bug in cache code which could cause dnsmasq to
+	    lock spinning CPU in rare circumstances. Thanks to Alex
+	    Chekholko for bug reports and help debugging. 
+
+	    Support netascii transfer mode for TFTP.

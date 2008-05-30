@@ -91,6 +91,8 @@ struct myoption {
 #define LOPT_MATCH     281
 #define LOPT_BROADCAST 282
 #define LOPT_NEGTTL    283
+#define LOPT_ALTPORT   284
+#define LOPT_SCRIPTUSR 285
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -171,7 +173,7 @@ static const struct myoption opts[] =
     {"tftp-root", 1, 0, LOPT_PREFIX },
     {"tftp-max", 1, 0, LOPT_TFTP_MAX },
     {"ptr-record", 1, 0, LOPT_PTR },
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#ifdef HAVE_BSD_BRIDGE
     {"bridge-interface", 1, 0 , LOPT_BRIDGE },
 #endif
     {"dhcp-option-force", 1, 0, LOPT_FORCE },
@@ -191,6 +193,8 @@ static const struct myoption opts[] =
     {"dhcp-match", 1, 0, LOPT_MATCH }, 
     {"dhcp-broadcast", 1, 0, LOPT_BROADCAST },
     {"neg-ttl", 1, 0, LOPT_NEGTTL },
+    {"dhcp-alternate-port", 2, 0, LOPT_ALTPORT },
+    {"dhcp-scriptuser", 1, 0, LOPT_SCRIPTUSR },
     { NULL, 0, 0, 0 }
   };
 
@@ -308,7 +312,7 @@ static const struct {
   { "-2, --no-dhcp-interface=interface", gettext_noop("Do not provide DHCP on this interface, only provide DNS."), NULL },
   { "-3, --bootp-dynamic", gettext_noop("Enable dynamic address allocation for bootp."), NULL },
   { "-4, --dhcp-mac=<id>,<mac address>", gettext_noop("Map MAC address (with wildcards) to option set."), NULL },
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#ifdef HAVE_BSD_BRIDGE
   { "    --bridge-interface=iface,alias,..", gettext_noop("Treat DHCP requests on aliases as arriving from interface."), NULL },
 #endif
   { "-5, --no-ping", gettext_noop("Disable ICMP echo address checking in the DHCP server."), NULL },
@@ -332,6 +336,8 @@ static const struct {
   { "    --stop-dns-rebind", gettext_noop("Stop DNS rebinding. Filter private IP ranges when resolving."), NULL },
   { "    --all-servers", gettext_noop("Always perform DNS queries to all servers."), NULL },
   { "    --dhcp-match=<netid>,<opt-no>", gettext_noop("Set tag if client includes option in request."), NULL },
+  { "    --dhcp-alternate-port[=<ports>]", gettext_noop("Use alternative ports for DHCP."), NULL },
+  { "    --dhcp-scriptuser=<username>", gettext_noop("Run lease-change script as this user."), NULL },
   { NULL, NULL, NULL }
 }; 
 
@@ -396,8 +402,8 @@ static const struct {
   { "client-id", 61,OT_INTERNAL },
   { "nis-domain", 64, 0 },
   { "nis-server", 65, OT_ADDR_LIST },
-  { "tftp-server", 66, OT_INTERNAL },
-  { "bootfile-name", 67, OT_INTERNAL },
+  { "tftp-server", 66, 0 },
+  { "bootfile-name", 67, 0 },
   { "mobile-ip-home", 68, OT_ADDR_LIST }, 
   { "smtp-server", 69, OT_ADDR_LIST }, 
   { "pop3-server", 70, OT_ADDR_LIST }, 
@@ -1108,6 +1114,10 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
     case 'g':  /* --group */
       daemon->groupname = opt_string_alloc(arg);
       break;
+
+    case LOPT_SCRIPTUSR: /* --scriptuser */
+      daemon->scriptuser = opt_string_alloc(arg);
+      break;
       
     case 'i':  /* --interface */
       do {
@@ -1435,7 +1445,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       
       break;
 	      
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#ifdef HAVE_BSD_BRIDGE
     case LOPT_BRIDGE:   /* --bridge-interface */
       {
 	struct dhcp_bridge *new = opt_malloc(sizeof(struct dhcp_bridge));
@@ -1876,6 +1886,23 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	break;
       }
       
+    case LOPT_ALTPORT:   /* --dhcp-alternate-port */
+      if (!arg)
+	{
+	  daemon->dhcp_server_port = DHCP_SERVER_ALTPORT;
+	  daemon->dhcp_client_port = DHCP_CLIENT_ALTPORT;
+	}
+      else
+	{
+	  comma = split(arg);
+	  if (!atoi_check(arg, &daemon->dhcp_server_port) || 
+	      (comma && !atoi_check(comma, &daemon->dhcp_client_port)))
+	    problem = _("invalid port number");
+	  if (!comma)
+	    daemon->dhcp_client_port = daemon->dhcp_server_port+1; 
+	}
+      break;
+
     case 'J':            /* --dhcp-ignore */
     case LOPT_NO_NAMES:  /* --dhcp-ignore-names */
     case LOPT_BROADCAST: /* --dhcp-broadcast */
@@ -2351,6 +2378,8 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->cachesize = CACHESIZ;
   daemon->ftabsize = FTABSIZ;
   daemon->port = NAMESERVER_PORT;
+  daemon->dhcp_client_port = DHCP_CLIENT_PORT;
+  daemon->dhcp_server_port = DHCP_SERVER_PORT;
   daemon->default_resolv.is_default = 1;
   daemon->default_resolv.name = RESOLVFILE;
   daemon->resolv_files = &daemon->default_resolv;

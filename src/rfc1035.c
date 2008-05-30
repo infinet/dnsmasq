@@ -227,7 +227,7 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
       if (*name == '\\' && *(name+1) == '[' && 
 	  (*(name+2) == 'x' || *(name+2) == 'X'))
 	{	  
-	  for (j = 0, cp1 = name+3; *cp1 && isxdigit(*cp1) && j < 32; cp1++, j++)
+	  for (j = 0, cp1 = name+3; *cp1 && isxdigit((int) *cp1) && j < 32; cp1++, j++)
 	    {
 	      char xdig[2];
 	      xdig[0] = *cp1;

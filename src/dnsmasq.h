@@ -16,6 +16,16 @@
 
 #define COPYRIGHT "Copyright (C) 2000-2008 Simon Kelley" 
 
+/* Ensure we can use files >2GB (log files may grow this big) */
+#define _LARGEFILE_SOURCE 1
+#define _FILE_OFFSET_BITS 64
+
+/* Get linux C library versions. */
+#ifdef __linux__
+#  define _GNU_SOURCE
+#  include <features.h> 
+#endif
+
 /* get these before config.h  for IPv6 stuff... */
 #include <sys/types.h> 
 #include <netinet/in.h>
@@ -60,6 +70,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <signal.h>
+#include <stddef.h>
 #include <time.h>
 #include <errno.h>
 #include <pwd.h>
@@ -84,8 +95,12 @@
 #if defined(HAVE_LINUX_NETWORK)
 #include <linux/capability.h>
 /* There doesn't seem to be a universally-available 
-   userpace header for this. */
+   userpace header for these. */
 extern int capset(cap_user_header_t header, cap_user_data_t data);
+extern int capget(cap_user_header_t header, cap_user_data_t data);
+#define LINUX_CAPABILITY_VERSION_1  0x19980330
+#define LINUX_CAPABILITY_VERSION_2  0x20071026
+
 #include <sys/prctl.h>
 #elif defined(HAVE_SOLARIS_PRIVS)
 #include <priv.h>
@@ -109,6 +124,7 @@ struct event_desc {
 #define EVENT_KILLED    8
 #define EVENT_EXEC_ERR  9
 #define EVENT_PIPE_ERR  10
+#define EVENT_USER_ERR  11
 
 /* Exit codes. */
 #define EC_GOOD        0
@@ -455,7 +471,7 @@ struct dhcp_mac {
   struct dhcp_mac *next;
 };
 
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#ifdef HAVE_BSD_BRIDGE
 struct dhcp_bridge {
   char iface[IF_NAMESIZE];
   struct dhcp_bridge *alias, *next;
@@ -509,9 +525,10 @@ struct tftp_transfer {
   int sockfd;
   time_t timeout;
   int backoff;
-  unsigned int block, blocksize;
+  unsigned int block, blocksize, expansion;
+  off_t offset;
   struct sockaddr_in peer;
-  char opt_blocksize, opt_transize;
+  char opt_blocksize, opt_transize, netascii, carrylf;
   struct tftp_file *file;
   struct tftp_transfer *next;
 };
@@ -529,7 +546,7 @@ extern struct daemon {
   struct interface_name *int_names;
   char *mxtarget;
   char *lease_file; 
-  char *username, *groupname;
+  char *username, *groupname, *scriptuser;
   char *domain_suffix;
   char *runfile; 
   char *lease_change_command;
@@ -552,6 +569,7 @@ extern struct daemon {
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *force_broadcast;
   char *dhcp_hosts_file, *dhcp_opts_file;
   int dhcp_max, tftp_max;
+  int dhcp_server_port, dhcp_client_port;
   int start_tftp_port, end_tftp_port; 
   unsigned int min_leasetime;
   struct doctor *doctors;
@@ -582,7 +600,7 @@ extern struct daemon {
   char *dhcp_buff, *dhcp_buff2;
   struct ping_result *ping_results;
   FILE *lease_stream;
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#ifdef HAVE_BSD_BRIDGE
   struct dhcp_bridge *bridges;
 #endif
 

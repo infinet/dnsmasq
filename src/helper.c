@@ -55,10 +55,18 @@ int create_helper(int event_fd, long max_fd)
   pid_t pid;
   int i, pipefd[2];
   struct sigaction sigact;
+  struct passwd *ent_pw = NULL;
 
   if (!daemon->dhcp || !daemon->lease_change_command)
     return -1;
   
+  if (daemon->scriptuser && !(ent_pw = getpwnam(daemon->scriptuser)))
+    {
+      /* too late to die() */
+      send_event(event_fd, EVENT_USER_ERR, 0);
+      return -1;
+    }
+
   /* create the pipe through which the main program sends us commands,
      then fork our process. By now it's too late to die(), we just log 
      any failure via the main process. */
@@ -173,6 +181,20 @@ int create_helper(int event_fd, long max_fd)
 	  continue;
 	}
       
+      /* Change ownership of child, if this fails, log and ditch, 
+	 rather than running wrong user */
+      if (ent_pw)
+	{
+	  gid_t dummy;
+	  if (setgroups(0, &dummy) == -1 || 
+	      setgid(ent_pw->pw_gid) == -1 || 
+	      setuid(ent_pw->pw_uid) == -1)
+	    {
+	      send_event(event_fd, EVENT_USER_ERR, errno);
+	      _exit(0);
+	    }
+	}
+
       if (data.clid_len != 0)
 	my_setenv("DNSMASQ_CLIENT_ID", daemon->packet, &err);
 

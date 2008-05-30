@@ -226,7 +226,7 @@ A: What is happening is this: The boot process sends a DHCP
 Q: What network types are supported by the DHCP server?
   
 A: Ethernet (and 802.11 wireless) are supported on all platforms. On
-   Linux Token Ring is also supported.
+   Linux all network types (including FireWire) are supported.
 
 Q: What is this strange "bind-interface" option?
 

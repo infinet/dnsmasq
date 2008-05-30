@@ -82,7 +82,8 @@ static void log_packet(char *type, void *addr,
 static unsigned char *option_find(struct dhcp_packet *mess, size_t size, int opt_type, int minsize);
 static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt, int minsize);
 static size_t dhcp_packet_size(struct dhcp_packet *mess, struct dhcp_netid *netid);
-static void clear_packet(struct dhcp_packet *mess, unsigned char *end);
+static void clear_packet(struct dhcp_packet *mess, unsigned char *end, unsigned char *agent_id);
+static void restore_agent_id(unsigned char *agent_id, struct dhcp_packet *mess, unsigned char *real_end);
 static void do_options(struct dhcp_context *context,
 		       struct dhcp_packet *mess,
 		       unsigned char *real_end, 
@@ -436,7 +437,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      lease_set_expires(lease, 0xffffffff, now); /* infinite lease */
 	      lease_set_interface(lease, int_index);
 	      
-	      clear_packet(mess, end);
+	      clear_packet(mess, end, NULL);
 	      do_options(context, mess, end, NULL,  
 			 hostname, netid, subnet_addr, 0, 0, NULL);
 	    }
@@ -750,7 +751,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	}
        
       time = calc_time(context, config, option_find(mess, sz, OPTION_LEASE_TIME, 4));
-      clear_packet(mess, end);
+      clear_packet(mess, end, agent_id);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPOFFER);
       option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
       option_put(mess, end, OPTION_LEASE_TIME, 4, time);
@@ -889,11 +890,13 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  log_packet("NAK", &mess->yiaddr, emac, emac_len, iface_name, message);
 	  
 	  mess->yiaddr.s_addr = 0;
-	  clear_packet(mess, end);
+	  clear_packet(mess, end, agent_id);
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
 	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, 
 		     ntohl(context ? context->local.s_addr : fallback.s_addr));
 	  option_put_string(mess, end, OPTION_MESSAGE, message, borken_opt);
+	  /* DHCPNAK gets agent-id too */
+	  restore_agent_id(agent_id, mess, end);
 	  /* This fixes a problem with the DHCP spec, broadcasting a NAK to a host on 
 	     a distant subnet which unicast a REQ to us won't work. */
 	  if (!unicast_dest || mess->giaddr.s_addr != 0 || 
@@ -970,7 +973,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	
 	  log_packet("ACK", &mess->yiaddr, emac, emac_len, iface_name, hostname);  
 	  
-	  clear_packet(mess, end);
+	  clear_packet(mess, end, agent_id);
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
 	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
 	  option_put(mess, end, OPTION_LEASE_TIME, 4, time);
@@ -1015,7 +1018,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  netid = &context->netid;
 	}
        
-      clear_packet(mess, end);
+      clear_packet(mess, end, agent_id);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
       option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
 
@@ -1462,12 +1465,27 @@ static void match_vendor_opts(unsigned char *opt, struct dhcp_opt *dopt)
     }
 }
 
-static void clear_packet(struct dhcp_packet *mess, unsigned char *end)
+static void clear_packet(struct dhcp_packet *mess, unsigned char *end, unsigned char *agent_id)
 {
+  /* don't clear agent_id */
+  if (agent_id)
+    end = agent_id;
+
   memset(mess->sname, 0, sizeof(mess->sname));
   memset(mess->file, 0, sizeof(mess->file));
   memset(&mess->options[0] + sizeof(u32), 0, end - (&mess->options[0] + sizeof(u32)));
   mess->siaddr.s_addr = 0;
+}
+
+static void restore_agent_id(unsigned char *agent_id, struct dhcp_packet *mess, unsigned char *real_end)
+{ 
+  if (agent_id)
+    {
+      unsigned char *p = dhcp_skip_opts(&mess->options[0] + sizeof(u32));
+      memmove(p, agent_id, real_end - agent_id);
+      p += real_end - agent_id;
+      memset(p, 0, real_end - p); /* in case of overlap */
+    }
 }
 
 static void do_options(struct dhcp_context *context,
@@ -1784,13 +1802,7 @@ static void do_options(struct dhcp_context *context,
     }
   
   /* move agent_id back down to the end of the packet */
-  if (agent_id)
-    {
-      p = dhcp_skip_opts(&mess->options[0] + sizeof(u32));
-      memmove(p, agent_id, real_end - agent_id);
-      p += real_end - agent_id;
-      memset(p, 0, real_end - p); /* in case of overlap */
-    }
+  restore_agent_id(agent_id, mess, real_end);
 
   /* restore BOOTP anti-overload hack */
   if (!req_options || (daemon->options & OPT_NO_OVERRIDE))

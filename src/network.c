@@ -27,8 +27,8 @@ int iface_check(int family, struct all_addr *addr,
 
   if (indexp)
     {
-#if defined(__FreeBSD__) || defined(__DragonFly__)
-      /* One form of bridging on FreeBSD has the property that packets
+#ifdef HAVE_BSD_BRIDGE
+      /* One form of bridging on BSD has the property that packets
 	 can be recieved on bridge interfaces which do not have an IP address.
 	 We allow these to be treated as aliases of another interface which does have
 	 an IP address with --dhcp-bridge=interface,alias,alias */

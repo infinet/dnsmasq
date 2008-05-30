@@ -359,6 +359,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
   struct crec *new;
   union bigname *big_name = NULL;
   int freed_all = flags & F_REVERSE;
+  int free_avail = 0;
 
   log_query(flags | F_UPSTREAM, name, addr, 0, NULL, 0);
 
@@ -392,8 +393,24 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
     
     if (new->flags & (F_FORWARD | F_REVERSE))
       { 
+	/* If free_avail set, we believe that an entry has been freed.
+	   Bugs have been known to make this not true, resulting in
+	   a tight loop here. If that happens, log a warning and abandon the
+	   insert. Once in this state, all inserts will probably fail. */
+	
+	if (free_avail)
+	  {
+	    static int warned = 0;
+
+	    if (!warned)
+	      my_syslog(LOG_ERR, "BUG in cache detected. Please mail simon@thekelleys.org.uk");
+	    warned = insert_error = 1;
+	    return NULL;
+	  }
+		
 	if (freed_all)
 	  {
+	    free_avail = 1; /* Must be free space now. */
 	    cache_scan_free(cache_get_name(new), &new->addr.addr, now, new->flags);
 	    cache_live_freed++;
 	  }
@@ -516,18 +533,21 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
 		     Make sure that re-ordering doesn't break the hash-chain
 		     order invariants. 
 		  */
-		  if (!insert)
-		    {
-		      insert = up;
-		      ins_flags = crecp->flags & (F_REVERSE | F_IMMORTAL);
-		      up = &crecp->hash_next; 
-		    }
-		  else if ((crecp->flags & (F_REVERSE | F_IMMORTAL)) == ins_flags)
+		  if (insert && (crecp->flags & (F_REVERSE | F_IMMORTAL)) == ins_flags)
 		    {
 		      *up = crecp->hash_next;
 		      crecp->hash_next = *insert;
 		      *insert = crecp;
 		      insert = &crecp->hash_next;
+		    }
+		  else
+		    {
+		      if (!insert)
+			{
+			  insert = up;
+			  ins_flags = crecp->flags & (F_REVERSE | F_IMMORTAL);
+			}
+		      up = &crecp->hash_next; 
 		    }
 		}
 	      else
