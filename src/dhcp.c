@@ -896,7 +896,7 @@ void dhcp_update_configs(struct dhcp_config *configs)
 		crec = cache_find_by_name(crec, config->hostname, 0, F_IPV4);
 	      if (!crec)
 		continue; /* should be never */
-	      my_syslog(LOG_WARNING, _("%s has more then one address in hostsfile, using %s for DHCP"), 
+	      my_syslog(LOG_WARNING, _("%s has more than one address in hostsfile, using %s for DHCP"), 
 			config->hostname, inet_ntoa(crec->addr.addr.addr.addr4));
 	    }
 

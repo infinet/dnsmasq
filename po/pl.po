@@ -8,494 +8,479 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-05-23 21:33+0100\n"
-"PO-Revision-Date: 2008-03-11 23:43+0100\n"
+"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"PO-Revision-Date: 2008-07-10 22:40+0200\n"
 "Last-Translator: Jan Psota <jasiu@belsznica.pl>\n"
 "Language-Team: Polski <pl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=ISO-8859-2\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms:  nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%"
-"100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms:  nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: KBabel 1.11.4\n"
 
-#: cache.c:700
+#: cache.c:695
 #, c-format
 msgid "failed to load names from %s: %s"
 msgstr "nie potrafiê wczytaæ nazw z %s: %s"
 
-#: cache.c:734 dhcp.c:757
+#: cache.c:729 dhcp.c:757
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "b³êdny adres w pliku %s, w linii %d"
 
-#: cache.c:781 dhcp.c:771
+#: cache.c:776 dhcp.c:771
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "b³êdna nazwa w pliku %s, w linii %d"
 
-#: cache.c:788 dhcp.c:825
+#: cache.c:783 dhcp.c:825
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "przeczytano %s - %d adresów"
 
-#: cache.c:826
+#: cache.c:821
 msgid "cleared cache"
 msgstr "wyczyszczono pamiêæ podrêczn±"
 
-#: cache.c:875
+#: cache.c:870
 #, c-format
-msgid ""
-"not giving name %s to the DHCP lease of %s because the name exists in %s "
-"with address %s"
-msgstr ""
-"nazwa %s nie zosta³a nadana dzier¿awie DHCP %s,poniewa¿ nazwa istnieje w %s "
-"i ma ju¿ adres %s"
+msgid "not giving name %s to the DHCP lease of %s because the name exists in %s with address %s"
+msgstr "nazwa %s nie zosta³a nadana dzier¿awie DHCP %s,poniewa¿ nazwa istnieje w %s i ma ju¿ adres %s"
 
-#: cache.c:927
+#: cache.c:922
 #, c-format
 msgid "time %lu"
 msgstr "czas %lu"
 
-#: cache.c:928
+#: cache.c:923
 #, c-format
 msgid "cache size %d, %d/%d cache insertions re-used unexpired cache entries."
-msgstr ""
-"wielko¶æ pamiêci podrêcznej: %d; %d z %d miejsc aktualnych wpisów u¿yto "
-"ponownie"
+msgstr "wielko¶æ pamiêci podrêcznej: %d; %d z %d miejsc aktualnych wpisów u¿yto ponownie"
 
-#: cache.c:930
+#: cache.c:925
 #, c-format
 msgid "queries forwarded %u, queries answered locally %u"
-msgstr "%u zapytañ przes³anych dalej,%u odpowiedzi udzielonych samodzielnie"
+msgstr "%u zapytañ przes³anych dalej, %u odpowiedzi udzielonych samodzielnie"
 
-#: cache.c:953
+#: cache.c:948
 #, c-format
 msgid "server %s#%d: queries sent %u, retried or failed %u"
 msgstr "serwer %s#%d: %u zapytañ wys³anych, %u ponowionych lub nieudanych"
 
-#: util.c:160
+#: util.c:58
+#, c-format
+msgid "failed to seed the random number generator: %s"
+msgstr "brak mo¿liwo¶ci u¿ycia generatora liczb losowych: %s"
+
+#: util.c:166
 msgid "could not get memory"
 msgstr "nie mo¿na dostaæ pamiêci"
 
-#: util.c:170
+#: util.c:176
+#, c-format
+msgid "cannot create pipe: %s"
+msgstr "b³±d podczas próby utworzenia potoku: %s"
+
+#: util.c:184
 #, c-format
 msgid "failed to allocate %d bytes"
 msgstr "niemo¿liwo¶æ przydzielenia %d bajtów pamiêci"
 
-#: util.c:275
+#: util.c:289
 #, c-format
 msgid "infinite"
 msgstr "nieskoñczona"
 
-#: option.c:248
+#: option.c:219
 msgid "Specify local address(es) to listen on."
-msgstr "Adres(y) lokalne do nas³uchiwania."
+msgstr "Wskazanie adresów, na których nale¿y nas³uchiwaæ."
 
-#: option.c:249
+#: option.c:220
 msgid "Return ipaddr for all hosts in specified domains."
-msgstr "Zwracanie adresu IP dla wszystkich hostów w podanych domenach."
+msgstr "Zwracanie adresu IP dla wszystkich hostów we wskazanych domenach."
 
-#: option.c:250
+#: option.c:221
 msgid "Fake reverse lookups for RFC1918 private address ranges."
-msgstr "Symulacja reverse lookups dla adresów prywatnych opisanych w RFC1918."
+msgstr "Wy³±czenie przekazywania zapytañ odwrotnych dla prywatnych zakresów IP."
 
-#: option.c:251
+#: option.c:222
 msgid "Treat ipaddr as NXDOMAIN (defeats Verisign wildcard)."
 msgstr "Traktowanie adresu IP jak NXDOMAIN"
 
-#: option.c:252
+#: option.c:223
 #, c-format
 msgid "Specify the size of the cache in entries (defaults to %s)."
 msgstr "Wielko¶æ pamiêci podrêcznej (domy¶lnie: %s miejsc)"
 
-#: option.c:253
+#: option.c:224
 #, c-format
 msgid "Specify configuration file (defaults to %s)."
-msgstr "¦cie¿ka do pliku konfiguracyjnego (domy¶lnie: %s)"
+msgstr "Wskazanie pliku konfiguracyjnego (domy¶lnie: %s)"
 
-#: option.c:254
+#: option.c:225
 msgid "Do NOT fork into the background: run in debug mode."
 msgstr "NIE twórz procesu potomnego w tle: dzia³anie w trybie debugowania."
 
-#: option.c:255
+#: option.c:226
 msgid "Do NOT forward queries with no domain part."
 msgstr "Wy³±czenie przekazywania zapytañ bez podanej czê¶ci domenowej."
 
-#: option.c:256
+#: option.c:227
 msgid "Return self-pointing MX records for local hosts."
 msgstr "Zwracanie samowskazuj±cego rekordu MX dla lokalnych hostów."
 
-#: option.c:257
+#: option.c:228
 msgid "Expand simple names in /etc/hosts with domain-suffix."
 msgstr "Rozwijanie prostych nazw z /etc/hosts przyrostkiem domenowym."
 
-#: option.c:258
+#: option.c:229
 msgid "Don't forward spurious DNS requests from Windows hosts."
-msgstr ""
-"Wy³±czenie przekazywania pozornych zapytañ DNS z komputerów dzia³aj±cych pod "
-"Windows."
+msgstr "Wy³±czenie przekazywania pozornych zapytañ DNS z komputerów dzia³aj±cych pod Windows."
 
-#: option.c:259
+#: option.c:230
 msgid "Enable DHCP in the range given with lease duration."
-msgstr ""
-"W³±czenie serwera DHCP dla wskazanego zakresu adresów z okre¶leniem czasu "
-"dzier¿awy."
+msgstr "W³±czenie serwera DHCP dla wskazanego zakresu adresów."
 
-#: option.c:260
+#: option.c:231
 #, c-format
 msgid "Change to this group after startup (defaults to %s)."
 msgstr "Po uruchomieniu zmiana grupy procesu na podan± (domy¶lnie: %s)."
 
-#: option.c:261
+#: option.c:232
 msgid "Set address or hostname for a specified machine."
 msgstr "Ustawienie adresu lub nazwy dla wskazanego komputera."
 
-#: option.c:262
+#: option.c:233
 msgid "Read DHCP host specs from file"
-msgstr "Wczytanie z podanego pliku opisów maszyn na potrzeby DHCP."
+msgstr "Wczytanie z podanego pliku opisu maszyn na potrzeby DHCP."
 
-#: option.c:263
+#: option.c:234
 msgid "Read DHCP option specs from file"
 msgstr "Wczytanie z podanego pliku warto¶ci opcji DHCP."
 
-#: option.c:264
+#: option.c:235
 #, c-format
 msgid "Do NOT load %s file."
-msgstr "Pominiêcie pliku %s."
+msgstr "Nie wczytywanie pliku %s."
 
-#: option.c:265
+#: option.c:236
 #, c-format
 msgid "Specify a hosts file to be read in addition to %s."
 msgstr "Wskazanie dodatkowego pliku 'hosts' oprócz %s."
 
-#: option.c:266
+#: option.c:237
 msgid "Specify interface(s) to listen on."
 msgstr "Interfejsy, na których nas³uchiwaæ."
 
-#: option.c:267
+#: option.c:238
 msgid "Specify interface(s) NOT to listen on."
 msgstr "Interfejsy, na których NIE nas³uchiwaæ."
 
-#: option.c:268
+#: option.c:239
 msgid "Map DHCP user class to tag."
-msgstr "Powi±zanie klasy u¿ytkownika DHCP ze znacznikiem."
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od klasy u¿ytkownika DHCP."
 
-#: option.c:269
+#: option.c:240
 msgid "Map RFC3046 circuit-id to tag."
-msgstr ""
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od numeru obwodu (w rozumieniu RFC3046)."
 
-#: option.c:270
+#: option.c:241
 msgid "Map RFC3046 remote-id to tag."
-msgstr ""
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od numeru agenta (w rozumieniu RFC3046)."
 
-#: option.c:271
+#: option.c:242
 msgid "Map RFC3993 subscriber-id to tag."
-msgstr ""
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od numeru subskrybenta (w rozumieniu RFC3993)."
 
-#: option.c:272
+#: option.c:243
 msgid "Don't do DHCP for hosts with tag set."
 msgstr "Wy³±czenie DHCP dla hostów z okre¶lonym znacznikiem."
 
-#: option.c:273
+#: option.c:244
 msgid "Force broadcast replies for hosts with tag set."
-msgstr ""
-"Wymuszenie odpowiedzi w trybie rozg³oszeniowym dla hostów z okre¶lonym "
-"znacznikiem."
+msgstr "Wymuszenie odpowiedzi w trybie rozg³oszeniowym dla hostów z okre¶lonym znacznikiem."
 
-#: option.c:274
+#: option.c:245
 msgid "Do NOT fork into the background, do NOT run in debug mode."
 msgstr "NIE twórz procesu potomnego w tle i NIE w³±czaj trybu debugowania."
 
-#: option.c:275
+#: option.c:246
 msgid "Assume we are the only DHCP server on the local network."
 msgstr "Zak³adanie, ¿e jeste¶my jedynym serwerem DHCP w sieci lokalnej."
 
-#: option.c:276
+#: option.c:247
 #, c-format
 msgid "Specify where to store DHCP leases (defaults to %s)."
 msgstr "¦cie¿ka przechowywania pliku dzier¿aw DHCP (domy¶lnie: %s)"
 
-#: option.c:277
+#: option.c:248
 msgid "Return MX records for local hosts."
 msgstr "W³±czenie zwracania rekordu MX dla hostów lokalnych."
 
-#: option.c:278
+#: option.c:249
 msgid "Specify an MX record."
 msgstr "Specyfikacja rekordu MX."
 
-#: option.c:279
+#: option.c:250
 msgid "Specify BOOTP options to DHCP server."
 msgstr "Okre¶lenie opcji BOOTP serwera DHCP."
 
-#: option.c:280
+#: option.c:251
 #, c-format
 msgid "Do NOT poll %s file, reload only on SIGHUP."
-msgstr ""
-"Wy³±czenie obserwacji pliku %s, ponowne odczytywanie tylko po odebraniu "
-"sygna³u SIGHUP."
+msgstr "Wy³±czenie obserwacji pliku %s, ponowne odczytywanie tylko po odebraniu sygna³u SIGHUP."
 
-#: option.c:281
+#: option.c:252
 msgid "Do NOT cache failed search results."
-msgstr ""
-"Wy³±czenie przechowywania w pamiêci podrêcznej wyników nieudanych wyszukiwañ."
+msgstr "Wy³±czenie przechowywania w pamiêci podrêcznej wyników nieudanych wyszukiwañ."
 
-#: option.c:282
+#: option.c:253
 #, c-format
 msgid "Use nameservers strictly in the order given in %s."
-msgstr ""
+msgstr "Odpytywanie serwerów nazw w kolejno¶ci ich wyst±pienia w %s."
 
-#: option.c:283
-#, fuzzy
+#: option.c:254
 msgid "Specify options to be sent to DHCP clients."
-msgstr "Dodatkowe opcje ustawieñ dla klientów DHCP."
+msgstr "Specyfikacja opcji wysy³anej do klientów DHCP."
 
-#: option.c:284
+#: option.c:255
 msgid "DHCP option sent even if the client does not request it."
 msgstr "Opcja DHCP wysy³ana nawet je¿eli klient o ni± nie prosi."
 
-#: option.c:285
+#: option.c:256
 msgid "Specify port to listen for DNS requests on (defaults to 53)."
-msgstr "Port nas³uchiwania zapytañ DNS (domy¶lnie: 53)."
+msgstr "Wskazanie portu do nas³uchiwania zapytañ DNS (domy¶lnie: 53)."
 
-#: option.c:286
+#: option.c:257
 #, c-format
 msgid "Maximum supported UDP packet size for EDNS.0 (defaults to %s)."
 msgstr "Maksymalna obs³ugiwana wielko¶æ pakietu EDNS.0 (domy¶lnie: %s)."
 
-#: option.c:287
-#, fuzzy
+#: option.c:258
 msgid "Log DNS queries."
-msgstr "Zapytania zapisywane w pliku log."
+msgstr "W³±czenie spisywania zapytañ DNS do logu."
 
-#: option.c:288
+#: option.c:259
 msgid "Force the originating port for upstream DNS queries."
-msgstr ""
+msgstr "Wymuszenie u¿ycia wskazanego portu UDP do odpytywania nadrzêdnych serwerów DNS i odbierania od nich odpowiedzi."
 
-#: option.c:289
+#: option.c:260
 msgid "Do NOT read resolv.conf."
 msgstr "Wy³±czenie czytania pliku resolv.conf"
 
-#: option.c:290
+#: option.c:261
 #, c-format
 msgid "Specify path to resolv.conf (defaults to %s)."
-msgstr "Podaj ¶cie¿kê do pliku resolv.conf (domy¶lnie: %s)."
+msgstr "Wskazanie po³o¿enia pliku resolv.conf (domy¶lnie: %s)."
 
-#: option.c:291
+#: option.c:262
 msgid "Specify address(es) of upstream servers with optional domains."
-msgstr ""
+msgstr "Wskazywanie adresów serwerów nazw, opcjonalnie z przypisaniem do domeny."
 
-#: option.c:292
+#: option.c:263
 msgid "Never forward queries to specified domains."
-msgstr "Wy³±czenie przekazywania zapytañ do okre¶lonych domen."
+msgstr "Wy³±czenie przekazywania zapytañ do wskazanych domen."
 
-#: option.c:293
+#: option.c:264
 msgid "Specify the domain to be assigned in DHCP leases."
-msgstr "Nazwa domeny, która bêdzie przypisana w dzier¿awach DHCP."
+msgstr "Wskazanie domeny dla serwera DHCP."
 
-#: option.c:294
+#: option.c:265
 msgid "Specify default target in an MX record."
 msgstr "Okre¶lenie domy¶lnego celu w rekordzie MX."
 
-#: option.c:295
+#: option.c:266
 msgid "Specify time-to-live in seconds for replies from /etc/hosts."
-msgstr ""
-"Okre¶lenie czasu wa¿no¶ci (time-to-live) w sekundach odpowiedzi branych z /"
-"etc/hosts."
+msgstr "Okre¶lenie (w sekundach) czasu wa¿no¶ci odpowiedzi udzielonych na podstawie /etc/hosts (domy¶lnie 0)."
 
-#: option.c:296
-#, fuzzy
+#: option.c:267
 msgid "Specify time-to-live in seconds for negative caching."
-msgstr ""
-"Okre¶lenie czasu wa¿no¶ci (time-to-live) w sekundach odpowiedzi branych z /"
-"etc/hosts."
+msgstr "Okre¶lenie (w sekundach) czasu wa¿no¶ci negatywnych odpowiedzi."
 
-#: option.c:297
+#: option.c:268
 #, c-format
 msgid "Change to this user after startup. (defaults to %s)."
-msgstr "Po starcie zmiana u¿ytkownika procesu na podanego. (domy¶lnie: %s)."
+msgstr "Zmiana u¿ytkownika procesu na wskazanego (po uruchomieniu, domy¶lnie: %s)."
 
-#: option.c:298
-#, fuzzy
+#: option.c:269
 msgid "Map DHCP vendor class to tag."
-msgstr "Mapowanie nazwy dystrybutora DHCP do ustawieñ opcji."
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od typu klienta DHCP."
 
-#: option.c:299
+#: option.c:270
 msgid "Display dnsmasq version and copyright information."
-msgstr ""
-"W³±czenie pokazywania wersji dnsmasq i informacji o ochronie praw autorskich."
+msgstr "Wydrukowanie informacji o programie i ochronie praw autorskich."
 
-#: option.c:300
+#: option.c:271
 msgid "Translate IPv4 addresses from upstream servers."
 msgstr "T³umaczenie adresów IPv4 z serwerów nadrzêdnych."
 
-#: option.c:301
+#: option.c:272
 msgid "Specify a SRV record."
 msgstr "Okre¶lenie rekordu SRV."
 
-#: option.c:302
+#: option.c:273
 msgid "Display this message. Use --help dhcp for known DHCP options."
-msgstr ""
-"Wy¶wietla ten komunikat. U¿yj '--help dhcp' chc±c przejrzeæ listê opcji DHCP "
-"(dhcp-option=xxx,...)."
+msgstr "Wy¶wietla ten komunikat. U¿yj '--help dhcp' chc±c przejrzeæ listê opcji DHCP (dhcp-option=xxx,...)."
 
-#: option.c:303
-#, fuzzy, c-format
+#: option.c:274
+#, c-format
 msgid "Specify path of PID file (defaults to %s)."
-msgstr "Okre¶lenie ¶cie¿ki do pliku PID. (domy¶lnie: %s)."
+msgstr "Okre¶lenie ¶cie¿ki do pliku PID (domy¶lnie: %s)."
 
-#: option.c:304
+#: option.c:275
 #, c-format
 msgid "Specify maximum number of DHCP leases (defaults to %s)."
-msgstr "Maksymalna liczba dzier¿aw DHCP. (domy¶lnie: %s)."
+msgstr "Maksymalna liczba dzier¿aw DHCP (domy¶lnie: %s)."
 
-#: option.c:305
+#: option.c:276
 msgid "Answer DNS queries based on the interface a query was sent to."
-msgstr ""
-"Odpowiedzi na zapytania DNS uzale¿nione od interfejsu, który odebra³ "
-"zapytanie."
+msgstr "Uzale¿nienie odpowiedzi DNS od interfejsu, na którym odebrano zapytanie (wygodne dla serwerów kilku podsieci z ró¿nymi adresami w /etc/hosts)."
 
-#: option.c:306
+#: option.c:277
 msgid "Specify TXT DNS record."
-msgstr "Rekord TXT DNS."
+msgstr "Specyfikacja rekordu DNS TXT."
 
-#: option.c:307
-#, fuzzy
+#: option.c:278
 msgid "Specify PTR DNS record."
-msgstr "Rekord TXT DNS."
+msgstr "Specyfikacja rekordu DNS PTR."
 
-#: option.c:308
+#: option.c:279
 msgid "Give DNS name to IPv4 address of interface."
-msgstr ""
-"Zwraca nazwê domenow± powi±zan± z pierwszym adresem interfejsu sieciowego."
+msgstr "Zwraca nazwê domenow± powi±zan± z adresem interfejsu sieciowego."
 
-#: option.c:309
+#: option.c:280
 msgid "Bind only to interfaces in use."
-msgstr "W³±czenie nas³uchiwania tylko na u¿ywanych interfejsach."
+msgstr "Nas³uchiwanie tylko na wykorzystywanych interfejsach (umo¿liwia uruchomienie osobnych serwerów dla ró¿nych kart)."
 
-#: option.c:310
+#: option.c:281
 #, c-format
 msgid "Read DHCP static host information from %s."
-msgstr "Statycznych informacji DHCP hosta z pliku %s."
+msgstr "Wczytanie przyporz±dkowañ adresów z %s."
 
-#: option.c:311
+#: option.c:282
 msgid "Enable the DBus interface for setting upstream servers, etc."
-msgstr ""
+msgstr "W³±czenie u¿ywania interfejsu DBus do informowania o zmianach konfiguracji."
 
-#: option.c:312
+#: option.c:283
 msgid "Do not provide DHCP on this interface, only provide DNS."
-msgstr "Wy³±czenie DHCP na tym interfejsie, w³±czenie tylko DNS."
+msgstr "Wy³±czenie us³ug DHCP i TFTP na wskazanym interfejsie, uruchomienie tylko DNS."
 
-#: option.c:313
+#: option.c:284
 msgid "Enable dynamic address allocation for bootp."
-msgstr "W³±czenie automatycznej alokacji adresu dla BOOTP."
+msgstr "W³±czenie dynamicznego przydzielania adresów dla klientów BOOTP."
 
-#: option.c:314
-#, fuzzy
+#: option.c:285
 msgid "Map MAC address (with wildcards) to option set."
-msgstr "Mapowanie nazwy dystrybutora DHCP do ustawieñ opcji."
+msgstr "Przyporz±dkowanie znacznika w zale¿no¶ci od adresu MAC (mo¿na u¿ywaæ uogólnieñ: *)."
 
-#: option.c:316
+#: option.c:287
 msgid "Treat DHCP requests on aliases as arriving from interface."
-msgstr ""
+msgstr "Traktowanie ¿±dañ DHCP odebranych na interfejsach alias, ..., jako odebranych na iface."
 
-#: option.c:318
+#: option.c:289
 msgid "Disable ICMP echo address checking in the DHCP server."
-msgstr ""
+msgstr "Pominiêcie sprawdzania za pomoc± ICMP niezajêto¶ci adresu przed jego wydzier¿awieniem."
 
-#: option.c:319
+#: option.c:290
 msgid "Script to run on DHCP lease creation and destruction."
-msgstr ""
+msgstr "Wskazanie skryptu uruchamianego w przypadku wydzier¿awienia adresu lub wyga¶niêcia dzier¿awy."
 
-#: option.c:320
+#: option.c:291
 msgid "Read configuration from all the files in this directory."
-msgstr ""
+msgstr "Wczytanie wszystkich plików ze wskazanego katalogu jako konfiguracyjnych."
 
-#: option.c:321
-#, fuzzy
+#: option.c:292
 msgid "Log to this syslog facility or file. (defaults to DAEMON)"
-msgstr "Po starcie zmiana u¿ytkownika procesu na podanego. (domy¶lnie: %s)."
+msgstr "Wskazanie kana³u syslog-a do którego maj± trafiaæ komunikaty (domy¶lnie: DAEMON)."
 
-#: option.c:322
-msgid "Read leases at startup, but never write the lease file."
-msgstr ""
+#: option.c:293
+msgid "Do not use leasefile."
+msgstr "Nieu¿ywanie bazy dzier¿aw."
 
-#: option.c:323
-#, fuzzy, c-format
+#: option.c:294
+#, c-format
 msgid "Maximum number of concurrent DNS queries. (defaults to %s)"
-msgstr "Maksymalna liczba dzier¿aw DHCP. (domy¶lnie: %s)."
+msgstr "Maksymalna liczba jednocze¶nie obs³ugiwanych zapytañ DNS (domy¶lnie: %s)."
 
-#: option.c:324
+#: option.c:295
 #, c-format
 msgid "Clear DNS cache when reloading %s."
-msgstr ""
+msgstr "Czyszczenie pamiêci podrêcznej serwera nazw w przypadku ponownego odczytu %s."
 
-#: option.c:325
+#: option.c:296
 msgid "Ignore hostnames provided by DHCP clients."
-msgstr ""
+msgstr "Nie zwracanie uwagi na nazwê podawan± przez klienta w przypadku dopasowania wszystkich wymienionych znaczników."
 
-#: option.c:326
+#: option.c:297
 msgid "Do NOT reuse filename and server fields for extra DHCP options."
-msgstr ""
+msgstr "Wy³±czenie oszczêdzania miejsca w pakiecie DHCP przez przesuwanie pól servername i filename do opcji DHCP. Wymusza prostszy tryb budowy pakietu rozwi±zuj±c problemy z nieprzystosowanymi klientami DHCP."
 
-#: option.c:327
+#: option.c:298
 msgid "Enable integrated read-only TFTP server."
-msgstr ""
+msgstr "W³±czenie wbudowanego serwera TFTP (tylko do wysy³ania)."
 
-#: option.c:328
+#: option.c:299
 msgid "Export files by TFTP only from the specified subtree."
-msgstr ""
+msgstr "Ograniczenie dzia³ania serwera TFTP do wskazanego katalogu i podkatalogów. Nazwy z .. s± odrzucane, / odnosi siê do wskazanego katalogu."
 
-#: option.c:329
+#: option.c:300
 msgid "Add client IP address to tftp-root."
-msgstr ""
+msgstr "Doklejanie adresu IP klienta do g³ównego katalogu TFTP. Je¿eli wynikowy katalog nie istnieje, nadal wykorzystuje siê tftp-root."
 
-#: option.c:330
+#: option.c:301
 msgid "Allow access only to files owned by the user running dnsmasq."
-msgstr ""
+msgstr "Ograniczenie dostêpu do plików przez TFTP do tych, których w³a¶cicielem jest u¿ytkownik uruchamiaj±cy dnsmasq-a."
 
-#: option.c:331
-#, fuzzy, c-format
+#: option.c:302
+#, c-format
 msgid "Maximum number of conncurrent TFTP transfers (defaults to %s)."
-msgstr "Maksymalna liczba dzier¿aw DHCP. (domy¶lnie: %s)."
+msgstr "Maksymalna liczba jednocze¶nie obs³ugiwanych po³±czeñ TFTP (domy¶lnie %s)."
 
-#: option.c:332
+#: option.c:303
 msgid "Disable the TFTP blocksize extension."
-msgstr ""
+msgstr "Wy³±czenie mo¿liwo¶ci negocjowania wielko¶ci bloku dla przesy³ów przez TFTP."
 
-#: option.c:333
+#: option.c:304
 msgid "Ephemeral port range for use by TFTP transfers."
-msgstr ""
+msgstr "Wskazanie zakresu portów do u¿ytku TFTP."
 
-#: option.c:334
+#: option.c:305
 msgid "Extra logging for DHCP."
-msgstr ""
+msgstr "W³±czenie spisywania w logu operacji DHCP."
 
-#: option.c:335
+#: option.c:306
 msgid "Enable async. logging; optionally set queue length."
-msgstr ""
+msgstr "W³±czenie asynchronicznego zapisywania do logu z ewentualnym wskazaniem d³ugo¶ci kolejki."
 
-#: option.c:336
+#: option.c:307
 msgid "Stop DNS rebinding. Filter private IP ranges when resolving."
-msgstr ""
+msgstr "Odfiltrowywanie adresów wskazuj±cych na komputery w sieciach wewnêtrznych spo¶ród odpowiedzi od zewnêtrznych serwerów DNS."
 
-#: option.c:337
+#: option.c:308
 msgid "Always perform DNS queries to all servers."
-msgstr ""
+msgstr "Jednoczesne odpytywanie wszystkich serwerów nadrzêdnych; klientowi przekazywana jest pierwsza odpowied¼."
 
-#: option.c:338
+#: option.c:309
 msgid "Set tag if client includes option in request."
-msgstr ""
+msgstr "Przyporz±dkowanie znacznika je¿eli klient przy¶le opcjê o wskazanym numerze."
 
-#: option.c:339
+#: option.c:310
 msgid "Use alternative ports for DHCP."
-msgstr ""
+msgstr "U¿ycie alternatywnych portów dla us³ugi DHCP."
 
-#: option.c:340
+#: option.c:311
 msgid "Run lease-change script as this user."
-msgstr ""
+msgstr "Uruchamianie skryptu dhcp-script jako wskazany u¿ytkownik."
 
-#: option.c:591
+#: option.c:312
+msgid "Specify NAPTR DNS record."
+msgstr "Specyfikacja rekordu DNS NAPTR."
+
+#: option.c:313
+msgid "Specify lowest port available for DNS query transmission."
+msgstr "Ustawienie dolnej granicy numerów portów do przesy³ania zapytañ DNS."
+
+#: option.c:564
 #, c-format
 msgid ""
 "Usage: dnsmasq [options]\n"
@@ -504,190 +489,197 @@ msgstr ""
 "U¿ycie: dnsmasq [opcje]\n"
 "\n"
 
-#: option.c:593
+#: option.c:566
 #, c-format
 msgid "Use short options only on the command line.\n"
-msgstr "Tylko krótkie opcje w linii komend.\n"
+msgstr "W tym systemie w linii poleceñ mo¿na u¿ywaæ wy³±cznie jednoliterowych opcji.\n"
 
-#: option.c:595
+#: option.c:568
 #, c-format
-msgid "Valid options are :\n"
-msgstr "Obs³ugiwane opcje:\n"
+msgid "Valid options are:\n"
+msgstr "Dostêpne opcje:\n"
 
-#: option.c:616
+#: option.c:608
 #, c-format
 msgid "Known DHCP options:\n"
-msgstr ""
+msgstr "Znane opcje DHCP:\n"
 
-#: option.c:689
+#: option.c:681
 msgid "bad dhcp-option"
 msgstr "b³±d w dhcp-option"
 
-#: option.c:745
-#, fuzzy
+#: option.c:737
 msgid "bad IP address"
-msgstr "przeczytano %s - %d adresów"
+msgstr "z³y adres IP"
 
-#: option.c:843
+#: option.c:835
 msgid "bad domain in dhcp-option"
 msgstr "nieprawid³owa nazwa domeny w dhcp-option"
 
-#: option.c:901
+#: option.c:893
 msgid "dhcp-option too long"
-msgstr "zbyt d³uga nazwa w dhcp-option"
+msgstr "zbyt d³uga dhcp-option (>255 znaków)"
 
-#: option.c:948
-#, fuzzy, c-format
+#: option.c:922
+msgid "illegal repeated flag"
+msgstr "wielokrotne u¿ycie opcji niedozwolone (pojawi³a siê wcze¶niej w linii poleceñ)"
+
+#: option.c:930
+msgid "illegal repeated keyword"
+msgstr "wielokrotne u¿ycie opcji niedozwolone (pojawi³a siê wsze¶niej w pliku konfiguracyjnym)"
+
+#: option.c:964
+#, c-format
 msgid "cannot access directory %s: %s"
-msgstr "b³±d odczytu z %s: %s"
+msgstr "brak dostêpu do katalogu %s: %s"
 
-#: option.c:967 tftp.c:348
-#, fuzzy, c-format
+#: option.c:983 tftp.c:348
+#, c-format
 msgid "cannot access %s: %s"
-msgstr "b³±d odczytu z %s: %s"
+msgstr "brak dostêpu do %s: %s"
 
-#: option.c:1004
+#: option.c:1020
 msgid "only one dhcp-hostsfile allowed"
-msgstr ""
+msgstr "mo¿na wskazaæ tylko jeden plik dhcp-hostsfile"
 
-#: option.c:1011
+#: option.c:1027
 msgid "only one dhcp-optsfile allowed"
-msgstr ""
+msgstr "mo¿na wskazaæ tylko jeden plik dhcp-optsfile"
 
-#: option.c:1055
+#: option.c:1071
 msgid "bad MX preference"
-msgstr ""
+msgstr "nieprawid³owa warto¶æ preferencji MX"
 
-#: option.c:1059
+#: option.c:1075
 msgid "bad MX name"
-msgstr "b³êdna nazwa MX"
+msgstr "nieprawid³owa nazwa MX"
 
-#: option.c:1073
+#: option.c:1089
 msgid "bad MX target"
-msgstr "b³êdny cel MX"
+msgstr "nieprawid³owa warto¶æ celu MX"
 
-#: option.c:1084
+#: option.c:1100
 msgid "cannot run scripts under uClinux"
-msgstr ""
+msgstr "w uClinuksie nie ma mo¿liwo¶ci uruchamiania skryptów"
 
-#: option.c:1275 option.c:1283
+#: option.c:1293 option.c:1301
 msgid "bad port"
-msgstr "nieprawid³owy port"
+msgstr "nieprawid³owy numer portu"
 
-#: option.c:1303 option.c:1328
+#: option.c:1321 option.c:1346
 msgid "interface binding not supported"
-msgstr ""
+msgstr "nie ma mo¿liwo¶ci dowi±zywania do interfejsu"
 
-#: option.c:1437
-#, fuzzy
+#: option.c:1464
 msgid "bad port range"
-msgstr "nieprawid³owy port"
+msgstr "nieprawid³owy zakres numerów portów"
 
-#: option.c:1454
+#: option.c:1481
 msgid "bad bridge-interface"
-msgstr ""
+msgstr "nieprawid³owa nazwa urz±dzenia w bridge-interface"
 
-#: option.c:1495
+#: option.c:1522
 msgid "bad dhcp-range"
 msgstr "nieprawid³owy zakres dhcp-range"
 
-#: option.c:1521
+#: option.c:1548
 msgid "only one netid tag allowed"
-msgstr ""
+msgstr "mo¿na wskazaæ tylko jeden znacznik sieci"
 
-#: option.c:1561
+#: option.c:1588
 msgid "inconsistent DHCP range"
-msgstr "niespójny zakres DHCP"
+msgstr "niespójny zakres adresów DHCP"
 
-#: option.c:1729
-#, fuzzy
+#: option.c:1756
 msgid "bad DHCP host name"
-msgstr "b³êdna nazwa MX"
+msgstr "niedopuszczalna nazwa komputera w dhcp-host"
 
-#: option.c:1900 option.c:2107
+#: option.c:1928 option.c:2171
 msgid "invalid port number"
-msgstr "nieprawid³owy port"
+msgstr "nieprawid³owy numer portu"
 
-#: option.c:1986
-#, fuzzy
+#: option.c:2014
 msgid "bad interface name"
-msgstr "b³êdna nazwa MX"
+msgstr "nieprawid³owa nazwa interfejsu"
 
-#: option.c:2006
-#, fuzzy
+#: option.c:2034
 msgid "bad PTR record"
-msgstr "b³±d w rekordzie SRV"
+msgstr "nieprawid³owy zapis rekordu PTR"
 
-#: option.c:2026
+#: option.c:2064
+msgid "bad NAPTR record"
+msgstr "nieprawid³owy zapis rekordu NAPTR"
+
+#: option.c:2090
 msgid "TXT record string too long"
 msgstr "zbyt d³ugi rekord TXT"
 
-#: option.c:2030
+#: option.c:2094
 msgid "bad TXT record"
-msgstr "nieprawid³owy rekord TX"
+msgstr "nieprawid³owy zapis rekordu TXT"
 
-#: option.c:2090
+#: option.c:2154
 msgid "bad SRV record"
-msgstr "b³±d w rekordzie SRV"
+msgstr "nieprawid³owy zapis rekordu SRV"
 
-#: option.c:2099
+#: option.c:2163
 msgid "bad SRV target"
-msgstr "nieprawid³owy cel SRV"
+msgstr "nieprawid³owa warto¶æ celu SRV"
 
-#: option.c:2114
+#: option.c:2178
 msgid "invalid priority"
 msgstr "nieprawid³owy priorytet"
 
-#: option.c:2121
+#: option.c:2185
 msgid "invalid weight"
-msgstr "nieprawid³owe znaczenie"
+msgstr "nieprawid³owa waga"
 
-#: option.c:2157
+#: option.c:2221
 #, c-format
 msgid "files nested too deep in %s"
-msgstr ""
+msgstr "zbyt du¿e zag³êbienie plików w %s"
 
-#: option.c:2165 tftp.c:503
+#: option.c:2229 tftp.c:503
 #, c-format
 msgid "cannot read %s: %s"
-msgstr "b³±d odczytu z %s: %s"
+msgstr "b³±d odczytu z pliku %s: %s"
 
-#: option.c:2226
+#: option.c:2290
 msgid "missing \""
 msgstr "brakuje \""
 
-#: option.c:2273
+#: option.c:2337
 msgid "bad option"
 msgstr "nieprawid³owa opcja"
 
-#: option.c:2275
+#: option.c:2339
 msgid "extraneous parameter"
-msgstr "dodatkowy parametr"
+msgstr "nadwy¿kowy parametr"
 
-#: option.c:2277
+#: option.c:2341
 msgid "missing parameter"
 msgstr "brak parametru"
 
-#: option.c:2285
+#: option.c:2349
 msgid "error"
 msgstr "b³±d"
 
-#: option.c:2291
+#: option.c:2355
 #, c-format
 msgid "%s at line %d of %%s"
-msgstr "%s w linii %d z %%s"
+msgstr "%s w linii %d pliku %%s"
 
-#: option.c:2331 option.c:2361
-#, fuzzy, c-format
+#: option.c:2395 option.c:2425
+#, c-format
 msgid "read %s"
-msgstr "czytanie %s"
+msgstr "przeczyta³em %s"
 
-#: option.c:2429
+#: option.c:2492
 #, c-format
 msgid "Dnsmasq version %s  %s\n"
-msgstr "Dnsmasq, wersja %s %s\n"
+msgstr "Dnsmasq, wersja %s  %s\n"
 
-#: option.c:2430
+#: option.c:2493
 #, c-format
 msgid ""
 "Compile time options %s\n"
@@ -696,77 +688,77 @@ msgstr ""
 "Wkompilowane opcje %s\n"
 "\n"
 
-#: option.c:2431
+#: option.c:2494
 #, c-format
 msgid "This software comes with ABSOLUTELY NO WARRANTY.\n"
-msgstr "Oprogramowanie to nie zawiera ¿adnych gwarancji.\n"
+msgstr "To oprogramowanie nie daje ¿adnych gwarancji.\n"
 
-#: option.c:2432
+#: option.c:2495
 #, c-format
 msgid "Dnsmasq is free software, and you are welcome to redistribute it\n"
-msgstr "Dnsmasq jest wolnym oprogramowaniem, mo¿esz je rozprowadzaæ\n"
+msgstr "Dnsmasq jest wolnym oprogramowaniem, mo¿esz go rozprowadzaæ\n"
 
-#: option.c:2433
-#, fuzzy, c-format
+#: option.c:2496
+#, c-format
 msgid "under the terms of the GNU General Public License, version 2 or 3.\n"
-msgstr "na warunkach okre¶lonych w GNU General Public Licence, wersja 2.\n"
+msgstr "na warunkach okre¶lonych w GNU General Public Licence, w wersji 2 lub 3.\n"
 
-#: option.c:2444
+#: option.c:2507
 msgid "try --help"
-msgstr ""
+msgstr "spróbuj: --help"
 
-#: option.c:2446
+#: option.c:2509
 msgid "try -w"
-msgstr ""
+msgstr "spróbuj: -w"
 
-#: option.c:2449
-#, fuzzy, c-format
+#: option.c:2512
+#, c-format
 msgid "bad command line options: %s"
-msgstr "nieprawid³owa opcja linii komend: %s."
+msgstr "nieprawid³owa opcja w linii poleceñ %s"
 
-#: option.c:2490
+#: option.c:2553
 #, c-format
 msgid "cannot get host-name: %s"
 msgstr "nie mo¿na pobraæ nazwy hosta: %s"
 
-#: option.c:2518
+#: option.c:2581
 msgid "only one resolv.conf file allowed in no-poll mode."
-msgstr "tylko jeden plik resolv.conf jest dopuszczany w trybie no-poll."
+msgstr "w trybie no-poll mo¿na wskazaæ najwy¿ej jeden plik resolv.conf."
 
-#: option.c:2528
+#: option.c:2591
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "musisz mieæ dok³adnie jeden plik resolv.conf do odczytu domen."
 
-#: option.c:2531 network.c:640
-#, fuzzy, c-format
+#: option.c:2594 network.c:717
+#, c-format
 msgid "failed to read %s: %s"
-msgstr "b³±d w odczycie %s: %m"
+msgstr "nie uda³o siê odczytaæ %s: %s"
 
-#: option.c:2549
+#: option.c:2612
 #, c-format
 msgid "no search directive found in %s"
 msgstr "brak wytycznych wyszukiwania w %s"
 
-#: forward.c:381
+#: forward.c:403
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
-msgstr "serwer nazw %s odmawia wykonania zapytania rekursywnego"
+msgstr "serwer nazw %s odmawia wykonania zapytania rekurencyjnego"
 
-#: forward.c:409
+#: forward.c:431
 msgid "possible DNS-rebind attack detected"
-msgstr ""
+msgstr "prawdopodobnie wykryto atak DNS-rebind"
 
-#: isc.c:77 dnsmasq.c:769
-#, fuzzy, c-format
+#: isc.c:77 dnsmasq.c:889
+#, c-format
 msgid "failed to access %s: %s"
-msgstr "b³±d w dostêpie do %s: %m"
+msgstr "brak dostêpu do %s: %s"
 
 #: isc.c:93
-#, fuzzy, c-format
+#, c-format
 msgid "failed to load %s: %s"
-msgstr "b³±d ³adowania %s: %m"
+msgstr "nie uda³o siê wczytaæ %s: %s"
 
-#: isc.c:97 dnsmasq.c:791
+#: isc.c:97 dnsmasq.c:911
 #, c-format
 msgid "reading %s"
 msgstr "czytanie %s"
@@ -779,16 +771,14 @@ msgstr "nieprawid³owa nazwa w %s"
 #: isc.c:181
 #, c-format
 msgid "Ignoring DHCP lease for %s because it has an illegal domain part"
-msgstr ""
-"Ignorujê dzier¿awy DHCP dla %s poniewa¿ zawieraj± nieprawid³ow± czê¶æ "
-"domenow±"
+msgstr "Ignorujê dzier¿awê DHCP dla %s poniewa¿ zawiera nieprawid³ow± czê¶æ domenow±"
 
 #: network.c:45
-#, fuzzy, c-format
+#, c-format
 msgid "unknown interface %s in bridge-interface"
-msgstr "nieznany interfejs %s"
+msgstr "nieznany interfejs %s w bridge-u"
 
-#: network.c:389 dnsmasq.c:183
+#: network.c:389 dnsmasq.c:194
 #, c-format
 msgid "failed to create listening socket: %s"
 msgstr "b³±d podczas tworzenia gniazda: %s"
@@ -796,327 +786,338 @@ msgstr "b³±d podczas tworzenia gniazda: %s"
 #: network.c:396
 #, c-format
 msgid "failed to set IPV6 options on listening socket: %s"
-msgstr "b³±d ustawienia opcji IPV6 na nas³uchuj±cym gnie¼dzie: %s"
+msgstr "b³±d ustawiania opcji IPV6 na nas³uchuj±cym gnie¼dzie: %s"
 
 #: network.c:415
 #, c-format
 msgid "failed to bind listening socket for %s: %s"
-msgstr "b³±d pod³±czenia nas³uchuj±cego gniazda dla %s: %s"
+msgstr "b³±d przy przyznawaniu nazwy gniazdu %s: %s"
 
 #: network.c:420
 #, c-format
 msgid "failed to listen on socket: %s"
-msgstr "b³±d w³±czenia nas³uchiwania gniazda: %s"
+msgstr "b³±d przy w³±czaniu nas³uchu na gnie¼dzie: %s"
 
 #: network.c:432
-#, fuzzy, c-format
+#, c-format
 msgid "failed to create TFTP socket: %s"
-msgstr "b³±d podczas tworzenia gniazda: %s"
+msgstr "nie powiod³o siê otwieranie gniazda dla us³ugi TFTP: %s"
 
-#: network.c:549
-#, fuzzy, c-format
+#: network.c:624
+#, c-format
 msgid "failed to bind server socket for %s: %s"
-msgstr "b³±d pod³±czenia nas³uchuj±cego gniazda dla %s: %s"
+msgstr "b³±d przy przyznawaniu nazwy gniazdu serwera %s: %s"
 
-#: network.c:582
+#: network.c:657
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorowanie serwera nazw %s - interfejs lokalny"
 
-#: network.c:591
-#, fuzzy, c-format
+#: network.c:668
+#, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
-msgstr "ignorowanie serwera nazw %s - nie mo¿na utworzyæ/dowi±zaæ gniazda: %m"
+msgstr "ignorowanie serwera nazw %s - nie mo¿na utworzyæ/dowi±zaæ gniazda: %s"
 
-#: network.c:606
+#: network.c:683
 msgid "unqualified"
-msgstr "niekwalifikowany(a/e)"
+msgstr "niekwalifikowane(-a)"
 
-#: network.c:606
+#: network.c:683
 msgid "names"
-msgstr ""
+msgstr "nazwy"
 
-#: network.c:608
+#: network.c:685
 msgid "default"
-msgstr ""
+msgstr "domy¶lne"
 
-#: network.c:610
+#: network.c:687
 msgid "domain"
 msgstr "domena"
 
-#: network.c:613
+#: network.c:690
 #, c-format
 msgid "using local addresses only for %s %s"
-msgstr "w³±czenie u¿ywania lokalnych adresów tylko dla %s %s"
+msgstr "u¿ywam adresów lokalnych tylko dla %s %s"
 
-#: network.c:615
+#: network.c:692
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
-msgstr "u¿ywany serwer nazw: %s#%d dla %s %s"
+msgstr "u¿ywam serwera nazw %s#%d dla %s %s"
 
-#: network.c:618
-#, fuzzy, c-format
+#: network.c:695
+#, c-format
 msgid "using nameserver %s#%d(via %s)"
-msgstr "u¿ywany serwer nazw %s#%d"
+msgstr "u¿ywam serwera nazw %s#%d (przez %s)"
 
-#: network.c:620
+#: network.c:697
 #, c-format
 msgid "using nameserver %s#%d"
-msgstr "u¿ywany serwer nazw %s#%d"
+msgstr "u¿ywam serwera nazw %s#%d"
 
-#: dnsmasq.c:113
-msgid ""
-"ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h"
-msgstr ""
-"Intergracja z ISC dhcpd nie jest dostêpna: ustaw HAVE_ISC_READER w src/"
-"config.h"
+#: dnsmasq.c:122
+msgid "ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h"
+msgstr "Integracja z ISC dhcpd nie zosta³a wkompilowana -- ustaw HAVE_ISC_READER w src/config.h"
 
-#: dnsmasq.c:135
-#, fuzzy
+#: dnsmasq.c:144
 msgid "TFTP server not available: set HAVE_TFTP in src/config.h"
-msgstr "DBus jest niedostêpny: ustaw HAVE_DBUS w src/config.h"
+msgstr "Serwer TFTP nie zosta³ wkompilowany -- ustaw HAVE_TFTP w src/config.h"
 
-#: dnsmasq.c:140
+#: dnsmasq.c:149
 msgid "asychronous logging is not available under Solaris"
-msgstr ""
+msgstr "zapis do logów w trybie asynchronicznym nie jest dostêpny w Solarisie"
 
-#: dnsmasq.c:154
+#: dnsmasq.c:165
 msgid "must set exactly one interface on broken systems without IP_RECVIF"
 msgstr "musisz ustawiæ dok³adnie jeden interfejs w systemach bez IP_RECVIF"
 
-#: dnsmasq.c:164
+#: dnsmasq.c:175
 #, c-format
 msgid "failed to find list of interfaces: %s"
-msgstr "b³±d w znalezieniu listy interfejsów sieciowych: %s"
+msgstr "b³±d podczas tworzenia listy interfejsów sieciowych: %s"
 
-#: dnsmasq.c:172
+#: dnsmasq.c:183
 #, c-format
 msgid "unknown interface %s"
 msgstr "nieznany interfejs %s"
 
-#: dnsmasq.c:178
+#: dnsmasq.c:189
 #, c-format
 msgid "no interface with address %s"
 msgstr "brak interfejsu z adresem %s"
 
-#: dnsmasq.c:195 dnsmasq.c:575
+#: dnsmasq.c:206 dnsmasq.c:663
 #, c-format
 msgid "DBus error: %s"
 msgstr "b³±d DBus: %s"
 
-#: dnsmasq.c:198
+#: dnsmasq.c:209
 msgid "DBus not available: set HAVE_DBUS in src/config.h"
-msgstr "DBus jest niedostêpny: ustaw HAVE_DBUS w src/config.h"
+msgstr "Obs³uga DBus nie zosta³a wkompilowana -- ustaw HAVE_DBUS w src/config.h"
 
-#: dnsmasq.c:207
-#, fuzzy, c-format
-msgid "cannot create pipe: %s"
-msgstr "b³±d odczytu z %s: %s"
+#: dnsmasq.c:233
+#, c-format
+msgid "unknown user or group: %s"
+msgstr "nieznany u¿ytkownik lub grupa: %s"
 
-#: dnsmasq.c:223
+#: dnsmasq.c:290
 #, c-format
 msgid "cannot chdir to filesystem root: %s"
-msgstr ""
+msgstr "nie potrafiê wej¶æ do g³ównego katalogu: %s"
 
-#: dnsmasq.c:231
+#: dnsmasq.c:302
 #, c-format
 msgid "cannot fork into background: %s"
-msgstr ""
+msgstr "nie potrafiê prze³±czyæ siê do pracy w tle: %s"
 
-#: dnsmasq.c:363
-#, fuzzy, c-format
+#: dnsmasq.c:451
+#, c-format
 msgid "started, version %s DNS disabled"
-msgstr "uruchomiony, wersja %s cache wy³±czony"
+msgstr "uruchomiony, wersja %s, DNS wy³±czony"
 
-#: dnsmasq.c:365
+#: dnsmasq.c:453
 #, c-format
 msgid "started, version %s cachesize %d"
-msgstr "uruchomiony, wersja %s wielko¶æ cache %d"
+msgstr "uruchomiony, wersja %s, %d miejsc w pamiêci podrêcznej"
 
-#: dnsmasq.c:367
+#: dnsmasq.c:455
 #, c-format
 msgid "started, version %s cache disabled"
-msgstr "uruchomiony, wersja %s cache wy³±czony"
+msgstr "uruchomiony, wersja %s, pamiêæ podrêczna wy³±czona"
 
-#: dnsmasq.c:369
+#: dnsmasq.c:457
 #, c-format
 msgid "compile time options: %s"
 msgstr "opcje kompilacji: %s"
 
-#: dnsmasq.c:375
-msgid "DBus support enabled: connected to system bus"
-msgstr "obs³uga DBus w³±czona: pod³±czono do szyny systemowej"
-
-#: dnsmasq.c:377
-msgid "DBus support enabled: bus connection pending"
-msgstr "obs³uga DBus w³±czona: pod³±czanie do szyny systemowej w toku"
-
-#: dnsmasq.c:382
-msgid "setting --bind-interfaces option because of OS limitations"
-msgstr "ustawiam opcjê --bind-interfaces z powodu limitów systemu operacyjnego"
-
-#: dnsmasq.c:387
-#, c-format
-msgid "warning: interface %s does not currently exist"
-msgstr "ostrze¿enie: interfejs %s obecnie nie istnieje"
-
-#: dnsmasq.c:392
-msgid "warning: ignoring resolv-file flag because no-resolv is set"
-msgstr ""
-
-#: dnsmasq.c:395
-#, fuzzy
-msgid "warning: no upstream servers configured"
-msgstr "brak skonfigurowanego adresu"
-
-#: dnsmasq.c:399
-#, c-format
-msgid "asynchronous logging enabled, queue limit is %d messages"
-msgstr ""
-
-#: dnsmasq.c:411
-#, c-format
-msgid "DHCP, static leases only on %.0s%s, lease time %s"
-msgstr "DHCP, statyczne dzier¿awy tylko na %.0s%s, czas dzier¿awy %s"
-
-#: dnsmasq.c:412
-#, c-format
-msgid "DHCP, IP range %s -- %s, lease time %s"
-msgstr "DHCP, zakres IP %s -- %s, czas dzier¿awy %s"
-
-#: dnsmasq.c:426
-msgid "root is "
-msgstr ""
-
-#: dnsmasq.c:426
-msgid "enabled"
-msgstr "w³±czony(a)"
-
-#: dnsmasq.c:428
-msgid "secure mode"
-msgstr ""
-
-#: dnsmasq.c:454
-#, c-format
-msgid "restricting maximum simultaneous TFTP transfers to %d"
-msgstr ""
-
 #: dnsmasq.c:463
-#, c-format
-msgid "warning: setting capabilities failed: %s"
-msgstr ""
+msgid "DBus support enabled: connected to system bus"
+msgstr "obs³uga DBus w³±czona, pod³±czono do serwera DBus"
 
 #: dnsmasq.c:465
-msgid "running as root"
-msgstr "pracuje z uprawnieniami u¿ytkownika root"
+msgid "DBus support enabled: bus connection pending"
+msgstr "obs³uga DBus w³±czona, trwa pod³±czanie do serwera DBus"
 
-#: dnsmasq.c:577
+#: dnsmasq.c:470
+#, c-format
+msgid "warning: failed to change owner of %s: %s"
+msgstr "UWAGA! Nie uda³o siê zmieniæ u¿ytkownika pliku %s: %s"
+
+#: dnsmasq.c:474
+msgid "setting --bind-interfaces option because of OS limitations"
+msgstr "ustawiam --bind-interfaces z powodu ograniczeñ systemu operacyjnego"
+
+#: dnsmasq.c:479
+#, c-format
+msgid "warning: interface %s does not currently exist"
+msgstr "uwaga: interfejs %s nie jest w³±czony"
+
+#: dnsmasq.c:484
+msgid "warning: ignoring resolv-file flag because no-resolv is set"
+msgstr "uwaga: ignorujê opcjê resolv-file, poniewa¿ wybrano tryb no-resolv"
+
+#: dnsmasq.c:487
+msgid "warning: no upstream servers configured"
+msgstr "uwaga: nie wskazano nadrzêdnych serwerów DNS"
+
+#: dnsmasq.c:491
+#, c-format
+msgid "asynchronous logging enabled, queue limit is %d messages"
+msgstr "w³±czono asynchroniczny tryb zapisu do logów z kolejk± na %d komunikatów"
+
+#: dnsmasq.c:503
+#, c-format
+msgid "DHCP, static leases only on %.0s%s, lease time %s"
+msgstr "DHCP: tylko statyczne dzier¿awy na %.0s%s, czas dzier¿awy %s"
+
+#: dnsmasq.c:504
+#, c-format
+msgid "DHCP, IP range %s -- %s, lease time %s"
+msgstr "DHCP: zakres IP %s -- %s, czas dzier¿awy %s"
+
+#: dnsmasq.c:518
+msgid "root is "
+msgstr ": g³ówny katalog -- "
+
+#: dnsmasq.c:518
+msgid "enabled"
+msgstr "w³±czony"
+
+#: dnsmasq.c:520
+msgid "secure mode"
+msgstr "w trybie bezpiecznym"
+
+#: dnsmasq.c:546
+#, c-format
+msgid "restricting maximum simultaneous TFTP transfers to %d"
+msgstr "ograniczam ilo¶æ jednoczesnych przes³añ TFTP do %d"
+
+#: dnsmasq.c:665
 msgid "connected to system DBus"
-msgstr "po³±czono do systemowego DBus"
+msgstr "pod³±czono do DBus-a"
 
-#: dnsmasq.c:697
+#: dnsmasq.c:753
+#, c-format
+msgid "failed to create helper: %s"
+msgstr "nie uda³o siê utworzyæ procesu pomocniczego: %s"
+
+#: dnsmasq.c:756
+#, c-format
+msgid "setting capabilities failed: %s"
+msgstr "nie powiod³o siê ustawianie ograniczeñ (capabilities): %s"
+
+#: dnsmasq.c:760
+#, c-format
+msgid "failed to change user-id to %s: %s"
+msgstr "nie uda³o siê zmieniæ u¿ytkownika procesu na %s: %s"
+
+#: dnsmasq.c:765
+#, c-format
+msgid "failed to change group-id to %s: %s"
+msgstr "nie uda³o siê zmieniæ grupy procesu na %s: %s"
+
+#: dnsmasq.c:768
+#, c-format
+msgid "failed to open pidfile %s: %s"
+msgstr "nie uda³o siê otworzyæ pliku z PID-em %s: %s"
+
+#: dnsmasq.c:771
+#, c-format
+msgid "cannot open %s: %s"
+msgstr "nie mo¿na otworzyæ %s: %s"
+
+#: dnsmasq.c:822
 #, c-format
 msgid "child process killed by signal %d"
-msgstr ""
+msgstr "proces potomny zabity sygna³em %d"
 
-#: dnsmasq.c:701
+#: dnsmasq.c:826
 #, c-format
 msgid "child process exited with status %d"
-msgstr ""
+msgstr "proces potomny zakoñczy³ siê z kodem powrotu %d"
 
-#: dnsmasq.c:705
-#, fuzzy, c-format
-msgid "failed to execute %s: %s"
-msgstr "b³±d w dostêpie do %s: %m"
-
-#: dnsmasq.c:710
-#, fuzzy, c-format
-msgid "failed to create helper: %s"
-msgstr "b³±d w odczycie %s: %m"
-
-#: dnsmasq.c:714
+#: dnsmasq.c:830
 #, c-format
-msgid "cannot change to user %s for script execution%s%s"
-msgstr ""
+msgid "failed to execute %s: %s"
+msgstr "nie uda³o siê uruchomiæ %s: %s"
 
-#: dnsmasq.c:751
+#: dnsmasq.c:871
 msgid "exiting on receipt of SIGTERM"
-msgstr "wy³±czenie po otrzymaniu sygnalu SIGTERM"
+msgstr "zakoñczy³em dzia³anie z powodu odebrania SIGTERM"
 
-#: dnsmasq.c:802
-#, fuzzy, c-format
+#: dnsmasq.c:922
+#, c-format
 msgid "no servers found in %s, will retry"
-msgstr "brak wytycznych wyszukiwania w %s"
+msgstr "w %s nie znalaz³em serwerów, spróbujê ponownie pó¼niej"
 
 #: dhcp.c:38
 #, c-format
 msgid "cannot create DHCP socket : %s"
-msgstr "nie mo¿na utworzyæ gniazda DHCP : %s"
+msgstr "nie uda³o siê utworzyæ gniazda dla DHCP: %s"
 
 #: dhcp.c:50
 #, c-format
 msgid "failed to set options on DHCP socket: %s"
-msgstr "b³±d ustawienia opcji gniazda DHCP: %s"
+msgstr "b³±d podczas ustawiania opcji gniazda DHCP: %s"
 
 #: dhcp.c:68
-#, fuzzy, c-format
+#, c-format
 msgid "failed to set SO_REUSE{ADDR|PORT} on DHCP socket: %s"
-msgstr "b³±d ustawienia SO_REUSEADDR gniazda DHCP: %s"
+msgstr "nie uda³o siê ustawiæ SO_REUSE{ADDR|PORT} gniazda DHCP: %s"
 
 #: dhcp.c:81
 #, c-format
 msgid "failed to bind DHCP server socket: %s"
-msgstr "b³±d pod³±czenia gniazda serwera DHCP: %s"
+msgstr "b³±d przy przyznawaniu nazwy gniazdu serwera DHCP: %s"
 
 #: dhcp.c:94
 #, c-format
 msgid "cannot create ICMP raw socket: %s."
-msgstr "b³±d utworzenia surowego gniazda ICMP: %s."
+msgstr "nie uda³o siê utworzyæ surowego gniazda ICMP: %s."
 
 #: dhcp.c:223
 #, c-format
 msgid "DHCP packet received on %s which has no address"
-msgstr ""
+msgstr "¿±danie DHCP odebrano na interfejsie %s, który nie ma adresu"
 
 #: dhcp.c:382
 #, c-format
 msgid "DHCP range %s -- %s is not consistent with netmask %s"
-msgstr "zakres DHCP %s -- %s jest niespójny z mask± sieciow± %s"
+msgstr "zakres adresów DHCP %s -- %s jest niespójny z mask± sieci %s"
 
 #: dhcp.c:709
-#, fuzzy, c-format
+#, c-format
 msgid "failed to read %s:%s"
-msgstr "b³±d w odczycie %s: %m"
+msgstr "b³±d odczytu %s: %s"
 
 #: dhcp.c:744
-#, fuzzy, c-format
+#, c-format
 msgid "bad line at %s line %d"
-msgstr "b³êdna nazwa w %s, linia %d"
+msgstr "z³a zawarto¶æ pliku %s, w linii %d"
 
 #: dhcp.c:847
 #, c-format
 msgid "duplicate IP address %s in dhcp-config directive."
-msgstr "powtórzenie adresu IP %s w opcji dhcp-config"
+msgstr "powtórzony adres IP (%s) w parametrze dhcp-config"
 
 #: dhcp.c:850
-#, fuzzy, c-format
+#, c-format
 msgid "duplicate IP address %s in %s."
-msgstr "powtórzenie adresu IP %s w opcji dhcp-config"
+msgstr "powtórzony adres IP (%s) w pliku %s"
 
 #: dhcp.c:858
-#, fuzzy, c-format
+#, c-format
 msgid "illegal domain %s in dhcp-config directive."
-msgstr "powtórzenie adresu IP %s w opcji dhcp-config"
+msgstr "nieprawid³owa nazwa domeny (%s) w parametrze dhcp-config"
 
 #: dhcp.c:860
 #, c-format
 msgid "illegal domain %s in %s."
-msgstr ""
+msgstr "nieprawid³owa nazwa domeny (%s) w %s"
 
 #: dhcp.c:899
 #, c-format
-msgid "%s has more then one address in hostsfile, using %s for DHCP"
-msgstr ""
+msgid "%s has more than one address in hostsfile, using %s for DHCP"
+msgstr "do komputera o nazwie %s pasuje wiêcej ni¿ jeden adres, w odpowiedzi DHCP wysy³am %s"
 
 #: dhcp.c:904
 #, c-format
@@ -1124,196 +1125,195 @@ msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "powtórzenie adresu IP %s (%s) w opcji dhcp-config"
 
 #: lease.c:58
-#, fuzzy, c-format
+#, c-format
 msgid "cannot open or create lease file %s: %s"
-msgstr "b³±d otwarcia lub utworzenia pliku dzier¿aw: %s"
+msgstr "nie potrafiê otworzyæ albo utworzyæ pliku dzier¿aw %s: %s"
 
 #: lease.c:84
 msgid "too many stored leases"
 msgstr "zbyt du¿a ilo¶æ zapisanych dzier¿aw"
 
 #: lease.c:125
-#, fuzzy, c-format
+#, c-format
 msgid "cannot run lease-init script %s: %s"
-msgstr "b³±d odczytu z %s: %s"
+msgstr "nie potrafiê uruchomiæ skryptu %s: %s"
 
 #: lease.c:131
 #, c-format
 msgid "lease-init script returned exit code %s"
-msgstr ""
+msgstr "skrypt zakoñczy³ siê z kodem powrotu %s"
 
 #: lease.c:238
-#, fuzzy, c-format
+#, c-format
 msgid "failed to write %s: %s (retry in %us)"
-msgstr "b³±d w odczycie %s: %m"
+msgstr "b³±d zapisu do %s: %s (spróbujê ponownie za %us)"
 
-#: rfc2131.c:304
+#: rfc2131.c:310
 #, c-format
 msgid "no address range available for DHCP request %s %s"
-msgstr "¿aden zakres adresowy nie jest dostêpny dla ¿adania DHCP %s %s"
+msgstr "nie zdefiniowano zakresu adresów odpowiedniego dla ¿±dania %s %s"
 
-#: rfc2131.c:305
+#: rfc2131.c:311
 msgid "with subnet selector"
-msgstr "z selekcj± podsieci"
+msgstr "z wyborem podsieci"
 
-#: rfc2131.c:305
+#: rfc2131.c:311
 msgid "via"
 msgstr "przez"
 
-#: rfc2131.c:316
+#: rfc2131.c:322
 #, c-format
 msgid "DHCP packet: transaction-id is %u"
-msgstr ""
+msgstr "pakiet DHCP, id transakcji: %u"
 
-#: rfc2131.c:321
+#: rfc2131.c:327
 #, c-format
 msgid "Available DHCP subnet: %s/%s"
-msgstr ""
+msgstr "Dostêpna podsieæ DHCP: %s/%s"
 
-#: rfc2131.c:323
+#: rfc2131.c:329
 #, c-format
 msgid "Available DHCP range: %s -- %s"
-msgstr ""
+msgstr "Zakres adresów na u¿ytek DHCP: %s -- %s"
 
-#: rfc2131.c:351 rfc2131.c:382
+#: rfc2131.c:357 rfc2131.c:388
 msgid "disabled"
 msgstr "wy³±czony(a)"
 
-#: rfc2131.c:394 rfc2131.c:874
+#: rfc2131.c:400 rfc2131.c:892
 msgid "address in use"
-msgstr "adres w u¿yciu"
+msgstr "adres jest w u¿yciu"
 
-#: rfc2131.c:397
+#: rfc2131.c:403
 msgid "no address configured"
 msgstr "brak skonfigurowanego adresu"
 
-#: rfc2131.c:410 rfc2131.c:737
+#: rfc2131.c:416 rfc2131.c:747
 msgid "no address available"
 msgstr "brak dostêpnego adresu"
 
-#: rfc2131.c:419 rfc2131.c:884
+#: rfc2131.c:425 rfc2131.c:902
 msgid "no leases left"
 msgstr "brak wolnych dzier¿aw"
 
-#: rfc2131.c:422 rfc2131.c:848
+#: rfc2131.c:428 rfc2131.c:866
 msgid "wrong network"
 msgstr "nieprawid³owa sieæ"
 
-#: rfc2131.c:521
+#: rfc2131.c:530
 #, c-format
 msgid "Ignoring domain %s for DHCP host name %s"
-msgstr ""
+msgstr "Nie uwzglêdniam czê¶ci domenowej (%s) dla komputera %s"
 
-#: rfc2131.c:615
+#: rfc2131.c:624
 #, c-format
 msgid "Vendor class: %s"
-msgstr ""
+msgstr "Typ klienta: %s"
 
-#: rfc2131.c:617
+#: rfc2131.c:626
 #, c-format
 msgid "User class: %s"
-msgstr ""
+msgstr "Klasa u¿ytkownika: %s"
 
-#: rfc2131.c:658
-#, fuzzy, c-format
+#: rfc2131.c:667
+#, c-format
 msgid "disabling DHCP static address %s for %s"
-msgstr "wy³±czanie statycznego adresu DHCP %s"
+msgstr "wy³±czam statyczne przypisanie adresu %s dla %s"
 
-#: rfc2131.c:679
+#: rfc2131.c:688
 msgid "unknown lease"
 msgstr "nieznana dzier¿awa"
 
-#: rfc2131.c:688 rfc2131.c:995
+#: rfc2131.c:697 rfc2131.c:1018
 msgid "ignored"
 msgstr "ignorujê"
 
-#: rfc2131.c:708
-#, c-format
-msgid "not using configured address %s because it is leased to %s"
-msgstr ""
-
 #: rfc2131.c:718
 #, c-format
-msgid ""
-"not using configured address %s because it is in use by the server or relay"
-msgstr ""
+msgid "not using configured address %s because it is leased to %s"
+msgstr "nie proponujê zak³adanego w konfiguracji adresu %s, bo jest on ju¿ wydzier¿awiony komputerowi %s"
 
-#: rfc2131.c:721
+#: rfc2131.c:728
+#, c-format
+msgid "not using configured address %s because it is in use by the server or relay"
+msgstr "nie proponujê zak³adanego w konfiguracji adresu %s, bo u¿ywa go który¶ z serwerów"
+
+#: rfc2131.c:731
 #, c-format
 msgid "not using configured address %s because it was previously declined"
-msgstr ""
+msgstr "nie proponujê zak³adanego w konfiguracji adresu %s, bo ju¿ poprzednio zosta³ odrzucony"
 
-#: rfc2131.c:735 rfc2131.c:877
+#: rfc2131.c:745 rfc2131.c:895
 msgid "no unique-id"
-msgstr ""
+msgstr "brak unikalnego id"
 
-#: rfc2131.c:807
+#: rfc2131.c:825
 msgid "wrong address"
 msgstr "b³êdny adres"
 
-#: rfc2131.c:824
+#: rfc2131.c:842
 msgid "lease not found"
 msgstr "dzier¿awa nie znaleziona"
 
-#: rfc2131.c:856
+#: rfc2131.c:874
 msgid "address not available"
 msgstr "adres niedostêpny"
 
-#: rfc2131.c:867
+#: rfc2131.c:885
 msgid "static lease available"
 msgstr "dostêpna statyczna dzier¿awa"
 
-#: rfc2131.c:871
+#: rfc2131.c:889
 msgid "address reserved"
 msgstr "adres zarezerwowany"
 
-#: rfc2131.c:1268
+#: rfc2131.c:1304
 #, c-format
 msgid "tags: %s"
-msgstr ""
+msgstr "znaczniki: %s"
 
-#: rfc2131.c:1355
+#: rfc2131.c:1391
 #, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
-msgstr ""
+msgstr "nie mam mo¿liwo¶ci wys³ania opcji %d DHCP/BOOTP: niedostateczna ilo¶æ miejsca w pakiecie"
 
-#: rfc2131.c:1525
-#, fuzzy, c-format
+#: rfc2131.c:1561
+#, c-format
 msgid "requested options: %s"
-msgstr "opcje kompilacji: %s"
+msgstr "wskazane opcje: %s"
 
-#: rfc2131.c:1574
-#, fuzzy, c-format
+#: rfc2131.c:1610
+#, c-format
 msgid "next server: %s"
-msgstr "b³±d DBus: %s"
+msgstr "nastêpny serwer: %s"
 
-#: rfc2131.c:1598
+#: rfc2131.c:1634
 #, c-format
 msgid "bootfile name: %s"
-msgstr ""
+msgstr "nazwa pliku bootowania: %s"
 
-#: rfc2131.c:1601
+#: rfc2131.c:1637
 #, c-format
 msgid "server name: %s"
-msgstr ""
+msgstr "nazwa serwera: %s"
 
 #: netlink.c:63
-#, fuzzy, c-format
+#, c-format
 msgid "cannot create netlink socket: %s"
-msgstr "nie mo¿na pod³±czyæ gniazda netlink: %s"
+msgstr "nie potrafiê utworzyæ po³±czenia netlink %s"
 
 #: netlink.c:230
-#, fuzzy, c-format
+#, c-format
 msgid "netlink returns error: %s"
-msgstr "b³±d DBus: %s"
+msgstr "wyst±pi³ b³±d w po³±czeniu netlink %s"
 
 #: dbus.c:115
 msgid "attempt to set an IPv6 server address via DBus - no IPv6 support"
-msgstr "próba ustawienia adresu IPv6 serwera przez DBus - brak obs³ugi IPv6"
+msgstr "próba ustawienia adresu IPv6 serwera przez DBus, ale brak obs³ugi IPv6"
 
 #: dbus.c:243
 msgid "setting upstream servers from DBus"
-msgstr ""
+msgstr "ustawiam adresy serwerów nadrzêdnych na podstawie informacji odebranych z DBus"
 
 #: dbus.c:281
 msgid "could not register a DBus message handler"
@@ -1322,12 +1322,12 @@ msgstr "nie mo¿na zarejestrowaæ uchwytu wiadomo¶ci DBus"
 #: bpf.c:146
 #, c-format
 msgid "cannot create DHCP BPF socket: %s"
-msgstr "b³±d utworzenia gniazda DHCP BPF: %s"
+msgstr "nie potrafiê utworzyæ gniazda DHCP BPF: %s"
 
 #: bpf.c:174
-#, fuzzy, c-format
+#, c-format
 msgid "DHCP request for unsupported hardware type (%d) received on %s"
-msgstr "¿±danie DHCP nieobs³ugiwanego typu sprzêtu (%d) otrzymane na %s"
+msgstr "¿±danie DHCP od urz±dzenia nieobs³ugiwanego typu (%d) odebrano na %s"
 
 #: tftp.c:175
 msgid "unable to get free port for TFTP"
@@ -1358,26 +1358,16 @@ msgstr "b³±d TFTP: %d bajtów odebrano w %s od %s"
 msgid "TFTP failed sending %s to %s"
 msgstr "b³±d wysy³ania pliku %s przez TFTP do komputera %s"
 
-#: log.c:73
-#, c-format
-msgid "cannot open %s: %s"
-msgstr "nie mo¿na otworzyæ %s: %s"
-
-#: log.c:89
-#, c-format
-msgid "warning: failed to change owner of %s: %s"
-msgstr "uwaga: brak mo¿liwo¶ci zmiany u¿ytkownika pliku %s na %s"
-
-#: log.c:161
+#: log.c:169
 #, c-format
 msgid "overflow: %d log entries lost"
-msgstr "przepe³nienie: stracono %d wpisów do logu"
+msgstr "przepe³nienie: stracono %d wpisów do logów"
 
-#: log.c:238
+#: log.c:246
 #, c-format
 msgid "log failed: %s"
-msgstr "nie potrafiê zapisaæ komunikatów do %s"
+msgstr "nie uda³o siê zapisaæ komunikatów do %s"
 
-#: log.c:394
+#: log.c:402
 msgid "FAILED to start up"
-msgstr "B£¡D uruchomienia"
+msgstr "B£¡D: nie uda³o siê uruchomiæ dnsmasq-a"

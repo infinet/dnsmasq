@@ -56,6 +56,7 @@
 #define SUBOPT_REMOTE_ID         2
 #define SUBOPT_SUBNET_SELECT     5     /* RFC 3527 */
 #define SUBOPT_SUBSCR_ID         6     /* RFC 3393 */
+#define SUBOPT_SERVER_OR        11     /* RFC 5107 */
 
 #define DHCPDISCOVER             1
 #define DHCPOFFER                2
@@ -68,9 +69,10 @@
 
 #define have_config(config, mask) ((config) && ((config)->flags & (mask))) 
 #define option_len(opt) ((int)(((unsigned char *)(opt))[1]))
-#define option_ptr(opt) ((void *)&(((unsigned char *)(opt))[2]))
+#define option_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[2u+(unsigned int)(i)]))
 
 static int sanitise(unsigned char *opt, char *buf);
+static struct in_addr server_id(struct dhcp_context *context, struct in_addr override);
 static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *config, unsigned char *opt);
 static void option_put(struct dhcp_packet *mess, unsigned char *end, int opt, int len, unsigned int val);
 static void option_put_string(struct dhcp_packet *mess, unsigned char *end, 
@@ -117,16 +119,16 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   unsigned int time;
   struct dhcp_config *config;
   struct dhcp_netid *netid = NULL;
-  struct in_addr subnet_addr, fallback;
+  struct in_addr subnet_addr, fallback, override;
   unsigned short fuzz = 0;
   unsigned int mess_type = 0;
   unsigned char fqdn_flags = 0;
   unsigned char *agent_id = NULL;
   unsigned char *emac = NULL;
-  int emac_len;
+  int emac_len = 0;
   struct dhcp_netid known_id;
 
-  subnet_addr.s_addr = 0;
+  subnet_addr.s_addr = override.s_addr = 0;
   
   if (mess->op != BOOTREQUEST || mess->hlen > DHCP_CHADDR_MAX)
     return 0;
@@ -184,8 +186,12 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    }
 
 	  /* look for RFC3527 Link selection sub-option */
-	  if ((sopt = option_find1(option_ptr(opt), option_ptr(opt) + option_len(opt), SUBOPT_SUBNET_SELECT, INADDRSZ)))
+	  if ((sopt = option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_SUBNET_SELECT, INADDRSZ)))
 	    subnet_addr = option_addr(sopt);
+
+	  /* look for RFC5107 server-identifier-override */
+	  if ((sopt = option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_SERVER_OR, INADDRSZ)))
+	    override = option_addr(sopt);
 	  
 	  /* if a circuit-id or remote-is option is provided, exact-match to options. */ 
 	  for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
@@ -201,9 +207,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      else 
 		continue;
 
-	      if ((sopt = option_find1(option_ptr(opt), option_ptr(opt) + option_len(opt), search, 1)) &&
+	      if ((sopt = option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), search, 1)) &&
 		  vendor->len == option_len(sopt) &&
-		  memcmp(option_ptr(sopt), vendor->data, vendor->len) == 0)
+		  memcmp(option_ptr(sopt, 0), vendor->data, vendor->len) == 0)
 		{
 		  vendor->netid.next = netid;
 		  netid = &vendor->netid;
@@ -220,7 +226,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       if ((opt = option_find(mess, sz, OPTION_CLIENT_ID, 1)))
 	{
 	  clid_len = option_len(opt);
-	  clid = option_ptr(opt);
+	  clid = option_ptr(opt, 0);
 	}
 
       /* do we have a lease in store? */
@@ -434,7 +440,10 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      lease_set_hwaddr(lease, mess->chaddr, NULL, mess->hlen, mess->htype, 0);
 	      if (hostname)
 		lease_set_hostname(lease, hostname, daemon->domain_suffix, 1); 
-	      lease_set_expires(lease, 0xffffffff, now); /* infinite lease */
+	      /* infinite lease unless nailed in dhcp-host line. */
+	      lease_set_expires(lease,  
+				have_config(config, CONFIG_TIME) ? config->lease_time : 0xffffffff, 
+				now); 
 	      lease_set_interface(lease, int_index);
 	      
 	      clear_packet(mess, end, NULL);
@@ -453,7 +462,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       /* http://tools.ietf.org/wg/dhc/draft-ietf-dhc-fqdn-option/draft-ietf-dhc-fqdn-option-10.txt */
       int len = option_len(opt);
       char *pq = daemon->dhcp_buff;
-      unsigned char *pp, *op = option_ptr(opt);
+      unsigned char *pp, *op = option_ptr(opt, 0);
       
       fqdn_flags = *op;
       len -= 3;
@@ -494,7 +503,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   else if ((opt = option_find(mess, sz, OPTION_HOSTNAME, 1)))
     {
       int len = option_len(opt);
-      memcpy(daemon->dhcp_buff, option_ptr(opt), len);
+      memcpy(daemon->dhcp_buff, option_ptr(opt, 0), len);
       /* Microsoft clients are broken, and need zero-terminated strings
 	 in options. We detect this state here, and do the same in
 	 any options we send */
@@ -562,7 +571,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 
   if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
     {
-      unsigned char *ucp = option_ptr(opt);
+      unsigned char *ucp = option_ptr(opt, 0);
       int tmp, j;
       for (j = 0; j < option_len(opt); j += ucp[j] + 1);
       if (j == option_len(opt))
@@ -597,7 +606,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	{
 	  int i;
 	  for (i = 0; i <= (option_len(opt) - vendor->len); i++)
-	    if (memcmp(vendor->data, option_ptr(opt)+i, vendor->len) == 0)
+	    if (memcmp(vendor->data, option_ptr(opt, i), vendor->len) == 0)
 	      {
 		vendor->netid.next = netid;
 		netid = &vendor->netid;
@@ -629,7 +638,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   if ((opt = option_find(mess, sz, OPTION_REQUESTED_OPTIONS, 0)))
     {
       req_options = (unsigned char *)daemon->dhcp_buff2;
-      memcpy(req_options, option_ptr(opt), option_len(opt));
+      memcpy(req_options, option_ptr(opt, 0), option_len(opt));
       req_options[option_len(opt)] = OPTION_END;
     }
   
@@ -637,16 +646,16 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
     {
     case DHCPDECLINE:
       if (!(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)) ||
-	  (context->local.s_addr != option_addr(opt).s_addr))
+	  option_addr(opt).s_addr != server_id(context, override).s_addr)
 	return 0;
-
+      
       /* sanitise any message. Paranoid? Moi? */
       sanitise(option_find(mess, sz, OPTION_MESSAGE, 1), daemon->dhcp_buff);
       
       if (!(opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))
 	return 0;
       
-      log_packet("DECLINE", option_ptr(opt), emac, emac_len, iface_name, daemon->dhcp_buff);
+      log_packet("DECLINE", option_ptr(opt, 0), emac, emac_len, iface_name, daemon->dhcp_buff);
       
       if (lease && lease->addr.s_addr == option_addr(opt).s_addr)
 	lease_prune(lease, now);
@@ -670,7 +679,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
     case DHCPRELEASE:
       if (!(context = narrow_context(context, mess->ciaddr, netid)) ||
 	  !(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)) ||
-	  (context->local.s_addr != option_addr(opt).s_addr))
+	  option_addr(opt).s_addr != server_id(context, override).s_addr)
 	return 0;
       
       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
@@ -692,10 +701,11 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	{
 	  struct in_addr addr, conf;
 	  
+	  addr.s_addr = conf.s_addr = 0;
+
 	  if ((opt = option_find(mess, sz, OPTION_REQUESTED_IP, INADDRSZ)))	 
 	    addr = option_addr(opt);
 	  
-	  conf.s_addr = 0;
 	  if (have_config(config, CONFIG_ADDR))
 	    {
 	      char *addrs = inet_ntoa(config->addr);
@@ -737,7 +747,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    message = _("no address available");      
 	}
       
-      log_packet("DISCOVER", opt ? option_ptr(opt) : NULL, emac, emac_len, iface_name, message); 
+      log_packet("DISCOVER", opt ? option_ptr(opt, 0) : NULL, emac, emac_len, iface_name, message); 
 
       if (message || !(context = narrow_context(context, mess->yiaddr, netid)))
 	return 0;
@@ -753,7 +763,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       time = calc_time(context, config, option_find(mess, sz, OPTION_LEASE_TIME, 4));
       clear_packet(mess, end, agent_id);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPOFFER);
-      option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
+      option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(server_id(context, override).s_addr));
       option_put(mess, end, OPTION_LEASE_TIME, 4, time);
       /* T1 and T2 are required in DHCPOFFER by HP's wacky Jetdirect client. */
       if (time != 0xffffffff)
@@ -782,13 +792,21 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      /* SELECTING */
 	      selecting = 1;
 	      
-	      for (; context; context = context->current)
-		if (context->local.s_addr == option_addr(opt).s_addr)
-		  break;
+	      if (override.s_addr != 0)
+		{
+		  if (option_addr(opt).s_addr != override.s_addr)
+		    return 0;
+		}
+	      else
+		{
+		  for (; context; context = context->current)
+		    if (context->local.s_addr == option_addr(opt).s_addr)
+		      break;
+		  
+		  if (!context)
+		    return 0;
+		}
 
-	      if (!context)
-		return 0;
-	      
 	      /* If a lease exists for this host and another address, squash it. */
 	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
 		{
@@ -893,7 +911,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  clear_packet(mess, end, agent_id);
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPNAK);
 	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, 
-		     ntohl(context ? context->local.s_addr : fallback.s_addr));
+		     ntohl(server_id(context, override).s_addr ? server_id(context, override).s_addr : fallback.s_addr));
 	  option_put_string(mess, end, OPTION_MESSAGE, message, borken_opt);
 	  /* DHCPNAK gets agent-id too */
 	  restore_agent_id(agent_id, mess, end);
@@ -915,7 +933,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	       if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
 		 {
 		   int len = option_len(opt);
-		   unsigned char *ucp = option_ptr(opt);
+		   unsigned char *ucp = option_ptr(opt, 0);
 		   /* If the user-class option started as counted strings, the first byte will be zero. */
 		   if (len != 0 && ucp[0] == 0)
 		     ucp++, len--;
@@ -930,7 +948,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	       if ((opt = option_find(mess, sz, OPTION_VENDOR_ID, 1)))
 		 {
 		   int len = option_len(opt);
-		   unsigned char *ucp = option_ptr(opt);
+		   unsigned char *ucp = option_ptr(opt, 0);
 		   free(lease->vendorclass);
 		   if ((lease->vendorclass = whine_malloc(len+1)))
 		     {
@@ -970,12 +988,17 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  
 	  lease_set_expires(lease, time, now);
 	  lease_set_interface(lease, int_index);
-	
+
+	  if (override.s_addr != 0)
+	    lease->override = override;
+	  else
+	    override = lease->override;
+
 	  log_packet("ACK", &mess->yiaddr, emac, emac_len, iface_name, hostname);  
 	  
 	  clear_packet(mess, end, agent_id);
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
-	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
+	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(server_id(context, override).s_addr));
 	  option_put(mess, end, OPTION_LEASE_TIME, 4, time);
 	  if (time != 0xffffffff)
 	    {
@@ -1018,9 +1041,14 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  netid = &context->netid;
 	}
        
+      if (lease && override.s_addr != 0)
+	lease->override = override;
+      else
+	override = lease->override;
+      
       clear_packet(mess, end, agent_id);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
-      option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(context->local.s_addr));
+      option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(server_id(context, override).s_addr));
 
       if (lease)
 	{
@@ -1093,6 +1121,14 @@ static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *
   return time;
 }
 
+static struct in_addr server_id(struct dhcp_context *context, struct in_addr override)
+{
+  if (override.s_addr != 0)
+    return override;
+  else
+    return context->local;
+}
+
 static int sanitise(unsigned char *opt, char *buf)
 {
   char *p;
@@ -1103,7 +1139,7 @@ static int sanitise(unsigned char *opt, char *buf)
   if (!opt)
     return 0;
 
-  p = option_ptr(opt);
+  p = option_ptr(opt, 0);
 
   for (i = option_len(opt); i > 0; i--)
     {
@@ -1153,27 +1189,27 @@ static void log_options(unsigned char *start)
 
 static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt, int minsize)
 {
-  while (*p != OPTION_END) 
+  while (1) 
     {
-      if (p >= end)
-	return NULL; /* malformed packet */
+      if (p > end)
+	return NULL;
+      else if (*p == OPTION_END)
+	return opt == OPTION_END ? p : NULL;
       else if (*p == OPTION_PAD)
 	p++;
       else 
 	{ 
 	  int opt_len;
-	  if (p >= end - 2)
+	  if (p > end - 2)
 	    return NULL; /* malformed packet */
 	  opt_len = option_len(p);
-	  if (p >= end - (2 + opt_len))
+	  if (p > end - (2 + opt_len))
 	    return NULL; /* malformed packet */
 	  if (*p == opt && opt_len >= minsize)
 	    return p;
 	  p += opt_len + 2;
 	}
     }
-  
-  return opt == OPTION_END ? p : NULL;
 }
  
 static unsigned char *option_find(struct dhcp_packet *mess, size_t size, int opt_type, int minsize)
@@ -1207,7 +1243,7 @@ static struct in_addr option_addr(unsigned char *opt)
   /* struct in_addr is network byte order */
   struct in_addr ret;
 
-  memcpy(&ret, option_ptr(opt), INADDRSZ);
+  memcpy(&ret, option_ptr(opt, 0), INADDRSZ);
 
   return ret;
 }
@@ -1217,7 +1253,7 @@ static unsigned int option_uint(unsigned char *opt, int size)
   /* this worries about unaligned data and byte order */
   unsigned int ret = 0;
   int i;
-  unsigned char *p = option_ptr(opt);
+  unsigned char *p = option_ptr(opt, 0);
   
   for (i = 0; i < size; i++)
     ret = (ret << 8) | *p++;
@@ -1456,7 +1492,7 @@ static void match_vendor_opts(unsigned char *opt, struct dhcp_opt *dopt)
 	  if (dopt->vendor_class)
 	    len = strlen((char *)dopt->vendor_class);
 	  for (i = 0; i <= (option_len(opt) - len); i++)
-	    if (len == 0 || memcmp(dopt->vendor_class, option_ptr(opt)+i, len) == 0)
+	    if (len == 0 || memcmp(dopt->vendor_class, option_ptr(opt, i), len) == 0)
 	      {
 		dopt->flags |= DHOPT_VENDOR_MATCH;
 		break;

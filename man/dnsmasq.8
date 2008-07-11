@@ -122,9 +122,18 @@ forwarder. Defaults to 1280, which is the RFC2671-recommended maximum
 for ethernet.
 .TP
 .B \-Q, --query-port=<query_port>
-Send outbound DNS queries from, and listen for their replies on, the specific UDP port <query_port> instead of using one chosen at runtime.  Useful to simplify your
-firewall rules; without this, your firewall would have to allow connections from outside DNS servers to a range of UDP ports, or dynamically adapt to the
-port being used by the current dnsmasq instance.
+Send outbound DNS queries from, and listen for their replies on, the
+specific UDP port <query_port> instead of using random ports. NOTE
+that using this option will make dnsmasq less secure against DNS
+spoofing attacks but it may be faster and use less resources.  Setting this option
+to zero makes dnsmasq use a single port allocated to it by the
+OS: this was the default behaviour in versions prior to 2.43. 
+.TP
+.B --min-port=<port>
+Do not use ports less than that given as source for outbound DNS
+queries. Dnsmasq picks random ports as source for outbound queries:
+when this option is given, the ports used will always to larger
+than that specified. Useful for systems behind firewalls. 
 .TP
 .B \-i, --interface=<interface name>
 Listen only on the specified interface(s). Dnsmasq automatically adds
@@ -372,6 +381,9 @@ so  any number may be included, split by commas.
 .TP
 .B --ptr-record=<name>[,<target>]
 Return a PTR DNS record.
+.TP
+.B --naptr-record=<name>,<order>,<preference>,<flags>,<service>,<regexp>[,<replacement>]
+Return an NAPTR DNS record, as specified in RFC3403.
 .TP
 .B --interface-name=<name>,<interface>
 Return a DNS record associating the name with the primary address on

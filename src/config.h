@@ -14,13 +14,14 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.42"
+#define VERSION "2.43"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
 #define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
+#define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define LEASE_RETRY 60 /* on error, retry writing leasefile after LEASE_RETRY seconds */
 #define CACHESIZ 150 /* default cache size */
 #define MAXLEASES 150 /* maximum number of DHCP leases */
@@ -39,7 +40,7 @@
 #define RUNFILE "/var/run/dnsmasq.pid"
 #if defined(__FreeBSD__) || defined (__OpenBSD__) || defined(__DragonFly__)
 #   define LEASEFILE "/var/db/dnsmasq.leases"
-#elif defined(__sun__)
+#elif defined(__sun__) || defined (__sun)
 #   define LEASEFILE "/var/cache/dnsmasq.leases"
 #else
 #   define LEASEFILE "/var/lib/misc/dnsmasq.leases"
@@ -59,6 +60,7 @@
 #define TFTP_PORT 69
 #define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
 #define LOG_MAX 5 /* log-queue length */
+#define RANDFILE "/dev/urandom"
 
 /* DBUS interface specifics */
 #define DNSMASQ_SERVICE "uk.org.thekelleys.dnsmasq"
@@ -127,19 +129,6 @@ HAVE_ARC4RANDOM
    define this if you have arc4random() to get better security from DNS spoofs
    by using really random ids (OpenBSD) 
 
-HAVE_RANDOM
-   define this if you have the 4.2BSD random() function (and its
-   associated srandom() function), which is at least as good as (if not
-   better than) the rand() function.
-
-HAVE_DEV_RANDOM
-   define this if you have the /dev/random device, which gives truly
-   random numbers but may run out of random numbers.
-
-HAVE_DEV_URANDOM
-   define this if you have the /dev/urandom device, which gives
-   semi-random numbers when it runs out of truly random numbers.
-
 HAVE_SOCKADDR_SA_LEN
    define this if struct sockaddr has sa_len field (*BSD) 
 
@@ -152,13 +141,14 @@ HAVE_BSD_BRIDGE
    Define this to enable the --bridge-interface option, useful on some
    BSD systems.
 
+HAVE_LARGFILE
+   Define this if the C library supports large (>2GB) files probably true everywhere 
+   except some builds of uclibc
+
 NOTES:
    For Linux you should define 
       HAVE_LINUX_NETWORK
       HAVE_GETOPT_LONG
-      HAVE_RANDOM
-      HAVE_DEV_RANDOM
-      HAVE_DEV_URANDOM
   you should NOT define 
       HAVE_ARC4RANDOM
       HAVE_SOCKADDR_SA_LEN
@@ -166,12 +156,8 @@ NOTES:
    For *BSD systems you should define 
      HAVE_BSD_NETWORK
      HAVE_SOCKADDR_SA_LEN
-     HAVE_RANDOM
    and you MAY define  
      HAVE_ARC4RANDOM - OpenBSD and FreeBSD and NetBSD version 2.0 or later
-     HAVE_DEV_URANDOM - OpenBSD and FreeBSD and NetBSD
-     HAVE_DEV_RANDOM - FreeBSD  and NetBSD 
-                       (OpenBSD with hardware random number generator)
      HAVE_GETOPT_LONG - NetBSD, later FreeBSD 
                        (FreeBSD and OpenBSD only if you link GNU getopt) 
 
@@ -199,9 +185,6 @@ NOTES:
 #define HAVE_LINUX_NETWORK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
-#define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 /* Never use fork() on uClinux. Note that this is subtly different from the
    --keep-in-foreground option, since it also  suppresses forking new 
@@ -214,13 +197,8 @@ NOTES:
 #if defined(__UCLIBC_HAS_GNU_GETOPT__) || \
    ((__UCLIBC_MAJOR__==0) && (__UCLIBC_MINOR__==9) && (__UCLIBC_SUBLEVEL__<21))
 #    define HAVE_GETOPT_LONG
-#else
-#    undef HAVE_GETOPT_LONG
 #endif
 #undef HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
-#define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #if !defined(__ARCH_HAS_MMU__) && !defined(__UCLIBC_HAS_MMU__)
 #  define NO_FORK
@@ -236,9 +214,6 @@ NOTES:
 #define HAVE_LINUX_NETWORK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
-#define HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 /* glibc < 2.2  has broken Sockaddr_in6 so we have to use our own. */
 /* glibc < 2.2 doesn't define in_addr_t */
@@ -256,12 +231,10 @@ typedef unsigned long in_addr_t;
 /* Later verions of FreeBSD have getopt_long() */
 #if defined(optional_argument) && defined(required_argument)
 #   define HAVE_GETOPT_LONG
-#else
-#   undef HAVE_GETOPT_LONG
 #endif
-#define HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
+#if !defined (__FreeBSD_kernel__)
+#   define HAVE_ARC4RANDOM
+#endif
 #define HAVE_SOCKADDR_SA_LEN
 #define HAVE_BSD_BRIDGE
 
@@ -269,8 +242,6 @@ typedef unsigned long in_addr_t;
 #define HAVE_BSD_NETWORK
 #undef HAVE_GETOPT_LONG
 #define HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
 #define HAVE_SOCKADDR_SA_LEN
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
@@ -281,9 +252,6 @@ typedef unsigned long in_addr_t;
 #define HAVE_BSD_NETWORK
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#define HAVE_DEV_URANDOM
-#define HAVE_DEV_RANDOM
 #define HAVE_SOCKADDR_SA_LEN
 #define HAVE_BSD_BRIDGE
 
@@ -308,10 +276,8 @@ typedef unsigned long in_addr_t;
 #  define CMSG_SPACE(len) (__CMSG_ALIGN(sizeof(struct cmsghdr)) + __CMSG_ALIGN(len))
 #endif
 #undef HAVE_ARC4RANDOM
-#define HAVE_RANDOM
-#undef HAVE_DEV_URANDOM
-#undef HAVE_DEV_RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
+
 #define _XPG4_2
 #define __EXTENSIONS__
 #define ETHER_ADDR_LEN 6
