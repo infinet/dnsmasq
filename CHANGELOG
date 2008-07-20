@@ -2599,3 +2599,13 @@ version 2.44
 
 	    Patch to enable compilation of latest Mac OS X. Thanks to
 	    David Gilman.
+
+	    Update Spanish translation. Thanks to Christopher Chatham.
+
+version 2.45
+            Fix total DNS failure in release 2.43 unless --min-port 
+            specified. Thanks to Steven Barth and Grant Coady for
+            bugreport. Also reject out-of-range port spec, which could
+            break things too: suggestion from Gilles Espinasse.
+
+ 

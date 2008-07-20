@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-20 09:38+0100\n"
+"POT-Creation-Date: 2008-07-20 20:03+0100\n"
 "PO-Revision-Date: 2005-10-07 11:45+0100\n"
 "Last-Translator: Salman AS <sas@salman.or.id>\n"
 "Language-Team: Indonesian <translation-team-id@lists.sourceforge.net>\n"
@@ -563,7 +563,7 @@ msgid "Specify lowest port available for DNS query transmission."
 msgstr ""
 
 # OK
-#: option.c:564
+#: option.c:574
 #, c-format
 msgid ""
 "Usage: dnsmasq [options]\n"
@@ -573,238 +573,238 @@ msgstr ""
 "\n"
 
 # OK
-#: option.c:566
+#: option.c:576
 #, c-format
 msgid "Use short options only on the command line.\n"
 msgstr "Gunakan pilihan pendek saja pada perintah baris.\n"
 
 # OK
-#: option.c:568
+#: option.c:578
 #, fuzzy, c-format
 msgid "Valid options are:\n"
 msgstr "Pilihan yang boleh adalah:\n"
 
-#: option.c:608
+#: option.c:618
 #, c-format
 msgid "Known DHCP options:\n"
 msgstr ""
 
 # OK
-#: option.c:681
+#: option.c:691
 msgid "bad dhcp-option"
 msgstr "dhcp-option salah"
 
 # OK
-#: option.c:737
+#: option.c:747
 #, fuzzy
 msgid "bad IP address"
 msgstr "membaca %s - %d alamat"
 
 # OK
-#: option.c:835
+#: option.c:845
 msgid "bad domain in dhcp-option"
 msgstr "domain dalam dhcp-option salah"
 
 # OK
-#: option.c:893
+#: option.c:903
 msgid "dhcp-option too long"
 msgstr "dhcp-option terlalu panjang"
 
-#: option.c:922
+#: option.c:932
 msgid "illegal repeated flag"
 msgstr ""
 
-#: option.c:930
+#: option.c:940
 msgid "illegal repeated keyword"
 msgstr ""
 
 # OK
-#: option.c:964
+#: option.c:974
 #, fuzzy, c-format
 msgid "cannot access directory %s: %s"
 msgstr "tidak bisa membaca %s: %s"
 
 # OK
-#: option.c:983 tftp.c:348
+#: option.c:993 tftp.c:348
 #, fuzzy, c-format
 msgid "cannot access %s: %s"
 msgstr "tidak bisa membaca %s: %s"
 
-#: option.c:1020
+#: option.c:1030
 msgid "only one dhcp-hostsfile allowed"
 msgstr ""
 
-#: option.c:1027
+#: option.c:1037
 msgid "only one dhcp-optsfile allowed"
 msgstr ""
 
 # OK
-#: option.c:1071
+#: option.c:1081
 msgid "bad MX preference"
 msgstr "kesukaan MX salah"
 
 # OK
-#: option.c:1075
+#: option.c:1085
 msgid "bad MX name"
 msgstr "nama MX salah"
 
 # OK
-#: option.c:1089
+#: option.c:1099
 msgid "bad MX target"
 msgstr "target MX salah"
 
-#: option.c:1100
+#: option.c:1110
 msgid "cannot run scripts under uClinux"
 msgstr ""
 
 # OK
-#: option.c:1293 option.c:1301
+#: option.c:1303 option.c:1311
 msgid "bad port"
 msgstr "port salah"
 
-#: option.c:1321 option.c:1346
+#: option.c:1331 option.c:1356
 msgid "interface binding not supported"
 msgstr ""
 
 # OK
-#: option.c:1464
+#: option.c:1474
 #, fuzzy
 msgid "bad port range"
 msgstr "port salah"
 
-#: option.c:1481
+#: option.c:1491
 msgid "bad bridge-interface"
 msgstr ""
 
 # OK
-#: option.c:1522
+#: option.c:1532
 msgid "bad dhcp-range"
 msgstr "dhcp-range salah"
 
-#: option.c:1548
+#: option.c:1558
 msgid "only one netid tag allowed"
 msgstr ""
 
 # OK
-#: option.c:1588
+#: option.c:1598
 msgid "inconsistent DHCP range"
 msgstr "jangkauan DHCP tidak konsisten"
 
 # OK
-#: option.c:1756
+#: option.c:1766
 #, fuzzy
 msgid "bad DHCP host name"
 msgstr "nama MX salah"
 
 # OK
-#: option.c:1928 option.c:2171
+#: option.c:1938 option.c:2181
 msgid "invalid port number"
 msgstr "nomor port tidak benar"
 
 # OK
-#: option.c:2014
+#: option.c:2024
 #, fuzzy
 msgid "bad interface name"
 msgstr "nama MX salah"
 
 # OK
-#: option.c:2034
+#: option.c:2044
 #, fuzzy
 msgid "bad PTR record"
 msgstr "rekord SRV salah"
 
 # OK
-#: option.c:2064
+#: option.c:2074
 #, fuzzy
 msgid "bad NAPTR record"
 msgstr "rekord SRV salah"
 
 # OK
-#: option.c:2090
+#: option.c:2100
 msgid "TXT record string too long"
 msgstr "string rekord TXT terlalu panjang"
 
 # OK
-#: option.c:2094
+#: option.c:2104
 msgid "bad TXT record"
 msgstr "rekord TXT salah"
 
 # OK
-#: option.c:2154
+#: option.c:2164
 msgid "bad SRV record"
 msgstr "rekord SRV salah"
 
 # OK
-#: option.c:2163
+#: option.c:2173
 msgid "bad SRV target"
 msgstr "target SRV salah"
 
 # OK
-#: option.c:2178
+#: option.c:2188
 msgid "invalid priority"
 msgstr "prioritas tidak benar"
 
 # OK
-#: option.c:2185
+#: option.c:2195
 msgid "invalid weight"
 msgstr "weight tidak benar"
 
-#: option.c:2221
+#: option.c:2231
 #, c-format
 msgid "files nested too deep in %s"
 msgstr ""
 
 # OK
-#: option.c:2229 tftp.c:503
+#: option.c:2239 tftp.c:503
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "tidak bisa membaca %s: %s"
 
 # OK
-#: option.c:2290
+#: option.c:2300
 msgid "missing \""
 msgstr "kurang \""
 
 # OK
-#: option.c:2337
+#: option.c:2347
 msgid "bad option"
 msgstr "pilihan salah"
 
 # OK
-#: option.c:2339
+#: option.c:2349
 msgid "extraneous parameter"
 msgstr "parameter berlebihan"
 
 # OK
-#: option.c:2341
+#: option.c:2351
 msgid "missing parameter"
 msgstr "parameter kurang"
 
 # OK
-#: option.c:2349
+#: option.c:2359
 msgid "error"
 msgstr "kesalahan"
 
 # OK
-#: option.c:2355
+#: option.c:2365
 #, c-format
 msgid "%s at line %d of %%s"
 msgstr "%s pada baris %d dari %%s"
 
 # OK
-#: option.c:2395 option.c:2425
+#: option.c:2405 option.c:2435
 #, fuzzy, c-format
 msgid "read %s"
 msgstr "membaca %s"
 
 # OK
-#: option.c:2492
+#: option.c:2502
 #, c-format
 msgid "Dnsmasq version %s  %s\n"
 msgstr "Dnsmasq versi %s  %s\n"
 
 # OK
-#: option.c:2493
+#: option.c:2503
 #, c-format
 msgid ""
 "Compile time options %s\n"
@@ -814,61 +814,61 @@ msgstr ""
 "\n"
 
 # OK
-#: option.c:2494
+#: option.c:2504
 #, c-format
 msgid "This software comes with ABSOLUTELY NO WARRANTY.\n"
 msgstr "Perangkat lunak ini tersedia TANPA JAMINAN SEDIKITPUN.\n"
 
 # OK
-#: option.c:2495
+#: option.c:2505
 #, c-format
 msgid "Dnsmasq is free software, and you are welcome to redistribute it\n"
 msgstr "Dnsdmasq adalah perangkat lunak bebas, dan Anda dipersilahkan untuk membagikannya\n"
 
 # OK
-#: option.c:2496
+#: option.c:2506
 #, fuzzy, c-format
 msgid "under the terms of the GNU General Public License, version 2 or 3.\n"
 msgstr "dengan aturan GNU General Public License, versi 2.\n"
 
-#: option.c:2507
+#: option.c:2517
 msgid "try --help"
 msgstr ""
 
-#: option.c:2509
+#: option.c:2519
 msgid "try -w"
 msgstr ""
 
 # OK
-#: option.c:2512
+#: option.c:2522
 #, fuzzy, c-format
 msgid "bad command line options: %s"
 msgstr "pilihan baris perintah salah: %s."
 
 # OK
-#: option.c:2553
+#: option.c:2563
 #, c-format
 msgid "cannot get host-name: %s"
 msgstr "tidak bisa mendapatkan host-name: %s"
 
 # OK
-#: option.c:2581
+#: option.c:2591
 msgid "only one resolv.conf file allowed in no-poll mode."
 msgstr "hanya satu file resolv.conf yang diperbolehkan dalam modus no-poll."
 
 # OK
-#: option.c:2591
+#: option.c:2601
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "harus mempunyai tepat satu resolv.conf untuk mendapatkan nama domain."
 
 # OK
-#: option.c:2594 network.c:719
+#: option.c:2604 network.c:724
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "gagal membaca %s: %m"
 
 # OK
-#: option.c:2612
+#: option.c:2622
 #, c-format
 msgid "no search directive found in %s"
 msgstr "tidak ditemukan direktif search di %s"
@@ -948,61 +948,61 @@ msgstr "gagal mendengarkan di socket: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "gagal membuat socket: %s "
 
-#: network.c:626
+#: network.c:631
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "gagal mem-bind socket untuk mendengarkan %s: %s"
 
 # OK
-#: network.c:659
+#: network.c:664
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "mengabaikan nameserver %s - antarmuka lokal"
 
 # OK
-#: network.c:670
+#: network.c:675
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "mengabaikan nameserver %s - tak dapat membuat/mem-bind socket: %m"
 
 # OK
-#: network.c:685
+#: network.c:690
 msgid "unqualified"
 msgstr "tidak memenuhi syarat"
 
-#: network.c:685
+#: network.c:690
 msgid "names"
 msgstr ""
 
-#: network.c:687
+#: network.c:692
 msgid "default"
 msgstr ""
 
 # OK
-#: network.c:689
+#: network.c:694
 msgid "domain"
 msgstr "domain"
 
 # OK
-#: network.c:692
+#: network.c:697
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "menggunakan alamat lokal saja untuk %s %s"
 
 # OK
-#: network.c:694
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "menggunakan nameserver %s#%d untuk %s %s"
 
 # OK
-#: network.c:697
+#: network.c:702
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "menggunakan nameserver %s#%d"
 
 # OK
-#: network.c:699
+#: network.c:704
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "menggunakan nameserver %s#%d"

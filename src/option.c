@@ -529,6 +529,16 @@ static int atoi_check(char *a, int *res)
   return 1;
 }
 
+static int atoi_check16(char *a, int *res)
+{
+  if (!(atoi_check(a, res)) ||
+      *res < 0 ||
+      *res > 0xffff)
+    return 0;
+
+  return 1;
+}
+	
 static void add_txt(char *name, char *txt)
 {
   size_t len = strlen(txt);
@@ -1067,7 +1077,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	if ((comma = split(arg)))
 	  {
 	    char *prefstr;
-	    if ((prefstr=split(comma)) && !atoi_check(prefstr, &pref))
+	    if ((prefstr=split(comma)) && !atoi_check16(prefstr, &pref))
 	      problem = _("bad MX preference");
 	  }
 	
@@ -1289,7 +1299,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		if ((portno = strchr(source+1, '#')))
 		  { 
 		    *portno = 0;
-		    if (!atoi_check(portno+1, &source_port))
+		    if (!atoi_check16(portno+1, &source_port))
 		      problem = _("bad port");
 		  }
 	      }
@@ -1297,7 +1307,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	    if ((portno = strchr(arg, '#'))) /* is there a port no. */
 	      {
 		*portno = 0;
-		if (!atoi_check(portno+1, &serv_port))
+		if (!atoi_check16(portno+1, &serv_port))
 		  problem = _("bad port");
 	      }
 	    
@@ -1390,12 +1400,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       }
       
     case 'p':  /* --port */
-      if (!atoi_check(arg, &daemon->port))
+      if (!atoi_check16(arg, &daemon->port))
 	option = '?';
       break;
     
     case LOPT_MINPORT:  /* --min-port */
-      if (!atoi_check(arg, &daemon->min_port))
+      if (!atoi_check16(arg, &daemon->min_port))
 	option = '?';
       break;
 
@@ -1422,7 +1432,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       }
       
     case 'Q':  /* --query-port */
-      if (!atoi_check(arg, &daemon->query_port))
+      if (!atoi_check16(arg, &daemon->query_port))
 	option = '?';
       /* if explicitly set to zero, use single OS ephemeral port
 	 and disable random ports */
@@ -1459,8 +1469,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 
     case LOPT_TFTPPORTS: /* --tftp-port-range */
       if (!(comma = split(arg)) || 
-	  !atoi_check(arg, &daemon->start_tftp_port) ||
-	  !atoi_check(comma, &daemon->end_tftp_port))
+	  !atoi_check16(arg, &daemon->start_tftp_port) ||
+	  !atoi_check16(comma, &daemon->end_tftp_port))
 	problem = _("bad port range");
       
       if (daemon->start_tftp_port > daemon->end_tftp_port)
@@ -1923,8 +1933,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       else
 	{
 	  comma = split(arg);
-	  if (!atoi_check(arg, &daemon->dhcp_server_port) || 
-	      (comma && !atoi_check(comma, &daemon->dhcp_client_port)))
+	  if (!atoi_check16(arg, &daemon->dhcp_server_port) || 
+	      (comma && !atoi_check16(comma, &daemon->dhcp_client_port)))
 	    problem = _("invalid port number");
 	  if (!comma)
 	    daemon->dhcp_client_port = daemon->dhcp_server_port+1; 
@@ -2058,8 +2068,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	if (k < 6 || 
 	    !canonicalise_opt(a[0]) ||
-	    !atoi_check(a[1], &order) || 
-	    !atoi_check(a[2], &pref) ||
+	    !atoi_check16(a[1], &order) || 
+	    !atoi_check16(a[2], &pref) ||
 	    (k == 7 && !canonicalise_opt(a[6])))
 	  problem = _("bad NAPTR record");
 	else
@@ -2167,21 +2177,21 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	      {
 		arg = comma;
 		comma = split(arg);
-		if (!atoi_check(arg, &port))
+		if (!atoi_check16(arg, &port))
 		  problem = _("invalid port number");
 		
 		if (comma)
 		  {
 		    arg = comma;
 		    comma = split(arg);
-		    if (!atoi_check(arg, &priority))
+		    if (!atoi_check16(arg, &priority))
 		      problem = _("invalid priority");
 			
 		    if (comma)
 		      {
 			arg = comma;
 			comma = split(arg);
-			if (!atoi_check(arg, &weight))
+			if (!atoi_check16(arg, &weight))
 			  problem = _("invalid weight");
 		      }
 		  }

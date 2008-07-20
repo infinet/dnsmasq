@@ -451,19 +451,24 @@ int random_sock(int family)
   if ((fd = socket(family, SOCK_DGRAM, 0)) != -1)
     {
       union mysockaddr addr;
-      unsigned short ports_avail = 65536u - (unsigned short)daemon->min_port;
-      int i;
+      unsigned int ports_avail = 65536u - (unsigned short)daemon->min_port;
+      int i, tries = 3 * ports_avail;
+
+      if (tries > 100)
+	tries = 100;
 
       memset(&addr, 0, sizeof(addr));
       addr.sa.sa_family = family;
 
+      /* don't loop forever if all ports in use. */
+
       if (fix_fd(fd))
-	for (i = ports_avail; i != 0; i--)
+	for (i = tries; i != 0; i--)
 	  {
 	    unsigned short port = rand16();
 	    
 	    if (daemon->min_port != 0)
-	      port = htons(daemon->min_port + (port % ports_avail));
+	      port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
 	    
 	    if (family == AF_INET) 
 	      {

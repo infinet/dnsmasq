@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-20 09:38+0100\n"
+"POT-Creation-Date: 2008-07-20 20:03+0100\n"
 "PO-Revision-Date: 2008-07-10 22:40+0200\n"
 "Last-Translator: Jan Psota <jasiu@belsznica.pl>\n"
 "Language-Team: Polski <pl@li.org>\n"
@@ -480,7 +480,7 @@ msgstr "Specyfikacja rekordu DNS NAPTR."
 msgid "Specify lowest port available for DNS query transmission."
 msgstr "Ustawienie dolnej granicy numerów portów do przesy³ania zapytañ DNS."
 
-#: option.c:564
+#: option.c:574
 #, c-format
 msgid ""
 "Usage: dnsmasq [options]\n"
@@ -489,197 +489,197 @@ msgstr ""
 "U¿ycie: dnsmasq [opcje]\n"
 "\n"
 
-#: option.c:566
+#: option.c:576
 #, c-format
 msgid "Use short options only on the command line.\n"
 msgstr "W tym systemie w linii poleceñ mo¿na u¿ywaæ wy³±cznie jednoliterowych opcji.\n"
 
-#: option.c:568
+#: option.c:578
 #, c-format
 msgid "Valid options are:\n"
 msgstr "Dostêpne opcje:\n"
 
-#: option.c:608
+#: option.c:618
 #, c-format
 msgid "Known DHCP options:\n"
 msgstr "Znane opcje DHCP:\n"
 
-#: option.c:681
+#: option.c:691
 msgid "bad dhcp-option"
 msgstr "b³±d w dhcp-option"
 
-#: option.c:737
+#: option.c:747
 msgid "bad IP address"
 msgstr "z³y adres IP"
 
-#: option.c:835
+#: option.c:845
 msgid "bad domain in dhcp-option"
 msgstr "nieprawid³owa nazwa domeny w dhcp-option"
 
-#: option.c:893
+#: option.c:903
 msgid "dhcp-option too long"
 msgstr "zbyt d³uga dhcp-option (>255 znaków)"
 
-#: option.c:922
+#: option.c:932
 msgid "illegal repeated flag"
 msgstr "wielokrotne u¿ycie opcji niedozwolone (pojawi³a siê wcze¶niej w linii poleceñ)"
 
-#: option.c:930
+#: option.c:940
 msgid "illegal repeated keyword"
 msgstr "wielokrotne u¿ycie opcji niedozwolone (pojawi³a siê wsze¶niej w pliku konfiguracyjnym)"
 
-#: option.c:964
+#: option.c:974
 #, c-format
 msgid "cannot access directory %s: %s"
 msgstr "brak dostêpu do katalogu %s: %s"
 
-#: option.c:983 tftp.c:348
+#: option.c:993 tftp.c:348
 #, c-format
 msgid "cannot access %s: %s"
 msgstr "brak dostêpu do %s: %s"
 
-#: option.c:1020
+#: option.c:1030
 msgid "only one dhcp-hostsfile allowed"
 msgstr "mo¿na wskazaæ tylko jeden plik dhcp-hostsfile"
 
-#: option.c:1027
+#: option.c:1037
 msgid "only one dhcp-optsfile allowed"
 msgstr "mo¿na wskazaæ tylko jeden plik dhcp-optsfile"
 
-#: option.c:1071
+#: option.c:1081
 msgid "bad MX preference"
 msgstr "nieprawid³owa warto¶æ preferencji MX"
 
-#: option.c:1075
+#: option.c:1085
 msgid "bad MX name"
 msgstr "nieprawid³owa nazwa MX"
 
-#: option.c:1089
+#: option.c:1099
 msgid "bad MX target"
 msgstr "nieprawid³owa warto¶æ celu MX"
 
-#: option.c:1100
+#: option.c:1110
 msgid "cannot run scripts under uClinux"
 msgstr "w uClinuksie nie ma mo¿liwo¶ci uruchamiania skryptów"
 
-#: option.c:1293 option.c:1301
+#: option.c:1303 option.c:1311
 msgid "bad port"
 msgstr "nieprawid³owy numer portu"
 
-#: option.c:1321 option.c:1346
+#: option.c:1331 option.c:1356
 msgid "interface binding not supported"
 msgstr "nie ma mo¿liwo¶ci dowi±zywania do interfejsu"
 
-#: option.c:1464
+#: option.c:1474
 msgid "bad port range"
 msgstr "nieprawid³owy zakres numerów portów"
 
-#: option.c:1481
+#: option.c:1491
 msgid "bad bridge-interface"
 msgstr "nieprawid³owa nazwa urz±dzenia w bridge-interface"
 
-#: option.c:1522
+#: option.c:1532
 msgid "bad dhcp-range"
 msgstr "nieprawid³owy zakres dhcp-range"
 
-#: option.c:1548
+#: option.c:1558
 msgid "only one netid tag allowed"
 msgstr "mo¿na wskazaæ tylko jeden znacznik sieci"
 
-#: option.c:1588
+#: option.c:1598
 msgid "inconsistent DHCP range"
 msgstr "niespójny zakres adresów DHCP"
 
-#: option.c:1756
+#: option.c:1766
 msgid "bad DHCP host name"
 msgstr "niedopuszczalna nazwa komputera w dhcp-host"
 
-#: option.c:1928 option.c:2171
+#: option.c:1938 option.c:2181
 msgid "invalid port number"
 msgstr "nieprawid³owy numer portu"
 
-#: option.c:2014
+#: option.c:2024
 msgid "bad interface name"
 msgstr "nieprawid³owa nazwa interfejsu"
 
-#: option.c:2034
+#: option.c:2044
 msgid "bad PTR record"
 msgstr "nieprawid³owy zapis rekordu PTR"
 
-#: option.c:2064
+#: option.c:2074
 msgid "bad NAPTR record"
 msgstr "nieprawid³owy zapis rekordu NAPTR"
 
-#: option.c:2090
+#: option.c:2100
 msgid "TXT record string too long"
 msgstr "zbyt d³ugi rekord TXT"
 
-#: option.c:2094
+#: option.c:2104
 msgid "bad TXT record"
 msgstr "nieprawid³owy zapis rekordu TXT"
 
-#: option.c:2154
+#: option.c:2164
 msgid "bad SRV record"
 msgstr "nieprawid³owy zapis rekordu SRV"
 
-#: option.c:2163
+#: option.c:2173
 msgid "bad SRV target"
 msgstr "nieprawid³owa warto¶æ celu SRV"
 
-#: option.c:2178
+#: option.c:2188
 msgid "invalid priority"
 msgstr "nieprawid³owy priorytet"
 
-#: option.c:2185
+#: option.c:2195
 msgid "invalid weight"
 msgstr "nieprawid³owa waga"
 
-#: option.c:2221
+#: option.c:2231
 #, c-format
 msgid "files nested too deep in %s"
 msgstr "zbyt du¿e zag³êbienie plików w %s"
 
-#: option.c:2229 tftp.c:503
+#: option.c:2239 tftp.c:503
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "b³±d odczytu z pliku %s: %s"
 
-#: option.c:2290
+#: option.c:2300
 msgid "missing \""
 msgstr "brakuje \""
 
-#: option.c:2337
+#: option.c:2347
 msgid "bad option"
 msgstr "nieprawid³owa opcja"
 
-#: option.c:2339
+#: option.c:2349
 msgid "extraneous parameter"
 msgstr "nadwy¿kowy parametr"
 
-#: option.c:2341
+#: option.c:2351
 msgid "missing parameter"
 msgstr "brak parametru"
 
-#: option.c:2349
+#: option.c:2359
 msgid "error"
 msgstr "b³±d"
 
-#: option.c:2355
+#: option.c:2365
 #, c-format
 msgid "%s at line %d of %%s"
 msgstr "%s w linii %d pliku %%s"
 
-#: option.c:2395 option.c:2425
+#: option.c:2405 option.c:2435
 #, c-format
 msgid "read %s"
 msgstr "przeczyta³em %s"
 
-#: option.c:2492
+#: option.c:2502
 #, c-format
 msgid "Dnsmasq version %s  %s\n"
 msgstr "Dnsmasq, wersja %s  %s\n"
 
-#: option.c:2493
+#: option.c:2503
 #, c-format
 msgid ""
 "Compile time options %s\n"
@@ -688,53 +688,53 @@ msgstr ""
 "Wkompilowane opcje %s\n"
 "\n"
 
-#: option.c:2494
+#: option.c:2504
 #, c-format
 msgid "This software comes with ABSOLUTELY NO WARRANTY.\n"
 msgstr "To oprogramowanie nie daje ¿adnych gwarancji.\n"
 
-#: option.c:2495
+#: option.c:2505
 #, c-format
 msgid "Dnsmasq is free software, and you are welcome to redistribute it\n"
 msgstr "Dnsmasq jest wolnym oprogramowaniem, mo¿esz go rozprowadzaæ\n"
 
-#: option.c:2496
+#: option.c:2506
 #, c-format
 msgid "under the terms of the GNU General Public License, version 2 or 3.\n"
 msgstr "na warunkach okre¶lonych w GNU General Public Licence, w wersji 2 lub 3.\n"
 
-#: option.c:2507
+#: option.c:2517
 msgid "try --help"
 msgstr "spróbuj: --help"
 
-#: option.c:2509
+#: option.c:2519
 msgid "try -w"
 msgstr "spróbuj: -w"
 
-#: option.c:2512
+#: option.c:2522
 #, c-format
 msgid "bad command line options: %s"
 msgstr "nieprawid³owa opcja w linii poleceñ %s"
 
-#: option.c:2553
+#: option.c:2563
 #, c-format
 msgid "cannot get host-name: %s"
 msgstr "nie mo¿na pobraæ nazwy hosta: %s"
 
-#: option.c:2581
+#: option.c:2591
 msgid "only one resolv.conf file allowed in no-poll mode."
 msgstr "w trybie no-poll mo¿na wskazaæ najwy¿ej jeden plik resolv.conf."
 
-#: option.c:2591
+#: option.c:2601
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "musisz mieæ dok³adnie jeden plik resolv.conf do odczytu domen."
 
-#: option.c:2594 network.c:719
+#: option.c:2604 network.c:724
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "nie uda³o siê odczytaæ %s: %s"
 
-#: option.c:2612
+#: option.c:2622
 #, c-format
 msgid "no search directive found in %s"
 msgstr "brak wytycznych wyszukiwania w %s"
@@ -803,53 +803,53 @@ msgstr "b³±d przy w³±czaniu nas³uchu na gnie¼dzie: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "nie powiod³o siê otwieranie gniazda dla us³ugi TFTP: %s"
 
-#: network.c:626
+#: network.c:631
 #, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "b³±d przy przyznawaniu nazwy gniazdu serwera %s: %s"
 
-#: network.c:659
+#: network.c:664
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorowanie serwera nazw %s - interfejs lokalny"
 
-#: network.c:670
+#: network.c:675
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorowanie serwera nazw %s - nie mo¿na utworzyæ/dowi±zaæ gniazda: %s"
 
-#: network.c:685
+#: network.c:690
 msgid "unqualified"
 msgstr "niekwalifikowane(-a)"
 
-#: network.c:685
+#: network.c:690
 msgid "names"
 msgstr "nazwy"
 
-#: network.c:687
+#: network.c:692
 msgid "default"
 msgstr "domy¶lne"
 
-#: network.c:689
+#: network.c:694
 msgid "domain"
 msgstr "domena"
 
-#: network.c:692
+#: network.c:697
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "u¿ywam adresów lokalnych tylko dla %s %s"
 
-#: network.c:694
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "u¿ywam serwera nazw %s#%d dla %s %s"
 
-#: network.c:697
+#: network.c:702
 #, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "u¿ywam serwera nazw %s#%d (przez %s)"
 
-#: network.c:699
+#: network.c:704
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "u¿ywam serwera nazw %s#%d"
