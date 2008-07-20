@@ -33,10 +33,11 @@
 #include <netinet/in.h>
 
 #ifdef __APPLE__
-/* need this before arpa/nameser.h */
-#  define BIND_8_COMPAT
+#  include <nameser.h>
+#  include <arpa/nameser_compat.h>
+#else
+#  include <arpa/nameser.h>
 #endif
-#include <arpa/nameser.h>
 
 /* and this. */
 #include <getopt.h>
@@ -614,7 +615,8 @@ extern struct daemon {
   struct server *last_server;
   struct server *srv_save; /* Used for resend on DoD */
   size_t packet_len;       /*      "        "        */
-  pid_t tcp_pids[MAX_PROCS];
+  struct randfd *rfd_save; /*      "        "        */
+pid_t tcp_pids[MAX_PROCS];
   struct randfd randomsocks[RANDOM_SOCKS];
 
   /* DHCP state */

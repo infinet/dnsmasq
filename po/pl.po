@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"POT-Creation-Date: 2008-07-20 09:38+0100\n"
 "PO-Revision-Date: 2008-07-10 22:40+0200\n"
 "Last-Translator: Jan Psota <jasiu@belsznica.pl>\n"
 "Language-Team: Polski <pl@li.org>\n"
@@ -729,7 +729,7 @@ msgstr "w trybie no-poll mo¿na wskazaæ najwy¿ej jeden plik resolv.conf."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "musisz mieæ dok³adnie jeden plik resolv.conf do odczytu domen."
 
-#: option.c:2594 network.c:717
+#: option.c:2594 network.c:719
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "nie uda³o siê odczytaæ %s: %s"
@@ -739,12 +739,12 @@ msgstr "nie uda³o siê odczytaæ %s: %s"
 msgid "no search directive found in %s"
 msgstr "brak wytycznych wyszukiwania w %s"
 
-#: forward.c:403
+#: forward.c:405
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
 msgstr "serwer nazw %s odmawia wykonania zapytania rekurencyjnego"
 
-#: forward.c:431
+#: forward.c:433
 msgid "possible DNS-rebind attack detected"
 msgstr "prawdopodobnie wykryto atak DNS-rebind"
 
@@ -803,53 +803,53 @@ msgstr "b³±d przy w³±czaniu nas³uchu na gnie¼dzie: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "nie powiod³o siê otwieranie gniazda dla us³ugi TFTP: %s"
 
-#: network.c:624
+#: network.c:626
 #, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "b³±d przy przyznawaniu nazwy gniazdu serwera %s: %s"
 
-#: network.c:657
+#: network.c:659
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorowanie serwera nazw %s - interfejs lokalny"
 
-#: network.c:668
+#: network.c:670
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorowanie serwera nazw %s - nie mo¿na utworzyæ/dowi±zaæ gniazda: %s"
 
-#: network.c:683
+#: network.c:685
 msgid "unqualified"
 msgstr "niekwalifikowane(-a)"
 
-#: network.c:683
+#: network.c:685
 msgid "names"
 msgstr "nazwy"
 
-#: network.c:685
+#: network.c:687
 msgid "default"
 msgstr "domy¶lne"
 
-#: network.c:687
+#: network.c:689
 msgid "domain"
 msgstr "domena"
 
-#: network.c:690
+#: network.c:692
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "u¿ywam adresów lokalnych tylko dla %s %s"
 
-#: network.c:692
+#: network.c:694
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "u¿ywam serwera nazw %s#%d dla %s %s"
 
-#: network.c:695
+#: network.c:697
 #, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "u¿ywam serwera nazw %s#%d (przez %s)"
 
-#: network.c:697
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "u¿ywam serwera nazw %s#%d"
@@ -1267,32 +1267,32 @@ msgstr "dostêpna statyczna dzier¿awa"
 msgid "address reserved"
 msgstr "adres zarezerwowany"
 
-#: rfc2131.c:1304
+#: rfc2131.c:1307
 #, c-format
 msgid "tags: %s"
 msgstr "znaczniki: %s"
 
-#: rfc2131.c:1391
+#: rfc2131.c:1394
 #, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr "nie mam mo¿liwo¶ci wys³ania opcji %d DHCP/BOOTP: niedostateczna ilo¶æ miejsca w pakiecie"
 
-#: rfc2131.c:1561
+#: rfc2131.c:1564
 #, c-format
 msgid "requested options: %s"
 msgstr "wskazane opcje: %s"
 
-#: rfc2131.c:1610
+#: rfc2131.c:1613
 #, c-format
 msgid "next server: %s"
 msgstr "nastêpny serwer: %s"
 
-#: rfc2131.c:1634
+#: rfc2131.c:1637
 #, c-format
 msgid "bootfile name: %s"
 msgstr "nazwa pliku bootowania: %s"
 
-#: rfc2131.c:1637
+#: rfc2131.c:1640
 #, c-format
 msgid "server name: %s"
 msgstr "nazwa serwera: %s"

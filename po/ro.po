@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"POT-Creation-Date: 2008-07-20 09:38+0100\n"
 "PO-Revision-Date: 2005-11-22 16:46+0000\n"
 "Last-Translator: Simon Kelley <simon@thekelleys.org.uk>\n"
 "Language-Team: Romanian <translation-team-ro@lists.sourceforge.net>\n"
@@ -744,7 +744,7 @@ msgstr "se permite un singur fişier resolv.conf în modul no-poll"
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "am nevoie de un singur resolv.conf din care să citesc numele domeniului."
 
-#: option.c:2594 network.c:717
+#: option.c:2594 network.c:719
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "nu pot citi %s: %n"
@@ -754,12 +754,12 @@ msgstr "nu pot citi %s: %n"
 msgid "no search directive found in %s"
 msgstr "nu s-a găsit nici un criteriu de căutare în %s"
 
-#: forward.c:403
+#: forward.c:405
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
 msgstr "serverul DNS %s refuză interogările recursive"
 
-#: forward.c:431
+#: forward.c:433
 msgid "possible DNS-rebind attack detected"
 msgstr ""
 
@@ -818,53 +818,53 @@ msgstr "ascultarea pe socket a eşuat: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "creearea socket-ului de ascultare a eşuat: %s"
 
-#: network.c:624
+#: network.c:626
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "activarea socket-ului de ascultare pentru %s a eşuat: %s"
 
-#: network.c:657
+#: network.c:659
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorăm serverul DNS %s - interfaţă locală"
 
-#: network.c:668
+#: network.c:670
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorăm serverul DNS %s - nu pot creea/activa socket-ul: %s"
 
-#: network.c:683
+#: network.c:685
 msgid "unqualified"
 msgstr "invalid"
 
-#: network.c:683
+#: network.c:685
 msgid "names"
 msgstr ""
 
-#: network.c:685
+#: network.c:687
 msgid "default"
 msgstr ""
 
-#: network.c:687
+#: network.c:689
 msgid "domain"
 msgstr "domeniu"
 
-#: network.c:690
+#: network.c:692
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "folosim adresele locale doar pentru %S %s"
 
-#: network.c:692
+#: network.c:694
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "folosim serverul DNS %s#%d pentru %s %s"
 
-#: network.c:695
+#: network.c:697
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "folosim serverul DNS %s#%d"
 
-#: network.c:697
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "folosim serverul DNS %s#%d"
@@ -1288,32 +1288,32 @@ msgstr "împrumut static este disponibil"
 msgid "address reserved"
 msgstr "adresă rezervată"
 
-#: rfc2131.c:1304
+#: rfc2131.c:1307
 #, c-format
 msgid "tags: %s"
 msgstr ""
 
-#: rfc2131.c:1391
+#: rfc2131.c:1394
 #, fuzzy, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr "nu pot trimite opţiunea DHCP %d: nu mai este loc în pachet"
 
-#: rfc2131.c:1561
+#: rfc2131.c:1564
 #, fuzzy, c-format
 msgid "requested options: %s"
 msgstr "compilat cu opţiunile: %s"
 
-#: rfc2131.c:1610
+#: rfc2131.c:1613
 #, fuzzy, c-format
 msgid "next server: %s"
 msgstr "eroare DBus: %s"
 
-#: rfc2131.c:1634
+#: rfc2131.c:1637
 #, c-format
 msgid "bootfile name: %s"
 msgstr ""
 
-#: rfc2131.c:1637
+#: rfc2131.c:1640
 #, c-format
 msgid "server name: %s"
 msgstr ""

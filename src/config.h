@@ -14,7 +14,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.43"
+#define VERSION "2.44"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -245,8 +245,6 @@ typedef unsigned long in_addr_t;
 #define HAVE_SOCKADDR_SA_LEN
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
-/* This is not defined in Mac OS X arpa/nameserv.h */
-#define IN6ADDRSZ 16
  
 #elif defined(__NetBSD__)
 #define HAVE_BSD_NETWORK

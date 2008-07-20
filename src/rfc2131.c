@@ -1040,12 +1040,15 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  context->netid.next = netid;
 	  netid = &context->netid;
 	}
-       
-      if (lease && override.s_addr != 0)
-	lease->override = override;
-      else
-	override = lease->override;
       
+      if (lease)
+	{
+	  if (override.s_addr != 0)
+	    lease->override = override;
+	  else
+	    override = lease->override;
+	}
+
       clear_packet(mess, end, agent_id);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
       option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(server_id(context, override).s_addr));
@@ -1123,9 +1126,9 @@ static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *
 
 static struct in_addr server_id(struct dhcp_context *context, struct in_addr override)
 {
-  if (override.s_addr != 0)
+  if (override.s_addr != 0 || !context)
     return override;
-  else
+  else 
     return context->local;
 }
 

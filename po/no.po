@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.25\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"POT-Creation-Date: 2008-07-20 09:38+0100\n"
 "PO-Revision-Date: 2006-01-11 17:39+0000\n"
 "Last-Translator: Jan Erik Askildt <jeaskildt@gmail.com>\n"
 "Language-Team: Norwegian <i18n-nb@lister.ping.uio.no>\n"
@@ -746,7 +746,7 @@ msgstr "kun en resolv.conf fil tillat i no-poll modus."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "må ha nøyaktig en resolv.conf å lese domene fra."
 
-#: option.c:2594 network.c:717
+#: option.c:2594 network.c:719
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "feilet å lese %s: %m"
@@ -756,12 +756,12 @@ msgstr "feilet å lese %s: %m"
 msgid "no search directive found in %s"
 msgstr "intet søke direktiv funnet i %s"
 
-#: forward.c:403
+#: forward.c:405
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
 msgstr "navnetjener %s nektet å gjøre et rekursivt oppslag"
 
-#: forward.c:431
+#: forward.c:433
 msgid "possible DNS-rebind attack detected"
 msgstr ""
 
@@ -820,53 +820,53 @@ msgstr "feilet å lytte på socket: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "feilet å lage lytte socket: %s"
 
-#: network.c:624
+#: network.c:626
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "feilet å binde lytte socket for %s: %s"
 
-#: network.c:657
+#: network.c:659
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorerer navnetjener %s - lokal tilknytning"
 
-#: network.c:668
+#: network.c:670
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorerer navnetjener %s - kan ikke lage/dinde socket: %m"
 
-#: network.c:683
+#: network.c:685
 msgid "unqualified"
 msgstr "ikke kvalifisert"
 
-#: network.c:683
+#: network.c:685
 msgid "names"
 msgstr ""
 
-#: network.c:685
+#: network.c:687
 msgid "default"
 msgstr ""
 
-#: network.c:687
+#: network.c:689
 msgid "domain"
 msgstr "domene"
 
-#: network.c:690
+#: network.c:692
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "benytter lokale adresser kun for %s %s"
 
-#: network.c:692
+#: network.c:694
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "benytter navnetjener %s#%d for %s %s"
 
-#: network.c:695
+#: network.c:697
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "benytter navnetjener %s#%d"
 
-#: network.c:697
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "benytter navnetjener %s#%d"
@@ -1287,32 +1287,32 @@ msgstr "statisk leie tilgjengelig"
 msgid "address reserved"
 msgstr "adresse reservert"
 
-#: rfc2131.c:1304
+#: rfc2131.c:1307
 #, c-format
 msgid "tags: %s"
 msgstr ""
 
-#: rfc2131.c:1391
+#: rfc2131.c:1394
 #, fuzzy, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr "kan ikke sende DHCP opsjon %d: ikke mer plass i pakken"
 
-#: rfc2131.c:1561
+#: rfc2131.c:1564
 #, fuzzy, c-format
 msgid "requested options: %s"
 msgstr "kompilerings opsjoner: %s"
 
-#: rfc2131.c:1610
+#: rfc2131.c:1613
 #, fuzzy, c-format
 msgid "next server: %s"
 msgstr "DBus feil: %s"
 
-#: rfc2131.c:1634
+#: rfc2131.c:1637
 #, c-format
 msgid "bootfile name: %s"
 msgstr ""
 
-#: rfc2131.c:1637
+#: rfc2131.c:1640
 #, c-format
 msgid "server name: %s"
 msgstr ""

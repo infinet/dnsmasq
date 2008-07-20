@@ -2582,3 +2582,20 @@ version 2.43
 
 	    Updated French translation. Thanks to Gildas Le Nadan.
 
+version 2.44
+            Fix  crash when unknown client attempts to renew a DHCP
+            lease, problem introduced in version 2.43. Thanks to
+            Carlos Carvalho for help chasing this down.
+
+	    Fix potential crash when a host which doesn't have a lease
+	    does DHCPINFORM. Again introduced in 2.43. This bug has
+	    never been reported in the wild.
+
+            Fix crash in netlink code introduced in 2.43. Thanks to
+            Jean Wolter for finding this.
+
+	    Change implementation of min_port to work even if min-port
+	    as large.
+
+	    Patch to enable compilation of latest Mac OS X. Thanks to
+	    David Gilman.

@@ -248,9 +248,9 @@ int main (int argc, char **argv)
      call safe_malloc */
   if (ent_pw && ent_pw->pw_uid != 0)
     {
-      hdr = safe_malloc(sizeof(*hdr));
       int capsize = 1; /* for header version 1 */
-      
+      hdr = safe_malloc(sizeof(*hdr));
+
       /* find version supported by kernel */
       memset(hdr, 0, sizeof(*hdr));
       capget(hdr, NULL);

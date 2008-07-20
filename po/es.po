@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"POT-Creation-Date: 2008-07-20 09:38+0100\n"
 "PO-Revision-Date: 2005-10-07 11:04+0100\n"
 "Last-Translator: Christopher Chatham <chrislinux@gmail.com>\n"
 "Language-Team: Spanish <es@li.org>\n"
@@ -67,7 +67,7 @@ msgstr "servidor %s#%d: búsquedas enviadas %u, reintentadas o fallidas %u"
 #: util.c:58
 #, fuzzy, c-format
 msgid "failed to seed the random number generator: %s"
-msgstr "no se pudo escuchar en socket: %s"
+msgstr "no se pudo crear valor semilla para el generador de números aleatorios: %s"
 
 #: util.c:166
 msgid "could not get memory"
@@ -193,7 +193,7 @@ msgstr "Trazar subscriber-id (identificación de suscritor) RFC3993 a etiqueta."
 #: option.c:243
 #, fuzzy
 msgid "Don't do DHCP for hosts with tag set."
-msgstr "No hacer DHCP para hosts con la etiqueta fijada."
+msgstr "No hacer DHCP para hosts con etiqueta fijada."
 
 #: option.c:244
 #, fuzzy
@@ -260,12 +260,12 @@ msgstr "Tamaño máximo de paquetes UDP soportado para EDNS.0 (%s por predetermina
 #: option.c:258
 #, fuzzy
 msgid "Log DNS queries."
-msgstr "Bitacorear búsquedas."
+msgstr "Bitacorear búsquedas DNS."
 
 #: option.c:259
 #, fuzzy
 msgid "Force the originating port for upstream DNS queries."
-msgstr "Enforzar el puerto original para búsquedas upstream."
+msgstr "Enforzar el puerto original para búsquedas DNS upstream."
 
 #: option.c:260
 msgid "Do NOT read resolv.conf."
@@ -403,7 +403,7 @@ msgstr "Bitacorear a esta facilidad syslog o archivo. (DAEMON por predeterminado
 
 #: option.c:293
 msgid "Do not use leasefile."
-msgstr ""
+msgstr "No usar archivo de arriendos."
 
 #: option.c:294
 #, fuzzy, c-format
@@ -474,20 +474,20 @@ msgstr "Fijar etiqueta si cliente incluye opción en pedido."
 
 #: option.c:310
 msgid "Use alternative ports for DHCP."
-msgstr ""
+msgstr "Usar puertos alternativos para DHCP."
 
 #: option.c:311
 msgid "Run lease-change script as this user."
-msgstr ""
+msgstr "Correr archivo guión de cambio de arriendos como este usuario."
 
 #: option.c:312
 #, fuzzy
 msgid "Specify NAPTR DNS record."
-msgstr "Especificar expediente DNS PTR."
+msgstr "Especificar expediente DNS NAPTR."
 
 #: option.c:313
 msgid "Specify lowest port available for DNS query transmission."
-msgstr ""
+msgstr "Especificar puerto más bajo disponible para transmisión de búsquedas DNS."
 
 #: option.c:564
 #, c-format
@@ -532,11 +532,11 @@ msgstr "opción dhcp-option demasiado larga"
 
 #: option.c:922
 msgid "illegal repeated flag"
-msgstr ""
+msgstr "opción repetida ilegal"
 
 #: option.c:930
 msgid "illegal repeated keyword"
-msgstr ""
+msgstr "palabra clave repetida ilegal"
 
 #: option.c:964
 #, fuzzy, c-format
@@ -585,7 +585,7 @@ msgstr "vinculación de interface no está soportado"
 #: option.c:1464
 #, fuzzy
 msgid "bad port range"
-msgstr "puerto erróneo"
+msgstr "rango de puertos erróneo"
 
 #: option.c:1481
 msgid "bad bridge-interface"
@@ -625,7 +625,7 @@ msgstr "expediente PTR erróneo"
 #: option.c:2064
 #, fuzzy
 msgid "bad NAPTR record"
-msgstr "expediente PTR erróneo"
+msgstr "expediente NAPTR erróneo"
 
 #: option.c:2090
 msgid "TXT record string too long"
@@ -718,7 +718,7 @@ msgstr "Dnsmasq es software libre, y usted está bienvenido a redistribuirlo\n"
 #: option.c:2496
 #, fuzzy, c-format
 msgid "under the terms of the GNU General Public License, version 2 or 3.\n"
-msgstr "bajo los términos de la GNU General Public License, versión 2.\n"
+msgstr "bajo los términos de la GNU General Public License, versión 2 o 3.\n"
 
 #: option.c:2507
 msgid "try --help"
@@ -746,7 +746,7 @@ msgstr "solo un archivo resolv.conf permitido en modo no-poll."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "debe haber exáctamente un resolv.conf desde donde leer dominio."
 
-#: option.c:2594 network.c:717
+#: option.c:2594 network.c:719
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "no se pudo leer %s: %s"
@@ -756,12 +756,12 @@ msgstr "no se pudo leer %s: %s"
 msgid "no search directive found in %s"
 msgstr "ninguna directiva de búsqueda encontrada en %s"
 
-#: forward.c:403
+#: forward.c:405
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
 msgstr "servidor DNS %s se reusó a hacer una búsqueda recursiva"
 
-#: forward.c:431
+#: forward.c:433
 msgid "possible DNS-rebind attack detected"
 msgstr "posible ataque de revinculación DNS detectado"
 
@@ -820,53 +820,53 @@ msgstr "no se pudo escuchar en socket: %s"
 msgid "failed to create TFTP socket: %s"
 msgstr "no se pudo crear socket TFTP: %s"
 
-#: network.c:624
+#: network.c:626
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "no se pudo acoplar socket escuchador para %s: %s"
 
-#: network.c:657
+#: network.c:659
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorando servidor DNS %s - interface local"
 
-#: network.c:668
+#: network.c:670
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorando servidor DNS %s - no se puede crear/acoplar socket: %s"
 
-#: network.c:683
+#: network.c:685
 msgid "unqualified"
 msgstr "no calificado"
 
-#: network.c:683
+#: network.c:685
 msgid "names"
 msgstr "nombres"
 
-#: network.c:685
+#: network.c:687
 msgid "default"
 msgstr "predeterminado"
 
-#: network.c:687
+#: network.c:689
 msgid "domain"
 msgstr "dominio"
 
-#: network.c:690
+#: network.c:692
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "usando direcciones locales solo para %s %s"
 
-#: network.c:692
+#: network.c:694
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "usando servidor DNS %s#%d para %s %s"
 
-#: network.c:695
+#: network.c:697
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "usando servidor DNS %s#%d(vía %s)"
 
-#: network.c:697
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "usando servidor DNS %s#%d"
@@ -916,7 +916,7 @@ msgstr "DBus no disponible: fijar HAVE_DBUS en src/config.h"
 #: dnsmasq.c:233
 #, c-format
 msgid "unknown user or group: %s"
-msgstr ""
+msgstr "usuario o grupo desconocido: %s"
 
 #: dnsmasq.c:290
 #, c-format
@@ -1024,22 +1024,22 @@ msgstr "no se pudo crear ayudante: %s"
 #: dnsmasq.c:756
 #, fuzzy, c-format
 msgid "setting capabilities failed: %s"
-msgstr "advertencia: configuración de capacidades ha fallado: %s"
+msgstr "configuración de capacidades ha fallado: %s"
 
 #: dnsmasq.c:760
 #, fuzzy, c-format
 msgid "failed to change user-id to %s: %s"
-msgstr "advertencia: no se pudo cambiar dueño de %s: %s"
+msgstr "no se pudo cambiar user-id a %s: %s"
 
 #: dnsmasq.c:765
 #, fuzzy, c-format
 msgid "failed to change group-id to %s: %s"
-msgstr "advertencia: no se pudo cambiar dueño de %s: %s"
+msgstr "no se pudo cambiar group-id a %s: %s"
 
 #: dnsmasq.c:768
 #, fuzzy, c-format
 msgid "failed to open pidfile %s: %s"
-msgstr "no se pudo leer %s: %s"
+msgstr "no se pudo abrir archivo PID %s: %s"
 
 #: dnsmasq.c:771
 #, fuzzy, c-format
@@ -1288,32 +1288,32 @@ msgstr "arriendo estático disponible"
 msgid "address reserved"
 msgstr "dirección reservada"
 
-#: rfc2131.c:1304
+#: rfc2131.c:1307
 #, c-format
 msgid "tags: %s"
 msgstr "etiquetas: %s"
 
-#: rfc2131.c:1391
+#: rfc2131.c:1394
 #, fuzzy, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr "no se puede enviar opción DHCP/BOOTP %d: no queda espacio en paquete"
 
-#: rfc2131.c:1561
+#: rfc2131.c:1564
 #, fuzzy, c-format
 msgid "requested options: %s"
 msgstr "opciones solicitadas: %s"
 
-#: rfc2131.c:1610
+#: rfc2131.c:1613
 #, fuzzy, c-format
 msgid "next server: %s"
 msgstr "siguiente servidor: %s"
 
-#: rfc2131.c:1634
+#: rfc2131.c:1637
 #, c-format
 msgid "bootfile name: %s"
 msgstr "nombre de bootfile: %s"
 
-#: rfc2131.c:1637
+#: rfc2131.c:1640
 #, c-format
 msgid "server name: %s"
 msgstr "nombre de servidor: %s"

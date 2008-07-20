@@ -450,23 +450,25 @@ int random_sock(int family)
 
   if ((fd = socket(family, SOCK_DGRAM, 0)) != -1)
     {
-      union  mysockaddr addr;
-      
+      union mysockaddr addr;
+      unsigned short ports_avail = 65536u - (unsigned short)daemon->min_port;
+      int i;
+
       memset(&addr, 0, sizeof(addr));
-      addr.in.sin_family = family;
+      addr.sa.sa_family = family;
 
       if (fix_fd(fd))
-	while (1)
+	for (i = ports_avail; i != 0; i--)
 	  {
 	    unsigned short port = rand16();
 	    
-	    if (port <= (unsigned short) daemon->min_port)
-	      continue;
+	    if (daemon->min_port != 0)
+	      port = htons(daemon->min_port + (port % ports_avail));
 	    
 	    if (family == AF_INET) 
 	      {
 		addr.in.sin_addr.s_addr = INADDR_ANY;
-		addr.in.sin_port = htons(port);
+		addr.in.sin_port = port;
 #ifdef HAVE_SOCKADDR_SA_LEN
 		addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
@@ -475,7 +477,7 @@ int random_sock(int family)
 	    else
 	      {
 		addr.in6.sin6_addr = in6addr_any; 
-		addr.in6.sin6_port = htons(port);
+		addr.in6.sin6_port = port;
 #ifdef HAVE_SOCKADDR_SA_LEN
 		addr.in6.sin6_len = sizeof(struct sockaddr_in6);
 #endif

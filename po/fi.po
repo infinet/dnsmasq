@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2008-07-11 10:05+0100\n"
+"POT-Creation-Date: 2008-07-20 09:38+0100\n"
 "PO-Revision-Date: 2005-11-28 22:05+0000\n"
 "Last-Translator: Simon Kelley <simon@thekelleys.org.uk>\n"
 "Language-Team: Finnish <translation-team-fi@lists.sourceforge.net>\n"
@@ -722,7 +722,7 @@ msgstr ""
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr ""
 
-#: option.c:2594 network.c:717
+#: option.c:2594 network.c:719
 #, c-format
 msgid "failed to read %s: %s"
 msgstr ""
@@ -732,12 +732,12 @@ msgstr ""
 msgid "no search directive found in %s"
 msgstr ""
 
-#: forward.c:403
+#: forward.c:405
 #, c-format
 msgid "nameserver %s refused to do a recursive query"
 msgstr ""
 
-#: forward.c:431
+#: forward.c:433
 msgid "possible DNS-rebind attack detected"
 msgstr ""
 
@@ -796,53 +796,53 @@ msgstr ""
 msgid "failed to create TFTP socket: %s"
 msgstr ""
 
-#: network.c:624
+#: network.c:626
 #, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr ""
 
-#: network.c:657
+#: network.c:659
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr ""
 
-#: network.c:668
+#: network.c:670
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr ""
 
-#: network.c:683
+#: network.c:685
 msgid "unqualified"
 msgstr ""
 
-#: network.c:683
+#: network.c:685
 msgid "names"
 msgstr ""
 
-#: network.c:685
+#: network.c:687
 msgid "default"
 msgstr ""
 
-#: network.c:687
+#: network.c:689
 msgid "domain"
-msgstr ""
-
-#: network.c:690
-#, c-format
-msgid "using local addresses only for %s %s"
 msgstr ""
 
 #: network.c:692
 #, c-format
+msgid "using local addresses only for %s %s"
+msgstr ""
+
+#: network.c:694
+#, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr ""
 
-#: network.c:695
+#: network.c:697
 #, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr ""
 
-#: network.c:697
+#: network.c:699
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr ""
@@ -1260,32 +1260,32 @@ msgstr ""
 msgid "address reserved"
 msgstr ""
 
-#: rfc2131.c:1304
+#: rfc2131.c:1307
 #, c-format
 msgid "tags: %s"
 msgstr ""
 
-#: rfc2131.c:1391
+#: rfc2131.c:1394
 #, c-format
 msgid "cannot send DHCP/BOOTP option %d: no space left in packet"
 msgstr ""
 
-#: rfc2131.c:1561
+#: rfc2131.c:1564
 #, c-format
 msgid "requested options: %s"
 msgstr ""
 
-#: rfc2131.c:1610
+#: rfc2131.c:1613
 #, c-format
 msgid "next server: %s"
 msgstr ""
 
-#: rfc2131.c:1634
+#: rfc2131.c:1637
 #, c-format
 msgid "bootfile name: %s"
 msgstr ""
 
-#: rfc2131.c:1637
+#: rfc2131.c:1640
 #, c-format
 msgid "server name: %s"
 msgstr ""
