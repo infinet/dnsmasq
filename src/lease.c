@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -103,7 +103,7 @@ void lease_init(time_t now)
 	    /* unprotect spaces */
 	    for (p = strchr(daemon->dhcp_buff, '*'); p; p = strchr(p, '*'))
 	      *p = ' ';
-	    lease_set_hostname(lease, daemon->dhcp_buff, daemon->domain_suffix, 0);
+	    lease_set_hostname(lease, daemon->dhcp_buff, 0);
 	  }
 
 	/* set these correctly: the "old" events are generated later from
@@ -151,9 +151,9 @@ void lease_update_from_configs(void)
 			      lease->hwaddr, lease->hwaddr_len, lease->hwaddr_type, NULL)) && 
 	(config->flags & CONFIG_NAME) &&
 	(!(config->flags & CONFIG_ADDR) || config->addr.s_addr == lease->addr.s_addr))
-      lease_set_hostname(lease, config->hostname, daemon->domain_suffix, 1);
+      lease_set_hostname(lease, config->hostname, 1);
     else if ((name = host_from_dns(lease->addr)))
-      lease_set_hostname(lease, name, daemon->domain_suffix, 1); /* updates auth flag only */
+      lease_set_hostname(lease, name, 1); /* updates auth flag only */
 }
 
 static void ourprintf(int *errp, char *format, ...)
@@ -254,8 +254,11 @@ void lease_update_dns(void)
       
       for (lease = leases; lease; lease = lease->next)
 	{
-	  cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
-	  cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires);
+	  if (lease->fqdn)
+	    cache_add_dhcp_entry(lease->fqdn, &lease->addr, lease->expires);
+	     
+	  if (!(daemon->options & OPT_DHCP_FQDN) && lease->hostname)
+	    cache_add_dhcp_entry(lease->hostname, &lease->addr, lease->expires);
 	}
       
       dns_dirty = 0;
@@ -412,11 +415,33 @@ void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 
 }
 
-void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix, int auth)
+static void kill_name(struct dhcp_lease *lease)
+{
+  /* run script to say we lost our old name */
+  
+  /* this shouldn't happen unless updates are very quick and the
+     script very slow, we just avoid a memory leak if it does. */
+  free(lease->old_hostname);
+  
+  /* If we know the fqdn, pass that. The helper will derive the
+     unqualified name from it, free the unqulaified name here. */
+
+  if (lease->fqdn)
+    {
+      lease->old_hostname = lease->fqdn;
+      free(lease->hostname);
+    }
+  else
+    lease->old_hostname = lease->hostname;
+
+  lease->hostname = lease->fqdn = NULL;
+}
+
+void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth)
 {
   struct dhcp_lease *lease_tmp;
   char *new_name = NULL, *new_fqdn = NULL;
-
+  
   if (lease->hostname && name && hostname_isequal(lease->hostname, name))
     {
       lease->auth_name = auth;
@@ -433,44 +458,47 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, char *suffix, int 
   
   if (name)
     {
-      for (lease_tmp = leases; lease_tmp; lease_tmp = lease_tmp->next)
-	if (lease_tmp->hostname && hostname_isequal(lease_tmp->hostname, name))
-	  {
-	    if (lease_tmp->auth_name && !auth)
-	      return;
-	    /* this shouldn't happen unless updates are very quick and the
-	       script very slow, we just avoid a memory leak if it does. */
-	    free(lease_tmp->old_hostname);
-	    lease_tmp->old_hostname = lease_tmp->hostname;
-	    lease_tmp->hostname = NULL;
-	    if (lease_tmp->fqdn)
-	      {
-		new_fqdn = lease_tmp->fqdn;
-		lease_tmp->fqdn = NULL;
-	      }
-	    break;
-	  }
-     
-      if (!new_name && (new_name = whine_malloc(strlen(name) + 1)))
-	strcpy(new_name, name);
-      
-      if (suffix && !new_fqdn && (new_fqdn = whine_malloc(strlen(name) + strlen(suffix) + 2)))
+      if ((new_name = whine_malloc(strlen(name) + 1)))
 	{
-	  strcpy(new_fqdn, name);
-	  strcat(new_fqdn, ".");
-	  strcat(new_fqdn, suffix);
+	  char *suffix = get_domain(lease->addr);
+	  strcpy(new_name, name);
+	  if (suffix && (new_fqdn = whine_malloc(strlen(new_name) + strlen(suffix) + 2)))
+	    {
+	      strcpy(new_fqdn, name);
+	      strcat(new_fqdn, ".");
+	      strcat(new_fqdn, suffix);
+	    }
+	}
+	  
+      /* Depending on mode, we check either unqualified name or FQDN. */
+      for (lease_tmp = leases; lease_tmp; lease_tmp = lease_tmp->next)
+	{
+	  if (daemon->options & OPT_DHCP_FQDN)
+	    {
+	      if (!new_fqdn || !lease_tmp->fqdn || !hostname_isequal(lease_tmp->fqdn, new_fqdn) )
+		continue;
+	    }
+	  else
+	    {
+	      if (!new_name || !lease_tmp->hostname || !hostname_isequal(lease_tmp->hostname, new_name) )
+		continue; 
+	    }
+	  
+	  if (lease_tmp->auth_name && !auth)
+	    {
+	      free(new_name);
+	      free(new_fqdn);
+	      return;
+	    }
+	
+	  kill_name(lease_tmp);
+	  break;
 	}
     }
 
   if (lease->hostname)
-    {
-      /* run script to say we lost our old name */
-      free(lease->old_hostname);
-      lease->old_hostname = lease->hostname;
-    }
+    kill_name(lease);
 
-  free(lease->fqdn);
-  
   lease->hostname = new_name;
   lease->fqdn = new_fqdn;
   lease->auth_name = auth;
@@ -506,6 +534,13 @@ int do_script_run(time_t now)
 {
   struct dhcp_lease *lease;
 
+#ifdef HAVE_DBUS
+  /* If we're going to be sending DBus signals, but the connection is not yet up,
+     delay everything until it is. */
+  if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+    return 0;
+#endif
+
   if (old_leases)
     {
       lease = old_leases;
@@ -522,13 +557,13 @@ int do_script_run(time_t now)
 	}
       else 
 	{
+	  kill_name(lease);
 #ifndef NO_FORK
-	  queue_script(ACTION_DEL, lease, lease->hostname, now);
+	  queue_script(ACTION_DEL, lease, lease->old_hostname, now);
 #endif
 	  old_leases = lease->next;
 	  
-	  free(lease->hostname); 
-	  free(lease->fqdn);
+	  free(lease->old_hostname); 
 	  free(lease->clid);
 	  free(lease->vendorclass);
 	  free(lease->userclass);
@@ -555,7 +590,8 @@ int do_script_run(time_t now)
 	(lease->aux_changed && (daemon->options & OPT_LEASE_RO)))
       {
 #ifndef NO_FORK
-	queue_script(lease->new ? ACTION_ADD : ACTION_OLD, lease, lease->hostname, now);
+	queue_script(lease->new ? ACTION_ADD : ACTION_OLD, lease, 
+		     lease->fqdn ? lease->fqdn : lease->hostname, now);
 #endif
 	lease->new = lease->changed = lease->aux_changed = 0;
 	

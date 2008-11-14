@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -381,8 +381,8 @@ static size_t process_reply(HEADER *header, time_t now,
   size_t plen; 
 
   /* If upstream is advertising a larger UDP packet size
-	 than we allow, trim it so that we don't get overlarge
-	 requests for the client. We can't do this for signed packets. */
+     than we allow, trim it so that we don't get overlarge
+     requests for the client. We can't do this for signed packets. */
 
   if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)) && !is_sign)
     {
@@ -918,19 +918,23 @@ static struct randfd *allocate_rfd(int family)
      (eg) TFTP. Once we have a reasonable number, randomness should be OK */
 
   for (i = 0; i < RANDOM_SOCKS; i++)
-    if (daemon->randomsocks[i].refcount == 0 && 
-	(daemon->randomsocks[i].fd = random_sock(family)) != -1)
+    if (daemon->randomsocks[i].refcount == 0)
       {
+	if ((daemon->randomsocks[i].fd = random_sock(family)) == -1)
+	  break;
+      
 	daemon->randomsocks[i].refcount = 1;
 	daemon->randomsocks[i].family = family;
 	return &daemon->randomsocks[i];
       }
 
-  /* No free ones, grab an existing one */
+  /* No free ones or cannot get new socket, grab an existing one */
   for (i = 0; i < RANDOM_SOCKS; i++)
     {
       int j = (i+finger) % RANDOM_SOCKS;
-      if (daemon->randomsocks[j].family == family && daemon->randomsocks[j].refcount != 0xffff)
+      if (daemon->randomsocks[j].refcount != 0 &&
+	  daemon->randomsocks[j].family == family && 
+	  daemon->randomsocks[j].refcount != 0xffff)
 	{
 	  finger = j;
 	  daemon->randomsocks[j].refcount++;

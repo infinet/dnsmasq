@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.45"
+#define VERSION "2.46"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -115,10 +115,6 @@ HAVE_BROKEN_RTC
    NOTE: when enabling or disabling this, be sure to delete any old
    leases file, otherwise dnsmasq may get very confused.
 
-HAVE_ISC_READER 
-   define this to include the old ISC dhcpcd integration. Note that you cannot
-   set both HAVE_ISC_READER and HAVE_BROKEN_RTC.
-
 HAVE_TFTP
    define this to get dnsmasq's built-in TFTP server.
 
@@ -141,9 +137,6 @@ HAVE_BSD_BRIDGE
    Define this to enable the --bridge-interface option, useful on some
    BSD systems.
 
-HAVE_LARGFILE
-   Define this if the C library supports large (>2GB) files probably true everywhere 
-   except some builds of uclibc
 
 NOTES:
    For Linux you should define 
@@ -166,12 +159,7 @@ NOTES:
 /* platform independent options- uncomment to enable */
 #define HAVE_TFTP
 /* #define HAVE_BROKEN_RTC */
-/* #define HAVE_ISC_READER */
 /* #define HAVE_DBUS */
-
-#if defined(HAVE_BROKEN_RTC) && defined(HAVE_ISC_READER)
-#  error HAVE_ISC_READER is not compatible with HAVE_BROKEN_RTC
-#endif
 
 /* Allow TFTP to be disabled with COPTS=-DNO_TFTP */
 #ifdef NO_TFTP

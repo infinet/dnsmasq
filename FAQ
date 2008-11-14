@@ -16,6 +16,14 @@ A: The high ports that dnsmasq opens are for replies from the upstream
    you to specify the UDP port to be used for this purpose.  If not
    specified, the operating system will select an available port number
    just as it did before.
+
+   Second addendum: following the discovery of a security flaw in the
+   DNS protocol, dnsmasq from version 2.43 has changed behavior. It
+   now uses a new, randomly selected, port for each query. The old
+   default behaviour (use one port allocated by the OS) is available by
+   setting --query-port=0, and setting the query port to a positive
+   value is still works. You should think hard and know what you are
+   doing before using either of these options.
  
 Q: Why doesn't dnsmasq support DNS queries over TCP? Don't the RFC's specify
    that?
@@ -324,6 +332,17 @@ A: By default, the identity of a machine is determined by using the
    method for setting the client-id varies with DHCP client software,
    dhcpcd uses the "-I" flag. Windows uses a registry setting,
    see http://www.jsiinc.com/SUBF/TIP2800/rh2845.htm
+Addendum:
+   From version 2.46, dnsmasq has a solution to this which doesn't
+   involve setting client-IDs. It's possible to put more than one MAC
+   address in a --dhcp-host configuration. This tells dnsmasq that it
+   should use the specified IP for any of the specified MAC addresses,
+   and furthermore it gives dnsmasq permission to sumarily abandon a
+   lease to one of the MAC addresses if another one comes along. Note
+   that this will work fine only as longer as only one interface is
+   up at any time. There is no way for dnsmasq to enforce this
+   constraint: if you configure multiple MAC addresses and violate 
+   this rule, bad things will happen.
 
 Q: Can dnsmasq do DHCP on IP-alias interfaces?
 

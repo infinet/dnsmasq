@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -237,7 +237,7 @@ static void nl_err(struct nlmsghdr *h)
    failing. */ 
 static void nl_routechange(struct nlmsghdr *h)
 {
-  if (h->nlmsg_type == RTM_NEWROUTE && daemon->srv_save)
+  if (h->nlmsg_type == RTM_NEWROUTE)
     {
       struct rtmsg *rtm = NLMSG_DATA(h);
       int fd;
@@ -245,17 +245,24 @@ static void nl_routechange(struct nlmsghdr *h)
       if (rtm->rtm_type != RTN_UNICAST || rtm->rtm_scope != RT_SCOPE_LINK)
 	return;
 
-      if (daemon->srv_save->sfd)
-	fd = daemon->srv_save->sfd->fd;
-      else if (daemon->rfd_save && daemon->rfd_save->refcount != 0)
-	fd = daemon->rfd_save->fd;
-      else
-	return;
+      /* Force re-reading resolv file right now, for luck. */
+      daemon->last_resolv = 0;
 
-      while(sendto(fd, daemon->packet, daemon->packet_len, 0,
-		   &daemon->srv_save->addr.sa, sa_len(&daemon->srv_save->addr)) == -1 && retry_send()); 
+      if (daemon->srv_save)
+	{
+	  if (daemon->srv_save->sfd)
+	    fd = daemon->srv_save->sfd->fd;
+	  else if (daemon->rfd_save && daemon->rfd_save->refcount != 0)
+	    fd = daemon->rfd_save->fd;
+	  else
+	    return;
+	  
+	  while(sendto(fd, daemon->packet, daemon->packet_len, 0,
+		       &daemon->srv_save->addr.sa, sa_len(&daemon->srv_save->addr)) == -1 && retry_send()); 
+	}
     }
 }
+
 #endif
 
       

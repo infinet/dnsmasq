@@ -21,6 +21,9 @@ and avoids startup races with the provider of nameserver information.
 Dnsmasq provides one service on the DBus: uk.org.thekelleys.dnsmasq
 and a single object: /uk/org/thekelleys/dnsmasq
 
+1. METHODS
+----------
+
 Methods are of the form
 
 uk.org.thekelleys.<method>
@@ -91,4 +94,38 @@ Each call to SetServers completely replaces the set of servers
 specified by via the DBus, but it leaves any servers specified via the
 command line or /etc/dnsmasq.conf or /etc/resolv.conf alone.
 
+2. SIGNALS
+----------
 
+If dnsmasq's DHCP server is active, it will send signals over DBUS whenever
+the DHCP lease database changes. Think of these signals as transactions on
+a database with the IP address acting as the primary key.
+
+Signals are of the form:
+
+uk.org.thekelleys.<signal>
+
+and their parameters are:
+
+STRING "192.168.1.115"
+STRING "01:23:45:67:89:ab"
+STRING "hostname.or.fqdn"
+
+
+Available signals are:
+
+DhcpLeaseAdded
+---------------
+
+This signal is emitted when a DHCP lease for a given IP address is created.
+
+DhcpLeaseDeleted
+----------------
+
+This signal is emitted when a DHCP lease for a given IP address is deleted.
+
+DhcpLeaseUpdated
+----------------
+
+This signal is emitted when a DHCP lease for a given IP address is updated.
+ 

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,10 +36,6 @@ static char *compile_opts =
 #ifdef HAVE_BSD_BRIDGE
 "BSD-bridge "
 #endif
-#ifndef HAVE_ISC_READER
-"no-"
-#endif
-"ISC-leasefile "
 #ifndef HAVE_DBUS
 "no-"
 #endif
@@ -66,7 +62,7 @@ static void poll_resolv(void);
 int main (int argc, char **argv)
 {
   int bind_fallback = 0;
-  time_t now, last = 0;
+  time_t now;
   struct sigaction sigact;
   struct iname *if_tmp;
   int piperead, pipefd[2], err_pipe[2];
@@ -117,10 +113,6 @@ int main (int argc, char **argv)
       if (daemon->dhcp)
 	daemon->lease_file = LEASEFILE;
     }
-#ifndef HAVE_ISC_READER
-  else if (!daemon->dhcp)
-    die(_("ISC dhcpd integration not available: set HAVE_ISC_READER in src/config.h"), NULL, EC_BADCONF);
-#endif
   
   /* Close any file descriptors we inherited apart from std{in|out|err} */
   for (i = 0; i < max_fd; i++)
@@ -633,14 +625,11 @@ int main (int argc, char **argv)
 
       /* Check for changes to resolv files once per second max. */
       /* Don't go silent for long periods if the clock goes backwards. */
-      if (last == 0 || difftime(now, last) > 1.0 || difftime(now, last) < -1.0)
+      if (daemon->last_resolv == 0 || 
+	  difftime(now, daemon->last_resolv) > 1.0 || 
+	  difftime(now, daemon->last_resolv) < -1.0)
 	{
-	  last = now;
-
-#ifdef HAVE_ISC_READER
-	  if (daemon->lease_file && !daemon->dhcp)
-	    load_dhcp(now);
-#endif
+	  daemon->last_resolv = now;
 
 	  if (daemon->port != 0 && !(daemon->options & OPT_NO_POLL))
 	    poll_resolv();
@@ -912,7 +901,7 @@ static void poll_resolv()
 	  warned = 0;
 	  check_servers();
 	  if (daemon->options & OPT_RELOAD)
-	    cache_reload(daemon->options, daemon->namebuff, daemon->domain_suffix, daemon->addn_hosts);
+	    cache_reload(daemon->addn_hosts);
 	}
       else 
 	{
@@ -929,7 +918,7 @@ static void poll_resolv()
 void clear_cache_and_reload(time_t now)
 {
   if (daemon->port != 0)
-    cache_reload(daemon->options, daemon->namebuff, daemon->domain_suffix, daemon->addn_hosts);
+    cache_reload(daemon->addn_hosts);
   
   if (daemon->dhcp)
     {

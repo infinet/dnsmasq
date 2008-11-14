@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -283,7 +283,10 @@ char *dbus_init(void)
   daemon->dbus = connection; 
   
   if ((message = dbus_message_new_signal(DNSMASQ_PATH, DNSMASQ_SERVICE, "Up")))
-    dbus_connection_send(connection, message, NULL);
+    {
+      dbus_connection_send(connection, message, NULL);
+      dbus_message_unref(message);
+    }
 
   return NULL;
 }
@@ -350,6 +353,38 @@ void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset)
       while (dbus_connection_dispatch (connection) == DBUS_DISPATCH_DATA_REMAINS);
       dbus_connection_unref (connection);
     }
+}
+
+void emit_dbus_signal(int action, char *mac, char *hostname, char *addr)
+{
+  DBusConnection *connection = (DBusConnection *)daemon->dbus;
+  DBusMessage* message = NULL;
+  DBusMessageIter args;
+  const char *action_str;
+
+  if (!connection)
+    return;
+
+  if (action == ACTION_DEL)
+    action_str = "DhcpLeaseDeleted";
+  else if (action == ACTION_ADD)
+    action_str = "DhcpLeaseAdded";
+  else if (action == ACTION_OLD)
+    action_str = "DhcpLeaseUpdated";
+  else
+    return;
+
+  if (!(message = dbus_message_new_signal(DNSMASQ_PATH, DNSMASQ_SERVICE, action_str)))
+    return;
+  
+  dbus_message_iter_init_append(message, &args);
+
+  if (dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &addr) &&
+      dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &mac) &&
+      dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &hostname))
+    dbus_connection_send(connection, message, NULL);
+  
+  dbus_message_unref(message);
 }
 
 #endif

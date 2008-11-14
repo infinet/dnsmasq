@@ -414,8 +414,15 @@ Retornar un récord DNS PTR.
 .B --naptr-record=<nombre>,<orden>,<preferencia>,<opciones>,<servicio>,<regexp>[,<remplazo>]
 Retornar un récord DNS NAPTR, como especificado en RFC3403.
 .TP
+.B --cname=<cname>,<target>
+Retornar un expediente CNAME que indica que <cname> es realmente <target>. Hay
+limitaciones significativas en el target. Debe ser un nombre DNS que le es conocido
+a dnsmasq desde /etc/hosts (o archivos hosts adicionales) o de DHCP. Si el target
+no satisface este criterio, el cname entero es ignorado. El cname debe ser único,
+pero es permisible tener más de un cname indicando el mismo target.
+.TP
 .B --interface-name=<nombre>,<interface>
-Retornar un récord DNS, asociando el nombre con la dirección primaria
+Retornar un expediente DNS, asociando el nombre con la dirección primaria
 en la interface brindada. Esta opción especifica un expediente tipo A
 para el nombre brindado de la misma forma que una línea de /etc/hosts,
 excepto que la dirección no es constante y es en vez tomada de la
@@ -500,9 +507,11 @@ hardware para identificar hosts prefijando 'id:'. O sea que:
 se refiere al host con identificador de cliente 01:02:03:04.
 También se permite especificar el ID de cliente como texto, así:
 .B --dhcp-host=id:iddeclientecomotexto,.....
+
 La opción especial id:* significa "ignorar cualquier ID de cliente
 y usar solamente direcciones MAC." Esto es útil cuando un cliente
 presenta un ID de cliente algunas veces pero otras no.
+
 Si un nombre aparece en /etc/hosts, la dirección asociada puede
 ser alocada a un arriendo DHCP, pero solo si existe una opción
 .B --dhcp-host
@@ -511,14 +520,16 @@ le dice a dnsmasq que no debe ofrecer jamás un arriendo DHCP a
 una máquina. La máquina puede ser especificada por dirección de
 hardware, ID de cliente, o nombre de host, por ejemplo:
 .B --dhcp-host=00:20:e0:3b:13:af,ignore
-Esto es útil cuando hay otro servidor DHCP en la red para ser
-usado por algúnas máquinas. El net:<network-id> fija la etiqueta
-network-id cuando sea que esta directiva dhcp-host está en uso.
-Esto puede ser usado para enviar selectivamente opciones DHCP
-a este host. Cuando un host coincide con cualquier directiva
-dhcp-host (o una implicada por /etc/ethers) entonces la etiqueta
-network-id especial "known" es fijada. Esto permite que dnsmasq sea
-configurado para ignorar pedidos desde máquinas desconocidas usando
+Esto es útil cuando hay otro servidor DHCP en la red que debe ser
+usado por algúnas máquinas.
+
+El net:<network-id> fija la etiqueta network-id cuando sea que
+esta directiva dhcp-host está en uso. Esto puede ser usado para
+enviar selectivamente opciones DHCP a este host. Cuando un host
+coincide con cualquier directiva dhcp-host (o una implicada por
+/etc/ethers) entonces la etiqueta network-id especial "known" es
+fijada. Esto permite que dnsmasq sea configurado para ignorar
+pedidos desde máquinas desconocidas usando
 .B --dhcp-ignore=#known
 Direcciones ethernet (pero no client-ids) pueden tener bytes
 comodínes, así que por ejemplo
@@ -526,12 +537,23 @@ comodínes, así que por ejemplo
 causará que dnsmasq ignore un rango de direcciones ethernet. Nótese
 que el "*" necesitará ser escapado o escrito entre comillas en la
 línea de comandos, pero no en el archivo de configuración.
+
 Direcciones de hardware normalmente coinciden con cualquier
 tipo de red (ARP), pero es posible restringirlas a un tipo ARP
 singular precediendolo con el tipo ARP (en HEX) y "-". Así que
 .B --dhcp-host=06-00:20:e0:3b:13:af,1.2.3.4
 solo coincidiría con una dirección de hardware Token-Ring, dado que
 el tipo ARP para Token-Ring es 6.
+
+Como caso especial, es posible incluir más de una dirección de
+hardware. Esto permite que una dirección IP sea asociada con
+direcciones de hardware múltiples, y le brinda a dnsmasq permiso
+para abandonar un arriendo DHCP a una de las direcciones de hardware
+cuando otra pide un arriendo. Nótese que esto es algo peligroso,
+sólo funcionará dependiblemente si una de las direcciones de hardware
+está activa en cualquier momento y dnsmasq no tiene forma de enforzar
+esto. Pero es útil, por ejemplo, para alocar una dirección IP estable
+a una laptop que tiene interfaces alámbricas e inalámbricas.
 .TP
 .B --dhcp-hostsfile=<archivo>
 Leer información host DHCP desde el archivo especificado. El archivo contiene información de un host por línea. El formato de una línea es igual que texto hacia la derecha de '=' en --dhcp-host. La ventaja de almacenar información host DHCP en este archivo es que puede ser cambiada sin tener que reiniciar dnsmasq. El archivo será re-leído cuando dnsmasq recibe un SIGHUP.
@@ -731,11 +753,14 @@ es usado para el servidor y el número de puerto mas uno es usado
 para el cliente. Finalmente, dos números permiten que se especifiquen
 ambos los puertos de servidor y cliente para DHCP.
 .TP
-.B \-3, --bootp-dynamic
+.B \-3, --bootp-dynamic[=<network-id>[,<network-id>]]
 Habilitar alocación dinámica de direcciones IP a clientes BOOTP. Usar
 esto con cuidado, ya que cada dirección alocada a un cliente BOOTP
 es arrendada para siempre, y consecuentemente queda no-disponible
-para re-uso por otros hosts.
+para re-uso por otros hosts. Si esto es brindado sin etiquetas,
+entonces incondicionalmente habilita alocación dinámica. Con
+etiquetas, solo cuando todas las etiquetas están fijadas. Puede
+ser repetido con diferentes juegos de etiquetas.
 .TP
 .B \-5, --no-ping
 Por predetermindado, el servidor DHCP tratará de asegurarse que una
@@ -763,20 +788,24 @@ en instalaciones nuevas, y será eliminada en una versión futura.
 .TP
 .B \-6 --dhcp-script=<path>
 Cuando un arriendo DHCP nuevo es creado, o uno viejo es
-destruido, el binario especificado por esta opción es ejecutado.
+destruido, el ejecutable especificado por esta opción es ejecutado.
 Los argumentos para el binario son "add", "old", o "del", la dirección
-MAC del host (o "<null>"), la dirección IP, y el hostname, si es
+MAC del host, la dirección IP, y el hostname, si es
 conocido. "add" significa que un arriendo ha sido creado, "del" que
 ha sido destruido, y "old" es una notificación de un arriendo existente
 cuando dnsmasq inicia o un cambio a una MAC o nombre host de un arriendo
 existente (también, tiempo de arriendo o vencimiento y client-id, si
-leasefile-ro está fijado). El proceso es ejecutado como root (asumiendo
-que dnsmasq fue originalmente ejecutado como root) aún si dnsmasq está
-configurado para cambiar su UID a un usuario sin privilegios.
+leasefile-ro está fijado). Si la dirección MAC es de un tipo de red
+que no es ethernet, tendrá el tipo de red precolocado, por ejemplo
+"06-01:23:45:67:89:ab" para token ring. El proceso es ejecutado como root
+(asumiendo que dnsmasq fue originalmente ejecutado como root) aún si dnsmasq
+está configurado para cambiar su UID a un usuario sin privilegios.
 El ambiente es heredado del usuario que ha invocado a dnsmasq, y si el
 host brindó un client-id, es almacenado en la variable de ambiente
-DNSMASQ_CLIENT_ID. Si el cliente brinda información de clase de vendedor
-o usuario, estos son brindados en las variables DNSMASQ_VENDOR_CLASS y
+DNSMASQ_CLIENT_ID. Si el dominio completamente calificado del host
+es conocido, la parte de dominio es almacenada en DNSMASQ_DOMAIN. Si
+el cliente brinda información de clase de vendedoro usuario,
+estos son brindados en las variables DNSMASQ_VENDOR_CLASS y
 DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn, pero solo para acciones "add"
 y "old" cuando un host resume un arriendo existente, dado a que estos
 datos no son almacenados en la base de datos de arriendos de dnsmasq.
@@ -829,11 +858,12 @@ está disponible en plataformas BSD, y es necesaria cuando se usan
 puentes "estilo viejo", ya que los paquetes llegan a interfaces tap que no
 tienen una dirección IP.
 .TP
-.B \-s, --domain=<dominio>
-Especifica el dominio para el servidor DHCP. Esto tiene dos efectos:
-Primeramente, causa que el servidor DHCP le devuelva el dominio a
-cualquier host que lo pida. Segundamente, fija el dominio para el cual
-es legal para hosts configurados mediante DHCP reclamar. La intención es
+.B \-s, --domain=<dominio>[,<rango de IPs>]
+Especifica los dominios DNS para el servidor DHCP. Dominios pueden ser
+brindados incondicionalmente (sin el rango de IPs) o para rangos limitados. Esto
+tiene dos efectos: Primeramente, causa que el servidor DHCP le devuelva el
+dominio a cualquier host que lo pida. Segundamente, fija el dominio para el
+cual es legal para hosts configurados mediante DHCP reclamar. La intención es
 restringir nombres de host para que un host no-confiado en la LAN no
 pueda proclamar su nombre vía DHCP, como por ejemplo "microsoft.com" y
 capturar tráfico no destinado a ella. Si ningún sufijo de dominio es
@@ -850,7 +880,28 @@ de esa máquina es disponible desde
 .B dnsmasq
 como "laptop" y "laptop.thekelleys.org.uk". Si el dominio es brindado
 como "#" entonces el dominio es leido desde la primera directiva search
-en /etc/resolv.conf (o equivalente).
+en /etc/resolv.conf (o equivalente). El rango de direcciones puede ser
+<dirección IP>,<dirección IP> or <dirección IP>/<máscara de subred>. Ver
+.B --dhcp-fqdn el cual puede cambiar el comportamiento de dnsmasq con
+dominios.
+.TP
+.B --dhcp-fqdn
+En el modo predeterminado, dnsmasq pone los nombres no-calificados
+de clientes DHCP en el DNS. Por esta razón, los nombres deben ser únicos,
+aún si dos clientes que tienen el mismo nombre están en dominios
+diferentes. Si un segundo cliente DHCP aparece el cual tiene el mismo
+nombre que un cliente existente, el nombre es transferido al cliente nuevo. Si
+.B --dhcp-fqdn
+está fijado, este comportamiento cambia: El nombre no-calificado
+no es puesto en el DNS, solo el nombre calificado. Dos clientes DHCP con
+el mismo nombre pueden ambos quedarse con el nombre, con tal que la parte
+de dominio sea diferente (o sea que los nombres completamente calificados
+difieran). Para asegurar que todos los nombres tengan una parte de dominio,
+debe haber al menos
+.B --domain
+sin una dirección especificada cuando
+.B --dhcp-fqdn
+está fijado.
 .TP
 .B --enable-tftp
 Habilitar la función de servidor TFTP. Esto está deliberadamente limitado
@@ -1056,9 +1107,11 @@ una del
 .B dhcp-range
 usado para alocar la dirección, una de cualquier
 .B dhcp-host
-que coincida, y posiblemente muchas de clases de vendedor y usuario
-que coinicdan que hayan sido enviadas por el cliente DHCP.
-Cualquier opción
+que coincida (y "known" si un dhcp-host coincide), la etiqueta "bootp"
+para pedidos BOOTP, una etiqueta cuyo nombre es el nombre de la
+interface donde llegó el pedido, y posiblemente muchas de clases
+de vendedor y usuario que coincidan que hayan sido enviadas por
+el cliente DHCP. Cualquier opción
 .B dhcp-option 
 que tenga etiquetas network-id será usada en preferencia de una opción
 .B dhcp-option,

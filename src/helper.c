@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 #ifndef NO_FORK
 
 static void my_setenv(const char *name, const char *value, int *error);
- 
+
 struct script_data
 {
   unsigned char action, hwaddr_len, hwaddr_type;
@@ -130,13 +130,13 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       /* stringify MAC into dhcp_buff */
       p = daemon->dhcp_buff;
       if (data.hwaddr_type != ARPHRD_ETHER || data.hwaddr_len == 0) 
-	p += sprintf(p, "%.2x-", data.hwaddr_type);
+        p += sprintf(p, "%.2x-", data.hwaddr_type);
       for (i = 0; (i < data.hwaddr_len) && (i < DHCP_CHADDR_MAX); i++)
-	{
-	  p += sprintf(p, "%.2x", data.hwaddr[i]);
-	  if (i != data.hwaddr_len - 1)
-	    p += sprintf(p, ":");
-	}
+        {
+          p += sprintf(p, "%.2x", data.hwaddr[i]);
+          if (i != data.hwaddr_len - 1)
+            p += sprintf(p, ":");
+        }
       
       /* and CLID into packet */
       if (!read_write(pipefd[0], buf, data.clid_len, 1))
@@ -237,10 +237,16 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       
       if (data.hostname_len != 0)
 	{
+	  char *dot;
 	  hostname = (char *)buf;
 	  hostname[data.hostname_len - 1] = 0;
 	  if (!canonicalise(hostname))
 	    hostname = NULL;
+	  else if ((dot = strchr(hostname, '.')))
+	    {
+	      my_setenv("DNSMASQ_DOMAIN", dot+1, &err);
+	      *dot = 0;
+	    }
 	}
       
       if (data.action == ACTION_OLD_HOSTNAME && hostname)
@@ -299,7 +305,15 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
 {
   unsigned char *p;
   size_t size;
-  unsigned int i, hostname_len = 0, clid_len = 0, vclass_len = 0, uclass_len = 0;
+  int i;
+  unsigned int hostname_len = 0, clid_len = 0, vclass_len = 0, uclass_len = 0;
+  
+#ifdef HAVE_DBUS
+  p = extended_hwaddr(lease->hwaddr_type, lease->hwaddr_len,
+		      lease->hwaddr, lease->clid_len, lease->clid, &i);
+  print_mac(daemon->namebuff, p, i);
+  emit_dbus_signal(action, daemon->namebuff, hostname ? hostname : "", inet_ntoa(lease->addr));
+#endif
 
   /* no script */
   if (daemon->helperfd == -1)
@@ -320,7 +334,7 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
     {
       struct script_data *new;
       
-      /* start with resonable size, will almost never need extending. */
+      /* start with reasonable size, will almost never need extending. */
       if (size < sizeof(struct script_data) + 200)
 	size = sizeof(struct script_data) + 200;
 
@@ -378,8 +392,9 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
       memcpy(p, lease->userclass, uclass_len);
       p += uclass_len;
     }
-  /* substitute * for space */
-  for (i = 0; i < hostname_len; i++)
+  /* substitute * for space: spaces are allowed in hostnames (for DNS-SD)
+     and are likley to be a security hole in most scripts. */
+  for (i = 0; i < (int)hostname_len; i++)
     if ((daemon->options & OPT_LEASE_RO) && hostname[i] == ' ')
       *(p++) = '*';
     else

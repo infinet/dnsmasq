@@ -2595,7 +2595,7 @@ version 2.44
             Jean Wolter for finding this.
 
 	    Change implementation of min_port to work even if min-port
-	    as large.
+	    is large.
 
 	    Patch to enable compilation of latest Mac OS X. Thanks to
 	    David Gilman.
@@ -2603,9 +2603,92 @@ version 2.44
 	    Update Spanish translation. Thanks to Christopher Chatham.
 
 version 2.45
-            Fix total DNS failure in release 2.43 unless --min-port 
+            Fix total DNS failure in release 2.44 unless --min-port 
             specified. Thanks to Steven Barth and Grant Coady for
             bugreport. Also reject out-of-range port spec, which could
             break things too: suggestion from Gilles Espinasse.
 
- 
+version 2.46
+	    Allow --bootp-dynamic to take a netid tag, so that it may
+	    be selectively enabled. Thanks to Olaf Westrik for the
+	    suggestion. 
+
+	    Remove ISC-leasefile reading code. This has been
+	    deprecated for a long time, and last time I removed it, it
+	    ended up going back by request of one user. This time,
+	    it's gone for good; otherwise it would need to be
+	    re-worked to support multiple domains (see below).
+
+	    Support DHCP clients in multiple DNS domains. This is a
+	    long-standing request. Clients are assigned to a domain
+	    based in their IP address.  
+
+            Add --dhcp-fqdn flag, which changes behaviour if DNS names
+            assigned to DHCP clients. When this is set, there must be
+            a domain associated with each client, and only
+            fully-qualified domain names are added to the DNS. The
+            advantage is that the only the FQDN needs to be unique,
+            so that two or more DHCP clients can share a hostname, as
+            long as they are in different domains.
+
+	    Set environment variable DNSMASQ_DOMAIN when invoking
+	    lease-change script. This may be useful information to
+	    have now that it's variable.
+
+	    Tighten up data-checking code for DNS packet
+	    handling. Thanks to Steve Dodd who found certain illegal
+	    packets which could crash dnsmasq. No memory overwrite was
+	    possible, so this is not a security issue beond the DoS
+	    potential.  
+
+	    Update example config dhcp option 47, the previous
+	    suggestion generated and illegal, zero-length,
+	    option. Thanks to Matthias Andree for finding this.
+
+	    Rewrite hosts-file reading code to remove the limit of
+	    1024 characters per line. John C Meuser found this.
+
+	    Create a net-id tag with the name of the interface on
+	    which the DHCP request was received.
+
+	    Fixed minor memory leak in DBus code, thanks to Jeremy
+	    Laine for the patch.
+
+	    Emit DBus signals as the DHCP lease database
+	    changes. Thanks to Jeremy Laine for the patch.
+
+	    Allow for more that one MAC address in a dhcp-host
+	    line. This configuration tells dnsmasq that it's OK to
+	    abandon a DHCP lease of the fixed address to one MAC
+	    address, if another MAC address in the dhcp-host statement 
+	    asks for an address. This is useful to give a fixed
+	    address to a host which has two network interfaces
+	    (say, a laptop with wired and wireless interfaces.) 
+            It's very important to ensure that only one interface 
+	    at a time is up, since dnsmasq abandons the first lease 
+	    and re-uses the address before the leased time has
+	    elapsed. John Gray suggested this.
+
+	    Tweak the response to a DHCP request packet with a wrong
+	    server-id when --dhcp-authoritative is set; dnsmasq now
+	    returns a DHCPNAK, rather than silently ignoring the
+	    packet. Thanks to Chris Marget for spotting this
+	    improvement.
+
+	    Add --cname option. This provides a limited alias
+	    function, usable for DHCP names. Thanks to AJ Weber for
+	    suggestions on this.
+
+	    Updated contrib/webmin with latest version from Neil
+	    Fisher.
+
+	    Updated Polish translation. Thanks to Jan Psota.
+	    
+	    Correct the text names for DHCP options 64 and 65 to be
+	    "nis+-domain" and "nis+-servers".
+
+	    Updated Spanish translation. Thanks to Chris Chatham.
+
+	    Force re-reading of /etc/resolv.conf when an "interface
+	    up" event occurs.
+

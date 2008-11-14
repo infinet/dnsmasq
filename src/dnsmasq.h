@@ -172,7 +172,7 @@ struct event_desc {
 #define OPT_AUTHORITATIVE  (1u<<17)
 #define OPT_LOCALISE       (1u<<18)
 #define OPT_DBUS           (1u<<19)
-#define OPT_BOOTP_DYNAMIC  (1u<<20)
+#define OPT_DHCP_FQDN      (1u<<20)
 #define OPT_NO_PING        (1u<<21)
 #define OPT_LEASE_RO       (1u<<22)
 #define OPT_ALL_SERVERS    (1u<<23)
@@ -227,6 +227,11 @@ struct txt_record {
 struct ptr_record {
   char *name, *ptr;
   struct ptr_record *next;
+};
+
+struct cname {
+  char *alias, *target;
+  struct cname *next;
 };
 
 struct interface_name {
@@ -425,23 +430,28 @@ struct dhcp_netid_list {
   struct dhcp_netid_list *next;
 };
 
+struct hwaddr_config {
+  int hwaddr_len, hwaddr_type;
+  unsigned char hwaddr[DHCP_CHADDR_MAX];
+  unsigned int wildcard_mask;
+  struct hwaddr_config *next;
+};
+
 struct dhcp_config {
   unsigned int flags;
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
-  int hwaddr_len, hwaddr_type;
-  unsigned char hwaddr[DHCP_CHADDR_MAX]; 
-  char *hostname;
+  char *hostname, *domain;
   struct dhcp_netid netid;
   struct in_addr addr;
   time_t decline_time;
-  unsigned int lease_time, wildcard_mask;
+  unsigned int lease_time;
+  struct hwaddr_config *hwaddr;
   struct dhcp_config *next;
 };
 
 #define CONFIG_DISABLE           1
 #define CONFIG_CLID              2
-#define CONFIG_HWADDR            4
 #define CONFIG_TIME              8
 #define CONFIG_NAME             16
 #define CONFIG_ADDR             32
@@ -502,6 +512,12 @@ struct dhcp_bridge {
   struct dhcp_bridge *alias, *next;
 };
 #endif
+
+struct cond_domain {
+  char *domain;
+  struct in_addr start, end;
+  struct cond_domain *next;
+};
 
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
@@ -565,16 +581,19 @@ extern struct daemon {
 
   unsigned int options;
   struct resolvc default_resolv, *resolv_files;
+  time_t last_resolv;
   struct mx_srv_record *mxnames;
   struct naptr *naptr;
   struct txt_record *txt;
   struct ptr_record *ptr;
+  struct cname *cnames;
   struct interface_name *int_names;
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname, *scriptuser;
   int group_set, osport;
   char *domain_suffix;
+  struct cond_domain *cond_domain;
   char *runfile; 
   char *lease_change_command;
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except;
@@ -593,7 +612,7 @@ extern struct daemon {
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;
-  struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *force_broadcast;
+  struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *force_broadcast, *bootp_dynamic;
   char *dhcp_hosts_file, *dhcp_opts_file;
   int dhcp_max, tftp_max;
   int dhcp_server_port, dhcp_client_port;
@@ -660,7 +679,7 @@ void cache_end_insert(void);
 void cache_start_insert(void);
 struct crec *cache_insert(char *name, struct all_addr *addr,
 			  time_t now, unsigned long ttl, unsigned short flags);
-void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile  *addn_hosts);
+void cache_reload(struct hostsfile  *addn_hosts);
 void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd);
 void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
@@ -749,17 +768,17 @@ struct in_addr get_ifaddr(char *intr);
 /* dhcp.c */
 void dhcp_init(void);
 void dhcp_packet(time_t now);
-
+char *get_domain(struct in_addr addr);
 struct dhcp_context *address_available(struct dhcp_context *context, 
 				       struct in_addr addr,
 				       struct dhcp_netid *netids);
 struct dhcp_context *narrow_context(struct dhcp_context *context, 
 				    struct in_addr taddr,
 				    struct dhcp_netid *netids);
-int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int negonly);
-int address_allocate(struct dhcp_context *context,
+int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int negonly);int address_allocate(struct dhcp_context *context,
 		     struct in_addr *addrp, unsigned char *hwaddr, int hw_len,
 		     struct dhcp_netid *netids, time_t now);
+int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type);
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
 				unsigned char *clid, int clid_len,
@@ -771,6 +790,7 @@ void check_dhcp_hosts(int fatal);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 char *strip_hostname(char *hostname);
 char *host_from_dns(struct in_addr addr);
+char *get_domain(struct in_addr addr);
 
 /* lease.c */
 void lease_update_file(time_t now);
@@ -779,8 +799,7 @@ void lease_init(time_t now);
 struct dhcp_lease *lease_allocate(struct in_addr addr);
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int hw_len, int hw_type, int clid_len);
-void lease_set_hostname(struct dhcp_lease *lease, char *name, 
-			char *suffix, int auth);
+void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth);
 void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now);
 void lease_set_interface(struct dhcp_lease *lease, int interface);
 struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr, int hw_len, int hw_type,  
@@ -794,17 +813,14 @@ void rerun_scripts(void);
 /* rfc2131.c */
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  size_t sz, time_t now, int unicast_dest, int *is_inform);
+unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
+			       int clid_len, unsigned char *clid, int *len_out);
 
 /* dnsmasq.c */
 int make_icmp_sock(void);
 int icmp_ping(struct in_addr addr);
 void send_event(int fd, int event, int data);
 void clear_cache_and_reload(time_t now);
-
-/* isc.c */
-#ifdef HAVE_ISC_READER
-void load_dhcp(time_t now);
-#endif
 
 /* netlink.c */
 #ifdef HAVE_LINUX_NETWORK
@@ -827,6 +843,7 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)());
 char *dbus_init(void);
 void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset);
 void set_dbus_listeners(int *maxfdp, fd_set *rset, fd_set *wset, fd_set *eset);
+void emit_dbus_signal(int action, char *mac, char *hostname, char *addr);
 #endif
 
 /* helper.c */

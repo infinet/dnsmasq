@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -635,6 +635,19 @@ static int is_addr_in_context(struct dhcp_context *context, struct dhcp_config *
   return 0;
 }
 
+int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type)
+{
+  struct hwaddr_config *conf_addr;
+  
+  for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
+    if (conf_addr->wildcard_mask == 0 &&
+	conf_addr->hwaddr_len == len &&
+	(conf_addr->hwaddr_type == type || conf_addr->hwaddr_type == 0) &&
+	memcmp(conf_addr->hwaddr, hwaddr, len) == 0)
+      return 1;
+  
+  return 0;
+}
 
 struct dhcp_config *find_config(struct dhcp_config *configs,
 				struct dhcp_context *context,
@@ -643,7 +656,8 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				int hw_type, char *hostname)
 {
   struct dhcp_config *config; 
-  
+  struct hwaddr_config *conf_addr;
+
   if (clid)
     for (config = configs; config; config = config->next)
       if (config->flags & CONFIG_CLID)
@@ -663,11 +677,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
   
 
   for (config = configs; config; config = config->next)
-    if ((config->flags & CONFIG_HWADDR) &&
-	config->wildcard_mask == 0 &&
-	config->hwaddr_len == hw_len &&
-	(config->hwaddr_type == hw_type || config->hwaddr_type == 0) &&
-	memcmp(config->hwaddr, hwaddr, hw_len) == 0 &&
+    if (config_has_mac(config, hwaddr, hw_len, hw_type) &&
 	is_addr_in_context(context, config))
       return config;
   
@@ -679,14 +689,14 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	return config;
   
   for (config = configs; config; config = config->next)
-    if ((config->flags & CONFIG_HWADDR) &&
-	config->wildcard_mask != 0 &&
-	config->hwaddr_len == hw_len &&	
-	(config->hwaddr_type == hw_type || config->hwaddr_type == 0) &&
-	is_addr_in_context(context, config) &&
-	memcmp_masked(config->hwaddr, hwaddr, hw_len, config->wildcard_mask))
-      return config;
-        
+    for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
+      if (conf_addr->wildcard_mask != 0 &&
+	  conf_addr->hwaddr_len == hw_len &&	
+	  (conf_addr->hwaddr_type == hw_type || conf_addr->hwaddr_type == 0) &&
+	  is_addr_in_context(context, config) &&
+	  memcmp_masked(conf_addr->hwaddr, hwaddr, hw_len, conf_addr->wildcard_mask))
+	return config;
+  
   return NULL;
 }
 
@@ -720,6 +730,7 @@ void dhcp_read_ethers(void)
 	  /* cannot have a clid */
 	  if (config->flags & CONFIG_NAME)
 	    free(config->hostname);
+	  free(config->hwaddr);
 	  free(config);
 	}
       else
@@ -766,7 +777,7 @@ void dhcp_read_ethers(void)
 	}
       else 
 	{
-	  if (!canonicalise(ip) || strip_hostname(ip))
+	  if (!canonicalise(ip))
 	    {
 	      my_syslog(LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
 	      continue;
@@ -782,19 +793,24 @@ void dhcp_read_ethers(void)
       if (!config)
 	{ 
 	  for (config = daemon->dhcp_conf; config; config = config->next)
-	    if ((config->flags & CONFIG_HWADDR) && 
-		config->wildcard_mask == 0 &&
-		config->hwaddr_len == ETHER_ADDR_LEN &&
-		(config->hwaddr_type == ARPHRD_ETHER || config->hwaddr_type == 0) &&
-		memcmp(config->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
-	      break;
+	    {
+	      struct hwaddr_config *conf_addr = config->hwaddr;
+	      if (conf_addr && 
+		  conf_addr->next == NULL && 
+		  conf_addr->wildcard_mask == 0 &&
+		  conf_addr->hwaddr_len == ETHER_ADDR_LEN &&
+		  (conf_addr->hwaddr_type == ARPHRD_ETHER || conf_addr->hwaddr_type == 0) &&
+		  memcmp(conf_addr->hwaddr, hwaddr, ETHER_ADDR_LEN) == 0)
+		break;
+	    }
 	  
 	  if (!config)
 	    {
 	      if (!(config = whine_malloc(sizeof(struct dhcp_config))))
 		continue;
 	      config->flags = CONFIG_FROM_ETHERS;
-	      config->wildcard_mask = 0;
+	      config->hwaddr = NULL;
+	      config->domain = NULL;
 	      config->next = daemon->dhcp_conf;
 	      daemon->dhcp_conf = config;
 	    }
@@ -813,10 +829,17 @@ void dhcp_read_ethers(void)
 	    config->addr = addr;
 	}
       
-      config->flags |= CONFIG_HWADDR | CONFIG_NOCLID;
-      memcpy(config->hwaddr, hwaddr, ETHER_ADDR_LEN);
-      config->hwaddr_len = ETHER_ADDR_LEN;
-      config->hwaddr_type = ARPHRD_ETHER;
+      config->flags |= CONFIG_NOCLID;
+      if (!config->hwaddr)
+	config->hwaddr = whine_malloc(sizeof(struct hwaddr_config));
+      if (config->hwaddr)
+	{
+	  memcpy(config->hwaddr->hwaddr, hwaddr, ETHER_ADDR_LEN);
+	  config->hwaddr->hwaddr_len = ETHER_ADDR_LEN;
+	  config->hwaddr->hwaddr_type = ARPHRD_ETHER;
+	  config->hwaddr->wildcard_mask = 0;
+	  config->hwaddr->next = NULL;
+	}
       count++;
     }
   
@@ -852,15 +875,9 @@ void check_dhcp_hosts(int fatal)
 	       configs->flags &= ~CONFIG_ADDR;
 	     }
 	 
+	 /* split off domain part */
 	 if ((configs->flags & CONFIG_NAME) && (domain = strip_hostname(configs->hostname)))
-	   {
-	     if (fatal)
-	       die(_("illegal domain %s in dhcp-config directive."), domain, EC_BADCONF);
-	     else
-	       my_syslog(LOG_ERR, _("illegal domain %s in %s."), domain, daemon->dhcp_hosts_file);
-	     free(configs->hostname);
-	     configs->flags &= ~CONFIG_NAME;
-	   }
+	   configs->domain = domain;
        }
     }
 }
@@ -918,6 +935,7 @@ char *host_from_dns(struct in_addr addr)
 {
   struct crec *lookup;
   char *hostname = NULL;
+  char *d1, *d2;
 
   if (daemon->port == 0)
     return NULL; /* DNS disabled. */
@@ -928,14 +946,16 @@ char *host_from_dns(struct in_addr addr)
       hostname = daemon->dhcp_buff;
       strncpy(hostname, cache_get_name(lookup), 256);
       hostname[255] = 0;
-      if (strip_hostname(hostname))
+      d1 = strip_hostname(hostname);
+      d2 = get_domain(addr);
+      if (d1 && (!d2 || hostname_isequal(d1, d2)))
 	hostname = NULL;
     }
   
   return hostname;
 }
 
-/* return illegal domain or NULL if OK */
+/* return domain or NULL if none. */
 char *strip_hostname(char *hostname)
 {
   char *dot = strchr(hostname, '.');
@@ -944,9 +964,20 @@ char *strip_hostname(char *hostname)
     return NULL;
   
   *dot = 0; /* truncate */
-  
-  if (*(dot+1) && (!daemon->domain_suffix || !hostname_isequal(dot+1, daemon->domain_suffix)))
+  if (strlen(dot+1) != 0)
     return dot+1;
   
   return NULL;
+}
+
+char *get_domain(struct in_addr addr)
+{
+  struct cond_domain *c;
+
+  for (c = daemon->cond_domain; c; c = c->next)
+    if (ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
+	ntohl(addr.s_addr) <= ntohl(c->end.s_addr))
+      return c->domain;
+  
+  return daemon->domain_suffix;
 }

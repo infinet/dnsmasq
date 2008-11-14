@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -642,150 +642,224 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
 			    unsigned short flags, int index, int addr_dup)
 {
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
-  int i;
-  
+  int i, nameexists = 0;
+  struct cname *a;
+
   /* Remove duplicates in hosts files. */
-  if (lookup && (lookup->flags & F_HOSTS) &&
-      memcmp(&lookup->addr.addr, addr, addrlen) == 0)
-    free(cache);
-  else
+  if (lookup && (lookup->flags & F_HOSTS))
     {
-      /* Ensure there is only one address -> name mapping (first one trumps) 
-	 We do this by steam here, first we see if the address is the same as
-	 the last one we saw, which eliminates most in the case of an ad-block 
-	 file with thousands of entries for the same address.
-	 Then we search and bail at the first matching address that came from
-	 a HOSTS file. Since the first host entry gets reverse, we know 
-	 then that it must exist without searching exhaustively for it. */
-     
-      if (addr_dup)
-	flags &= ~F_REVERSE;
-      else
-	for (i=0; i<hash_size; i++)
-	  {
-	    for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
-	      if ((lookup->flags & F_HOSTS) && 
-		  (lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
-		  memcmp(&lookup->addr.addr, addr, addrlen) == 0)
-		{
-		  flags &= ~F_REVERSE;
-		  break;
-		}
-	    if (lookup)
+      nameexists = 1;
+      if (memcmp(&lookup->addr.addr, addr, addrlen) == 0)
+	{
+	  free(cache);
+	  return;
+	}
+    }
+  
+  /* Ensure there is only one address -> name mapping (first one trumps) 
+     We do this by steam here, first we see if the address is the same as
+     the last one we saw, which eliminates most in the case of an ad-block 
+     file with thousands of entries for the same address.
+     Then we search and bail at the first matching address that came from
+     a HOSTS file. Since the first host entry gets reverse, we know 
+     then that it must exist without searching exhaustively for it. */
+  
+  if (addr_dup)
+    flags &= ~F_REVERSE;
+  else
+    for (i=0; i<hash_size; i++)
+      {
+	for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
+	  if ((lookup->flags & F_HOSTS) && 
+	      (lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+	      memcmp(&lookup->addr.addr, addr, addrlen) == 0)
+	    {
+	      flags &= ~F_REVERSE;
 	      break;
-	  }
+	    }
+	if (lookup)
+	  break;
+      }
+  
+  cache->flags = flags;
+  cache->uid = index;
+  memcpy(&cache->addr.addr, addr, addrlen);
+  cache_hash(cache);
+  
+  /* don't need to do alias stuff for second and subsequent addresses. */
+  if (!nameexists)
+    for (a = daemon->cnames; a; a = a->next)
+      if (hostname_isequal(cache->name.sname, a->target) &&
+	  (lookup = whine_malloc(sizeof(struct crec) + strlen(a->alias)+1-SMALLDNAME)))
+	{
+	  lookup->flags = F_FORWARD | F_IMMORTAL | F_HOSTS | F_CNAME;
+	  strcpy(lookup->name.sname, a->alias);
+	  lookup->addr.cname.cache = cache;
+	  lookup->addr.cname.uid = index;
+	  cache_hash(lookup);
+	}
+}
+
+static int eatspace(FILE *f)
+{
+  int c, nl = 0;
+
+  while (1)
+    {
+      if ((c = getc(f)) == '#')
+	while (c != '\n' && c != EOF)
+	  c = getc(f);
       
-      cache->flags = flags;
-      cache->uid = index;
-      memcpy(&cache->addr.addr, addr, addrlen);
-      cache_hash(cache);
+      if (c == EOF)
+	return 1;
+
+      if (!isspace(c))
+	{
+	  ungetc(c, f);
+	  return nl;
+	}
+
+      if (c == '\n')
+	nl = 1;
+    }
+}
+	 
+static int gettok(FILE *f, char *token)
+{
+  int c, count = 0;
+ 
+  while (1)
+    {
+      if ((c = getc(f)) == EOF)
+	return (count == 0) ? EOF : 1;
+
+      if (isspace(c) || c == '#')
+	{
+	  ungetc(c, f);
+	  return eatspace(f);
+	}
+      
+      if (count < (MAXDNAME - 1))
+	{
+	  token[count++] = c;
+	  token[count] = 0;
+	}
     }
 }
 
-static int read_hostsfile(char *filename, int opts, char *buff, char *domain_suffix, int index, int cache_size)
+static int read_hostsfile(char *filename, int index, int cache_size)
 {  
   FILE *f = fopen(filename, "r");
-  char *line;
+  char *token = daemon->namebuff, *domain_suffix = NULL;
   int addr_count = 0, name_count = cache_size, lineno = 0;
-  unsigned short flags, saved_flags = 0;
+  unsigned short flags = 0, saved_flags = 0;
   struct all_addr addr, saved_addr;
+  int atnl, addrlen = 0, addr_dup;
 
   if (!f)
     {
       my_syslog(LOG_ERR, _("failed to load names from %s: %s"), filename, strerror(errno));
       return 0;
     }
-    
-  while ((line = fgets(buff, MAXDNAME, f)))
+  
+  eatspace(f);
+  
+  while ((atnl = gettok(f, token)) != EOF)
     {
-      char *token = strtok(line, " \t\n\r");
-      int addrlen, addr_dup = 0;
-              
+      addr_dup = 0;
       lineno++;
-
-      if (!token || (*token == '#')) 
-	continue;
-
+      
 #ifdef HAVE_IPV6      
       if (inet_pton(AF_INET, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
 	  addrlen = INADDRSZ;
+	  domain_suffix = get_domain(addr.addr.addr4);
 	}
       else if (inet_pton(AF_INET6, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6;
 	  addrlen = IN6ADDRSZ;
+	  domain_suffix = daemon->domain_suffix;
 	}
 #else 
-     if ((addr.addr.addr4.s_addr = inet_addr(token)) != (in_addr_t) -1)
-        {
-          flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
-          addrlen = INADDRSZ;
+      if ((addr.addr.addr4.s_addr = inet_addr(token)) != (in_addr_t) -1)
+	{
+	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
+	  addrlen = INADDRSZ;
+	  domain_suffix = get_domain(addr.addr.addr4);
 	}
 #endif
       else
 	{
 	  my_syslog(LOG_ERR, _("bad address at %s line %d"), filename, lineno); 
+	  while (atnl == 0)
+	    atnl = gettok(f, token);
 	  continue;
 	}
+      
+      if (saved_flags == flags && memcmp(&addr, &saved_addr, addrlen) == 0)
+	addr_dup = 1;
+      else
+	{
+	  saved_flags = flags;
+	  saved_addr = addr;
+	}
+      
+      addr_count++;
+      
+      /* rehash every 1000 names. */
+      if ((name_count - cache_size) > 1000)
+	{
+	  rehash(name_count);
+	  cache_size = name_count;
+	} 
+      
+      while (atnl == 0)
+	{
+	  struct crec *cache;
+	  int fqdn;
+	  
+	  if ((atnl = gettok(f, token)) == EOF)
+	    break;
 
-     if (saved_flags == flags && memcmp(&addr, &saved_addr, addrlen) == 0)
-       addr_dup = 1;
-     else
-       {
-	 saved_flags = flags;
-	 saved_addr = addr;
-       }
-     
-     addr_count++;
-     
-     /* rehash every 1000 names. */
-     if ((name_count - cache_size) > 1000)
-       {
-	 rehash(name_count);
-	 cache_size = name_count;
-       }
-     
-     while ((token = strtok(NULL, " \t\n\r")) && (*token != '#'))
-       {
-	 struct crec *cache;
-	 int fqdn = !!strchr(token, '.');
-	 if (canonicalise(token))
-	   {
-	     /* If set, add a version of the name with a default domain appended */
-	     if ((opts & OPT_EXPAND) && domain_suffix && !fqdn && 
-		 (cache = whine_malloc(sizeof(struct crec) + 
-				       strlen(token)+2+strlen(domain_suffix)-SMALLDNAME)))
-	       {
-		 strcpy(cache->name.sname, token);
-		 strcat(cache->name.sname, ".");
-		 strcat(cache->name.sname, domain_suffix);
-		 add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
-		 addr_dup = 1;
-		 name_count++;
-	       }
-	     if ((cache = whine_malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
-	       {
-		 strcpy(cache->name.sname, token);
-		 add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
-		 name_count++;
-	       }
-	   }
-	 else
-	   my_syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
-       }
-    }
-  
+	  fqdn = !!strchr(token, '.');
+
+	  if (canonicalise(token))
+	    {
+	      /* If set, add a version of the name with a default domain appended */
+	      if ((daemon->options & OPT_EXPAND) && domain_suffix && !fqdn && 
+		  (cache = whine_malloc(sizeof(struct crec) + 
+					strlen(token)+2+strlen(domain_suffix)-SMALLDNAME)))
+		{
+		  strcpy(cache->name.sname, token);
+		  strcat(cache->name.sname, ".");
+		  strcat(cache->name.sname, domain_suffix);
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
+		  addr_dup = 1;
+		  name_count++;
+		}
+	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
+		{
+		  strcpy(cache->name.sname, token);
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
+		  name_count++;
+		}
+	    }
+	  else
+	    my_syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
+	}
+    } 
+
   fclose(f);
   rehash(name_count);
-
+  
   my_syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
-
+  
   return name_count;
 }
 	    
-void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *addn_hosts)
+void cache_reload(struct hostsfile *addn_hosts)
 {
   struct crec *cache, **up, *tmp;
   int i, total_size = daemon->cachesize;
@@ -815,18 +889,18 @@ void cache_reload(int opts, char *buff, char *domain_suffix, struct hostsfile *a
 	  up = &cache->hash_next;
       }
   
-  if ((opts & OPT_NO_HOSTS) && !addn_hosts)
+  if ((daemon->options & OPT_NO_HOSTS) && !addn_hosts)
     {
       if (daemon->cachesize > 0)
 	my_syslog(LOG_INFO, _("cleared cache"));
       return;
     }
 
-  if (!(opts & OPT_NO_HOSTS))
-    total_size = read_hostsfile(HOSTSFILE, opts, buff, domain_suffix, 0, total_size);
+  if (!(daemon->options & OPT_NO_HOSTS))
+    total_size = read_hostsfile(HOSTSFILE, 0, total_size);
   while (addn_hosts)
     {
-      total_size = read_hostsfile(addn_hosts->fname, opts, buff, domain_suffix, addn_hosts->index, total_size);
+      total_size = read_hostsfile(addn_hosts->fname, addn_hosts->index, total_size);
       addn_hosts = addn_hosts->next;
     }  
 } 
@@ -851,13 +925,11 @@ void cache_unhash_dhcp(void)
 void cache_add_dhcp_entry(char *host_name, 
 			  struct in_addr *host_address, time_t ttd) 
 {
-  struct crec *crec = NULL;
+  struct crec *crec = NULL, *aliasc;
   unsigned short flags =  F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
   int in_hosts = 0;
-
-  if (!host_name)
-    return;
-
+  struct cname *a;
+  
   while ((crec = cache_find_by_name(crec, host_name, 0, F_IPV4 | F_CNAME)))
     {
       /* check all addresses associated with name */
@@ -911,9 +983,33 @@ void cache_add_dhcp_entry(char *host_name,
 	crec->ttd = ttd;
       crec->addr.addr.addr.addr4 = *host_address;
       crec->name.namep = host_name;
+      crec->uid = uid++;
       cache_hash(crec);
+
+      for (a = daemon->cnames; a; a = a->next)
+	if (hostname_isequal(host_name, a->target))
+	  {
+	    if ((aliasc = dhcp_spare))
+	      dhcp_spare = dhcp_spare->next;
+	    else /* need new one */
+	      aliasc = whine_malloc(sizeof(struct crec));
+	    
+	    if (aliasc)
+	      {
+		aliasc->flags = F_FORWARD | F_DHCP | F_CNAME;
+		if (ttd == 0)
+		  aliasc->flags |= F_IMMORTAL;
+		else
+		  aliasc->ttd = ttd;
+		aliasc->name.namep = a->alias;
+		aliasc->addr.cname.cache = crec;
+		aliasc->addr.cname.uid = crec->uid;
+		cache_hash(aliasc);
+	      }
+	  }
     }
 }
+
 
 void dump_cache(time_t now)
 {

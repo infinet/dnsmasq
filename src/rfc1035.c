@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,8 +21,14 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp,
 			       unsigned long ttl, unsigned int *offset, unsigned short type, 
 			       unsigned short class, char *format, ...);
 
+#define CHECK_LEN(header, pp, plen, len) \
+    ((size_t)((pp) - (unsigned char *)(header) + (len)) <= (plen))
+
+#define ADD_RDLEN(header, pp, plen, len) \
+    (!CHECK_LEN(header, pp, plen, len) ? 0 : (int)((pp) += (len)), 1)
+
 static int extract_name(HEADER *header, size_t plen, unsigned char **pp, 
-			char *name, int isExtract)
+			char *name, int isExtract, int extrabytes)
 {
   unsigned char *cp = (unsigned char *)name, *p = *pp, *p1 = NULL;
   unsigned int j, l, hops = 0;
@@ -31,19 +37,47 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
   if (isExtract)
     *cp = 0;
 
-  while ((l = *p++))
-    {
-      unsigned int label_type = l & 0xc0;
+  while (1)
+    { 
+      unsigned int label_type;
+
+      if (!CHECK_LEN(header, p, plen, 1))
+	return 0;
+      
+      if ((l = *p++) == 0) 
+	/* end marker */
+	{
+	  /* check that there are the correct no of bytes after the name */
+	  if (!CHECK_LEN(header, p, plen, extrabytes))
+	    return 0;
+	  
+	  if (isExtract)
+	    {
+	      if (cp != (unsigned char *)name)
+		cp--;
+	      *cp = 0; /* terminate: lose final period */
+	    }
+	  else if (*cp != 0)
+	    retvalue = 2;
+	  
+	  if (p1) /* we jumped via compression */
+	    *pp = p1;
+	  else
+	    *pp = p;
+	  
+	  return retvalue;
+	}
+
+      label_type = l & 0xc0;
+      
       if (label_type == 0xc0) /* pointer */
 	{ 
-	  if ((size_t)(p - (unsigned char *)header) >= plen)
+	  if (!CHECK_LEN(header, p, plen, 1))
 	    return 0;
 	      
 	  /* get offset */
 	  l = (l&0x3f) << 8;
 	  l |= *p++;
-	  if (l >= plen) 
-	    return 0;
 	  
 	  if (!p1) /* first jump, save location to go back to */
 	    p1 = p;
@@ -74,7 +108,7 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
 	  /* output is \[x<hex>/siz]. which is digs+9 chars */
 	  if (cp - (unsigned char *)name + digs + 9 >= MAXDNAME)
 	    return 0;
-	  if ((size_t)(p - (unsigned char *)header + ((count-1)>>3)) >= plen)
+	  if (!CHECK_LEN(header, p, plen, (count-1)>>3))
 	    return 0;
 
 	  *cp++ = '\\';
@@ -98,8 +132,9 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
 	{ /* label_type = 0 -> label. */
 	  if (cp - (unsigned char *)name + l + 1 >= MAXDNAME)
 	    return 0;
-	  if ((size_t)(p - (unsigned char *)header) >= plen)
+	  if (!CHECK_LEN(header, p, plen, l))
 	    return 0;
+	  
 	  for(j=0; j<l; j++, p++)
 	    if (isExtract)
 	      {
@@ -132,26 +167,7 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
 	  else if (*cp != 0 && *cp++ != '.')
 	    retvalue = 2;
 	}
-      
-      if ((unsigned int)(p - (unsigned char *)header) >= plen)
-	return 0;
     }
-
-  if (isExtract)
-    {
-      if (cp != (unsigned char *)name)
-	cp--;
-      *cp = 0; /* terminate: lose final period */
-    }
-  else if (*cp != 0)
-    retvalue = 2;
-    
-  if (p1) /* we jumped via compression */
-    *pp = p1;
-  else
-    *pp = p;
-
-  return retvalue;
 }
  
 /* Max size of input string (for IPv6) is 75 chars.) */
@@ -261,15 +277,17 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
   return 0;
 }
 
-static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen)
+static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen, int extrabytes)
 {
   while(1)
     {
-      unsigned int label_type = (*ansp) & 0xc0;
+      unsigned int label_type;
       
-      if ((unsigned int)(ansp - (unsigned char *)header) >= plen)
+      if (!CHECK_LEN(header, ansp, plen, 1))
 	return NULL;
       
+      label_type = (*ansp) & 0xc0;
+
       if (label_type == 0xc0)
 	{
 	  /* pointer for compression. */
@@ -282,6 +300,9 @@ static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen
 	{
 	  /* Extended label type */
 	  unsigned int count;
+	  
+	  if (!CHECK_LEN(header, ansp, plen, 2))
+	    return NULL;
 	  
 	  if (((*ansp++) & 0x3f) != 1)
 	    return NULL; /* we only understand bitstrings */
@@ -296,12 +317,17 @@ static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen
       else
 	{ /* label type == 0 Bottom six bits is length */
 	  unsigned int len = (*ansp++) & 0x3f;
+	  
+	  if (!ADD_RDLEN(header, ansp, plen, len))
+	    return NULL;
+
 	  if (len == 0)
 	    break; /* zero length label marks the end. */
-	  
-	  ansp += len;
 	}
     }
+
+  if (!CHECK_LEN(header, ansp, plen, extrabytes))
+    return NULL;
   
   return ansp;
 }
@@ -313,12 +339,10 @@ static unsigned char *skip_questions(HEADER *header, size_t plen)
 
   for (q = ntohs(header->qdcount); q != 0; q--)
     {
-      if (!(ansp = skip_name(ansp, header, plen)))
+      if (!(ansp = skip_name(ansp, header, plen, 4)))
 	return NULL;
       ansp += 4; /* class and type */
     }
-  if ((unsigned int)(ansp - (unsigned char *)header) > plen) 
-     return NULL;
   
   return ansp;
 }
@@ -329,13 +353,12 @@ static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *heade
   
   for (i = 0; i < count; i++)
     {
-      if (!(ansp = skip_name(ansp, header, plen)))
+      if (!(ansp = skip_name(ansp, header, plen, 10)))
 	return NULL; 
       ansp += 8; /* type, class, TTL */
       GETSHORT(rdlen, ansp);
-      if ((unsigned int)(ansp + rdlen - (unsigned char *)header) > plen) 
+      if (!ADD_RDLEN(header, ansp, plen, rdlen))
 	return NULL;
-      ansp += rdlen;
     }
 
   return ansp;
@@ -355,7 +378,7 @@ unsigned int questions_crc(HEADER *header, size_t plen, char *name)
 
   for (q = ntohs(header->qdcount); q != 0; q--) 
     {
-      if (!extract_name(header, plen, &p, name, 1))
+      if (!extract_name(header, plen, &p, name, 1, 4))
 	return crc; /* bad packet */
       
       for (p1 = (unsigned char *)name; *p1; p1++)
@@ -381,7 +404,7 @@ unsigned int questions_crc(HEADER *header, size_t plen, char *name)
 	}
 
       p += 4;
-      if ((unsigned int)(p - (unsigned char *)header) > plen)
+      if (!CHECK_LEN(header, p, plen, 0))
 	return crc; /* bad packet */
     }
 
@@ -393,12 +416,13 @@ size_t resize_packet(HEADER *header, size_t plen, unsigned char *pheader, size_t
 {
   unsigned char *ansp = skip_questions(header, plen);
     
+  /* if packet is malformed, just return as-is. */
   if (!ansp)
-    return 0;
+    return plen;
   
   if (!(ansp = skip_section(ansp, ntohs(header->ancount) + ntohs(header->nscount) + ntohs(header->arcount),
 			    header, plen)))
-    return 0;
+    return plen;
     
   /* restore pseudoheader */
   if (pheader && ntohs(header->arcount) == 0)
@@ -432,7 +456,7 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
 	{
 	  for (i = ntohs(header->qdcount); i != 0; i--)
 	    {
-	      if (!(ansp = skip_name(ansp, header, plen)))
+	      if (!(ansp = skip_name(ansp, header, plen, 4)))
 		return NULL;
 	      
 	      GETSHORT(type, ansp); 
@@ -458,7 +482,7 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
   for (i = 0; i < arcount; i++)
     {
       unsigned char *save, *start = ansp;
-      if (!(ansp = skip_name(ansp, header, plen)))
+      if (!(ansp = skip_name(ansp, header, plen, 10)))
 	return NULL; 
 
       GETSHORT(type, ansp);
@@ -466,9 +490,8 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
       GETSHORT(class, ansp);
       ansp += 4; /* TTL */
       GETSHORT(rdlen, ansp);
-      if ((size_t)(ansp + rdlen - (unsigned char *)header) > plen) 
+      if (!ADD_RDLEN(header, ansp, plen, rdlen))
 	return NULL;
-      ansp += rdlen;
       if (type == T_OPT)
 	{
 	  if (len)
@@ -508,7 +531,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 
   for (i = count; i != 0; i--)
     {
-      if (!(p = skip_name(p, header, qlen)))
+      if (!(p = skip_name(p, header, qlen, 10)))
 	return 0; /* bad packet */
       
       GETSHORT(qtype, p); 
@@ -521,7 +544,10 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	  struct doctor *doctor;
 	  struct in_addr addr;
 	  
-	  /* alignment */
+	  if (!CHECK_LEN(header, p, qlen, INADDRSZ))
+	    return 0;
+	   
+	   /* alignment */
 	  memcpy(&addr, p, INADDRSZ);
 	  
 	  for (doctor = daemon->doctors; doctor; doctor = doctor->next)
@@ -536,10 +562,8 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	      }
 	}
       
-      p += rdlen;
-      
-      if ((size_t)(p - (unsigned char *)header) > qlen)
-	return 0; /* bad packet */
+      if (!ADD_RDLEN(header, p, qlen, rdlen))
+	 return 0; /* bad packet */
     }
   
   return p; 
@@ -559,7 +583,7 @@ static int find_soa(HEADER *header, size_t qlen)
   
   for (i = ntohs(header->nscount); i != 0; i--)
     {
-      if (!(p = skip_name(p, header, qlen)))
+      if (!(p = skip_name(p, header, qlen, 10)))
 	return 0; /* bad packet */
       
       GETSHORT(qtype, p); 
@@ -574,10 +598,10 @@ static int find_soa(HEADER *header, size_t qlen)
 	    minttl = ttl;
 
 	  /* MNAME */
-	  if (!(p = skip_name(p, header, qlen)))
+	  if (!(p = skip_name(p, header, qlen, 0)))
 	    return 0;
 	  /* RNAME */
-	  if (!(p = skip_name(p, header, qlen)))
+	  if (!(p = skip_name(p, header, qlen, 20)))
 	    return 0;
 	  p += 16; /* SERIAL REFRESH RETRY EXPIRE */
 	  
@@ -585,13 +609,10 @@ static int find_soa(HEADER *header, size_t qlen)
 	  if (ttl < minttl)
 	    minttl = ttl;
 	}
-      else
-	p += rdlen;
-      
-      if ((size_t)(p - (unsigned char *)header) > qlen)
+      else if (!ADD_RDLEN(header, p, qlen, rdlen))
 	return 0; /* bad packet */
     }
- 
+  
   /* rewrite addresses in additioal section too */
   if (!do_doctor(p, ntohs(header->arcount), header, qlen))
     return 0;
@@ -633,7 +654,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
       unsigned long cttl = ULONG_MAX, attl;
       
       namep = p;
-      if (!extract_name(header, qlen, &p, name, 1))
+      if (!extract_name(header, qlen, &p, name, 1, 4))
 	return 0; /* bad packet */
            
       GETSHORT(qtype, p); 
@@ -661,8 +682,8 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 		{
 		  unsigned char *tmp = namep;
 		  /* the loop body overwrites the original name, so get it back here. */
-		  if (!extract_name(header, qlen, &tmp, name, 1) ||
-		      !(res = extract_name(header, qlen, &p1, name, 0)))
+		  if (!extract_name(header, qlen, &tmp, name, 1, 0) ||
+		      !(res = extract_name(header, qlen, &p1, name, 0, 10)))
 		    return 0; /* bad packet */
 		  
 		  GETSHORT(aqtype, p1); 
@@ -677,7 +698,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 
 		  if (aqclass == C_IN && res != 2 && (aqtype == T_CNAME || aqtype == T_PTR))
 		    {
-		      if (!extract_name(header, qlen, &p1, name, 1))
+		      if (!extract_name(header, qlen, &p1, name, 1, 0))
 			return 0;
 		      
 		      if (aqtype == T_CNAME)
@@ -692,7 +713,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 		    }
 		  
 		  p1 = endrr;
-		  if ((size_t)(p1 - (unsigned char *)header) > qlen)
+		  if (!CHECK_LEN(header, p1, qlen, 0))
 		    return 0; /* bad packet */
 		}
 	    }
@@ -737,7 +758,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 	      
 	      for (j = ntohs(header->ancount); j != 0; j--) 
 		{
-		  if (!(res = extract_name(header, qlen, &p1, name, 0)))
+		  if (!(res = extract_name(header, qlen, &p1, name, 0, 10)))
 		    return 0; /* bad packet */
 		  
 		  GETSHORT(aqtype, p1); 
@@ -763,14 +784,17 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 			  if (attl < cttl)
 			    cttl = attl;
 			  
-			  if (!extract_name(header, qlen, &p1, name, 1))
+			  if (!extract_name(header, qlen, &p1, name, 1, 0))
 			    return 0;
 			  goto cname_loop1;
 			}
 		      else
 			{
 			  found = 1;
+			  
 			  /* copy address into aligned storage */
+			  if (!CHECK_LEN(header, p1, qlen, addrlen))
+			    return 0; /* bad packet */
 			  memcpy(&addr, p1, addrlen);
 			  
 			  /* check for returned address in private space */
@@ -790,7 +814,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 		    }
 		  
 		  p1 = endrr;
-		  if ((size_t)(p1 - (unsigned char *)header) > qlen)
+		  if (!CHECK_LEN(header, p1, qlen, 0))
 		    return 0; /* bad packet */
 		}
 	    }
@@ -839,7 +863,7 @@ unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned
   if (ntohs(header->qdcount) != 1 || header->opcode != QUERY)
     return 0; /* must be exactly one query. */
   
-  if (!extract_name(header, qlen, &p, name, 1))
+  if (!extract_name(header, qlen, &p, name, 1, 4))
     return 0; /* bad packet */
    
   GETSHORT(qtype, p); 
@@ -953,7 +977,7 @@ int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name,
 
   for (i = ntohs(header->ancount); i != 0; i--)
     {
-      if (!extract_name(header, qlen, &p, name, 1))
+      if (!extract_name(header, qlen, &p, name, 1, 10))
 	return 0; /* bad packet */
   
       GETSHORT(qtype, p); 
@@ -962,19 +986,25 @@ int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name,
       GETSHORT(rdlen, p);
       
       if (qclass == C_IN && qtype == T_A)
-	for (baddrp = baddr; baddrp; baddrp = baddrp->next)
-	  if (memcmp(&baddrp->addr, p, INADDRSZ) == 0)
-	    {
-	      /* Found a bogus address. Insert that info here, since there no SOA record
-		 to get the ttl from in the normal processing */
-	      cache_start_insert();
-	      cache_insert(name, NULL, now, ttl, F_IPV4 | F_FORWARD | F_NEG | F_NXDOMAIN | F_CONFIG);
-	      cache_end_insert();
-	      
-	      return 1;
-	    }
+	{
+	  if (!CHECK_LEN(header, p, qlen, INADDRSZ))
+	    return 0;
+	  
+	  for (baddrp = baddr; baddrp; baddrp = baddrp->next)
+	    if (memcmp(&baddrp->addr, p, INADDRSZ) == 0)
+	      {
+		/* Found a bogus address. Insert that info here, since there no SOA record
+		   to get the ttl from in the normal processing */
+		cache_start_insert();
+		cache_insert(name, NULL, now, ttl, F_IPV4 | F_FORWARD | F_NEG | F_NXDOMAIN | F_CONFIG);
+		cache_end_insert();
+		
+		return 1;
+	      }
+	}
       
-      p += rdlen;
+      if (!ADD_RDLEN(header, p, qlen, rdlen))
+	return 0;
     }
   
   return 0;
@@ -1073,6 +1103,18 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigne
   return 1;
 }
 
+static unsigned long crec_ttl(struct crec *crecp, time_t now)
+{
+  /* Return 0 ttl for DHCP entries, which might change
+     before the lease expires. */
+
+  if  (crecp->flags & (F_IMMORTAL | F_DHCP))
+    return daemon->local_ttl;
+  
+  return crecp->ttd - now;
+}
+  
+
 /* return zero if we can't answer from cache, or packet size if we can */
 size_t answer_request(HEADER *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, time_t now) 
@@ -1137,7 +1179,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
       nameoffset = p - (unsigned char *)header;
 
       /* now extract name as .-concatenated string into name */
-      if (!extract_name(header, qlen, &p, name, 1))
+      if (!extract_name(header, qlen, &p, name, 1, 4))
 	return 0; /* bad packet */
             
       GETSHORT(qtype, p); 
@@ -1239,18 +1281,11 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			  auth = 0;
 			if (!dryrun)
 			  {
-			    unsigned long ttl;
-			    /* Return 0 ttl for DHCP entries, which might change
-			       before the lease expires. */
-			    if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-			      ttl = daemon->local_ttl;
-			    else
-			      ttl = crecp->ttd - now;
-			    
 			    log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr, 
 				      record_source(daemon->addn_hosts, crecp->uid));
 			    
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, ttl, NULL,
+			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						    crec_ttl(crecp, now), NULL,
 						    T_PTR, C_IN, "d", cache_get_name(crecp)))
 			      anscount++;
 			  }
@@ -1358,7 +1393,8 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			  if (!dryrun)
 			    {
 			      log_query(crecp->flags, name, NULL, record_source(daemon->addn_hosts, crecp->uid));
-			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, crecp->ttd - now, &nameoffset,
+			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						      crec_ttl(crecp, now), &nameoffset,
 						      T_CNAME, C_IN, "d", cache_get_name(crecp->addr.cname.cache)))
 				anscount++;
 			    }
@@ -1391,17 +1427,11 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			  ans = 1;
 			  if (!dryrun)
 			    {
-			      unsigned long ttl;
-			      
-			      if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-				ttl = daemon->local_ttl;
-			      else
-				ttl = crecp->ttd - now;
-			      
 			      log_query(crecp->flags & ~F_REVERSE, name, &crecp->addr.addr,
 					record_source(daemon->addn_hosts, crecp->uid));
 			      
-			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, ttl, NULL, type, C_IN, 
+			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						      crec_ttl(crecp, now), NULL, type, C_IN, 
 						      type == T_A ? "4" : "6", &crecp->addr))
 				anscount++;
 			    }
@@ -1529,7 +1559,6 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 	crecp = NULL;
 	while ((crecp = cache_find_by_name(crecp, rec->target, now, F_IPV4 | F_IPV6)))
 	  {
-	    unsigned long ttl;
 #ifdef HAVE_IPV6
 	    int type =  crecp->flags & F_IPV4 ? T_A : T_AAAA;
 #else
@@ -1538,12 +1567,8 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 	    if (crecp->flags & F_NEG)
 	      continue;
 
-	    if  (crecp->flags & (F_IMMORTAL | F_DHCP))
-	      ttl = daemon->local_ttl;
-	    else
-	      ttl = crecp->ttd - now;
-	    
-	    if (add_resource_record(header, limit, NULL, rec->offset, &ansp, ttl, NULL, type, C_IN, 
+	    if (add_resource_record(header, limit, NULL, rec->offset, &ansp, 
+				    crec_ttl(crecp, now), NULL, type, C_IN, 
 				    crecp->flags & F_IPV4 ? "4" : "6", &crecp->addr))
 	      addncount++;
 	  }

@@ -1,6 +1,6 @@
 CFLAGS = -Wall -W -O2
 
-OBJS = cache.o rfc1035.o util.o option.o forward.o isc.o network.o \
+OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
        helper.o tftp.o log.o
 

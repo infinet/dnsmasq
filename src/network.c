@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2007 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -442,7 +442,7 @@ struct listener *create_bound_listeners(void)
 }
 
 
-/* return a UDP socket bound to a random port, have to coper with straying into
+/* return a UDP socket bound to a random port, have to cope with straying into
    occupied port nos and reserved ones. */
 int random_sock(int family)
 {
@@ -452,10 +452,7 @@ int random_sock(int family)
     {
       union mysockaddr addr;
       unsigned int ports_avail = 65536u - (unsigned short)daemon->min_port;
-      int i, tries = 3 * ports_avail;
-
-      if (tries > 100)
-	tries = 100;
+      int tries = ports_avail < 30 ? 3 * ports_avail : 100;
 
       memset(&addr, 0, sizeof(addr));
       addr.sa.sa_family = family;
@@ -463,7 +460,7 @@ int random_sock(int family)
       /* don't loop forever if all ports in use. */
 
       if (fix_fd(fd))
-	for (i = tries; i != 0; i--)
+	while(tries--)
 	  {
 	    unsigned short port = rand16();
 	    

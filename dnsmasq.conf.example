@@ -122,6 +122,12 @@
 # 3) Provides the domain part for "expand-hosts"
 #domain=thekelleys.org.uk
 
+# Set a different domain for a particular subnet
+#domain=wireless.thekelleys.org.uk,192.168.2.0/24
+
+# Same idea, but range rather then subnet
+#domain=reserved.thekelleys.org.uk,192.68.3.100,192.168.3.200
+
 # Uncomment this to enable the integrated DHCP server, you need
 # to supply the range of addresses available for lease and optionally
 # a lease time. If you have more than one network, you will need to
@@ -156,6 +162,14 @@
 # Always give the host with ethernet address 11:22:33:44:55:66
 # the name fred and IP address 192.168.0.60 and lease time 45 minutes
 #dhcp-host=11:22:33:44:55:66,fred,192.168.0.60,45m
+
+# Give a host with ethernet address 11:22:33:44:55:66 or
+# 12:34:56:78:90:12 the IP address 192.168.0.60. Dnsmasq will assume
+# that these two ethernet interfaces will never be in use at the same
+# time, and give the IP address to the second, even if it is already
+# in use by the first. Useful for laptops with wired and wireless
+# addresses.
+#dhcp-host=11:22:33:44:55:66,12:34:56:78:90:12,192.168.0.60
 
 # Give the machine which says its name is "bert" IP address
 # 192.168.0.70 and an infinite lease
@@ -270,12 +284,12 @@
 # http://www.samba.org/samba/ftp/docs/textdocs/DHCP-Server-Configuration.txt
 # adapted for a typical dnsmasq installation where the host running
 # dnsmasq is also the host running samba.
-# you may want to uncomment them if you use Windows clients and Samba.
+# you may want to uncomment some or all of them if you use 
+# Windows clients and Samba.
 #dhcp-option=19,0           # option ip-forwarding off
 #dhcp-option=44,0.0.0.0     # set netbios-over-TCP/IP nameserver(s) aka WINS server(s)
 #dhcp-option=45,0.0.0.0     # netbios datagram distribution server
 #dhcp-option=46,8           # netbios node type
-#dhcp-option=47             # empty netbios scope.
 
 # Send RFC-3397 DNS domain search DHCP option. WARNING: Your DHCP client
 # probably doesn't support this......
@@ -458,6 +472,10 @@
 #Example zeroconf
 #txt-record=_http._tcp.example.com,name=value,paper=A4
 
+# Provide an alias for a "local" DNS name. Note that this _only_ works
+# for targets which are names from DHCP or /etc/hosts. Give host
+# "bert" another name, bertrand
+#cname=bertand,bert
 
 # For debugging purposes, log each DNS query as it passes through
 # dnsmasq.
