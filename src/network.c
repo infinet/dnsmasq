@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +10,8 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
@@ -366,8 +366,11 @@ struct listener *create_bound_listeners(void)
 {
   struct listener *listeners = NULL;
   struct irec *iface;
-  int opt = 1;
-  
+  int rc, opt = 1;
+#ifdef HAVE_IPV6
+  static int dad_count = 0;
+#endif
+
   for (iface = daemon->interfaces; iface; iface = iface->next)
     {
       struct listener *new = safe_malloc(sizeof(struct listener));
@@ -377,6 +380,7 @@ struct listener *create_bound_listeners(void)
       new->tftpfd = -1;
       new->tcpfd = -1;
       new->fd = -1;
+      listeners = new;
 
       if (daemon->port != 0)
 	{
@@ -396,27 +400,34 @@ struct listener *create_bound_listeners(void)
 		die(_("failed to set IPV6 options on listening socket: %s"), NULL, EC_BADNET);
 	    }
 #endif
-	  
-	  if (bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1 ||
-	      bind(new->fd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
+
+	  while(1)
 	    {
+	      if ((rc = bind(new->fd, &iface->addr.sa, sa_len(&iface->addr))) != -1)
+		break;
+	      
 #ifdef HAVE_IPV6
-	      if (iface->addr.sa.sa_family == AF_INET6 && (errno == ENODEV || errno == EADDRNOTAVAIL))
+	      /* An interface may have an IPv6 address which is still undergoing DAD. 
+		 If so, the bind will fail until the DAD completes, so we try over 20 seconds
+		 before failing. */
+	      if (iface->addr.sa.sa_family == AF_INET6 && (errno == ENODEV || errno == EADDRNOTAVAIL) && 
+		  dad_count++ < DAD_WAIT)
 		{
-		  close(new->tcpfd);
-		  close(new->fd);
-		  free(new);
-		  new = NULL;
+		  sleep(1);
+		  continue;
 		}
-	      else
 #endif
-		{
-		  prettyprint_addr(&iface->addr, daemon->namebuff);
-		  die(_("failed to bind listening socket for %s: %s"), 
-		      daemon->namebuff, EC_BADNET);
-		}
+	      break;
 	    }
-	  else if (listen(new->tcpfd, 5) == -1)
+	  
+	  if (rc == -1 || bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
+	    {
+	      prettyprint_addr(&iface->addr, daemon->namebuff);
+	      die(_("failed to bind listening socket for %s: %s"), 
+		  daemon->namebuff, EC_BADNET);
+	    }
+	    
+	  if (listen(new->tcpfd, 5) == -1)
 	    die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
 	}
 
@@ -434,8 +445,6 @@ struct listener *create_bound_listeners(void)
 	}
 #endif
 
-      if (new)
-	listeners = new;
     }
 
   return listeners;
@@ -519,7 +528,7 @@ int local_bind(int fd, union mysockaddr *addr, char *intname, int is_tcp)
     return 0;
     
 #if defined(SO_BINDTODEVICE)
-  if (strlen(intname) != 0 &&
+  if (intname[0] != 0 &&
       setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, intname, sizeof(intname)) == -1)
     return 0;
 #endif
@@ -534,7 +543,7 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname)
 
   /* when using random ports, servers which would otherwise use
      the INADDR_ANY/port0 socket have sfd set to NULL */
-  if (!daemon->osport)
+  if (!daemon->osport && intname[0] == 0)
     {
       errno = 0;
       
@@ -620,7 +629,7 @@ void pre_allocate_sfds(void)
 	(daemon->options & OPT_NOWILD))
       {
 	prettyprint_addr(&srv->addr, daemon->namebuff);
-	if (strlen(srv->interface) != 0)
+	if (srv->interface[0] != 0)
 	  {
 	    strcat(daemon->namebuff, " ");
 	    strcat(daemon->namebuff, srv->interface);
@@ -695,7 +704,7 @@ void check_servers(void)
 	  else if (!(new->flags & SERV_LITERAL_ADDRESS))
 	    my_syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
 	}
-      else if (strlen(new->interface) != 0)
+      else if (new->interface[0] != 0)
 	my_syslog(LOG_INFO, _("using nameserver %s#%d(via %s)"), daemon->namebuff, port, new->interface); 
       else
 	my_syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 

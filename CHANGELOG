@@ -2638,11 +2638,11 @@ version 2.46
 	    Tighten up data-checking code for DNS packet
 	    handling. Thanks to Steve Dodd who found certain illegal
 	    packets which could crash dnsmasq. No memory overwrite was
-	    possible, so this is not a security issue beond the DoS
+	    possible, so this is not a security issue beyond the DoS
 	    potential.  
 
 	    Update example config dhcp option 47, the previous
-	    suggestion generated and illegal, zero-length,
+	    suggestion generated an illegal, zero-length,
 	    option. Thanks to Matthias Andree for finding this.
 
 	    Rewrite hosts-file reading code to remove the limit of
@@ -2692,3 +2692,91 @@ version 2.46
 	    Force re-reading of /etc/resolv.conf when an "interface
 	    up" event occurs.
 
+
+version 2.47
+	    Updated French translation. Thanks to Gildas Le Nadan.
+
+	    Fixed interface enumeration code to work on NetBSD
+	    5.0. Thanks to Roy Marples for the patch. 
+
+	    Updated config.h to use the same location for the lease
+	    file on NetBSD as the other *BSD variants. Also allow
+	    LEASEFILE and CONFFILE symbols to be overriden in CFLAGS.  
+
+            Handle duplicate address detection on IPv6 more
+            intelligently. In IPv6, an interface can have an address
+            which is not usable, because it is still undergoing DAD
+            (such addresses are marked "tentative"). Attempting to
+            bind to an address in this state returns an error,
+            EADDRNOTAVAIL. Previously, on getting such an error,
+            dnsmasq would silently abandon the address, and never
+            listen on it. Now, it retries once per second for 20
+            seconds before generating a fatal error. 20 seconds should
+            be long enough for any DAD process to complete, but can be
+            adjusted in src/config.h if necessary. Thanks to Martin
+            Krafft for the bug report.
+
+	    Add DBus introspection. Patch from Jeremy Laine.
+
+	    Update Dbus configuration file. Patch from Colin Walters.
+	    Fix for this bug:
+            http://bugs.freedesktop.org/show_bug.cgi?id=18961
+
+	    Support arbitrarily encapsulated DHCP options, suggestion
+	    and initial patch from Samium Gromoff. This is useful for
+	    (eg) gPXE, which expect all its private options to be
+	    encapsulated inside a single option 175. So, eg, 
+
+            dhcp-option = encap:175, 190, "iscsi-client0"
+            dhcp-option = encap:175, 191, "iscsi-client0-secret"
+	    
+	    will provide iSCSI parameters to gPXE.
+
+	    Enhance --dhcp-match to allow testing of the contents of a
+	    client-sent option, as well as its presence. This
+	    application in mind for this is RFC 4578
+	    client-architecture specifiers, but it's generally useful.
+	    Joey Korkames suggested the enhancement. 
+
+	    Move from using the IP_XMIT_IF ioctl to IP_BOUND_IF on
+	    OpenSolaris. Thanks to Bastian Machek for the heads-up.
+
+	    No longer complain about blank lines in
+	    /etc/ethers. Thanks to Jon Nelson for the patch.
+
+	    Fix binding of servers to physical devices, eg
+	    --server=/domain/1.2.3.4@eth0 which was broken from 2.43
+	    onwards unless --query-port=0 set. Thanks to Peter Naulls
+	    for the bug report.
+
+	    Reply to DHCPINFORM requests even when the supplied ciaddr
+	    doesn't fall in any dhcp-range. In this case it's not
+	    possible to supply a complete configuration, but
+	    individually-configured options (eg PAC) may be useful.
+
+	    Allow the source address of an alias to be a range:
+	    --alias=192.168.0.0,10.0.0.0,255.255.255.0 maps the whole
+	    subnet 192.168.0.0->192.168.0.255 to 10.0.0.0->10.0.0.255,
+	    as before.
+	    --alias=192.168.0.10-192.168.0.40,10.0.0.0,255.255.255.0
+	    maps only the 192.168.0.10->192.168.0.40 region. Thanks to
+	    Ib Uhrskov for the suggestion.
+
+	    Don't dynamically allocate DHCP addresses which may break
+	    Windows.  Addresses which end in .255 or .0 are broken in
+	    Windows even when using supernetting.
+	    --dhcp-range=192.168.0.1,192.168.1.254,255,255,254.0 means 
+	    192.168.0.255 is a valid IP address, but not for Windows. 
+	    See Microsoft KB281579. We therefore no longer allocate 
+	    these addresses to avoid hard-to-diagnose problems. 
+
+	    Update Polish translation. Thanks to Jan Psota.
+
+	    Delete the PID-file when dnsmasq shuts down. Note that by
+	    this time, dnsmasq is normally not running as root, so
+	    this will fail if the PID-file is stored in a root-owned
+	    directory; such failure is silently ignored. To take
+	    advantage of this feature, the PID-file must be stored in a
+	    directory owned and write-able by the user running
+	    dnsmasq.
+ 	    

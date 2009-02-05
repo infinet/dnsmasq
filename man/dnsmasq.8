@@ -15,8 +15,8 @@ contents of /etc/hosts so that local hostnames
 which do not appear in the global DNS can be resolved and also answers
 DNS queries for DHCP configured hosts.
 .PP
-The dnsmasq DHCP server supports static address assignments, multiple
-networks, DHCP-relay and RFC3011 subnet specifiers. It automatically
+The dnsmasq DHCP server supports static address assignments and multiple
+networks. It automatically
 sends a sensible default set of DHCP options, and can be configured to
 send any desired set of DHCP options, including vendor-encapsulated
 options. It includes a secure, read-only,
@@ -208,13 +208,17 @@ Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192
 which are not found in /etc/hosts or the DHCP leases file are answered
 with "no such domain" rather than being forwarded upstream.
 .TP
-.B \-V, --alias=<old-ip>,<new-ip>[,<mask>]
+.B \-V, --alias=[<old-ip>]|[<start-ip>-<end-ip>],<new-ip>[,<mask>]
 Modify IPv4 addresses returned from upstream nameservers; old-ip is
 replaced by new-ip. If the optional mask is given then any address
 which matches the masked old-ip will be re-written. So, for instance
 .B --alias=1.2.3.0,6.7.8.0,255.255.255.0 
 will map 1.2.3.56 to 6.7.8.56 and 1.2.3.67 to 6.7.8.67. This is what
-Cisco PIX routers call "DNS doctoring".
+Cisco PIX routers call "DNS doctoring". If the old IP is given as
+range, then only addresses in the range, rather than a whole subnet,
+are re-written. So 
+.B --alias=192.168.0.10-192.168.0.40,10.0.0.0,255.255.255.0
+maps 192.168.0.10->192.168.0.40 to 10.0.0.10->10.0.0.40
 .TP 
 .B \-B, --bogus-nxdomain=<ipaddr>
 Transform replies which contain the IP address given into "No such
@@ -513,13 +517,15 @@ Token-Ring hardware address, since the ARP-address type for token ring
 is 6. 
 
 As a special case, it is possible to include more than one
-hardware address. This allows an IP address to be associated with
+hardware address. eg:
+.B --dhcp-host=11:22:33:44:55:66,12:34:56:78:90:12,192.168.0.2
+This allows an IP address to be associated with
 multiple hardware addresses, and gives dnsmasq permission to abandon a
 DHCP lease to one of the hardware addresses when another one asks for
 a lease. Beware that this is a dangerous thing to do, it will only
 work reliably if only one of the hardware addresses is active at any
-time and there is no way for dnsmasq to enforce this. It is, however
-useful, for instance to allocate a stable IP address to a laptop which
+time and there is no way for dnsmasq to enforce this. It is, for instance,
+useful to allocate a stable IP address to a laptop which
 has both wired and wireless interfaces.
 .TP
 .B --dhcp-hostsfile=<file>
@@ -543,7 +549,7 @@ have exactly the same effect as
 options containing the same information. /etc/ethers is re-read when 
 dnsmasq receives SIGHUP.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
 Specify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -603,10 +609,18 @@ client. It is
 possible to omit the vendorclass completely;
 .B --dhcp-option=vendor:,1,0.0.0.0
 in which case the encapsulated option is always sent.
+
+Options may be encapsulated within other options: for instance
+.B --dhcp-option=encap:175, 190, "iscsi-client0"
+will send option 175, within which is the option 190. If multiple
+options are given which are encapsulated with the same option number
+then they will be correctly combined into one encapsulated option.
+encap: and vendor: are may not both be set in the same dhcp-option.
+
 The address 0.0.0.0 is not treated specially in
-encapsulated vendor class options.
+encapsulated options.
 .TP
-.B --dhcp-option-force=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 This works in exactly the same way as
 .B --dhcp-option
 except that the option will always be sent, even if the client does
@@ -658,10 +672,22 @@ agent ID and one provided by a relay agent, the network-id tag is set.
 .B --dhcp-subscrid=<network-id>,<subscriber-id>
 Map from RFC3993 subscriber-id relay agent options to network-id tags.
 .TP
-.B --dhcp-match=<network-id>,<option number>
-Set the network-id tag if the client sends a DHCP option of the given
-number. This can be used to identify particular clients which send
-information using private option numbers.
+.B --dhcp-match=<network-id>,<option number>|option:<option name>[,<value>]
+Without a value, set the network-id tag if the client sends a DHCP
+option of the given number or name. When a value is given, set the tag only if
+the option is sent and matches the value. The value may be of the form
+"01:ff:*:02" in which case the value must match (apart from widcards)
+but the option sent may have unmatched data past the end of the
+value. The value may also be of the same form as in 
+.B dhcp-option
+in which case the option sent is treated as an array, and one element
+must match, so
+
+--dhcp-match=efi-ia32,option:client-arch,6
+
+will set the tag "efi-ia32" if the the number 6 appears in the list of
+architectures sent by the client in option 93. (See RFC 4578 for
+details.)  If the value is a string, substring matching is used. 
 .TP
 .B \-J, --dhcp-ignore=<network-id>[,<network-id>]
 When all the given network-ids match the set of network-ids derived
@@ -737,15 +763,7 @@ Extra logging for DHCP: log all the options sent to DHCP clients and
 the netid tags used to determine them.
 .TP
 .B \-l, --dhcp-leasefile=<path>
-Use the specified file to store DHCP lease information. If this option
-is given but no dhcp-range option is given then dnsmasq version 1
-behaviour is activated. The file given is assumed to be an ISC dhcpd
-lease file and parsed for leases which are then added to the DNS
-system if they have a hostname. This functionality may have been
-excluded from dnsmasq at compile time, in which case an error will
-occur. In any case note that ISC leasefile integration is a deprecated
-feature. It should not be used in new installations, and will be
-removed in a future release.
+Use the specified file to store DHCP lease information.
 .TP 
 .B \-6 --dhcp-script=<path>
 Whenever a new DHCP lease is created, or an old one destroyed, the

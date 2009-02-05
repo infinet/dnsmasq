@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9,12 +9,10 @@
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-     
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+      
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-/* Some code in this file contributed by Rob Funk. */
 
 /* The SURF random number generator was taken from djbdns-1.05, by 
    Daniel J Berstein, which is public domain. */

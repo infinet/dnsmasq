@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,11 +10,11 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.46"
+#define VERSION "2.47"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -38,18 +38,25 @@
 #  define RESOLVFILE "/etc/resolv.conf"
 #endif
 #define RUNFILE "/var/run/dnsmasq.pid"
-#if defined(__FreeBSD__) || defined (__OpenBSD__) || defined(__DragonFly__)
-#   define LEASEFILE "/var/db/dnsmasq.leases"
-#elif defined(__sun__) || defined (__sun)
-#   define LEASEFILE "/var/cache/dnsmasq.leases"
-#else
-#   define LEASEFILE "/var/lib/misc/dnsmasq.leases"
+
+#ifndef LEASEFILE
+#   if defined(__FreeBSD__) || defined (__OpenBSD__) || defined(__DragonFly__) || defined(__NetBSD__)
+#      define LEASEFILE "/var/db/dnsmasq.leases"
+#   elif defined(__sun__) || defined (__sun)
+#      define LEASEFILE "/var/cache/dnsmasq.leases"
+#   else
+#      define LEASEFILE "/var/lib/misc/dnsmasq.leases"
+#   endif
 #endif
-#if defined(__FreeBSD__)
-#   define CONFFILE "/usr/local/etc/dnsmasq.conf"
-#else
-#   define CONFFILE "/etc/dnsmasq.conf"
+
+#ifndef CONFFILE
+#   if defined(__FreeBSD__)
+#      define CONFFILE "/usr/local/etc/dnsmasq.conf"
+#   else
+#      define CONFFILE "/etc/dnsmasq.conf"
+#   endif
 #endif
+
 #define DEFLEASE 3600 /* default lease time, 1 hour */
 #define CHUSER "nobody"
 #define CHGRP "dip"
@@ -61,6 +68,7 @@
 #define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
 #define LOG_MAX 5 /* log-queue length */
 #define RANDFILE "/dev/urandom"
+#define DAD_WAIT 20 /* retry binding IPv6 sockets for this long */
 
 /* DBUS interface specifics */
 #define DNSMASQ_SERVICE "uk.org.thekelleys.dnsmasq"

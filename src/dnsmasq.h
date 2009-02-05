@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
  
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,11 +10,11 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define COPYRIGHT "Copyright (C) 2000-2008 Simon Kelley" 
+#define COPYRIGHT "Copyright (C) 2000-2009 Simon Kelley" 
 
 #ifndef NO_LARGEFILE
 /* Ensure we can use files >2GB (log files may grow this big) */
@@ -201,7 +201,7 @@ struct bogus_addr {
 
 /* dns doctor param */
 struct doctor {
-  struct in_addr in, out, mask;
+  struct in_addr in, end, out, mask;
   struct doctor *next;
 };
 
@@ -464,7 +464,12 @@ struct dhcp_config {
 
 struct dhcp_opt {
   int opt, len, flags;
-  unsigned char *val, *vendor_class;
+  union {
+    int encap;
+    unsigned int wildcard_mask;
+    unsigned char *vendor_class;
+  } u;
+  unsigned char *val;
   struct dhcp_netid *netid;
   struct dhcp_opt *next;
 };
@@ -472,9 +477,13 @@ struct dhcp_opt {
 #define DHOPT_ADDR               1
 #define DHOPT_STRING             2
 #define DHOPT_ENCAPSULATE        4
-#define DHOPT_VENDOR_MATCH       8
+#define DHOPT_ENCAP_MATCH        8
 #define DHOPT_FORCE             16
 #define DHOPT_BANK              32
+#define DHOPT_ENCAP_DONE        64
+#define DHOPT_MATCH            128
+#define DHOPT_VENDOR           256
+#define DHOPT_HEX              512
 
 struct dhcp_boot {
   char *file, *sname;
@@ -488,7 +497,6 @@ struct dhcp_boot {
 #define MATCH_CIRCUIT    3
 #define MATCH_REMOTE     4
 #define MATCH_SUBSCRIBER 5
-#define MATCH_OPTION     6
 
 /* vendorclass, userclass, remote-id or cicuit-id */
 struct dhcp_vendor {
@@ -608,7 +616,7 @@ extern struct daemon {
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp;
   struct dhcp_config *dhcp_conf;
-  struct dhcp_opt *dhcp_opts;
+  struct dhcp_opt *dhcp_opts, *dhcp_match;
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;

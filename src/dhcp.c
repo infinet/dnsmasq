@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +10,8 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
@@ -345,7 +345,12 @@ void dhcp_packet(time_t now)
 #endif
    
 #ifdef HAVE_SOLARIS_NETWORK
+  /* OpenSolaris eliminates IP_XMIT_IF */
+#  ifdef IP_XMIT_IF
   setsockopt(daemon->dhcpfd, IPPROTO_IP, IP_XMIT_IF, &iface_index, sizeof(iface_index));
+#  else
+  setsockopt(daemon->dhcpfd, IPPROTO_IP, IP_BOUND_IF, &iface_index, sizeof(iface_index));
+#  endif
 #endif
   
   while(sendmsg(daemon->dhcpfd, &msg, 0) == -1 && retry_send());
@@ -560,9 +565,16 @@ int address_allocate(struct dhcp_context *context,
 	      if (addr.s_addr == d->router.s_addr)
 		break;
 
+	    /* Addresses which end in .255 and .0 are broken in Windows even when using 
+	       supernetting. ie dhcp-range=192.168.0.1,192.168.1.254,255,255,254.0
+	       then 192.168.0.255 is a valid IP address, but not for Windows as it's
+	       in the class C range. See  KB281579. We therefore don't allocate these 
+	       addresses to avoid hard-to-diagnose problems. Thanks Bill. */	    
 	    if (!d &&
 		!lease_find_by_addr(addr) && 
-		!config_find_by_address(daemon->dhcp_conf, addr))
+		!config_find_by_address(daemon->dhcp_conf, addr) &&
+		(!IN_CLASSC(ntohl(addr.s_addr)) || 
+		 ((ntohl(addr.s_addr) & 0xff) != 0xff && ((ntohl(addr.s_addr) & 0xff) != 0x0))))
 	      {
 		struct ping_result *r, *victim = NULL;
 		int count, max = (int)(0.6 * (((float)PING_CACHE_TIME)/
@@ -744,7 +756,7 @@ void dhcp_read_ethers(void)
       while (strlen(buff) > 0 && isspace((int)buff[strlen(buff)-1]))
 	buff[strlen(buff)-1] = 0;
       
-      if ((*buff == '#') || (*buff == '+'))
+      if ((*buff == '#') || (*buff == '+') || (*buff == 0))
 	continue;
       
       for (ip = buff; *ip && !isspace((int)*ip); ip++);

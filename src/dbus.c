@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +10,8 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
@@ -20,6 +20,42 @@
 
 #define DBUS_API_SUBJECT_TO_CHANGE
 #include <dbus/dbus.h>
+
+const char* introspection_xml =
+"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+"<node name=\"" DNSMASQ_PATH "\">\n"
+"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+"    <method name=\"Introspect\">\n"
+"      <arg name=\"data\" direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"" DNSMASQ_SERVICE "\">\n"
+"    <method name=\"ClearCache\">\n"
+"    </method>\n"
+"    <method name=\"GetVersion\">\n"
+"      <arg name=\"version\" direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"SetServers\">\n"
+"      <arg name=\"servers\" direction=\"in\" type=\"av\"/>\n"
+"    </method>\n"
+"    <signal name=\"DhcpLeaseAdded\">\n"
+"      <arg name=\"ipaddr\" type=\"s\"/>\n"
+"      <arg name=\"hwaddr\" type=\"s\"/>\n"
+"      <arg name=\"hostname\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"DhcpLeaseDeleted\">\n"
+"      <arg name=\"ipaddr\" type=\"s\"/>\n"
+"      <arg name=\"hwaddr\" type=\"s\"/>\n"
+"      <arg name=\"hostname\" type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"DhcpLeaseUpdated\">\n"
+"      <arg name=\"ipaddr\" type=\"s\"/>\n"
+"      <arg name=\"hwaddr\" type=\"s\"/>\n"
+"      <arg name=\"hostname\" type=\"s\"/>\n"
+"    </signal>\n"
+"  </interface>\n"
+"</node>\n";
 
 struct watch {
   DBusWatch *watch;      
@@ -229,7 +265,15 @@ DBusHandlerResult message_handler(DBusConnection *connection,
 {
   char *method = (char *)dbus_message_get_member(message);
    
-  if (strcmp(method, "GetVersion") == 0)
+  if (dbus_message_is_method_call(message, DBUS_INTERFACE_INTROSPECTABLE, "Introspect"))
+    {
+      DBusMessage *reply = dbus_message_new_method_return(message);
+
+      dbus_message_append_args(reply, DBUS_TYPE_STRING, &introspection_xml, DBUS_TYPE_INVALID);
+      dbus_connection_send (connection, reply, NULL);
+      dbus_message_unref (reply);
+    }
+  else if (strcmp(method, "GetVersion") == 0)
     {
       char *v = VERSION;
       DBusMessage *reply = dbus_message_new_method_return(message);

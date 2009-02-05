@@ -342,6 +342,22 @@
 #dhcp-boot=net:#gpxe,undionly.kpxe
 #dhcp-boot=mybootimage
  
+# Encapsulated options for Etherboot gPXE. All the options are
+# encapsulated within option 175
+#dhcp-option=encap:175, 1, 5b         # priority code
+#dhcp-option=encap:175, 176, 1b       # no-proxydhcp 
+#dhcp-option=encap:175, 177, string   # bus-id 
+#dhcp-option=encap:175, 189, 1b       # BIOS drive code
+#dhcp-option=encap:175, 190, user     # iSCSI username
+#dhcp-option=encap:175, 191, pass     # iSCSI password
+
+# Test for the architecture of a netboot client. PXE clients are
+# supposed to send their architecture as option 93. (See RFC 4578)
+#dhcp-match=peecees, option:client-arch, 0 #x86-32
+#dhcp-match=itanics, option:client-arch, 2 #IA64
+#dhcp-match=hammers, option:client-arch, 6 #x86-64
+#dhcp-match=mactels, option:client-arch, 7 #EFI x86-64 
+
 # Enable dnsmasq's built-in TFTP server
 #enable-tftp
 
@@ -409,7 +425,8 @@
 #alias=1.2.3.4,5.6.7.8
 # and this maps 1.2.3.x to 5.6.7.x
 #alias=1.2.3.0,5.6.7.0,255.255.255.0
-
+# and this maps 192.168.0.10->192.168.0.40 to 10.0.0.10->10.0.0.40
+#alias=192.168.0.10-192.168.0.40,10.0.0.0,255.255.255.0
 
 # Change these lines if you want dnsmasq to serve MX records.
 

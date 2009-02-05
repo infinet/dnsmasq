@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2008 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +10,8 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
      
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
@@ -25,7 +25,7 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp,
     ((size_t)((pp) - (unsigned char *)(header) + (len)) <= (plen))
 
 #define ADD_RDLEN(header, pp, plen, len) \
-    (!CHECK_LEN(header, pp, plen, len) ? 0 : (int)((pp) += (len)), 1)
+    (!CHECK_LEN(header, pp, plen, len) ? 0 : (long)((pp) += (len)), 1)
 
 static int extract_name(HEADER *header, size_t plen, unsigned char **pp, 
 			char *name, int isExtract, int extrabytes)
@@ -551,15 +551,23 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	  memcpy(&addr, p, INADDRSZ);
 	  
 	  for (doctor = daemon->doctors; doctor; doctor = doctor->next)
-	    if (is_same_net(doctor->in, addr, doctor->mask))
-	      {
-		addr.s_addr &= ~doctor->mask.s_addr;
-		addr.s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
-		/* Since we munged the data, the server it came from is no longer authoritative */
-		header->aa = 0;
-		memcpy(p, &addr, INADDRSZ);
-		break;
-	      }
+	    {
+	      if (doctor->end.s_addr == 0)
+		{
+		  if (!is_same_net(doctor->in, addr, doctor->mask))
+		    continue;
+		}
+	      else if (ntohl(doctor->in.s_addr) > ntohl(addr.s_addr) || 
+		       ntohl(doctor->end.s_addr) < ntohl(addr.s_addr))
+		continue;
+	     
+	      addr.s_addr &= ~doctor->mask.s_addr;
+	      addr.s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
+	      /* Since we munged the data, the server it came from is no longer authoritative */
+	      header->aa = 0;
+	      memcpy(p, &addr, INADDRSZ);
+	      break;
+	    }
 	}
       
       if (!ADD_RDLEN(header, p, qlen, rdlen))
