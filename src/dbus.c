@@ -18,7 +18,6 @@
 
 #ifdef HAVE_DBUS
 
-#define DBUS_API_SUBJECT_TO_CHANGE
 #include <dbus/dbus.h>
 
 const char* introspection_xml =
@@ -345,11 +344,7 @@ void set_dbus_listeners(int *maxfdp,
     if (dbus_watch_get_enabled(w->watch))
       {
 	unsigned int flags = dbus_watch_get_flags(w->watch);
-#if (DBUS_MINOR > 0)
 	int fd = dbus_watch_get_unix_fd(w->watch);
-#else
-	int fd = dbus_watch_get_fd(w->watch);
-#endif
 	
 	bump_maxfd(fd, maxfdp);
 	
@@ -372,11 +367,7 @@ void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset)
     if (dbus_watch_get_enabled(w->watch))
       {
 	unsigned int flags = 0;
-#if (DBUS_MINOR > 0)
 	int fd = dbus_watch_get_unix_fd(w->watch);
-#else
-	int fd = dbus_watch_get_fd(w->watch);
-#endif
 	
 	if (FD_ISSET(fd, rset))
 	  flags |= DBUS_WATCH_READABLE;

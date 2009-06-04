@@ -667,19 +667,8 @@ void receive_query(struct listener *listen, time_t now)
       
       /* enforce available interface configuration */
       
-      if (if_index == 0)
-	return;
-      
-#ifdef SIOCGIFNAME
-      ifr.ifr_ifindex = if_index;
-      if (ioctl(listen->fd, SIOCGIFNAME, &ifr) == -1)
-	return;
-#else
-      if (!if_indextoname(if_index, ifr.ifr_name))
-	return;
-#endif
-      
-      if (!iface_check(listen->family, &dst_addr, &ifr, &if_index))
+      if (!indextoname(listen->fd, if_index, ifr.ifr_name) ||
+	  !iface_check(listen->family, &dst_addr, ifr.ifr_name, &if_index))
 	return;
       
       if (listen->family == AF_INET &&

@@ -15,7 +15,7 @@
 */
 
 /* The SURF random number generator was taken from djbdns-1.05, by 
-   Daniel J Berstein, which is public domain. */
+   Daniel J Bernstein, which is public domain. */
 
 
 #include "dnsmasq.h"
@@ -344,14 +344,19 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
   return i;
 }
 
+/* return 0 for no match, or (no matched octets) + 1 */
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, unsigned int mask)
 {
-  int i;
-  for (i = len - 1; i >= 0; i--, mask = mask >> 1)
-    if (!(mask & 1) && a[i] != b[i])
-      return 0;
-
-  return 1;
+  int i, count;
+  for (count = 1, i = len - 1; i >= 0; i--, mask = mask >> 1)
+    if (!(mask & 1))
+      {
+	if (a[i] == b[i])
+	  count++;
+	else
+	  return 0;
+      }
+  return count;
 }
 
 /* _note_ may copy buffer */

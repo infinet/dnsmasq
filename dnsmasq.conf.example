@@ -329,7 +329,7 @@
 # Reboot time. (Note 'i' to send 32-bit value)
 #dhcp-option-force=211,30i
 
-# Set the boot filename for BOOTP. You will only need 
+# Set the boot filename for netboot/PXE. You will only need 
 # this is you want to boot machines over the network and you will need
 # a TFTP server; either dnsmasq's built in TFTP server or an
 # external one. (See below for how to enable the TFTP server.)
@@ -358,6 +358,34 @@
 #dhcp-match=hammers, option:client-arch, 6 #x86-64
 #dhcp-match=mactels, option:client-arch, 7 #EFI x86-64 
 
+# Do real PXE, rather than just booting a single file, this is an
+# alternative to dhcp-boot.
+#pxe-prompt="What system shall I netboot?"
+# or with timeout before first available action is taken:
+#pxe-prompt="Press F8 for menu.", 60
+
+# Available boot services. for PXE.
+#pxe-service=x86PC, "Boot from local disk", 0
+
+# Loads <tftp-root>/pxelinux.0 from dnsmasq TFTP server.
+#pxe-service=x86PC, "Install Linux", pxelinux 
+
+# Loads <tftp-root>/pxelinux.0 from TFTP server at 1.2.3.4.
+# Beware this fails on old PXE ROMS.
+#pxe-service=x86PC, "Install Linux", pxelinux, 1.2.3.4 
+
+# Use bootserver on network, found my multicast or broadcast.
+#pxe-service=x86PC, "Install windows from RIS server", 1
+
+# Use bootserver at a known IP address.
+#pxe-service=x86PC, "Install windows from RIS server", 1, 1.2.3.4
+
+# If you have multicast-FTP available,
+# information for that can be passed in a similar way using options 1
+# to 5. See page 19 of
+# http://download.intel.com/design/archives/wfm/downloads/pxespec.pdf  
+
+  
 # Enable dnsmasq's built-in TFTP server
 #enable-tftp
 
@@ -371,8 +399,9 @@
 # Set the boot file name only when the "red" tag is set.
 #dhcp-boot=net:red,pxelinux.red-net
 
-# An example of dhcp-boot with an external server: the name and IP
+# An example of dhcp-boot with an external TFTP server: the name and IP
 # address of the server are given after the filename.
+# Can fail with old PXE ROMS. Overridden by --pxe-service.
 #dhcp-boot=/var/ftpd/pxelinux.0,boothost,192.168.0.3
 
 # Set the limit on DHCP leases, the default is 150

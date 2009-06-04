@@ -31,13 +31,17 @@ BSD, unless the GNU getopt library is linked, the long form of the
 options does not work on the command line; it is still recognised in
 the configuration file.
 .TP
+.B --test
+Read and syntax check configuration file(s). Exit with code 0 if all
+is OK, or a non-zero code otherwise. Do not start up dnsmasq.
+.TP
 .B \-h, --no-hosts
 Don't read the hostnames in /etc/hosts.
 .TP
 .B \-H, --addn-hosts=<file>
 Additional hosts file. Read the specified file as well as /etc/hosts. If -h is given, read
 only the specified file. This option may be repeated for more than one
-additional hosts file.
+additional hosts file. If a directory is given, then read all the files contained in that directory. 
 .TP
 .B \-E, --expand-hosts
 Add the domain to simple names (without a period) in /etc/hosts
@@ -422,25 +426,22 @@ Set the maximum number of concurrent DNS queries. The default value is
 where this needs to be increased is when using web-server log file
 resolvers, which can generate large numbers of concurrent queries.
 .TP
-.B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<default lease time>]
+.B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<lease time>]
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
 in 
 .B dhcp-host
 options. If the lease time is given, then leases
 will be given for that length of time. The lease time is in seconds,
-or minutes (eg 45m) or hours (eg 1h) or the literal "infinite". The
+or minutes (eg 45m) or hours (eg 1h) or "infinite". If not given,
+the default lease time is one hour. The
 minimum lease time is two minutes. This
 option may be repeated, with different addresses, to enable DHCP
 service to more than one network. For directly connected networks (ie,
 networks on which the machine running dnsmasq has an interface) the
 netmask is optional. It is, however, required for networks which
 receive DHCP service via a relay agent. The broadcast address is
-always optional. On some broken systems, dnsmasq can listen on only
-one interface when using DHCP, and the name of that interface must be
-given using the
-.B interface
-option. This limitation currently affects OpenBSD before version 4.0. It is always
+always optional. It is always
 allowed to have more than one dhcp-range in a single subnet. The optional
 network-id is a alphanumeric label which marks this network so that
 dhcp options may be specified on a per-network basis. 
@@ -449,10 +450,18 @@ a tag to matching it. Only one tag may be set, but more than one tag may be matc
 The end address may be replaced by the keyword 
 .B static
 which tells dnsmasq to enable DHCP for the network specified, but not
-to dynamically allocate IP addresses. Only hosts which have static
+to dynamically allocate IP addresses: only hosts which have static
 addresses given via 
 .B dhcp-host
-or from /etc/ethers will be served.
+or from /etc/ethers will be served. The end address may be replaced by
+the keyword
+.B proxy
+in which case dnsmasq will provide proxy-DHCP on the specified
+subnet. (See 
+.B pxe-prompt
+and 
+.B pxe-service
+for details.)
 .TP
 .B \-G, --dhcp-host=[<hwaddr>][,id:<client_id>|*][,net:<netid>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
 Specify per host parameters for the DHCP server. This allows a machine
@@ -720,6 +729,57 @@ is providing a TFTP service (see
 If the optional network-id(s) are given,
 they must match for this configuration to be sent. Note that
 network-ids are prefixed by "net:" to distinguish them.
+.TP
+.B --pxe-service=[net:<network-id>,]<CSA>,<menu text>,<basename>|<bootservicetype>[,<server address>]
+Most uses of PXE boot-ROMS simply allow the PXE
+system to obtain an IP address and then download the file specified by
+.B dhcp-boot
+and execute it. However the PXE system is capable of more complex
+functions when supported by a suitable DHCP server.
+
+This specifies a boot option which may appear in a PXE boot menu. <CSA> is
+client system type, only services of the correct type will appear in a
+menu. The known types are x86PC, PC98, IA64_EFI, Alpha, Arc_x86,
+Intel_Lean_Client, IA32_EFI, BC_EFI, Xscale_EFI and X86-64_EFI; an
+integer may be used for other types. The
+parameter after the menu text may be a file name, in which case dnsmasq acts as a
+boot server and directs the PXE client to download the file by TFTP,
+either from itself (
+.B enable-tftp 
+must be set for this to work) or another TFTP server if the final IP
+address is given.
+Note that the "layer"
+suffix (normally ".0") is supplied by PXE, and should not be added to
+the basename. If an integer boot service type, rather than a basename
+is given, then the PXE client will search for a
+suitable boot service for that type on the network. This search may be done
+by multicast or broadcast, or direct to a server if its IP address is provided.  A boot service
+type of 0 is special, and will abort the net boot procedure and
+continue booting from local media.
+.TP
+.B --pxe-prompt=[net:<network-id>,]<prompt>[,<timeout>]
+Setting this provides a prompt to be displayed after PXE boot. If the
+timeout is given then after the
+timeout has elapsed with no keyboard input, the first available menu
+option will be automatically executed. If the timeout is zero then the first available menu
+item will be executed immediately. If 
+.B pxe-prompt
+is ommitted the system will wait for user input if there are multiple
+items in the menu, but boot immediately if
+there is only one. See
+.B pxe-service 
+for details of menu items.
+
+Dnsmasq supports PXE "proxy-DHCP", in this case another DHCP server on
+the network is responsible for allocating IP addresses, and dnsmasq
+simply provides the information given in 
+.B pxe-prompt
+and
+.B pxe-service
+to allow netbooting. This mode is enabled using the
+.B proxy
+keyword in
+.B dhcp-range.
 .TP  
 .B \-X, --dhcp-lease-max=<number>
 Limits dnsmasq to the specified maximum number of DHCP leases. The
@@ -829,8 +889,8 @@ to the client-id and lease length and expiry time.
 .TP
 .B --bridge-interface=<interface>,<alias>[,<alias>]
 Treat DHCP request packets arriving at any of the <alias> interfaces
-as if they had arrived at <interface>. This option is only available
-on BSD platforms, and is necessary when using "old style" bridging, since
+as if they had arrived at <interface>. This option is necessary when
+using "old style" bridging on BSD platforms, since
 packets arrive at tap interfaces which don't have an IP address.
 .TP
 .B \-s, --domain=<domain>[,<address range>]

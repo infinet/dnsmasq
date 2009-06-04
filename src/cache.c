@@ -17,7 +17,10 @@
 #include "dnsmasq.h"
 
 static struct crec *cache_head = NULL, *cache_tail = NULL, **hash_table = NULL;
-static struct crec *dhcp_spare = NULL, *new_chain = NULL;
+#ifdef HAVE_DHCP
+static struct crec *dhcp_spare = NULL;
+#endif
+static struct crec *new_chain = NULL;
 static int cache_inserted = 0, cache_live_freed = 0, insert_error;
 static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
@@ -859,10 +862,11 @@ static int read_hostsfile(char *filename, int index, int cache_size)
   return name_count;
 }
 	    
-void cache_reload(struct hostsfile *addn_hosts)
+void cache_reload(void)
 {
   struct crec *cache, **up, *tmp;
   int i, total_size = daemon->cachesize;
+  struct hostsfile *ah;
 
   cache_inserted = cache_live_freed = 0;
   
@@ -889,7 +893,7 @@ void cache_reload(struct hostsfile *addn_hosts)
 	  up = &cache->hash_next;
       }
   
-  if ((daemon->options & OPT_NO_HOSTS) && !addn_hosts)
+  if ((daemon->options & OPT_NO_HOSTS) && !daemon->addn_hosts)
     {
       if (daemon->cachesize > 0)
 	my_syslog(LOG_INFO, _("cleared cache"));
@@ -898,13 +902,116 @@ void cache_reload(struct hostsfile *addn_hosts)
 
   if (!(daemon->options & OPT_NO_HOSTS))
     total_size = read_hostsfile(HOSTSFILE, 0, total_size);
-  while (addn_hosts)
+  
+  for (i = 0, ah = daemon->addn_hosts; ah; ah = ah->next)
     {
-      total_size = read_hostsfile(addn_hosts->fname, addn_hosts->index, total_size);
-      addn_hosts = addn_hosts->next;
-    }  
+      if (i <= ah->index)
+	i = ah->index + 1;
+
+      if (ah->flags & AH_DIR)
+	ah->flags |= AH_INACTIVE;
+      else
+	ah->flags &= ~AH_INACTIVE;
+    }
+
+  for (ah = daemon->addn_hosts; ah; ah = ah->next)
+    if (!(ah->flags & AH_INACTIVE))
+      {
+	struct stat buf;
+	if (stat(ah->fname, &buf) != -1 && S_ISDIR(buf.st_mode))
+	  {
+	    DIR *dir_stream;
+	    struct dirent *ent;
+	    
+	    /* don't read this as a file */
+	    ah->flags |= AH_INACTIVE;
+	    
+	    if (!(dir_stream = opendir(ah->fname)))
+	      my_syslog(LOG_ERR, _("cannot access directory %s: %s"), 
+			ah->fname, strerror(errno));
+	    else
+	      {
+		while ((ent = readdir(dir_stream)))
+		  {
+		    size_t lendir = strlen(ah->fname);
+		    size_t lenfile = strlen(ent->d_name);
+		    struct hostsfile *ah1;
+		    char *path;
+		    
+		    /* ignore emacs backups and dotfiles */
+		    if (lenfile == 0 || 
+			ent->d_name[lenfile - 1] == '~' ||
+			(ent->d_name[0] == '#' && ent->d_name[lenfile - 1] == '#') ||
+			ent->d_name[0] == '.')
+		      continue;
+		    
+		    /* see if we have an existing record.
+		       dir is ah->fname 
+		       file is ent->d_name
+		       path to match is ah1->fname */
+
+		    for (ah1 = daemon->addn_hosts; ah1; ah1 = ah1->next)
+		      {
+			if (lendir < strlen(ah1->fname) &&
+			    strstr(ah1->fname, ah->fname) == ah1->fname &&
+			    ah1->fname[lendir] == '/' &&
+			    strcmp(ah1->fname + lendir + 1, ent->d_name) == 0)
+			  {
+			    ah1->flags &= ~AH_INACTIVE;
+			    break;
+			  }
+		      }
+		    
+		    /* make new record */
+		    if (!ah1)
+		      {
+			if (!(ah1 = whine_malloc(sizeof(struct hostsfile))))
+			  continue;
+			
+			if (!(path = whine_malloc(lendir + lenfile + 2)))
+			  {
+			    free(ah1);
+			    continue;
+			  }
+		      	
+			strcpy(path, ah->fname);
+			strcat(path, "/");
+			strcat(path, ent->d_name);
+			ah1->fname = path;
+			ah1->index = i++;
+			ah1->flags = AH_DIR;
+			ah1->next = daemon->addn_hosts;
+			daemon->addn_hosts = ah1;
+		      }
+		    
+		    /* inactivate record if not regular file */
+		    if ((ah1->flags & AH_DIR) && stat(ah1->fname, &buf) != -1 && !S_ISREG(buf.st_mode))
+		      ah1->flags |= AH_INACTIVE; 
+
+		  }
+		closedir(dir_stream);
+	      }
+	  }
+      }
+	    
+  for (ah = daemon->addn_hosts; ah; ah = ah->next)
+    if (!(ah->flags & AH_INACTIVE))
+      total_size = read_hostsfile(ah->fname, ah->index, total_size);
 } 
 
+char *get_domain(struct in_addr addr)
+{
+  struct cond_domain *c;
+
+  for (c = daemon->cond_domain; c; c = c->next)
+    if (ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
+        ntohl(addr.s_addr) <= ntohl(c->end.s_addr))
+      return c->domain;
+
+  return daemon->domain_suffix;
+}
+
+#ifdef HAVE_DHCP
 void cache_unhash_dhcp(void)
 {
   struct crec *cache, **up;
@@ -942,7 +1049,7 @@ void cache_add_dhcp_entry(char *host_name,
 			_("not giving name %s to the DHCP lease of %s because "
 			  "the name exists in %s with address %s"), 
 			host_name, inet_ntoa(*host_address),
-			record_source(daemon->addn_hosts, crec->uid), daemon->namebuff);
+			record_source(crec->uid), daemon->namebuff);
 	      return;
 	    }
 	  else
@@ -1009,6 +1116,7 @@ void cache_add_dhcp_entry(char *host_name,
 	  }
     }
 }
+#endif
 
 
 void dump_cache(time_t now)
@@ -1099,20 +1207,18 @@ void dump_cache(time_t now)
     }
 }
 
-char *record_source(struct hostsfile *addn_hosts, int index)
+char *record_source(int index)
 {
-  char *source = HOSTSFILE;
-  while (addn_hosts)
-    { 
-      if (addn_hosts->index == index)
-	{
-	  source = addn_hosts->fname;
-	  break;
-	}
-      addn_hosts = addn_hosts->next;
-    }
+  struct hostsfile *ah;
 
-  return source;
+  if (index == 0)
+    return HOSTSFILE;
+
+  for (ah = daemon->addn_hosts; ah; ah = ah->next)
+    if (ah->index == index)
+      return ah->fname;
+  
+  return "<unknown>";
 }
 
 void querystr(char *str, unsigned short type)

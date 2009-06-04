@@ -31,6 +31,7 @@
 #endif
 
 static struct iovec iov;
+static u32 netlink_pid;
 
 static void nl_err(struct nlmsghdr *h);
 static void nl_routechange(struct nlmsghdr *h);
@@ -38,6 +39,7 @@ static void nl_routechange(struct nlmsghdr *h);
 void netlink_init(void)
 {
   struct sockaddr_nl addr;
+  socklen_t slen = sizeof(addr);
 
   addr.nl_family = AF_NETLINK;
   addr.nl_pad = 0;
@@ -59,48 +61,63 @@ void netlink_init(void)
 	}
     }
   
-  if (daemon->netlinkfd == -1)
+  if (daemon->netlinkfd == -1 || 
+      getsockname(daemon->netlinkfd, (struct sockaddr *)&addr, &slen) == 1)
     die(_("cannot create netlink socket: %s"), NULL, EC_MISC);
+   
+  /* save pid assigned by bind() and retrieved by getsockname() */ 
+  netlink_pid = addr.nl_pid;
   
-  iov.iov_len = 200;
+  iov.iov_len = 100;
   iov.iov_base = safe_malloc(iov.iov_len);
 }
 
 static ssize_t netlink_recv(void)
 {
   struct msghdr msg;
+  struct sockaddr_nl nladdr;
   ssize_t rc;
 
-  msg.msg_control = NULL;
-  msg.msg_controllen = 0;
-  msg.msg_name = NULL;
-  msg.msg_namelen = 0;
-  msg.msg_iov = &iov;
-  msg.msg_iovlen = 1;
-    
   while (1)
     {
+      msg.msg_control = NULL;
+      msg.msg_controllen = 0;
+      msg.msg_name = &nladdr;
+      msg.msg_namelen = sizeof(nladdr);
+      msg.msg_iov = &iov;
+      msg.msg_iovlen = 1;
       msg.msg_flags = 0;
-      while ((rc = recvmsg(daemon->netlinkfd, &msg, MSG_PEEK)) == -1 && errno == EINTR);
       
-      /* 2.2.x doesn't suport MSG_PEEK at all, returning EOPNOTSUPP, so we just grab a 
-	 big buffer and pray in that case. */
-      if (rc == -1 && errno == EOPNOTSUPP)
+      while ((rc = recvmsg(daemon->netlinkfd, &msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
+      
+      /* make buffer big enough */
+      if (rc != -1 && (msg.msg_flags & MSG_TRUNC))
 	{
-	  if (!expand_buf(&iov, 2000))
-	    return -1;
-	  break;
+	  /* Very new Linux kernels return the actual size needed, older ones always return truncated size */
+	  if ((size_t)rc == iov.iov_len)
+	    {
+	      if (expand_buf(&iov, rc + 100))
+		continue;
+	    }
+	  else
+	    expand_buf(&iov, rc);
 	}
-      
-      if (rc == -1 || !(msg.msg_flags & MSG_TRUNC))
-        break;
-            
-      if (!expand_buf(&iov, iov.iov_len + 100))
-	return -1;
-    }
 
-  /* finally, read it for real */
-  while ((rc = recvmsg(daemon->netlinkfd, &msg, 0)) == -1 && errno == EINTR);
+      /* read it for real */
+      msg.msg_flags = 0;
+      while ((rc = recvmsg(daemon->netlinkfd, &msg, 0)) == -1 && errno == EINTR);
+      
+      /* Make sure this is from the kernel */
+      if (rc == -1 || nladdr.nl_pid == 0)
+	break;
+    }
+      
+  /* discard stuff which is truncated at this point (expand_buf() may fail) */
+  if (msg.msg_flags & MSG_TRUNC)
+    {
+      rc = -1;
+      errno = ENOMEM;
+    }
   
   return rc;
 }
@@ -141,13 +158,20 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)())
   while (1)
     {
       if ((len = netlink_recv()) == -1)
-	return 0;
-  
+	{
+	  if (errno == ENOBUFS)
+	    {
+	      sleep(1);
+	      goto again;
+	    }
+	  return 0;
+	}
+
       for (h = (struct nlmsghdr *)iov.iov_base; NLMSG_OK(h, (size_t)len); h = NLMSG_NEXT(h, len))
- 	if (h->nlmsg_type == NLMSG_ERROR)
-	  nl_err(h);
-	else if (h->nlmsg_seq != seq)
+	if (h->nlmsg_seq != seq || h->nlmsg_pid != netlink_pid)
 	  nl_routechange(h); /* May be multicast arriving async */
+	else if (h->nlmsg_type == NLMSG_ERROR)
+	  nl_err(h);
 	else if (h->nlmsg_type == NLMSG_DONE)
 	  {
 #ifdef HAVE_IPV6
@@ -208,10 +232,17 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)())
     }
 }
 
+
 void netlink_multicast(void)
 {
   ssize_t len;
   struct nlmsghdr *h;
+  int flags;
+  
+  /* don't risk blocking reading netlink messages here. */
+  if ((flags = fcntl(daemon->netlinkfd, F_GETFL)) == -1 ||
+      fcntl(daemon->netlinkfd, F_SETFL, flags | O_NONBLOCK) == -1) 
+    return;
   
   if ((len = netlink_recv()) != -1)
     {
@@ -221,11 +252,15 @@ void netlink_multicast(void)
 	else
 	  nl_routechange(h);
     }
+
+  /* restore non-blocking status */
+  fcntl(daemon->netlinkfd, F_SETFL, flags); 
 }
 
 static void nl_err(struct nlmsghdr *h)
 {
   struct nlmsgerr *err = NLMSG_DATA(h);
+  
   if (err->error != 0)
     my_syslog(LOG_ERR, _("netlink returns error: %s"), strerror(-(err->error)));
 }
@@ -234,10 +269,10 @@ static void nl_err(struct nlmsghdr *h)
    If this happens and we still have a DNS packet in the buffer, we re-send it.
    This helps on DoD links, where frequently the packet which triggers dialling is
    a DNS query, which then gets lost. By re-sending, we can avoid the lookup
-   failing. */ 
+   failing. Note that we only accept these messages from the kernel (pid == 0) */ 
 static void nl_routechange(struct nlmsghdr *h)
 {
-  if (h->nlmsg_type == RTM_NEWROUTE)
+  if (h->nlmsg_pid == 0 && h->nlmsg_type == RTM_NEWROUTE)
     {
       struct rtmsg *rtm = NLMSG_DATA(h);
       int fd;

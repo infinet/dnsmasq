@@ -1290,7 +1290,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			if (!dryrun)
 			  {
 			    log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr, 
-				      record_source(daemon->addn_hosts, crecp->uid));
+				      record_source(crecp->uid));
 			    
 			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 						    crec_ttl(crecp, now), NULL,
@@ -1400,7 +1400,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			{
 			  if (!dryrun)
 			    {
-			      log_query(crecp->flags, name, NULL, record_source(daemon->addn_hosts, crecp->uid));
+			      log_query(crecp->flags, name, NULL, record_source(crecp->uid));
 			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 						      crec_ttl(crecp, now), &nameoffset,
 						      T_CNAME, C_IN, "d", cache_get_name(crecp->addr.cname.cache)))
@@ -1436,7 +1436,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			  if (!dryrun)
 			    {
 			      log_query(crecp->flags & ~F_REVERSE, name, &crecp->addr.addr,
-					record_source(daemon->addn_hosts, crecp->uid));
+					record_source(crecp->uid));
 			      
 			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 						      crec_ttl(crecp, now), NULL, type, C_IN, 

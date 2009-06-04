@@ -248,6 +248,10 @@ static void log_write(void)
     }
 }
 
+/* priority is one of LOG_DEBUG, LOG_INFO, LOG_NOTICE, etc. See sys/syslog.h.
+   OR'd to priority can be MS_TFTP, MS_DHCP, ... to be able to do log separation between
+   DNS, DHCP and TFTP services.
+*/
 void my_syslog(int priority, const char *format, ...)
 {
   va_list ap;
@@ -256,10 +260,18 @@ void my_syslog(int priority, const char *format, ...)
   char *p;
   size_t len;
   pid_t pid = getpid();
+  char *func = "";
 
+  if ((LOG_FACMASK & priority) == MS_TFTP)
+    func = "-tftp";
+  else if ((LOG_FACMASK & priority) == MS_DHCP)
+    func = "-dhcp";
+      
+  priority = LOG_PRI(priority);
+  
   if (log_stderr) 
     {
-      fprintf(stderr, "dnsmasq: ");
+      fprintf(stderr, "dnsmasq%s: ", func);
       va_start(ap, format);
       vfprintf(stderr, format, ap);
       va_end(ap);
@@ -305,8 +317,9 @@ void my_syslog(int priority, const char *format, ...)
       p = entry->payload;
       if (!log_to_file)
 	p += sprintf(p, "<%d>", priority | log_fac);
-      
-      p += sprintf(p, "%.15s dnsmasq[%d]: ", ctime(&time_now) + 4, (int)pid);
+
+      p += sprintf(p, "%.15s dnsmasq%s[%d]: ", ctime(&time_now) + 4, func, (int)pid);
+        
       len = p - entry->payload;
       va_start(ap, format);  
       len += vsnprintf(p, MAX_MESSAGE - len, format, ap) + 1; /* include zero-terminator */

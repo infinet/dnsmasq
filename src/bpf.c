@@ -130,7 +130,7 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)())
 #endif
 
 
-#if defined(HAVE_BSD_NETWORK)
+#if defined(HAVE_BSD_NETWORK) && defined(HAVE_DHCP)
 #include <net/bpf.h>
 
 void init_bpf(void)
@@ -175,7 +175,7 @@ void send_via_bpf(struct dhcp_packet *mess, size_t len,
   /* Only know how to do ethernet on *BSD */
   if (mess->htype != ARPHRD_ETHER || mess->hlen != ETHER_ADDR_LEN)
     {
-      my_syslog(LOG_WARNING, _("DHCP request for unsupported hardware type (%d) received on %s"), 
+      my_syslog(MS_DHCP | LOG_WARNING, _("DHCP request for unsupported hardware type (%d) received on %s"), 
 		mess->htype, ifr->ifr_name);
       return;
     }

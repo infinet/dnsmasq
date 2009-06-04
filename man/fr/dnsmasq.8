@@ -16,9 +16,8 @@ fichier /etc/hosts afin que les noms locaux n'apparaissant pas dans les DNS
 globaux soient tout de même résolus, et assure également la résolution de nom
 pour les hôtes présents dans le service DHCP.
 .PP
-Le serveur DHCP Dnsmasq DHCP supporte les définitions d'adresses statiques, les
-réseaux multiples, le relai DHCP et les spécifications de sous-réseaux conformes
-à la RFC3011. Il envoie par défaut un jeu raisonnable de paramètres DHCP, et
+Le serveur DHCP Dnsmasq DHCP supporte les définitions d'adresses statiques et les
+réseaux multiples. Il envoie par défaut un jeu raisonnable de paramètres DHCP, et
 peut être configuré pour envoyer n'importe quel option DHCP.
 Il inclut un serveur TFTP sécurisé en lecture seule permettant le démarrage via
 le réseau/PXE de clients DHCP et supporte également le protocole BOOTP.
@@ -33,6 +32,11 @@ Sur BSD, à moins que le logiciel ne soit compilé avec la bibliothèque GNU
 getopt, la forme longue des options ne fonctionne pas en ligne de commande; Elle
 est toujours supportée dans le fichier de configuration.
 .TP
+.B --test
+Vérifie la syntaxe du ou des fichiers de configurations. Se termine avec le
+code de retour 0 si tout est OK, ou un code différent de 0 dans le cas
+contraire. Ne démarre pas Dnsmasq.
+.TP
 .B \-h, --no-hosts
 Ne pas charger les noms du fichier /etc/hosts.
 .TP
@@ -41,7 +45,8 @@ Fichiers d'hôtes additionnels. Lire le fichier spécifié en plus de /etc/hosts
 Si 
 .B -h
 est spécifié, lire uniquement le fichier spécifié. Cette option peut être
-répétée afin d'ajouter d'autres fichiers.
+répétée afin d'ajouter d'autres fichiers. Si un répertoire est donné, lis les
+fichiers contenus dans ce répertoire.
 .TP
 .B \-E, --expand-hosts
 Ajoute le nom de domaine aux noms simples (ne contenant pas de point dans le
@@ -497,7 +502,7 @@ lorsqu'un serveur web a la résolution de nom activée pour l'enregistrement de
 son journal des requêtes, ce qui peut générer un nombre important de requêtes
 simultanées.
 .TP
-.B \-F, --dhcp-range=[[net:]identifiant de réseau,]<adresse de début>,<adresse de fin>[[,<masque de réseau>],<broadcast>][,<durée de bail par défaut>]
+.B \-F, --dhcp-range=[[net:]identifiant de réseau,]<adresse de début>,<adresse de fin>[[,<masque de réseau>],<broadcast>][,<durée de bail>]
 Active le serveur DHCP. Les adresses seront données dans la plage comprise entre
 <adresse de début> et <adresse de fin> et à partir des adresses définies
 statiquement dans l'option
@@ -505,7 +510,9 @@ statiquement dans l'option
 Si une durée de bail est donnée, alors les baux seront donnés pour cette
 durée. La durée de bail est donnée en secondes, en minutes (exemple : 45m),
 en heures (exemple : 1h) ou être la chaine de caractère "infinite" pour une
-durée indéterminée. La valeur minimum pour un bail DHCP est de 2 minutes.
+durée indéterminée. Si aucune valeur n'est donnée, une durée de bail par défaut
+de une heure est appliquée. La valeur minimum pour un bail DHCP est de 2
+minutes.
 Cette option peut être répétée, avec différentes adresses,
 pour activer le service DHCP sur plus d'un réseau. Pour des réseaux directement
 connectés (c'est-à-dire des réseaux dans lesquels la machine sur laquelle tourne
@@ -513,11 +520,8 @@ Dnsmasq possède une interface), le masque de réseau est optionnel. Il est par
 contre requis pour les réseaux pour lesquels le service DHCP se fait via un
 relais DHCP ("relay agent"). L'adresse de broadcast est toujours optionnelle.
 
-Sur certains systèmes, Dnsmasq ne peut écouter que sur une interface lorsqu'il
-utilise DHCP, et le nom de l'interface doit être spécifié par l'option 
-.B interface.
-Cette limitation affecte tous les systèmes OpenBSD avant la version 4.0. Il
-est toujours possible d'avoir plus d'une plage DHCP pour un même sous-réseau.
+Il est toujours possible d'avoir plus d'une plage DHCP pour un même
+sous-réseau.
 
 L'identifiant de réseau optionnel est un label alphanumérique qui permet de
 marquer ce réseau afin de fournir des options DHCP spécifiques à chaque réseau.
@@ -528,10 +532,19 @@ label, il définit le label pour laquelle la règle s'applique. Un seul label pe
 L'adresse de fin peut être remplacée par le mot-clef
 .B static
 ("statique") qui indique à Dnsmasq d'activer le service DHCP pour le réseau
-spécifié, mais de ne pas activer l'allocation dynamique d'adresses IP. Seuls les
-hôtes possédant des adresses IP statiques fournies via 
+spécifié, mais de ne pas activer l'allocation dynamique d'adresses IP : Seuls
+les hôtes possédant des adresses IP statiques fournies via 
 .B dhcp-host
 ou présentes dans le fichier /etc/ethers seront alors servis par le DHCP.
+
+L'adresse de fin peut-être remplacée par le mot-clef
+.B proxy
+, auquel cas Dnsmasq fournira un service de DHCP proxy pour le sous-réseau
+spécifié. (voir
+.B pxe-prompt
+et
+.B pxe-service
+pour plus de détails).
 .TP
 .B \-G, --dhcp-host=[<adresse matérielle>][,id:<identifiant client>|*][,net:<identifiant de réseau>][,<adresse IP>][,<nom d'hôte>][,<durée de bail>][,ignore]
 Spécifie les paramètres DHCP relatifs à un hôte. Cela permet à une machine
@@ -828,7 +841,59 @@ le réseau.
 Si d'éventuels identifiants de réseau sont fournis, ils doivent coïncider avec
 ceux du client pour que cet élement de configuration lui soit envoyé. Il est à
 noter que les identifiants de réseau doivent-être préfixés par "net:".
-.TP  
+.TP
+.B --pxe-service=[net:<identifiant de réseau>,]<CSA>,<entrée de menu>,<nom de fichier>|<type de service de démarrage>[,<adresse de serveur>]
+La plupart des ROMS de démarrage PXE ne permettent au système PXE que la simple
+obtention d'une adresse IP, le téléchargement du fichier spécifié dans
+.B dhcp-boot
+et son exécution. Cependant, le système PXE est capable de fonctions bien plus
+complexes pour peu que le serveur DHCP soit adapté.
+
+Ceci spécifie l'option de démarrage qui apparaitra dans un menu de démarrage
+PXE. <CSA> est le type du système client. Seuls des types de services valides
+apparaitront dans un menu. Les types connus sont x86PC, PC98, IA64_EFI, Alpha,
+Arc_x86, Intel_Lean_Client, IA32_EFI, BC_EFI, Xscale_EFI et X86-64_EFI;
+D'autres types peuvent-être spécifiés sous la forme d'une valeur entière. Le
+paramètre après le texte correspondant à l'entrée dans le menu peut être un nom
+de fichier, auquel cas Dnsmasq agit comme un serveur de démarrage et indique au
+client PXE qu'il faut télécharger ce fichier via TFTP, soit depuis ce serveur
+(l'option
+.B enable-tftp 
+doit être spécifiée pour que cela marche), soit depuis un autre serveur TFTP
+si une adresse de serveur est fournie.
+Veuillez noter que le suffixe de "couche" (en principe ".0") est fourni par PXE
+et ne doit pas être rajouté au nom de fichier. Si une valeur numérique entière
+est fournir pour le type de démarrage, en remplacement du nom de fichier, le
+client PXE devra chercher un service de démarrage de ce type sur le réseau.
+Cette recherche peut être faite via multicast ou broadcast, ou directement
+auprès d'un serveur si son adresse IP est fournie dans l'option. Un service de
+démarrage de type 0 est spécial et provoquera une interruption du démarrage par
+le réseau ainsi que la poursuite du démarrage sur un média local.
+.TP
+.B --pxe-prompt=[net:<identifiant de réseau>,]<invite>[,<délai>]
+Cette option permet d'afficher une invite à la suite du démarrage PXE. Si un
+délai est fourni, alors la première entrée du menu de démarrage sera
+automatiquement exécutée après ce délai. Si le délai vaut 0, alors la première
+entrée disponible sera exécutée immédiatement. Si
+.B pxe-prompt
+est omis, le système attendra un choix de l'utilisateur s'il existe plusieurs
+entrées dans le menu, ou démarrera immédiatement dans le cas où il n'y a qu'une
+seule entrée. Voir
+.B pxe-service 
+pour plus de détails sur les entrées de menu.
+
+Dnsmasq peut servir de "proxy-DHCP" PXE, dans le cas où un autre serveur DHCP
+sur le réseau est responsable de l'allocation des adresses IP, auquel cas
+Dnsmasq se contente de fournir les informations données dans les options
+.B pxe-prompt
+et
+.B pxe-service
+pour permettre le démarrage par le réseau. Ce mode est activé en utilisant le
+mot-clef
+.B proxy
+dans
+.B dhcp-range.
+.TP
 .B \-X, --dhcp-lease-max=<nombre>
 Limite Dnsmasq à un maximum de <nombre> baux DHCP. Le défaut est de 150. Cette
 limite permet d'éviter des attaques de déni de service ("DoS") par des hôtes
@@ -951,9 +1016,9 @@ longueur de bail ou de date d'expiration.
 .B --bridge-interface=<interface>,<alias>[,<alias>]
 Traiter les requêtes DHCP arrivant sur n'importe laquelle des interfaces <alias>
 comme si elles arrivaient de l'interface <interface>. Cette option est
-uniquement disponible sur les plateformes BSD, et est uniquement nécessaire
-lors de l'utilisation de pont ethernet "ancien mode", puisque dans ce cas les
-paquets arrivent sur des interfaces "tap" n'ayant pas d'adresse IP.
+nécessaire lors de l'utilisation de pont ethernet "ancien mode" sur plate-forme
+BSD, puisque dans ce cas les paquets arrivent sur des interfaces "tap" n'ont
+pas d'adresse IP.
 .TP
 .B \-s, --domain=<domaine>[,<gamme d'adresses>]
 Spécifie le domaine du serveur DHCP. Le domaine peut être donné de manière

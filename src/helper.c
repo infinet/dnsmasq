@@ -28,7 +28,7 @@
    main process.
 */
 
-#ifndef NO_FORK
+#if defined(HAVE_DHCP) && !defined(NO_FORK)
 
 static void my_setenv(const char *name, const char *value, int *error);
 
@@ -276,28 +276,8 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 
 static void my_setenv(const char *name, const char *value, int *error)
 {
-  if (*error == 0)
-    {
-#if defined(HAVE_SOLARIS_NETWORK) && !defined(HAVE_SOLARIS_PRIVS)
-      /* old Solaris is missing setenv..... */
-      char *p;
-      
-      if (!(p = malloc(strlen(name) + strlen(value) + 2)))
-	*error = ENOMEM;
-      else
-	{
-	  strcpy(p, name);
-	  strcat(p, "=");
-	  strcat(p, value);
-	  
-	  if (putenv(p) != 0)
-	    *error = errno;
-	}
-#else
-      if (setenv(name, value, 1) != 0)
-	*error = errno;
-#endif
-    }
+  if (*error == 0 && setenv(name, value, 1) != 0)
+    *error = errno;
 }
  
 /* pack up lease data into a buffer */    

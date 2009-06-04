@@ -19,6 +19,10 @@
 #include "dnsmasq.h"
 #include <setjmp.h>
 
+static volatile int mem_recover = 0;
+static jmp_buf mem_jmp;
+static void one_file(char *file, int nest, int hard_opt);
+
 /* Solaris headers don't have facility names. */
 #ifdef HAVE_SOLARIS_NETWORK
 static const struct {
@@ -34,10 +38,7 @@ static const struct {
   { "lpr",    LOG_LPR },
   { "news",   LOG_NEWS },
   { "uucp",   LOG_UUCP },
-#ifdef LOG_AUDIT
-  /* Not Solaris < 10 */
   { "audit",  LOG_AUDIT },
-#endif
   { "cron",   LOG_CRON },
   { "local0", LOG_LOCAL0 },
   { "local1", LOG_LOCAL1 },
@@ -98,6 +99,9 @@ struct myoption {
 #define LOPT_MINPORT   288
 #define LOPT_DHCP_FQDN 289
 #define LOPT_CNAME     290
+#define LOPT_PXE_PROMT 291
+#define LOPT_PXE_SERV  292
+#define LOPT_TEST      293
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -105,105 +109,106 @@ static const struct option opts[] =
 static const struct myoption opts[] = 
 #endif
   { 
-    {"version", 0, 0, 'v'},
-    {"no-hosts", 0, 0, 'h'},
-    {"no-poll", 0, 0, 'n'},
-    {"help", 0, 0, 'w'},
-    {"no-daemon", 0, 0, 'd'},
-    {"log-queries", 0, 0, 'q'},
-    {"user", 2, 0, 'u'},
-    {"group", 2, 0, 'g'},
-    {"resolv-file", 2, 0, 'r'},
-    {"mx-host", 1, 0, 'm'},
-    {"mx-target", 1, 0, 't'},
-    {"cache-size", 2, 0, 'c'},
-    {"port", 1, 0, 'p'},
-    {"dhcp-leasefile", 2, 0, 'l'},
-    {"dhcp-lease", 1, 0, 'l' },
-    {"dhcp-host", 1, 0, 'G'},
-    {"dhcp-range", 1, 0, 'F'},
-    {"dhcp-option", 1, 0, 'O'},
-    {"dhcp-boot", 1, 0, 'M'},
-    {"domain", 1, 0, 's'},
-    {"domain-suffix", 1, 0, 's'},
-    {"interface", 1, 0, 'i'},
-    {"listen-address", 1, 0, 'a'},
-    {"bogus-priv", 0, 0, 'b'},
-    {"bogus-nxdomain", 1, 0, 'B'},
-    {"selfmx", 0, 0, 'e'},
-    {"filterwin2k", 0, 0, 'f'},
-    {"pid-file", 2, 0, 'x'},
-    {"strict-order", 0, 0, 'o'},
-    {"server", 1, 0, 'S'},
-    {"local", 1, 0, LOPT_LOCAL },
-    {"address", 1, 0, 'A' },
-    {"conf-file", 2, 0, 'C'},
-    {"no-resolv", 0, 0, 'R'},
-    {"expand-hosts", 0, 0, 'E'},
-    {"localmx", 0, 0, 'L'},
-    {"local-ttl", 1, 0, 'T'},
-    {"no-negcache", 0, 0, 'N'},
-    {"addn-hosts", 1, 0, 'H'},
-    {"query-port", 1, 0, 'Q'},
-    {"except-interface", 1, 0, 'I'},
-    {"no-dhcp-interface", 1, 0, '2'},
-    {"domain-needed", 0, 0, 'D'},
-    {"dhcp-lease-max", 1, 0, 'X' },
-    {"bind-interfaces", 0, 0, 'z'},
-    {"read-ethers", 0, 0, 'Z' },
-    {"alias", 1, 0, 'V' },
-    {"dhcp-vendorclass", 1, 0, 'U'},
-    {"dhcp-userclass", 1, 0, 'j'},
-    {"dhcp-ignore", 1, 0, 'J'},
-    {"edns-packet-max", 1, 0, 'P'},
-    {"keep-in-foreground", 0, 0, 'k'},
-    {"dhcp-authoritative", 0, 0, 'K'},
-    {"srv-host", 1, 0, 'W'},
-    {"localise-queries", 0, 0, 'y'},
-    {"txt-record", 1, 0, 'Y'},
-    {"enable-dbus", 0, 0, '1'},
-    {"bootp-dynamic", 2, 0, '3'},
-    {"dhcp-mac", 1, 0, '4'},
-    {"no-ping", 0, 0, '5'},
-    {"dhcp-script", 1, 0, '6'},
-    {"conf-dir", 1, 0, '7'},
-    {"log-facility", 1, 0 ,'8'},
-    {"leasefile-ro", 0, 0, '9'},
-    {"dns-forward-max", 1, 0, '0'},
-    {"clear-on-reload", 0, 0, LOPT_RELOAD },
-    {"dhcp-ignore-names", 2, 0, LOPT_NO_NAMES },
-    {"enable-tftp", 0, 0, LOPT_TFTP },
-    {"tftp-secure", 0, 0, LOPT_SECURE },
-    {"tftp-unique-root", 0, 0, LOPT_APREF },
-    {"tftp-root", 1, 0, LOPT_PREFIX },
-    {"tftp-max", 1, 0, LOPT_TFTP_MAX },
-    {"ptr-record", 1, 0, LOPT_PTR },
-    {"naptr-record", 1, 0, LOPT_NAPTR },
-#ifdef HAVE_BSD_BRIDGE
-    {"bridge-interface", 1, 0 , LOPT_BRIDGE },
-#endif
-    {"dhcp-option-force", 1, 0, LOPT_FORCE },
-    {"tftp-no-blocksize", 0, 0, LOPT_NOBLOCK },
-    {"log-dhcp", 0, 0, LOPT_LOG_OPTS },
-    {"log-async", 2, 0, LOPT_MAX_LOGS },
-    {"dhcp-circuitid", 1, 0, LOPT_CIRCUIT },
-    {"dhcp-remoteid", 1, 0, LOPT_REMOTE },
-    {"dhcp-subscrid", 1, 0, LOPT_SUBSCR },
-    {"interface-name", 1, 0, LOPT_INTNAME },
-    {"dhcp-hostsfile", 1, 0, LOPT_DHCP_HOST },
-    {"dhcp-optsfile", 1, 0, LOPT_DHCP_OPTS },
-    {"dhcp-no-override", 0, 0, LOPT_OVERRIDE },
-    {"tftp-port-range", 1, 0, LOPT_TFTPPORTS },
-    {"stop-dns-rebind", 0, 0, LOPT_REBIND },
-    {"all-servers", 0, 0, LOPT_NOLAST}, 
-    {"dhcp-match", 1, 0, LOPT_MATCH }, 
-    {"dhcp-broadcast", 1, 0, LOPT_BROADCAST },
-    {"neg-ttl", 1, 0, LOPT_NEGTTL },
-    {"dhcp-alternate-port", 2, 0, LOPT_ALTPORT },
-    {"dhcp-scriptuser", 1, 0, LOPT_SCRIPTUSR },
-    {"min-port", 1, 0, LOPT_MINPORT },
-    {"dhcp-fqdn", 0, 0, LOPT_DHCP_FQDN },
-    {"cname", 1, 0, LOPT_CNAME },
+    { "version", 0, 0, 'v' },
+    { "no-hosts", 0, 0, 'h' },
+    { "no-poll", 0, 0, 'n' },
+    { "help", 0, 0, 'w' },
+    { "no-daemon", 0, 0, 'd' },
+    { "log-queries", 0, 0, 'q' },
+    { "user", 2, 0, 'u' },
+    { "group", 2, 0, 'g' },
+    { "resolv-file", 2, 0, 'r' },
+    { "mx-host", 1, 0, 'm' },
+    { "mx-target", 1, 0, 't' },
+    { "cache-size", 2, 0, 'c' },
+    { "port", 1, 0, 'p' },
+    { "dhcp-leasefile", 2, 0, 'l' },
+    { "dhcp-lease", 1, 0, 'l' },
+    { "dhcp-host", 1, 0, 'G' },
+    { "dhcp-range", 1, 0, 'F' },
+    { "dhcp-option", 1, 0, 'O' },
+    { "dhcp-boot", 1, 0, 'M' },
+    { "domain", 1, 0, 's' },
+    { "domain-suffix", 1, 0, 's' },
+    { "interface", 1, 0, 'i' },
+    { "listen-address", 1, 0, 'a' },
+    { "bogus-priv", 0, 0, 'b' },
+    { "bogus-nxdomain", 1, 0, 'B' },
+    { "selfmx", 0, 0, 'e' },
+    { "filterwin2k", 0, 0, 'f' },
+    { "pid-file", 2, 0, 'x' },
+    { "strict-order", 0, 0, 'o' },
+    { "server", 1, 0, 'S' },
+    { "local", 1, 0, LOPT_LOCAL },
+    { "address", 1, 0, 'A' },
+    { "conf-file", 2, 0, 'C' },
+    { "no-resolv", 0, 0, 'R' },
+    { "expand-hosts", 0, 0, 'E' },
+    { "localmx", 0, 0, 'L' },
+    { "local-ttl", 1, 0, 'T' },
+    { "no-negcache", 0, 0, 'N' },
+    { "addn-hosts", 1, 0, 'H' },
+    { "query-port", 1, 0, 'Q' },
+    { "except-interface", 1, 0, 'I' },
+    { "no-dhcp-interface", 1, 0, '2' },
+    { "domain-needed", 0, 0, 'D' },
+    { "dhcp-lease-max", 1, 0, 'X' },
+    { "bind-interfaces", 0, 0, 'z' },
+    { "read-ethers", 0, 0, 'Z' },
+    { "alias", 1, 0, 'V' },
+    { "dhcp-vendorclass", 1, 0, 'U' },
+    { "dhcp-userclass", 1, 0, 'j' },
+    { "dhcp-ignore", 1, 0, 'J' },
+    { "edns-packet-max", 1, 0, 'P' },
+    { "keep-in-foreground", 0, 0, 'k' },
+    { "dhcp-authoritative", 0, 0, 'K' },
+    { "srv-host", 1, 0, 'W' },
+    { "localise-queries", 0, 0, 'y' },
+    { "txt-record", 1, 0, 'Y' },
+    { "enable-dbus", 0, 0, '1' },
+    { "bootp-dynamic", 2, 0, '3' },
+    { "dhcp-mac", 1, 0, '4' },
+    { "no-ping", 0, 0, '5' },
+    { "dhcp-script", 1, 0, '6' },
+    { "conf-dir", 1, 0, '7' },
+    { "log-facility", 1, 0 ,'8' },
+    { "leasefile-ro", 0, 0, '9' },
+    { "dns-forward-max", 1, 0, '0' },
+    { "clear-on-reload", 0, 0, LOPT_RELOAD },
+    { "dhcp-ignore-names", 2, 0, LOPT_NO_NAMES },
+    { "enable-tftp", 0, 0, LOPT_TFTP },
+    { "tftp-secure", 0, 0, LOPT_SECURE },
+    { "tftp-unique-root", 0, 0, LOPT_APREF },
+    { "tftp-root", 1, 0, LOPT_PREFIX },
+    { "tftp-max", 1, 0, LOPT_TFTP_MAX },
+    { "ptr-record", 1, 0, LOPT_PTR },
+    { "naptr-record", 1, 0, LOPT_NAPTR },
+    { "bridge-interface", 1, 0 , LOPT_BRIDGE },
+    { "dhcp-option-force", 1, 0, LOPT_FORCE },
+    { "tftp-no-blocksize", 0, 0, LOPT_NOBLOCK },
+    { "log-dhcp", 0, 0, LOPT_LOG_OPTS },
+    { "log-async", 2, 0, LOPT_MAX_LOGS },
+    { "dhcp-circuitid", 1, 0, LOPT_CIRCUIT },
+    { "dhcp-remoteid", 1, 0, LOPT_REMOTE },
+    { "dhcp-subscrid", 1, 0, LOPT_SUBSCR },
+    { "interface-name", 1, 0, LOPT_INTNAME },
+    { "dhcp-hostsfile", 1, 0, LOPT_DHCP_HOST },
+    { "dhcp-optsfile", 1, 0, LOPT_DHCP_OPTS },
+    { "dhcp-no-override", 0, 0, LOPT_OVERRIDE },
+    { "tftp-port-range", 1, 0, LOPT_TFTPPORTS },
+    { "stop-dns-rebind", 0, 0, LOPT_REBIND },
+    { "all-servers", 0, 0, LOPT_NOLAST }, 
+    { "dhcp-match", 1, 0, LOPT_MATCH }, 
+    { "dhcp-broadcast", 1, 0, LOPT_BROADCAST },
+    { "neg-ttl", 1, 0, LOPT_NEGTTL },
+    { "dhcp-alternate-port", 2, 0, LOPT_ALTPORT },
+    { "dhcp-scriptuser", 1, 0, LOPT_SCRIPTUSR },
+    { "min-port", 1, 0, LOPT_MINPORT },
+    { "dhcp-fqdn", 0, 0, LOPT_DHCP_FQDN },
+    { "cname", 1, 0, LOPT_CNAME },
+    { "pxe-prompt", 1, 0, LOPT_PXE_PROMT },
+    { "pxe-service", 1, 0, LOPT_PXE_SERV },
+    { "test", 0, 0, LOPT_TEST },
     { NULL, 0, 0, 0 }
   };
 
@@ -287,9 +292,7 @@ static struct {
   { '2', ARG_DUP, "interface", gettext_noop("Do not provide DHCP on this interface, only provide DNS."), NULL },
   { '3', ARG_DUP, "[=<id>[,<id>]]", gettext_noop("Enable dynamic address allocation for bootp."), NULL },
   { '4', ARG_DUP, "<id>,<mac address>", gettext_noop("Map MAC address (with wildcards) to option set."), NULL },
-#ifdef HAVE_BSD_BRIDGE
   { LOPT_BRIDGE, ARG_DUP, "iface,alias,..", gettext_noop("Treat DHCP requests on aliases as arriving from interface."), NULL },
-#endif
   { '5', OPT_NO_PING, NULL, gettext_noop("Disable ICMP echo address checking in the DHCP server."), NULL },
   { '6', ARG_ONE, "path", gettext_noop("Script to run on DHCP lease creation and destruction."), NULL },
   { '7', ARG_DUP, "path", gettext_noop("Read configuration from all the files in this directory."), NULL },
@@ -317,13 +320,18 @@ static struct {
   { LOPT_MINPORT, ARG_ONE, "<port>", gettext_noop("Specify lowest port available for DNS query transmission."), NULL },
   { LOPT_DHCP_FQDN, OPT_DHCP_FQDN, NULL, gettext_noop("Use only fully qualified domain names for DHCP clients."), NULL },
   { LOPT_CNAME, ARG_DUP, "<alias>,<target>", gettext_noop("Specify alias name for LOCAL DNS name."), NULL },
+  { LOPT_PXE_PROMT, ARG_DUP, "<prompt>,[<timeout>]", gettext_noop("Prompt to send to PXE clients."), NULL },
+  { LOPT_PXE_SERV, ARG_DUP, "<service>", gettext_noop("Boot service for PXE menu."), NULL },
+  { LOPT_TEST, 0, NULL, gettext_noop("Check configuration syntax."), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
+#ifdef HAVE_DHCP
 /* makes options which take a list of addresses */
-#define OT_ADDR_LIST 255
+#define OT_ADDR_LIST 0x80
 /* DHCP-internal options, for logging. not valid in config file */
-#define OT_INTERNAL 254
+#define OT_INTERNAL 0x40
+#define OT_NAME 0x20
 
 static const struct {
   char *name;
@@ -335,9 +343,9 @@ static const struct {
   { "dns-server", 6, OT_ADDR_LIST },
   { "log-server", 7, OT_ADDR_LIST },
   { "lpr-server", 9, OT_ADDR_LIST },
-  { "hostname", 12, OT_INTERNAL },
+  { "hostname", 12, OT_INTERNAL | OT_NAME },
   { "boot-file-size", 13, 2 },
-  { "domain-name", 15, 0 },
+  { "domain-name", 15, OT_NAME },
   { "swap-server", 16, OT_ADDR_LIST },
   { "root-path", 17, 0 },
   { "extension-path", 18, 0 },
@@ -348,7 +356,7 @@ static const struct {
   { "default-ttl", 23, 1 },
   { "mtu", 26, 2 },
   { "all-subnets-local", 27, 1 },
-  { "broadcast", 28, OT_INTERNAL },
+  { "broadcast", 28, OT_INTERNAL | OT_ADDR_LIST },
   { "router-discovery", 31, 1 },
   { "router-solicitation", 32, OT_ADDR_LIST },
   { "static-route", 33, OT_ADDR_LIST },
@@ -367,11 +375,11 @@ static const struct {
   { "netbios-scope", 47, 0 },
   { "x-windows-fs", 48, OT_ADDR_LIST },
   { "x-windows-dm", 49, OT_ADDR_LIST },
-  { "requested-address", 50, OT_INTERNAL },
+  { "requested-address", 50, OT_INTERNAL | OT_ADDR_LIST },
   { "lease-time", 51, OT_INTERNAL },
   { "option-overload", 52, OT_INTERNAL },
   { "message-type", 53, OT_INTERNAL, },
-  { "server-identifier", 54, OT_INTERNAL },
+  { "server-identifier", 54, OT_INTERNAL | OT_ADDR_LIST },
   { "parameter-request", 55, OT_INTERNAL },
   { "message", 56, OT_INTERNAL },
   { "max-message-size", 57, OT_INTERNAL },
@@ -401,20 +409,24 @@ static const struct {
   { NULL, 0, 0 }
 };
 
-static volatile int mem_recover = 0;
-static jmp_buf mem_jmp;
-static void one_file(char *file, int nest, int hard_opt);
-
-char *option_string(unsigned char opt)
+char *option_string(unsigned char opt, int *is_ip, int *is_name)
 {
   int i;
 
   for (i = 0; opttab[i].name; i++)
     if (opttab[i].val == opt)
-      return opttab[i].name;
+      {
+	if (is_ip)
+	  *is_ip = !!(opttab[i].size & OT_ADDR_LIST);
+	if (is_name)
+	  *is_name = !!(opttab[i].size & OT_NAME);
+	return opttab[i].name;
+      }
 
   return NULL;
 }
+
+#endif
 
 /* We hide metacharaters in quoted strings by mapping them into the ASCII control
    character space. Note that the \0, \t \b \r \033 and \n characters are carefully placed in the
@@ -626,6 +638,7 @@ static void do_usage(void)
     }
 }
 
+#ifdef HAVE_DHCP
 static void display_opts(void)
 {
   int i;
@@ -760,7 +773,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
      
       /* We know that some options take addresses */
 
-      if (opt_len == OT_ADDR_LIST)
+      if (opt_len & OT_ADDR_LIST)
 	{
 	  is_string = is_dec = is_hex = 0;
 	  if (!is_addr || dots == 0)
@@ -919,7 +932,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	}
     }
 
-  if (new->len > 255)
+  if ((new->len > 255) || (new->len > 253 && (new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE))))
     problem = _("dhcp-option too long");
   
   if (!problem)
@@ -946,6 +959,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
   return problem;
 }
 
+#endif
 
 static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 {      
@@ -1013,20 +1027,21 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		
 	while ((ent = readdir(dir_stream)))
 	  {
-	    size_t len;
+	    size_t len = strlen(ent->d_name);
 	    struct stat buf;
 
-	    if ((len = strlen(ent->d_name)) == 0)
-	      continue;
 	     /* ignore emacs backups and dotfiles */
-	    if (ent->d_name[len - 1] == '~' ||
+	    if (len == 0 ||
+		ent->d_name[len - 1] == '~' ||
 		(ent->d_name[0] == '#' && ent->d_name[len - 1] == '#') ||
 		ent->d_name[0] == '.')
 	      continue;
+
 	    path = opt_malloc(strlen(directory) + len + 2);
 	    strcpy(path, directory);
 	    strcat(path, "/");
 	    strcat(path, ent->d_name);
+
 	    if (stat(path, &buf) == -1)
 	      die(_("cannot access %s: %s"), path, EC_FILE);
 	    /* only reg files allowed. */
@@ -1139,25 +1154,28 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       else
 	daemon->mxtarget = opt_string_alloc(arg);
       break;
-      
+
+#ifdef HAVE_DHCP      
     case 'l':  /* --dhcp-leasefile */
       daemon->lease_file = opt_string_alloc(arg);
       break;
       
     case '6': /* --dhcp-script */
-#ifdef NO_FORK
+#  ifdef NO_FORK
       problem = _("cannot run scripts under uClinux");
-#else
+#  else
       daemon->lease_change_command = opt_string_alloc(arg);
-#endif
+#  endif
       break;
-      
+#endif
+
     case 'H': /* --addn-hosts */
       {
 	struct hostsfile *new = opt_malloc(sizeof(struct hostsfile));
 	static int hosts_index = 1;
 	new->fname = opt_string_alloc(arg);
 	new->index = hosts_index++;
+	new->flags = 0;
 	new->next = daemon->addn_hosts;
 	daemon->addn_hosts = new;
 	break;
@@ -1219,9 +1237,11 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       daemon->group_set = 1;
       break;
 
+#ifdef HAVE_DHCP
     case LOPT_SCRIPTUSR: /* --scriptuser */
       daemon->scriptuser = opt_string_alloc(arg);
       break;
+#endif
       
     case 'i':  /* --interface */
       do {
@@ -1520,11 +1540,14 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	break;
       }
       
+#ifdef HAVE_DHCP
     case 'X': /* --dhcp-lease-max */
       if (!atoi_check(arg, &daemon->dhcp_max))
 	option = '?';
       break;
+#endif
       
+#ifdef HAVE_TFTP
     case LOPT_TFTP_MAX:  /*  --tftp-max */
       if (!atoi_check(arg, &daemon->tftp_max))
 	option = '?';
@@ -1548,8 +1571,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	} 
       
       break;
+#endif
 	      
-#ifdef HAVE_BSD_BRIDGE
     case LOPT_BRIDGE:   /* --bridge-interface */
       {
 	struct dhcp_bridge *new = opt_malloc(sizeof(struct dhcp_bridge));
@@ -1578,8 +1601,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	break;
       }
-#endif
 
+#ifdef HAVE_DHCP
     case 'F':  /* --dhcp-range */
       {
 	int k, leasepos = 2;
@@ -1645,6 +1668,11 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	  {
 	    new->end = new->start;
 	    new->flags |= CONTEXT_STATIC;
+	  }
+	else if (strcmp(a[1], "proxy") == 0)
+	  {
+	    new->end = new->start;
+	    new->flags |= CONTEXT_PROXY;
 	  }
 	else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
 	  option = '?';
@@ -1916,7 +1944,122 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	break;
       }
-      
+
+    case LOPT_PXE_PROMT:  /* --pxe-prompt */
+       {
+	 struct dhcp_opt *new = opt_malloc(sizeof(struct dhcp_opt));
+	 int timeout;
+
+	 new->netid = NULL;
+	 new->opt = 10; /* PXE_MENU_PROMPT */
+
+	 while (arg && strstr(arg, "net:") == arg)
+	   {
+	     struct dhcp_netid *nn = opt_malloc(sizeof (struct dhcp_netid));
+	     comma = split(arg);
+	     nn->next = new->netid;
+	     new->netid = nn;
+	     nn->net = opt_string_alloc(arg+4);
+	     arg = comma;
+	   }
+	 
+	 if (!arg)
+	   option = '?';
+	 else
+	   {
+	     comma = split(arg);
+	     unhide_metas(arg);
+	     new->len = strlen(arg) + 1;
+	     new->val = opt_malloc(new->len);
+	     memcpy(new->val + 1, arg, new->len - 1);
+	     
+	     new->u.vendor_class = (unsigned char *)"PXEClient";
+	     new->flags = DHOPT_VENDOR;
+	     
+	     if (comma && atoi_check(comma, &timeout))
+	       *(new->val) = timeout;
+	     else
+	       *(new->val) = 255;
+
+	     new->next = daemon->dhcp_opts;
+	     daemon->dhcp_opts = new;
+	   }
+	 
+	 break;
+       }
+       
+    case LOPT_PXE_SERV:  /* --pxe-service */
+       {
+	 struct pxe_service *new = opt_malloc(sizeof(struct pxe_service));
+	 char *CSA[] = { "x86PC", "PC98", "IA64_EFI", "Alpha", "Arc_x86", "Intel_Lean_Client",
+			 "IA32_EFI", "BC_EFI", "Xscale_EFI", "x86-64_EFI", NULL };  
+	 static int boottype = 32768;
+	 
+	 new->netid = NULL;
+	 new->server.s_addr = 0;
+
+	 while (arg && strstr(arg, "net:") == arg)
+	   {
+	     struct dhcp_netid *nn = opt_malloc(sizeof (struct dhcp_netid));
+	     comma = split(arg);
+	     nn->next = new->netid;
+	     new->netid = nn;
+	     nn->net = opt_string_alloc(arg+4);
+	     arg = comma;
+	   }
+       
+	 if (arg && (comma = split(arg)))
+	   {
+	     for (i = 0; CSA[i]; i++)
+	       if (strcasecmp(CSA[i], arg) == 0)
+		 break;
+	     
+	     if (CSA[i] || atoi_check(arg, &i))
+	       {
+		 arg = comma;
+		 comma = split(arg);
+		 
+		 new->CSA = i;
+		 new->menu = opt_string_alloc(arg);
+		 
+		 if (comma)
+		   {
+		     arg = comma;
+		     comma = split(arg);
+		     if (atoi_check(arg, &i))
+		       {
+			 new->type = i;
+			 new->basename = NULL;
+		       }
+		     else
+		       {
+			 new->type = boottype++;
+			 new->basename = opt_string_alloc(arg);
+		       }
+		     
+		     if (comma && (new->server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
+		       option = '?';
+		     
+		     /* Order matters */
+		     new->next = NULL;
+		     if (!daemon->pxe_services)
+		       daemon->pxe_services = new; 
+		     else
+		       {
+			 struct pxe_service *s;
+			 for (s = daemon->pxe_services; s->next; s = s->next);
+			 s->next = new;
+		       }
+		     
+		     break;
+		   }
+	       }
+	   }
+	 
+	 option = '?';
+	 break;
+       }
+	 
     case '4':  /* --dhcp-mac */
       {
 	if (!(comma = split(arg)))
@@ -2058,6 +2201,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	new->list = list;
 	break;
       }
+#endif
       
     case 'V':  /* --alias */
       {
@@ -2311,6 +2455,10 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	new->weight = weight;
 	break;
       }
+      
+    default:
+      return _("unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)");
+
     }
 
   if (problem)
@@ -2328,10 +2476,32 @@ static void one_file(char *file, int nest, int hard_opt)
   int i, option; 
   FILE *f;
   char *p, *arg, *start, *buff = daemon->namebuff;
+  static struct fileread {
+    dev_t dev;
+    ino_t ino;
+    struct fileread *next;
+  } *filesread = NULL;
+  struct stat statbuf;
+  
+  /* ignore repeated files. */
+  if (hard_opt == 0 && stat(file, &statbuf) == 0)
+    {
+      struct fileread *r;
+
+      for (r = filesread; r; r = r->next)
+	if (r->dev == statbuf.st_dev && r->ino == statbuf.st_ino)
+	  return;
+
+      r = safe_malloc(sizeof(struct fileread));
+      r->next = filesread;
+      filesread = r;
+      r->dev = statbuf.st_dev;
+      r->ino = statbuf.st_ino;
+    }
 
   if (nest > 20)
     die(_("files nested too deep in %s"), file, EC_BADCONF);
-  
+
   if (!(f = fopen(file, "r")))
     {   
       if (errno == ENOENT && nest == 0)
@@ -2476,6 +2646,7 @@ static void one_file(char *file, int nest, int hard_opt)
   fclose(f);
 }
 
+#ifdef HAVE_DHCP
 void reread_dhcp(void)
 {
   if (daemon->dhcp_hosts_file)
@@ -2546,11 +2717,12 @@ void reread_dhcp(void)
       my_syslog(LOG_INFO, _("read %s"), daemon->dhcp_opts_file);
     }
 }
+#endif
     
 void read_opts(int argc, char **argv, char *compile_opts)
 {
   char *buff = opt_malloc(MAXDNAME);
-  int option, nest = 0;
+  int option, nest = 0, testmode = 0;
   char *errmess, *arg, *conffile = CONFFILE;
       
   opterr = 0;
@@ -2600,12 +2772,16 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	arg = NULL;
       
       /* command-line only stuff */
-      if (option == 'w')
+      if (option == LOPT_TEST)
+	testmode = 1;
+      else if (option == 'w')
 	{
-	  if (argc == 3 && strcmp(argv[2], "dhcp") == 0)
-	    display_opts();
-	  else
+	  if (argc != 3 ||  strcmp(argv[2], "dhcp") != 0)
 	    do_usage();
+#ifdef HAVE_DHCP
+	  else
+	    display_opts();
+#endif
 	  exit(0);
 	}
       else if (option == 'v')
@@ -2752,4 +2928,10 @@ void read_opts(int argc, char **argv, char *compile_opts)
     }
   else if (daemon->options & OPT_DHCP_FQDN)
     die(_("there must be a default domain when --dhcp-fqdn is set"), NULL, EC_BADCONF);
+
+  if (testmode)
+    {
+      fprintf(stderr, "dnsmasq: %s.\n", _("syntax check OK"));
+      exit(0);
+    }
 }  
