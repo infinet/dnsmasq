@@ -17,9 +17,8 @@ resueltos. También responde a búsquedas DNS para hosts configurados
 vía DHCP.
 .PP
 El servidor DHCP dnsmasq incluye soporte para asignación de direcciones
-estáticas, redes múltiples, DHCP-relay y especificadores de subredes
-RFC3011. Automáticamente envía un predeterminado sensible de opciones
-DHCP, y puede ser configurado para enviar cualquier opciones DHCP deseadas,
+estáticas y redes múltiples. Automáticamente envía un predeterminado sensible de
+opciones DHCP, y puede ser configurado para enviar cualquier opciones DHCP deseadas,
 incluyendo opciones encapsuladas por vendedores. Incluye un servidor seguro
 TFTP solo-lectura para permitir el inicio vía red/PXE de hosts DHCP. Tambíen
 incluye soporte para BOOTP.
@@ -33,13 +32,20 @@ archivo PID. En BSD, a menos que la librería GNU getopt esté enlazada,
 la forma larga de las opciones no funciona en la línea de comandos,
 pero todavía es reconocida en el archivo de configuración.
 .TP
+.B --test
+Leer archivo(s) de configuración y revisar su sintaxis. Salir con código
+0 si todo está bien, o un código no-cero en cualquier otro caso. No
+iniciar dnsmasq.
+.TP
 .B \-h, --no-hosts
 No leer los nombres de hosts en /etc/hosts.
 .TP
 .B \-H, --addn-hosts=<archivo>
 Archivo de hosts adicional. Leer el archivo especificado adicionalmente
 a /etc/hosts. Si se brinda -h, leer solo el archivo especificado. Esta
-opción puede ser repetida para más de un archivo de hosts adicional.
+opción puede ser repetida para más de un archivo de hosts adicional. Si
+un directorio es brindado, entonces leer todos los archivos contenidos en
+ese directorio.
 .TP
 .B \-E, --expand-hosts
 Agregar el dominio a nombres sencillos (sin punto) en /etc/hosts de la
@@ -225,15 +231,19 @@ privados (192.168.x.x, etc.) los cuales no se encuentren en
 /etc/hosts o en el archivo de arriendos DHCP es respondida con
 "dominio no existente" en vez de ser reenviada upstream.
 .TP
-.B \-V, --alias=<IP viejo>,<IP nuevo>[,<máscara>]
+.B \-V, --alias=[<IP viejo>]|[<IP inicio>-<IP final>],<IP nuevo>[,<máscara>]
 Modificar direcciones IPv4 retornadas desde servidores DNS upstream;
 <IP viejo> es remplazado con <IP nuevo>. Si la máscara opcional
 es brindada, entonces cualquier dirección que coincida con el
 <IP viejo> enmascarado será re-escrita. Así que, por ejemplo,
 .B --alias=1.2.3.0,6.7.8.0,255.255.255.0 trazará 1.2.3.56 a 6.7.8.56
 y 1.2.3.67 a 6.7.8.67. Esto es lo que
-ruteadores Cisco PIX llaman "DNS doctoring".
-.TP 
+ruteadores Cisco PIX llaman "DNS doctoring". Si la dirección vieja es
+brindada como un rango, entonces solo direcciones en ese rango, y no
+la subred entera, son re-escritas. De tal manera que
+.B --alias=192.168.0.10-192.168.0.40,10.0.0.0,255.255.255.0
+relaciona 192.168.0.10->192.168.0.40 a 10.0.0.10->10.0.0.40
+.TP
 .B \-B, --bogus-nxdomain=<dirección IP>
 Transformar respuestas que contienen la dirección IP brindada a
 respuestas tipo "Dominio no existe". La intención de esto es actuar
@@ -449,39 +459,43 @@ de casos. La única situación conocida donde esto debe ser incrementado
 es al usar resolvedores de bitácoras de servidores web, los cuales pueden
 generar un número inmenso de búsquedas simultáneas.
 .TP
-.B \-F, --dhcp-range=[[net:]network-id,]<dirección-inicio>,<dirección-final>[[,<máscara>],<broadcast>][,<tiempo de arriendo predeterminado>]
+.B \-F, --dhcp-range=[[net:]network-id,]<dirección-inicio>,<dirección-final>[[,<máscara>],<broadcast>][,<tiempo de arriendo>]
 Habilitar el servidor DHCP. Direcciones serán distribuidas desde el
 rango <dirección-inicio> hasta <dirección-final> y desde direcciones definidas
 estáticamente en opciones
 .B dhcp-host
 Si el tiempo de arriendo es especificado, entonces arriendos serán
 otorgados por esa cantidad de tiempo. El tiempo de arriendo es en
-segundos, o minutos (por ejemplo, 45m), o horas (por ejemplo, 1h), o el
-literal "infinite". Esta opción puede ser repetida, con diferentes
+segundos, o minutos (por ejemplo, 45m), u horas (por ejemplo, 1h), o
+"infinite". Si no es brindada, el tiempo de arriendo predeterminado
+es de una hora. El tiempo de arriendo mínimo es de dos minutos.
+Esta opción puede ser repetida, con diferentes
 direcciones, para habilitar servicio DHCP en más de una red. Para
 redes conectadas diréctamente (en otras palabras, redes en las
 cuales la máquina corriendo dnsmasq tiene una interface) la
 máscara de subred es opcional. Pero, es requerida para redes que
 reciben servicio DHCP vía un agente de relay. La dirección de
-broadcast siempre es opcional. En algunos sistemas rotos, dnsmasq
-solo puede escuchar en una interface cuando se usa DHCP, y el
-nombre de esa interface debe ser brindado usando la opción
-.B interface
-Esta limitación actualmente afecta a OpenBSD antes de versión 4.0.
-Siempre se permite tener más de un rango dhcp (dhcp-range) en una
-subred. El parámetro opcional network-id es una etiqueta alfanumérica
-la cual marca esta red de tal forma que opciones dhcp puedan ser
-especificadas en base a cada red.
+broadcast siempre es opcional. Siempre se permite tener más de
+un rango dhcp (dhcp-range) en una subred. El parámetro opcional
+network-id es una etiqueta alfanumérica la cual marca esta red de
+tal forma que opciones dhcp puedan ser especificadas en base a cada red.
 Cuando es prefijada con 'net:' entonces el significado cambia
 de "fijar etiqueta" a "coincidir con etiqueta". Solo una etiqueta puede
 ser fijada, pero más de una puede ser revisada por coincidencias. La
 dirección final puede ser remplazada por la palabra clave
 .B static
 la cual le dice a dnsmasq que debe habilitar DHCP para la red
-especificada, pero no alocar dinámicamente direcciones IP.
+especificada, pero no alocar dinámicamente direcciones IP:
 Solo hosts que tienen direcciones estáticas brindadas vía
 .B dhcp-host
-o desde /etc/ethers serán servidas.
+o desde /etc/ethers serán servidas. La dirección final puede ser
+remplazada por la palabra clave
+.B proxy
+caso en el cual dnsmasq proveerá proxy-DHCP en la subred especificada. (Ver
+.B pxe-prompt
+y
+.B pxe-service
+para detalles.)
 .TP
 .B \-G, --dhcp-host=[<dirección de hardware>][,id:<client_id>|*][,net:<netid>][,<dirección IP>][,<nombre de host>][,<tiempo de arriendo>][,ignore]
 Especificar parámetros por host para el servidor DHCP. Esto permite
@@ -546,14 +560,16 @@ solo coincidiría con una dirección de hardware Token-Ring, dado que
 el tipo ARP para Token-Ring es 6.
 
 Como caso especial, es posible incluir más de una dirección de
-hardware. Esto permite que una dirección IP sea asociada con
+hardware. Ejemplo:
+.B --dhcp-host=11:22:33:44:55:66,12:34:56:78:90:12,192.168.0.2
+Esto permite que una dirección IP sea asociada con
 direcciones de hardware múltiples, y le brinda a dnsmasq permiso
 para abandonar un arriendo DHCP a una de las direcciones de hardware
 cuando otra pide un arriendo. Nótese que esto es algo peligroso,
 sólo funcionará dependiblemente si una de las direcciones de hardware
 está activa en cualquier momento y dnsmasq no tiene forma de enforzar
 esto. Pero es útil, por ejemplo, para alocar una dirección IP estable
-a una laptop que tiene interfaces alámbricas e inalámbricas.
+a una laptop que tiene interface alámbrica e inalámbrica.
 .TP
 .B --dhcp-hostsfile=<archivo>
 Leer información host DHCP desde el archivo especificado. El archivo contiene información de un host por línea. El formato de una línea es igual que texto hacia la derecha de '=' en --dhcp-host. La ventaja de almacenar información host DHCP en este archivo es que puede ser cambiada sin tener que reiniciar dnsmasq. El archivo será re-leído cuando dnsmasq recibe un SIGHUP.
@@ -571,7 +587,7 @@ dnsmasq, estas líneas tienen exáctamente el mismo efecto que opciones
 .B --dhcp-host
 que contienen la misma información. /etc/ethers es re-leída cuando dnsmasq recibe un SIGHUP.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
 Especificar opciones diferentes o extra a clientes DHCP. Por
 predeterminado, dnsmasq envía algunas opciones estándar a clientes
 DHCP. La máscara de subred y dirección broadcast son fijadas igual
@@ -634,11 +650,16 @@ vendor-class (número 60) es enviada por dnsmasq, entonces es usada para
 seleccionar opciones encapsuladas en preferencia sobre cualquiera enviada
 por el cliente. Es posible omitir el vendorclass completamente;
 .B --dhcp-option=vendor:,1,0.0.0.0
-caso en el cuál la opción encapsulada siempre es enviada. La dirección
-0.0.0.0 no es tratada de forma especial en opciones de clase de vendedor
-encapsuladas.
+caso en el cuál la opción encapsulada siempre es enviada.
+Opciones pueden ser encapsuladas dentro de otras opciones, por ejemplo:
+.B --dhcp-option=encap:175, 190, "iscsi-client0"
+enviará opción 175, dentro de la cual está opción 190. Si múltiples
+opciones son brindadas que están encapsuladas con el mismo número de
+opción entonces serán correctamente combinadas en una opción encapsulada.
+encap: y vendor: no pueden ser fijadas ambas dentro de la misma opción dhcp-option.
+La dirección 0.0.0.0 no es tratada de forma especial en opciones encapsuladas.
 .TP
-.B --dhcp-option-force=[<network-id>,[<network-id>,]][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 Esto funciona exáctamente de la misma forma que
 .B --dhcp-option
 excepto que la opción siempre será enviada, aún si el cliente no la pide en
@@ -692,11 +713,22 @@ network-id es fijado.
 .B --dhcp-subscrid=<network-id>,<subscriber-id>
 Trazar de opciones relay subscriber-id RFC3993 a opciones network-id.
 .TP
-.B --dhcp-match=<network-id>,<número de opción>
-Fijar la opción network-id si el cliente envía un opción DHCP del nombre
-brindado. Esto puede ser utilizado para identificar clientes particulares
-que envían información usando números privados de opciones.
-.TP
+.B --dhcp-match=<network-id>,<option number>|option:<option name>[,<value>]
+Sin un valor, fijar la etiqueta network-id si el cliente envía una opción
+DHCP del número o valor brindado. Cuando un valor es brindado, fijar la
+etiqueta solo si la opción es enviada y coincide con el valor. El valor puede
+ser de la forma "01:ff:*:02", caso en el cual el valor debe coincidir (aparte
+de los comodines) pero la opción enviada puede tener data que no coincide despues
+del final del valor. El valor también puede ser de la misma forma que
+.B dhcp-option
+caso en el cual la opción enviada es tratada como un array, y un elemento debe
+coincidir, así que
+
+--dhcp-match=efi-ia32,option:client-arch,6
+
+fijará la etiqueta a "efi-ia32" si el número 6 aparece en la lista de
+architecturas enviada por los clientes en opción 93. (Ver RFC 4578 para
+detalles.) Si el valor es un string, coincidencia substring es usada.
 .B \-J, --dhcp-ignore=<network-id>[,<network-id>]
 Cuando todos los network ids brindados coincidan con el juego de
 network ids derivados de las clases net, host, y vendor, ignorar
@@ -729,7 +761,58 @@ dnsmasq. Si dnsmasq está brindando servicio TFTP (ver
 el inicio atravéz de una red. Si las opcionales network-ids son brindadas,
 ellas deberán coincidir para que esta configuración sea enviada. Nótese
 que network-ids están prefijadas con "net:" para distinguirlas.
-.TP  
+.TP
+.B --pxe-service=[net:<network-id>,]<CSA>,<texto de menú>,<nombre base>|<tipo de servicio boot>[,<dirección de servidor>]
+La mayoría de usos para boot-ROMS PXE simplemente permiten al sistema PXE
+obtener una dirección IP y entonces bajar el archivo especificado por
+.B dhcp-boot
+y ejecutarlo. Sin embargo, el sistema PXE es capaz de llevar
+a cabo funciones más complejas cuando están soportadas por un
+servidor DHCP adecuado.
+
+Esto especifica una opción boot que puede aparecer en un menú de boot
+PXE. <CSA> es tipo de sistema de cliente, solo servicios del tipo correcto
+aparecerán en un menú. Los tipos conocidos son x86PC, PC98, IA64_EFI,
+Alpha, Arc_x86, Intel_Lean_Client, IA32_EFI, BC_EFI, Xscale_EFI y X86-64_EFI;
+un número entero puede ser utilizado para otros tipos. El parámetro después
+del texto de menú puede ser un nombre de archivo, caso en el cuál dnsmasq
+actúa como un servidor boot y le ordena al cliente PXE bajar el archivo
+vía TFTP, ya sea de sí mismo (
+.B enable-tftp
+debe estar fijado para que esto funcione) o desde otro servidor TFTP si la
+dirección IP final es brindada.
+Nótese que el sufijo "layer" (normalmente ".0") es brindado por PXE, y
+no debe ser agregado al nombre base. Si un número entero es brindado en vez
+de un nombre base, entonces el cliente PXE buscará un servicio boot adecuado
+para ese tipo de red. Esta búsqueda puede ser hecha mediante multicast o
+broadcast, o directamente a un servidor si la dirección IP es brindada. Un
+tipo de servicio boot de 0 es especial, y abortará el proceso boot de red
+y continuará desde medio local.
+.TP
+.B --pxe-prompt=[net:<network-id>,]<prompt>[,<timeout>]
+Fijar esto hace que un aviso sea expuesto despues del boot PXE. Si el timeout
+es brindado, entonces despues que el timeout se haya vencido sin input del
+teclado, la primera opción del menú sera automaticamente ejecutada. Si el
+timeout es cero entonces la primera opción del menú sera automaticamente
+ejecutada. Si
+.B pxe-prompt
+es omitido, el sistema esperará para el input del usuario si hay múltiples
+artículos en el menú, pero hará boot imediatamente si hay solo uno. Ver
+.B pxe-service
+para detalles sobre artículos de menu.
+
+Dnsmasq tiene soporte para "proxy-DHCP" PXE, en este caso otro servidor
+DHCP en la red es responsable por asignar direcciones IP, y dnsmasq
+simplemente provee la dirección brindada en
+.B pxe-prompt
+y
+.B pxe-service
+para permitir boot a travez de la red. Este modo es habilitado usando
+la palabra clave
+.B proxy
+en
+.B dhcp-range.
+.TP
 .B \-X, --dhcp-lease-max=<número>
 Limita a dnsmasq a el número especificado de arriendos DHCP. El
 predeterminado es 150. El limite es para prevenir ataques DoS desde
@@ -776,15 +859,7 @@ clientes DHCP y las etiquetas netid usadas para determinarlos.
 .TP
 .B \-l, --dhcp-leasefile=<path>
 Usar el archivo especificado para almacenar información de arriendos
-DHCP. Si esta opción es brindada, pero ninguna opcion dhcp-range es
-brindada, entonces se activa comportamiento tipo dnsmasq versión 1.
-El archivo brindado se asume es un archivo de arriendos dhcpd ISC y
-es analizado en busca de arriendos los cuales son agregados al sistema
-DNS si tienen un nombre de host. Esta funcionalidad pudo haber sido
-excluida de dnsmasq a la hora de compilación, y en tal caso ocurrirá
-un error. Nótese que la integración de archivos de
-arriendo ISC es una caracterísctica depreciada. No debería ser usada
-en instalaciones nuevas, y será eliminada en una versión futura.
+DHCP.
 .TP
 .B \-6 --dhcp-script=<path>
 Cuando un arriendo DHCP nuevo es creado, o uno viejo es
@@ -853,10 +928,9 @@ cuando hay cambios hechos a el client-id y tiempos de arriendo y vencimiento.
 .TP
 .B --bridge-interface=<nombre de interface>,<alias>[,<alias>]
 Tratar paquetes de pedidos DHCP que llegan a cualquiera de las interfaces <alias>
-como si hubieran llegado a la interface <nombre de interface>. Esta opción solo
-está disponible en plataformas BSD, y es necesaria cuando se usan
-puentes "estilo viejo", ya que los paquetes llegan a interfaces tap que no
-tienen una dirección IP.
+como si hubieran llegado a la interface <nombre de interface>. Esta opción
+es necesaria al usar bridging estilo viejo en plataformas BSD, dado a que
+los paquetes llegan a interfaces tap que no tienen una dirección IP.
 .TP
 .B \-s, --domain=<dominio>[,<rango de IPs>]
 Especifica los dominios DNS para el servidor DHCP. Dominios pueden ser

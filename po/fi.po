@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-05-26 12:41+0100\n"
+"POT-Creation-Date: 2009-06-10 20:57+0100\n"
 "PO-Revision-Date: 2005-11-28 22:05+0000\n"
 "Last-Translator: Simon Kelley <simon@thekelleys.org.uk>\n"
 "Language-Team: Finnish <translation-team-fi@lists.sourceforge.net>\n"
@@ -670,7 +670,7 @@ msgstr ""
 msgid "files nested too deep in %s"
 msgstr ""
 
-#: option.c:2511 tftp.c:500
+#: option.c:2511 tftp.c:499
 #, c-format
 msgid "cannot read %s: %s"
 msgstr ""

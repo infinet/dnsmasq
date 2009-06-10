@@ -1,3 +1,15 @@
+version 2.49
+            Fix regression in 2.48 which disables the lease-change
+            script. Thanks to Jose Luis Duran for spotting this.
+
+	    Log TFTP "file not found" errors. These were not logged,
+	    since a normal PXELinux boot generates many of them, but
+	    the lack of the messages seems to be more confusing than
+	    routinely seeing them when there is no real error.
+
+	    Update Spanish translation. Thanks to Chris Chatham.
+ 
+
 version 2.48
             Archived the extensive, backwards, changelog to
             CHANGELOG.archive. The current changelog now runs from

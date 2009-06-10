@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.48\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-06-03 22:06+0100\n"
+"POT-Creation-Date: 2009-06-10 20:57+0100\n"
 "PO-Revision-Date: 2009-06-03 21:56+0100\n"
 "Last-Translator:  Gildas Le Nadan <3ntr0p13@gmail.com>\n"
 "MIME-Version: 1.0\n"
@@ -694,7 +694,7 @@ msgstr "option non supportée (vérifier que Dnsmasq a été compilé avec le support
 msgid "files nested too deep in %s"
 msgstr "trop de niveaux de récursion pour les fichiers dans %s"
 
-#: option.c:2511 tftp.c:500
+#: option.c:2511 tftp.c:499
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "Ne peut pas lire %s : %s"

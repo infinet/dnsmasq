@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-05-26 12:41+0100\n"
+"POT-Creation-Date: 2009-06-10 20:57+0100\n"
 "PO-Revision-Date: 2005-10-07 11:04+0100\n"
 "Last-Translator: Christopher Chatham <chrislinux@gmail.com>\n"
 "Language-Team: Spanish <es@li.org>\n"
@@ -391,7 +391,7 @@ msgstr "Tratar pedidos DHCP en alias como si llegaran de la interface."
 
 #: option.c:296
 msgid "Disable ICMP echo address checking in the DHCP server."
-msgstr "Deshabilitar verificación de direcciónes echo ICMP en el servidor DHCP."
+msgstr "Deshabilitar verificación de direcciónes para echo ICMP en el servidor DHCP."
 
 #: option.c:297
 msgid "Script to run on DHCP lease creation and destruction."
@@ -476,7 +476,7 @@ msgstr "Siempre realizar búsquedas DNS a todos los servidores."
 #: option.c:316
 #, fuzzy
 msgid "Set tag if client includes matching option in request."
-msgstr "Fijar etiqueta si cliente incluye opción en pedido."
+msgstr "Fijar etiqueta si cliente incluye opción coincidente en pedido."
 
 #: option.c:317
 msgid "Use alternative ports for DHCP."
@@ -506,15 +506,15 @@ msgstr "Especificar nombre alias para nombre DNS LOCAL."
 #: option.c:323
 #, fuzzy
 msgid "Prompt to send to PXE clients."
-msgstr "Especificar opciones para ser enviadas a clientes DHCP."
+msgstr "Aviso a ser enviado a clientes PXE."
 
 #: option.c:324
 msgid "Boot service for PXE menu."
-msgstr ""
+msgstr "Servico boot para menú PXE."
 
 #: option.c:325
 msgid "Check configuration syntax."
-msgstr ""
+msgstr "Revisar sintaxis de configuración."
 
 #: option.c:601
 #, c-format
@@ -559,7 +559,7 @@ msgstr "opción dhcp-option demasiado larga"
 
 #: option.c:945
 msgid "illegal dhcp-match"
-msgstr ""
+msgstr "dhcp-match ilegal"
 
 #: option.c:981
 msgid "illegal repeated flag"
@@ -641,7 +641,7 @@ msgstr "número de puerto inválido"
 #: option.c:2238
 #, fuzzy
 msgid "invalid alias range"
-msgstr "peso inválido"
+msgstr "rango alias inválido"
 
 #: option.c:2250
 #, fuzzy
@@ -688,14 +688,14 @@ msgstr "peso inválido"
 
 #: option.c:2460
 msgid "unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)"
-msgstr ""
+msgstr "opción no soportada (verificar que dnsmasq fue compilado con soporte para DHCP/TFTP/DBus)"
 
 #: option.c:2503
 #, c-format
 msgid "files nested too deep in %s"
 msgstr "archivos jerarquizados demasiado profundo en %s"
 
-#: option.c:2511 tftp.c:500
+#: option.c:2511 tftp.c:499
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "no se puede leer %s: %s"
@@ -801,7 +801,7 @@ msgstr "debe haber un dominio predeterminado cuando --dhcp-fqdn está fijado"
 
 #: option.c:2934
 msgid "syntax check OK"
-msgstr ""
+msgstr "revisión de sintaxis OK"
 
 #: forward.c:405
 #, c-format
@@ -1001,7 +1001,7 @@ msgstr "DHCP, arriendos estáticos solo en %.0s%s, tiempo de arriendo %s"
 #: dnsmasq.c:498
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
-msgstr ""
+msgstr "DHCP, proxy en subred %.0s%s%.0s"
 
 #: dnsmasq.c:499
 #, c-format
@@ -1127,7 +1127,7 @@ msgstr "no se puede crear socket crudo ICMP: %s."
 #: dhcp.c:226
 #, c-format
 msgid "DHCP packet received on %s which has no address"
-msgstr "Paquete DHCP recibido en %s sin dirección"
+msgstr "Paquete DHCP recibido en %s que no tiene dirección"
 
 #: dhcp.c:385
 #, c-format
@@ -1233,7 +1233,7 @@ msgstr "no sobra ningún arriendo"
 #: rfc2131.c:558
 #, fuzzy, c-format
 msgid "%u client provides name: %s"
-msgstr "%u nombre de servidor: %s"
+msgstr "%u cliente provee nombre: %s"
 
 #: rfc2131.c:696
 #, c-format
@@ -1247,7 +1247,7 @@ msgstr "%u Clase de usuario: %s"
 
 #: rfc2131.c:733
 msgid "PXE BIS not supported"
-msgstr ""
+msgstr "no hay soporte para BIS PXE"
 
 #: rfc2131.c:849
 #, fuzzy, c-format
@@ -1337,7 +1337,7 @@ msgstr "no se puede enviar opción DHCP/BOOTP %d: no queda espacio en paquete"
 
 #: rfc2131.c:1903
 msgid "PXE menu too large"
-msgstr ""
+msgstr "menú PXE demasiado grande"
 
 #: rfc2131.c:2018
 #, c-format

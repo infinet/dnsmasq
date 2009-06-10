@@ -603,7 +603,7 @@ int main (int argc, char **argv)
       bump_maxfd(piperead, &maxfd);
 
 #ifdef HAVE_DHCP
-#  ifdef NO_FORK
+#  ifndef NO_FORK
       while (helper_buf_empty() && do_script_run(now));
 
       if (!helper_buf_empty())

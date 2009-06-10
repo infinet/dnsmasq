@@ -489,8 +489,7 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
   mess->op = htons(OP_ERR);
   mess->err = htons(err);
   ret += (snprintf(mess->message, 500,  message, file, errstr) + 1);
-  if (err != ERR_FNF)
-    my_syslog(MS_TFTP | LOG_ERR, "TFTP %s", mess->message);
+  my_syslog(MS_TFTP | LOG_ERR, "TFTP %s", mess->message);
   
   return  ret;
 }

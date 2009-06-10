@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2009-05-26 12:41+0100\n"
+"POT-Creation-Date: 2009-06-10 20:57+0100\n"
 "PO-Revision-Date: 2009-02-01 01:14+0100\n"
 "Last-Translator: Jan Psota <jasiu@belsznica.pl>\n"
 "Language-Team: polski <pl@li.org>\n"
@@ -675,7 +675,7 @@ msgstr ""
 msgid "files nested too deep in %s"
 msgstr "zbyt du¿e zag³êbienie plików w %s"
 
-#: option.c:2511 tftp.c:500
+#: option.c:2511 tftp.c:499
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "b³±d odczytu z pliku %s: %s"
