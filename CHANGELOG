@@ -1,3 +1,18 @@
+version 2.50
+            Fix security problem which allowed any host permitted to 
+            do TFTP to possibly compromise dnsmasq by remote buffer 
+            overflow when TFTP enabled. Thanks to Core Security 
+	    Technologies and Iván Arce, Pablo Hernán Jorge, Alejandro 
+	    Pablo Rodriguez, Martín Coco, Alberto Soliño Testa and
+	    Pablo Annetta. This problem has Bugtraq id: 36121 
+            and CVE: 2009-2957
+
+            Fix a problem which allowed a malicious TFTP client to 
+            crash dnsmasq. Thanks to Steve Grubb at Red Hat for 
+            spotting this. This problem has Bugtraq id: 36120 and 
+            CVE: 2009-2958
+
+
 version 2.49
             Fix regression in 2.48 which disables the lease-change
             script. Thanks to Jose Luis Duran for spotting this.

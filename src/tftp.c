@@ -192,20 +192,21 @@ void tftp_request(struct listener *listen, time_t now)
       
       while ((opt = next(&p, end)))
 	{
-	  if (strcasecmp(opt, "blksize") == 0 &&
-	      (opt = next(&p, end)) &&
-	      !(daemon->options & OPT_TFTP_NOBLOCK))
+	  if (strcasecmp(opt, "blksize") == 0)
 	    {
-	      transfer->blocksize = atoi(opt);
-	      if (transfer->blocksize < 1)
-		transfer->blocksize = 1;
-	      if (transfer->blocksize > (unsigned)daemon->packet_buff_sz - 4)
-		transfer->blocksize = (unsigned)daemon->packet_buff_sz - 4;
-	      transfer->opt_blocksize = 1;
-	      transfer->block = 0;
+	      if ((opt = next(&p, end)) &&
+		  !(daemon->options & OPT_TFTP_NOBLOCK))
+		{
+		  transfer->blocksize = atoi(opt);
+		  if (transfer->blocksize < 1)
+		    transfer->blocksize = 1;
+		  if (transfer->blocksize > (unsigned)daemon->packet_buff_sz - 4)
+		    transfer->blocksize = (unsigned)daemon->packet_buff_sz - 4;
+		  transfer->opt_blocksize = 1;
+		  transfer->block = 0;
+		}
 	    }
-	  
-	  if (strcasecmp(opt, "tsize") == 0 && next(&p, end) && !transfer->netascii)
+	  else if (strcasecmp(opt, "tsize") == 0 && next(&p, end) && !transfer->netascii)
 	    {
 	      transfer->opt_transize = 1;
 	      transfer->block = 0;
@@ -217,17 +218,17 @@ void tftp_request(struct listener *listen, time_t now)
 	{
 	  if (daemon->tftp_prefix[0] == '/')
 	    daemon->namebuff[0] = 0;
-	  strncat(daemon->namebuff, daemon->tftp_prefix, MAXDNAME);
+	  strncat(daemon->namebuff, daemon->tftp_prefix, (MAXDNAME-1) - strlen(daemon->namebuff));
 	  if (daemon->tftp_prefix[strlen(daemon->tftp_prefix)-1] != '/')
-	    strncat(daemon->namebuff, "/", MAXDNAME);
+	    strncat(daemon->namebuff, "/", (MAXDNAME-1) - strlen(daemon->namebuff));
 
 	  if (daemon->options & OPT_TFTP_APREF)
 	    {
 	      size_t oldlen = strlen(daemon->namebuff);
 	      struct stat statbuf;
 	      
-	      strncat(daemon->namebuff, inet_ntoa(peer.sin_addr), MAXDNAME);
-	      strncat(daemon->namebuff, "/", MAXDNAME);
+	      strncat(daemon->namebuff, inet_ntoa(peer.sin_addr), (MAXDNAME-1) - strlen(daemon->namebuff));
+	      strncat(daemon->namebuff, "/", (MAXDNAME-1) - strlen(daemon->namebuff));
 	      
 	      /* remove unique-directory if it doesn't exist */
 	      if (stat(daemon->namebuff, &statbuf) == -1 || !S_ISDIR(statbuf.st_mode))
@@ -245,8 +246,7 @@ void tftp_request(struct listener *listen, time_t now)
 	}
       else if (filename[0] == '/')
 	daemon->namebuff[0] = 0;
-      strncat(daemon->namebuff, filename, MAXDNAME);
-      daemon->namebuff[MAXDNAME-1] = 0;
+      strncat(daemon->namebuff, filename, (MAXDNAME-1) - strlen(daemon->namebuff));
 
       /* check permissions and open file */
       if ((transfer->file = check_tftp_fileperm(&len)))
