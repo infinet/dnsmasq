@@ -51,7 +51,8 @@ fichiers contenus dans ce répertoire.
 .B \-E, --expand-hosts
 Ajoute le nom de domaine aux noms simples (ne contenant pas de point dans le
 nom) contenus dans le fichier /etc/hosts, de la même façon que pour le service
-DHCP.
+DHCP. Notez que cela ne s'applique pas au nom de domaine dans les CNAME, les
+enregistrements PTR, TXT, etc...
 .TP
 .B \-T, --local-ttl=<durée>
 Lorsque Dnsmasq répond avec une information provenant du fichier /etc/hosts ou
@@ -634,7 +635,11 @@ relu lorsque Dnsmasq reçoit un signal SIGHUP.
 .B --dhcp-optsfile=<fichier>
 Lis les informations relatives aux options DHCP dans le fichier spécifié.
 L'intérêt d'utiliser cette option est le même que pour --dhcp-hostsfile : le
-fichier spécifié ser rechargé à la réception par dnsmasq d'un signal SIGHUP.
+fichier spécifié sera rechargé à la réception par dnsmasq d'un signal SIGHUP.
+Notez qu'il est possible d'encoder l'information via
+.B --dhcp-boot
+en utilisant les noms optionnels bootfile-name, server-ip-address et
+tftp-server. Ceci permet d'inclure ces options dans un fichier "dhcp-optsfile".DNSMASQ_SUPPLIED_HOSTNAME
 .TP
 .B \-Z, --read-ethers
 Lis les informations d'hôtes DHCP dans le fichier /etc/ethers. Le format de
@@ -961,22 +966,25 @@ L'environnement est hérité de celui de l'invocation du processus Dnsmasq, et
 si l'hôte fournit un identifiant de client, celui-ci est stocké dans la
 variable d'environnement DNSMASQ_CLIENT_ID. Si un nom de domaine pleinement
 qualifié (FQDN)  est connu pour l'hôte, la part relative au domaine est stockée
-dans DNSMASQ_DOMAIN. Si le client fournit une information de classe de vendeur
-ou de classe d'utilisateur, celles-ci sont positionnées dans les variables
-DNSMASQ_VENDOR_CLASS et DNSMASQ_USER_CLASS0 à DNSMASQ_USER_CLASSn
-respectivement, mais seulement pour les actions "add" et "old" lorsqu'un hôte
-reprend un bail existant, ces variables n'étant pas stockées dans la base de
-baux de Dnsmasq. Si Dnsmasq a été compilé avec l'option HAVE_BROKEN_RTC
-("horloge RTC défectueuse"), alors la durée du bail (en secondes) est stockée
-dans la variable DNSMASQ_LEASE_LENGTH, sinon la date d'expiration du bail est
-toujours stocké dans la variable d'environnement DNSMASQ_LEASE_EXPIRES. Le
-nombre de secondes avant expiration est toujours stocké dans
-DNSMASQ_TIME_REMAINING. Si un bail était associé à un nom d'hôte et que celui-ci
-est supprimé, un évênement de type "old" est généré avec le nouveau statut du
-bail, c-à-d sans nom d'hôte, et le nom initial est fourni dans la variable
-d'environnement DNSMASQ_OLD_HOSTNAME. La variable DNSMASQ_INTERFACE contient le nom de
-l'interface sur laquelle la requête est arrivée; ceci n'est pas renseigné
-dans le cas des actions "old" ayant lieu après un redémarrage de dnsmasq.
+dans DNSMASQ_DOMAIN. Si le client fournit une information de classe de vendeur,
+de classe d'utilisateur ou un nom d'hôte, celles-ci sont positionnées dans les
+variables DNSMASQ_VENDOR_CLASS et DNSMASQ_USER_CLASS0 à DNSMASQ_USER_CLASSn
+et DNSMASQ_SUPPLIED_HOSTNAME respectivement, mais seulement pour les actions
+"add" et "old" lorsqu'un hôte reprend un bail existant, ces variables n'étant
+pas stockées dans la base de baux de Dnsmasq. Si Dnsmasq a été compilé avec
+l'option HAVE_BROKEN_RTC ("horloge RTC défectueuse"), alors la durée du bail
+(en secondes) est stockée dans la variable DNSMASQ_LEASE_LENGTH, sinon la date
+d'expiration du bail est toujours stocké dans la variable d'environnement
+DNSMASQ_LEASE_EXPIRES. Le nombre de secondes avant expiration est toujours
+stocké dans DNSMASQ_TIME_REMAINING. Si un bail était associé à un nom d'hôte et
+que celui-ci est supprimé, un évênement de type "old" est généré avec le
+nouveau statut du bail, c-à-d sans nom d'hôte, et le nom initial est fourni
+dans la variable d'environnement DNSMASQ_OLD_HOSTNAME. La variable
+DNSMASQ_INTERFACE contient le nom de l'interface sur laquelle la requête est
+arrivée; ceci n'est pas renseigné dans le cas des actions "old" ayant lieu
+après un redémarrage de dnsmasq. La variable DNSMASQ_RELAY_ADDRESS est
+renseignée si le client a utilisé un relai DHCP pour contacter Dnsmasq, si
+l'adresse IP du relai est connue.
 Tous les descripteurs de fichiers sont fermés, sauf stdin, stdout et stderr qui
 sont ouverts sur /dev/null (sauf en mode déverminage).
 Le script n'est pas lancé de manière concurrente : si un autre changement de
@@ -1152,10 +1160,12 @@ Spécifie un fichier de configuration différent. L'option "conf-file" est
 également autorisée dans des fichiers de configuration, ce qui permet
 l'inclusion de multiples fichiers de configuration.
 .TP
-.B \-7, --conf-dir=<répertoire>
+.B \-7, --conf-dir=<répertoire>[,<extension de fichier>...]
 Lis tous les fichiers du répertoire spécifié et les traite comme des fichiers de
-configuration. Les fichiers dont les noms se terminent en ~ ou commençant par .,
-ainsi que ceux commençant ou se terminant par # ne sont pas pris en compte.
+configuration. Si des extensions sont données, tout fichier finissant par ces
+extensions seront ignorés. Tout fichier dont le nom se termine en ~ ou commence
+par ., ainsi que ceux commençant ou se terminant par # seront systématiquement
+ignorés.
 Cette option peut être donnée en ligne de commande ou dans un fichier de
 configuration.
 .SH FICHIER DE CONFIGURATION

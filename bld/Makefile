@@ -5,13 +5,13 @@ OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        helper.o tftp.o log.o
 
 .c.o:
-	$(CC) $(CFLAGS) $(COPTS) $(DBUS_MINOR) $(I18N) $(DBUS_CFLAGS) $(SUNOS_VER) $(RPM_OPT_FLAGS) -c $<
+	$(CC) $(CFLAGS) $(COPTS) $(I18N) $(DNSMASQ_CFLAGS) $(RPM_OPT_FLAGS) -c $<
 
 dnsmasq : $(OBJS)
-	$(CC) $(LDFLAGS) -o $@  $(OBJS) $(DBUS_LIBS) $(SUNOS_LIBS) $(LIBS) 
+	$(CC) $(LDFLAGS) -o $@  $(OBJS) $(DNSMASQ_LIBS) $(LIBS) 
  
 dnsmasq.pot : $(OBJS:.o=.c) dnsmasq.h config.h
-	xgettext -d dnsmasq --foreign-user --keyword=_ -o dnsmasq.pot -i $(OBJS:.o=.c)
+	$(XGETTEXT) -d dnsmasq --foreign-user --omit-header --keyword=_ -o $@ -i $(OBJS:.o=.c)
 
 %.mo : ../po/%.po dnsmasq.pot
-	msgmerge -o - ../po/$*.po dnsmasq.pot | msgfmt -o $*.mo -
+	$(MSGMERGE) -o - ../po/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -

@@ -119,7 +119,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
 			 union mysockaddr *addr, struct in_addr netmask) 
 {
   struct irec *iface;
-  int fd;
+  int fd, mtu = 0, loopback;
   struct ifreq ifr;
   int dhcp_ok = 1;
   struct iname *tmp;
@@ -142,12 +142,17 @@ static int iface_allowed(struct irec **irecp, int if_index,
 	}
       return 0;
     }
+   
+  loopback = ifr.ifr_flags & IFF_LOOPBACK;
+
+  if (ioctl(fd, SIOCGIFMTU, &ifr) != -1)
+    mtu = ifr.ifr_mtu;
   
   close(fd);
   
   /* If we are restricting the set of interfaces to use, make
      sure that loopback interfaces are in that set. */
-  if (daemon->if_names && (ifr.ifr_flags & IFF_LOOPBACK))
+  if (daemon->if_names && loopback)
     {
       struct iname *lo;
       for (lo = daemon->if_names; lo; lo = lo->next)
@@ -188,6 +193,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
       iface->addr = *addr;
       iface->netmask = netmask;
       iface->dhcp_ok = dhcp_ok;
+      iface->mtu = mtu;
       iface->next = *irecp;
       *irecp = iface;
       return 1;

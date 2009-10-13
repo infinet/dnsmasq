@@ -28,15 +28,15 @@
    main process.
 */
 
-#if defined(HAVE_DHCP) && !defined(NO_FORK)
+#if defined(HAVE_DHCP) && defined(HAVE_SCRIPT)
 
 static void my_setenv(const char *name, const char *value, int *error);
 
 struct script_data
 {
   unsigned char action, hwaddr_len, hwaddr_type;
-  unsigned char clid_len, hostname_len, uclass_len, vclass_len;
-  struct in_addr addr;
+  unsigned char clid_len, hostname_len, uclass_len, vclass_len, shost_len;
+  struct in_addr addr, giaddr;
   unsigned int remaining_time;
 #ifdef HAVE_BROKEN_RTC
   unsigned int length;
@@ -101,7 +101,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 
   /* close all the sockets etc, we don't need them here. This closes err_fd, so that
      main process can return. */
-  for (max_fd--; max_fd > 0; max_fd--)
+  for (max_fd--; max_fd >= 0; max_fd--)
     if (max_fd != STDOUT_FILENO && max_fd != STDERR_FILENO && 
 	max_fd != STDIN_FILENO && max_fd != pipefd[0] && max_fd != event_fd)
       close(max_fd);
@@ -155,7 +155,8 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       sprintf(daemon->dhcp_buff2, "%lu ", (unsigned long)data.expires);
 #endif
       
-      if (!read_write(pipefd[0], buf, data.hostname_len + data.uclass_len + data.vclass_len, 1))
+      if (!read_write(pipefd[0], buf, 
+		      data.hostname_len + data.uclass_len + data.vclass_len + data.shost_len, 1))
 	continue;
       
       /* possible fork errors are all temporary resource problems */
@@ -232,6 +233,19 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	    }
 	}
       
+      if (data.shost_len != 0)
+	{
+	  buf[data.shost_len - 1] = 0; /* don't trust zero-term */
+	  /* cannot have = chars in env - truncate if found . */
+	  if ((p = strchr((char *)buf, '=')))
+	    *p = 0;
+	  my_setenv("DNSMASQ_SUPPLIED_HOSTNAME", (char *)buf, &err);
+	  buf += data.shost_len;
+	}
+
+      if (data.giaddr.s_addr != 0)
+	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
+
       sprintf(daemon->dhcp_buff2, "%u ", data.remaining_time);
       my_setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, &err);
       
@@ -240,7 +254,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	  char *dot;
 	  hostname = (char *)buf;
 	  hostname[data.hostname_len - 1] = 0;
-	  if (!canonicalise(hostname))
+	  if (!legal_hostname(hostname))
 	    hostname = NULL;
 	  else if ((dot = strchr(hostname, '.')))
 	    {
@@ -285,16 +299,9 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
 {
   unsigned char *p;
   size_t size;
-  int i;
-  unsigned int hostname_len = 0, clid_len = 0, vclass_len = 0, uclass_len = 0;
+  unsigned int hostname_len = 0, clid_len = 0, vclass_len = 0;
+  unsigned int uclass_len = 0, shost_len = 0;
   
-#ifdef HAVE_DBUS
-  p = extended_hwaddr(lease->hwaddr_type, lease->hwaddr_len,
-		      lease->hwaddr, lease->clid_len, lease->clid, &i);
-  print_mac(daemon->namebuff, p, i);
-  emit_dbus_signal(action, daemon->namebuff, hostname ? hostname : "", inet_ntoa(lease->addr));
-#endif
-
   /* no script */
   if (daemon->helperfd == -1)
     return;
@@ -303,12 +310,14 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
     vclass_len = lease->vendorclass_len;
   if (lease->userclass)
     uclass_len = lease->userclass_len;
+  if (lease->supplied_hostname)
+    shost_len = lease->supplied_hostname_len;
   if (lease->clid)
     clid_len = lease->clid_len;
   if (hostname)
     hostname_len = strlen(hostname) + 1;
 
-  size = sizeof(struct script_data) +  clid_len + vclass_len + uclass_len + hostname_len;
+  size = sizeof(struct script_data) +  clid_len + vclass_len + uclass_len + shost_len + hostname_len;
 
   if (size > buf_size)
     {
@@ -332,8 +341,10 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
   buf->clid_len = clid_len;
   buf->vclass_len = vclass_len;
   buf->uclass_len = uclass_len;
+  buf->shost_len = shost_len;
   buf->hostname_len = hostname_len;
   buf->addr = lease->addr;
+  buf->giaddr = lease->giaddr;
   memcpy(buf->hwaddr, lease->hwaddr, lease->hwaddr_len);
   buf->interface[0] = 0;
 #ifdef HAVE_LINUX_NETWORK
@@ -372,14 +383,17 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
       memcpy(p, lease->userclass, uclass_len);
       p += uclass_len;
     }
-  /* substitute * for space: spaces are allowed in hostnames (for DNS-SD)
-     and are likley to be a security hole in most scripts. */
-  for (i = 0; i < (int)hostname_len; i++)
-    if ((daemon->options & OPT_LEASE_RO) && hostname[i] == ' ')
-      *(p++) = '*';
-    else
-      *(p++) = hostname[i];
-  
+  if (shost_len != 0)
+    {
+      memcpy(p, lease->supplied_hostname, shost_len);
+      p += shost_len;
+    } 
+  if (hostname_len != 0)
+    {
+      memcpy(p, hostname, hostname_len);
+      p += hostname_len;
+    }
+
   bytes_in_buf = p - (unsigned char *)buf;
 }
 

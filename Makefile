@@ -24,18 +24,22 @@ MAN = man
 
 PKG_CONFIG = pkg-config
 INSTALL = install
+MSGMERGE = msgmerge
+MSGFMT = msgfmt
+XGETTEXT = xgettext
 
-DBUS_CFLAGS="`echo $(COPTS) | ../bld/pkg-wrapper $(PKG_CONFIG) --cflags dbus-1`" 
-DBUS_LIBS="  `echo $(COPTS) | ../bld/pkg-wrapper $(PKG_CONFIG) --libs dbus-1`" 
-SUNOS_LIBS=" `if uname | grep SunOS 2>&1 >/dev/null; then echo -lsocket -lnsl -lposix4; fi `"
+#################################################################
+
+DNSMASQ_CFLAGS=`echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --cflags dbus-1` 
+DNSMASQ_LIBS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --libs dbus-1` 
+SUNOS_LIBS= `if uname | grep SunOS 2>&1 >/dev/null; then echo -lsocket -lnsl -lposix4; fi`
 
 all :   dnsmasq
 
 dnsmasq :
-	cd $(SRC) && $(MAKE) \
- DBUS_CFLAGS=$(DBUS_CFLAGS) \
- DBUS_LIBS=$(DBUS_LIBS) \
- SUNOS_LIBS=$(SUNOS_LIBS) \
+	@cd $(SRC) && $(MAKE) \
+ DNSMASQ_CFLAGS="$(DNSMASQ_CFLAGS)" \
+ DNSMASQ_LIBS="$(DNSMASQ_LIBS) $(SUNOS_LIBS)" \
  -f ../bld/Makefile dnsmasq 
 
 clean :
@@ -50,24 +54,25 @@ install-common :
 	$(INSTALL) -m 755 $(SRC)/dnsmasq $(DESTDIR)$(BINDIR)
 
 all-i18n :
-	cd $(SRC) && $(MAKE) \
+	@cd $(SRC) && $(MAKE) \
  I18N=-DLOCALEDIR='\"$(LOCALEDIR)\"' \
- DBUS_CFLAGS=$(DBUS_CFLAGS) \
- DBUS_LIBS=$(DBUS_LIBS) \
- SUNOS_LIBS=$(SUNOS_LIBS) \
+ DNSMASQ_CFLAGS="$(DNSMASQ_CFLAGS) `$(PKG_CONFIG) --cflags libidn`" \
+ DNSMASQ_LIBS="$(DNSMASQ_LIBS) $(SUNOS_LIBS) `$(PKG_CONFIG) --libs libidn`"  \
  -f ../bld/Makefile dnsmasq 
-	cd $(PO); for f in *.po; do \
-		cd ../$(SRC) && $(MAKE) -f ../bld/Makefile $${f%.po}.mo; \
+	@cd $(PO); for f in *.po; do \
+		cd ../$(SRC) && $(MAKE) \
+ MSGMERGE=$(MSGMERGE) MSGFMT=$(MSGFMT) XGETTEXT=$(XGETTEXT) \
+ -f ../bld/Makefile $${f%.po}.mo; \
 	done
 
 install-i18n : all-i18n install-common
-	cd $(SRC); ../bld/install-mo $(DESTDIR)$(LOCALEDIR)
-	cd $(MAN); ../bld/install-man $(DESTDIR)$(MANDIR)
+	cd $(SRC); ../bld/install-mo $(DESTDIR)$(LOCALEDIR) $(INSTALL)
+	cd $(MAN); ../bld/install-man $(DESTDIR)$(MANDIR) $(INSTALL)
 
 merge :
-	$(MAKE) I18N=-DLOCALEDIR='\"$(LOCALEDIR)\"' -f ../bld/Makefile -C $(SRC) dnsmasq.pot
-	cd $(PO); for f in *.po; do \
-		msgmerge --no-wrap -U $$f ../$(SRC)/dnsmasq.pot; \
+	@cd $(SRC) && $(MAKE) XGETTEXT=$(XGETTEXT) -f ../bld/Makefile dnsmasq.pot
+	@cd $(PO); for f in *.po; do \
+		echo -n msgmerge $$f && $(MSGMERGE) --no-wrap -U $$f ../$(SRC)/dnsmasq.pot; \
 	done
 
 

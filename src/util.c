@@ -24,6 +24,9 @@
 #include <sys/times.h>
 #endif
 
+#ifdef LOCALEDIR
+#include <idna.h>
+#endif
 
 #ifdef HAVE_ARC4RANDOM
 void rand_init(void)
@@ -95,48 +98,110 @@ unsigned short rand16(void)
 
 #endif
 
-
-int legal_char(char c)
+static int check_name(char *in)
 {
-  /* check for legal char a-z A-Z 0-9 - 
-     (also / , used for RFC2317 and _ used in windows queries
-     and space, for DNS-SD stuff) */
-  if ((c >= 'A' && c <= 'Z') ||
-      (c >= 'a' && c <= 'z') ||
-      (c >= '0' && c <= '9') ||
-      c == '-' || c == '/' || c == '_' || c == ' ')
-    return 1;
-  
-  return 0;
-}
-  
-int canonicalise(char *s)
-{
-  /* check for legal chars and remove trailing . 
+  /* remove trailing . 
      also fail empty string and label > 63 chars */
-  size_t dotgap = 0, l = strlen(s);
+  size_t dotgap = 0, l = strlen(in);
   char c;
   int nowhite = 0;
-
+  
   if (l == 0 || l > MAXDNAME) return 0;
-
-  if (s[l-1] == '.')
+  
+  if (in[l-1] == '.')
     {
       if (l == 1) return 0;
-      s[l-1] = 0;
+      in[l-1] = 0;
     }
   
-  while ((c = *s))
+  for (; (c = *in); in++)
     {
       if (c == '.')
 	dotgap = 0;
-      else if (!legal_char(c) || (++dotgap > MAXLABEL))
+      else if (++dotgap > MAXLABEL)
 	return 0;
+      else if (isascii(c) && iscntrl(c)) 
+	/* iscntrl only gives expected results for ascii */
+	return 0;
+#ifndef LOCALEDIR
+      else if (!isascii(c))
+	return 0;
+#endif
       else if (c != ' ')
 	nowhite = 1;
-      s++;
     }
-  return nowhite;
+
+  if (!nowhite)
+    return 0;
+
+  return 1;
+}
+
+/* Hostnames have a more limited valid charset than domain names
+   so check for legal char a-z A-Z 0-9 - _ 
+   Note that this may receive a FQDN, so only check the first label 
+   for the tighter criteria. */
+int legal_hostname(char *name)
+{
+  char c;
+
+  if (!check_name(name))
+    return 0;
+
+  for (; (c = *name); name++)
+    /* check for legal char a-z A-Z 0-9 - _ . */
+    {
+      if ((c >= 'A' && c <= 'Z') ||
+	  (c >= 'a' && c <= 'z') ||
+	  (c >= '0' && c <= '9') ||
+	  c == '-' || c == '_')
+	continue;
+      
+      /* end of hostname part */
+      if (c == '.')
+	return 1;
+      
+      return 0;
+    }
+  
+  return 1;
+}
+  
+char *canonicalise(char *in, int *nomem)
+{
+  char *ret = NULL;
+#ifdef LOCALEDIR
+  int rc;
+#endif
+
+  if (nomem)
+    *nomem = 0;
+  
+  if (!check_name(in))
+    return NULL;
+  
+#ifdef LOCALEDIR
+  if ((rc = idna_to_ascii_lz(in, &ret, 0)) != IDNA_SUCCESS)
+    {
+      if (ret)
+	free(ret);
+
+      if (nomem && (rc == IDNA_MALLOC_ERROR || rc == IDNA_DLOPEN_ERROR))
+	{
+	  my_syslog(LOG_ERR, _("failed to allocate memory"));
+	  *nomem = 1;
+	}
+    
+      return NULL;
+    }
+#else
+  if ((ret = whine_malloc(strlen(in)+1)))
+    strcpy(ret, in);
+  else if (nomem)
+    *nomem = 1;    
+#endif
+
+  return ret;
 }
 
 unsigned char *do_rfc1035_name(unsigned char *p, char *sval)

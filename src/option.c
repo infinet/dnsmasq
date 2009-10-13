@@ -406,6 +406,7 @@ static const struct {
   { "domain-search", 119, 0 },
   { "sip-server", 120, 0 },
   { "classless-static-route", 121, 0 },
+  { "server-ip-address", 255, OT_ADDR_LIST }, /* special, internal only, sets siaddr */
   { NULL, 0, 0 }
 };
 
@@ -530,13 +531,24 @@ static char *split(char *s)
   return split_chr(s, ',');
 }
 
-static int canonicalise_opt(char *s)
+static char *canonicalise_opt(char *s)
 {
+  char *ret;
+  int nomem;
+
   if (!s)
     return 0;
 
   unhide_metas(s);
-  return canonicalise(s);
+  if (!(ret = canonicalise(s, &nomem)) && nomem)
+    {
+      if (mem_recover)
+	longjmp(mem_jmp, 1);
+      else
+	die(_("could not get memory"), NULL, EC_NOMEM);
+    }
+
+  return ret;
 }
 
 static int atoi_check(char *a, int *res)
@@ -646,7 +658,7 @@ static void display_opts(void)
   printf(_("Known DHCP options:\n"));
   
   for (i = 0; opttab[i].name; i++)
-    if (opttab[i].size != OT_INTERNAL)
+    if (!(opttab[i].size & OT_INTERNAL))
       printf("%3d %s\n", opttab[i].val, opttab[i].name);
 }
 
@@ -684,7 +696,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
       if (strstr(arg, "option:") == arg)
 	{
 	  for (i = 0; opttab[i].name; i++)
-	    if (opttab[i].size != OT_INTERNAL &&
+	    if (!(opttab[i].size & OT_INTERNAL) &&
 		strcasecmp(opttab[i].name, arg+7) == 0)
 	      {
 		new->opt = opttab[i].val;
@@ -873,7 +885,8 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      
 	      while (arg && *arg)
 		{
-		  if (!canonicalise_opt(arg))
+		  char *dom;
+		  if (!(dom = arg = canonicalise_opt(arg)))
 		    {
 		      problem = _("bad domain in dhcp-option");
 		      break;
@@ -898,7 +911,8 @@ static char *parse_dhcp_opt(char *arg, int flags)
 			arg++;
 		    }
 		  *q++ = 0;
-		  
+		  free(dom);
+
 		  /* Now tail-compress using earlier names. */
 		  newlen = q - p;
 		  for (tail = p + len; *tail; tail += (*tail) + 1)
@@ -1018,25 +1032,51 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	DIR *dir_stream;
 	struct dirent *ent;
 	char *directory, *path;
+	struct list {
+	  char *suffix;
+	  struct list *next;
+	} *ignore_suffix = NULL, *li;
 	
+	comma = split(arg);
 	if (!(directory = opt_string_alloc(arg)))
 	  break;
 	
+	for (arg = comma; arg; arg = comma) 
+	  {
+	    comma = split(arg);
+	    li = opt_malloc(sizeof(struct list));
+	    li->next = ignore_suffix;
+	    ignore_suffix = li;
+	    /* Have to copy: buffer is overwritten */
+	    li->suffix = opt_string_alloc(arg);
+	  };
+	
 	if (!(dir_stream = opendir(directory)))
 	  die(_("cannot access directory %s: %s"), directory, EC_FILE);
-		
+	
 	while ((ent = readdir(dir_stream)))
 	  {
 	    size_t len = strlen(ent->d_name);
 	    struct stat buf;
-
-	     /* ignore emacs backups and dotfiles */
+	    
+	    /* ignore emacs backups and dotfiles */
 	    if (len == 0 ||
 		ent->d_name[len - 1] == '~' ||
 		(ent->d_name[0] == '#' && ent->d_name[len - 1] == '#') ||
 		ent->d_name[0] == '.')
 	      continue;
 
+	    for (li = ignore_suffix; li; li = li->next)
+	      {
+		/* check for proscribed suffices */
+		size_t ls = strlen(li->suffix);
+		if (len > ls &&
+		    strcmp(li->suffix, &ent->d_name[len - ls]) == 0)
+		  break;
+	      }
+	    if (li)
+	      continue;
+	    
 	    path = opt_malloc(strlen(directory) + len + 2);
 	    strcpy(path, directory);
 	    strcat(path, "/");
@@ -1055,6 +1095,13 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
      
 	closedir(dir_stream);
 	free(directory);
+	for(; ignore_suffix; ignore_suffix = li)
+	  {
+	    li = ignore_suffix->next;
+	    free(ignore_suffix->suffix);
+	    free(ignore_suffix);
+	  }
+	      
 	break;
       }
 
@@ -1127,32 +1174,32 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       {
 	int pref = 1;
 	struct mx_srv_record *new;
-	
+	char *name, *target = NULL;
+
 	if ((comma = split(arg)))
 	  {
 	    char *prefstr;
-	    if ((prefstr=split(comma)) && !atoi_check16(prefstr, &pref))
+	    if ((prefstr = split(comma)) && !atoi_check16(prefstr, &pref))
 	      problem = _("bad MX preference");
 	  }
 	
-	if (!canonicalise_opt(arg) || (comma && !canonicalise_opt(comma)))
+	if (!(name = canonicalise_opt(arg)) || 
+	    (comma && !(target = canonicalise_opt(comma))))
 	  problem = _("bad MX name");
-	  	
+	
 	new = opt_malloc(sizeof(struct mx_srv_record));
 	new->next = daemon->mxnames;
 	daemon->mxnames = new;
 	new->issrv = 0;
-	new->name = opt_string_alloc(arg);
-	new->target = opt_string_alloc(comma); /* may be NULL */
+	new->name = name;
+	new->target = target; /* may be NULL */
 	new->weight = pref;
 	break;
       }
       
     case 't': /*  --mx-target */
-      if (!canonicalise_opt(arg))
+      if (!(daemon->mxtarget = canonicalise_opt(arg)))
 	problem = _("bad MX target");
-      else
-	daemon->mxtarget = opt_string_alloc(arg);
       break;
 
 #ifdef HAVE_DHCP      
@@ -1161,8 +1208,10 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
       break;
       
     case '6': /* --dhcp-script */
-#  ifdef NO_FORK
+#  if defined(NO_FORK)
       problem = _("cannot run scripts under uClinux");
+#  elif !defined(HAVE_SCRIPT)
+      problem = _("recompile with HAVE_SCRIPT defined to enable lease-change scripts");
 #  else
       daemon->lease_change_command = opt_string_alloc(arg);
 #  endif
@@ -1186,12 +1235,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	daemon->options |= OPT_RESOLV_DOMAIN;
       else
 	{
+	  char *d;
 	  comma = split(arg);
-	  if (!canonicalise_opt(arg))
+	  if (!(d = canonicalise_opt(arg)))
 	    option = '?';
 	  else
 	    {
-	      char *d = opt_string_alloc(arg);
 	      if (comma)
 		{
 		  struct cond_domain *new = safe_malloc(sizeof(struct cond_domain));
@@ -1346,10 +1395,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		/* # matches everything and becomes a zero length domain string */
 		if (strcmp(arg, "#") == 0)
 		  domain = "";
-		else if (!canonicalise_opt(arg) && strlen(arg) != 0)
+		else if (strlen (arg) != 0 && !(domain = canonicalise_opt(arg)))
 		  option = '?';
-		else
-		  domain = opt_string_alloc(arg); /* NULL if strlen is zero */
 		serv = opt_malloc(sizeof(struct server));
 		memset(serv, 0, sizeof(struct server));
 		serv->next = newlist;
@@ -1662,7 +1709,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	  if (!(a[k] = split(a[k-1])))
 	    break;
 	
-	if (option == '?' || (k < 2) || ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1))
+	if ((k < 2) || ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1))
 	  option = '?';
 	else if (strcmp(a[1], "static") == 0)
 	  {
@@ -1860,15 +1907,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		    new->flags |= CONFIG_DISABLE;
 		  else
 		    {
-		      int len = strlen(a[j]) + 1;
-		      if (!canonicalise_opt(a[j]))
+		      if (!(new->hostname = canonicalise_opt(a[j])) ||
+			  !legal_hostname(new->hostname))
 			problem = _("bad DHCP host name");
-		      else if ((new->hostname = opt_malloc(len)))
-			{
-			  new->flags |= CONFIG_NAME;
-			  strcpy(new->hostname, a[j]);
-			  new->domain = NULL;
-			}
+		      else
+			new->flags |= CONFIG_NAME;
+		      new->domain = NULL;			
 		    }
 		}
 	      else
@@ -1983,6 +2027,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 
 	     new->next = daemon->dhcp_opts;
 	     daemon->dhcp_opts = new;
+	     daemon->enable_pxe = 1;
 	   }
 	 
 	 break;
@@ -2051,6 +2096,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 			 s->next = new;
 		       }
 		     
+		     daemon->enable_pxe = 1;
 		     break;
 		   }
 	       }
@@ -2243,19 +2289,20 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
     case LOPT_INTNAME:  /* --interface-name */
       {
 	struct interface_name *new, **up;
-	
+	char *domain = NULL;
+
 	comma = split(arg);
 	
-	if (!comma || !canonicalise_opt(arg))
+	if (!comma || !(domain = canonicalise_opt(arg)))
 	  problem = _("bad interface name");
-	  
+	
 	new = opt_malloc(sizeof(struct interface_name));
 	new->next = NULL;
 	/* Add to the end of the list, so that first name
 	   of an interface is used for PTR lookups. */
 	for (up = &daemon->int_names; *up; up = &((*up)->next));
 	*up = new;
-	new->name = opt_string_alloc(arg);
+	new->name = domain;
 	new->intr = opt_string_alloc(comma);
 	break;
       }
@@ -2268,14 +2315,22 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	  option = '?';
 	else
 	  {
-	    for (new = daemon->cnames; new; new = new->next)
-	      if (hostname_isequal(new->alias, arg))
-		problem = _("duplicate CNAME");
-	    new = opt_malloc(sizeof(struct cname));
-	    new->next = daemon->cnames;
-	    daemon->cnames = new;
-	    new->alias = opt_string_alloc(arg);
-	    new->target = opt_string_alloc(comma);
+	    char *alias = canonicalise_opt(arg);
+	    char *target = canonicalise_opt(comma);
+	    
+	    if (!alias || !target)
+	      problem = _("bad CNAME");
+	    else
+	      {
+		for (new = daemon->cnames; new; new = new->next)
+		  if (hostname_isequal(new->alias, arg))
+		    problem = _("duplicate CNAME");
+		new = opt_malloc(sizeof(struct cname));
+		new->next = daemon->cnames;
+		daemon->cnames = new;
+		new->alias = alias;
+		new->target = target;
+	      }
 	  }
 	break;
       }
@@ -2283,19 +2338,21 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
     case LOPT_PTR:  /* --ptr-record */
       {
 	struct ptr_record *new;
-	
+	char *dom, *target = NULL;
+
 	comma = split(arg);
 	
-	if (!canonicalise_opt(arg))
+	if (!(dom = canonicalise_opt(arg)) ||
+	    (comma && !(target = canonicalise_opt(comma))))
 	  problem = _("bad PTR record");
-	  
-	new = opt_malloc(sizeof(struct ptr_record));
-	new->next = daemon->ptr;
-	daemon->ptr = new;
-	new->name = opt_string_alloc(arg);
-	new->ptr = NULL;
-	if (comma)
-	  new->ptr = opt_string_alloc(comma);
+	else
+	  {
+	    new = opt_malloc(sizeof(struct ptr_record));
+	    new->next = daemon->ptr;
+	    daemon->ptr = new;
+	    new->name = dom;
+	    new->ptr = target;
+	  }
 	break;
       }
 
@@ -2305,6 +2362,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	int k = 0;
 	struct naptr *new;
 	int order, pref;
+	char *name, *replace = NULL;
 
 	if ((a[0] = arg))
 	  for (k = 1; k < 7; k++)
@@ -2313,22 +2371,21 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	
 	if (k < 6 || 
-	    !canonicalise_opt(a[0]) ||
+	    !(name = canonicalise_opt(a[0])) ||
 	    !atoi_check16(a[1], &order) || 
 	    !atoi_check16(a[2], &pref) ||
-	    (k == 7 && !canonicalise_opt(a[6])))
+	    (k == 7 && !(replace = canonicalise_opt(a[6]))))
 	  problem = _("bad NAPTR record");
 	else
 	  {
 	    new = opt_malloc(sizeof(struct naptr));
 	    new->next = daemon->naptr;
 	    daemon->naptr = new;
-	    new->name = opt_string_alloc(a[0]);
+	    new->name = name;
 	    new->flags = opt_string_alloc(a[3]);
 	    new->services = opt_string_alloc(a[4]);
 	    new->regexp = opt_string_alloc(a[5]);
-	    if (k == 7)
-	      new->replace = opt_string_alloc(a[6]);
+	    new->replace = replace;
 	    new->order = order;
 	    new->pref = pref;
 	  }
@@ -2345,12 +2402,6 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	gen_prob = _("TXT record string too long");
 	
-	if (!canonicalise_opt(arg))
-	  {
-	    problem = _("bad TXT record");
-	    break;
-	  }
-
 	if ((q = (unsigned char *)comma))
 	  while (1)
 	    {
@@ -2394,7 +2445,13 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	/* ensure arg is terminated */
 	if (comma)
 	  *comma = 0;
-	new->name = opt_string_alloc(arg);
+
+	if (!(new->name = canonicalise_opt(arg)))
+	  {
+	    problem = _("bad TXT record");
+	    break;
+	  }
+
 	break;
       }
       
@@ -2406,19 +2463,16 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	
 	comma = split(arg);
 	
-	if (!canonicalise_opt(arg))
+	if (!(name = canonicalise_opt(arg)))
 	  problem = _("bad SRV record");
 	  
-	name = opt_string_alloc(arg);
-	
 	if (comma)
 	  {
 	    arg = comma;
 	    comma = split(arg);
-	    if (!canonicalise_opt(arg))
-	      problem = _("bad SRV target");
+	    if (!(target = canonicalise_opt(arg))
+)	      problem = _("bad SRV target");
 		
-	    target = opt_string_alloc(arg);
 	    if (comma)
 	      {
 		arg = comma;
@@ -2683,7 +2737,7 @@ void reread_dhcp(void)
 	}
       
       one_file(daemon->dhcp_hosts_file, 1, LOPT_BANK);  
-      my_syslog(LOG_INFO, _("read %s"), daemon->dhcp_hosts_file);
+      my_syslog(MS_DHCP | LOG_INFO, _("read %s"), daemon->dhcp_hosts_file);
     }
 
   if (daemon->dhcp_opts_file)
@@ -2714,7 +2768,7 @@ void reread_dhcp(void)
 	}
       
       one_file(daemon->dhcp_opts_file, 1, LOPT_OPTS);  
-      my_syslog(LOG_INFO, _("read %s"), daemon->dhcp_opts_file);
+      my_syslog(MS_DHCP | LOG_INFO, _("read %s"), daemon->dhcp_opts_file);
     }
 }
 #endif
@@ -2898,8 +2952,7 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	    continue;
 	  
 	  if ((token = strtok(NULL, " \t\n\r")) &&  
-	      canonicalise_opt(token) &&
-	      (daemon->domain_suffix = opt_string_alloc(token)))
+	      (daemon->domain_suffix = canonicalise_opt(token)))
 	    break;
 	}
 

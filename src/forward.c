@@ -262,10 +262,14 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  if (type != 0  || (daemon->options & OPT_ORDER))
 	    start = daemon->servers;
-	  else if (!(start = daemon->last_server))
+	  else if (!(start = daemon->last_server) ||
+		   daemon->forwardcount++ > FORWARD_TEST ||
+		   difftime(now, daemon->forwardtime) > FORWARD_TIME)
 	    {
 	      start = daemon->servers;
 	      forward->forwardall = 1;
+	      daemon->forwardcount = 0;
+	      daemon->forwardtime = now;
 	    }
 	}
     }

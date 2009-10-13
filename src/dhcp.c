@@ -754,6 +754,8 @@ void dhcp_read_ethers(void)
 
   while (fgets(buff, MAXDNAME, f))
     {
+      char *host = NULL;
+      
       lineno++;
       
       while (strlen(buff) > 0 && isspace((int)buff[strlen(buff)-1]))
@@ -792,19 +794,28 @@ void dhcp_read_ethers(void)
 	}
       else 
 	{
-	  if (!canonicalise(ip))
+	  int nomem;
+	  if (!(host = canonicalise(ip, &nomem)) || !legal_hostname(host))
 	    {
-	      my_syslog(MS_DHCP | LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
+	      if (!nomem)
+		my_syslog(MS_DHCP | LOG_ERR, _("bad name at %s line %d"), ETHERSFILE, lineno); 
+	      free(host);
 	      continue;
 	    }
 	      
 	  flags = CONFIG_NAME;
 
 	  for (config = daemon->dhcp_conf; config; config = config->next)
-	    if ((config->flags & CONFIG_NAME) && hostname_isequal(config->hostname, ip))
+	    if ((config->flags & CONFIG_NAME) && hostname_isequal(config->hostname, host))
 	      break;
 	}
-      
+
+      if (config && (config->flags & CONFIG_FROM_ETHERS))
+	{
+	  my_syslog(MS_DHCP | LOG_ERR, _("ignoring %s line %d, duplicate name or IP address"), ETHERSFILE, lineno); 
+	  continue;
+	}
+	
       if (!config)
 	{ 
 	  for (config = daemon->dhcp_conf; config; config = config->next)
@@ -834,10 +845,8 @@ void dhcp_read_ethers(void)
 	  
 	  if (flags & CONFIG_NAME)
 	    {
-	      if ((config->hostname = whine_malloc(strlen(ip)+1)))
-		strcpy(config->hostname, ip);
-	      else
-		config->flags &= ~CONFIG_NAME;
+	      config->hostname = host;
+	      host = NULL;
 	    }
 	  
 	  if (flags & CONFIG_ADDR)
@@ -856,6 +865,9 @@ void dhcp_read_ethers(void)
 	  config->hwaddr->next = NULL;
 	}
       count++;
+      
+      free(host);
+
     }
   
   fclose(f);
@@ -945,7 +957,8 @@ void dhcp_update_configs(struct dhcp_config *configs)
 
 /* If we've not found a hostname any other way, try and see if there's one in /etc/hosts
    for this address. If it has a domain part, that must match the set domain and
-   it gets stripped. */
+   it gets stripped. The set of legal domain names is bigger than the set of legal hostnames
+   so check here that the domain name is legal as a hostname. */
 char *host_from_dns(struct in_addr addr)
 {
   struct crec *lookup;
@@ -963,7 +976,7 @@ char *host_from_dns(struct in_addr addr)
       hostname[255] = 0;
       d1 = strip_hostname(hostname);
       d2 = get_domain(addr);
-      if (d1 && (!d2 || hostname_isequal(d1, d2)))
+      if (!legal_hostname(hostname) || (d1 && (!d2 || !hostname_isequal(d1, d2))))
 	hostname = NULL;
     }
   

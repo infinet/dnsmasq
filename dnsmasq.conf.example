@@ -396,6 +396,11 @@
 # the user dnsmasq is running as will be send over the net.
 #tftp-secure
 
+# This option stops dnsmasq from negotiating a larger blocksize for TFTP 
+# transfers. It will slow things down, but may rescue some broken TFTP
+# clients.
+#tftp-no-blocksize
+
 # Set the boot file name only when the "red" tag is set.
 #dhcp-boot=net:red,pxelinux.red-net
 

@@ -138,7 +138,8 @@ static int extract_name(HEADER *header, size_t plen, unsigned char **pp,
 	  for(j=0; j<l; j++, p++)
 	    if (isExtract)
 	      {
-		if (legal_char(*p))
+		unsigned char c = *p;
+		if (isascii(c) && !iscntrl(c) && c != '.')
 		  *cp++ = *p;
 		else
 		  return 0;

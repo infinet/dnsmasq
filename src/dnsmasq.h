@@ -30,6 +30,7 @@
 
 /* get these before config.h  for IPv6 stuff... */
 #include <sys/types.h> 
+#include <sys/socket.h>
 #include <netinet/in.h>
 
 #ifdef __APPLE__
@@ -55,7 +56,6 @@
 
 #include <arpa/inet.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
 #include <sys/ioctl.h>
 #if defined(HAVE_SOLARIS_NETWORK)
 #include <sys/sockio.h>
@@ -335,7 +335,7 @@ struct server {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int dhcp_ok;
+  int dhcp_ok, mtu;
   struct irec *next;
 };
 
@@ -410,9 +410,9 @@ struct dhcp_lease {
 #endif
   int hwaddr_len, hwaddr_type;
   unsigned char hwaddr[DHCP_CHADDR_MAX]; 
-  struct in_addr addr, override;
-  unsigned char *vendorclass, *userclass;
-  unsigned int vendorclass_len, userclass_len;
+  struct in_addr addr, override, giaddr;
+  unsigned char *vendorclass, *userclass, *supplied_hostname;
+  unsigned int vendorclass_len, userclass_len, supplied_hostname_len;
   int last_interface;
   struct dhcp_lease *next;
 };
@@ -626,6 +626,7 @@ extern struct daemon {
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;
   struct pxe_service *pxe_services;
+  int enable_pxe;
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *force_broadcast, *bootp_dynamic;
   char *dhcp_hosts_file, *dhcp_opts_file;
   int dhcp_max, tftp_max;
@@ -646,6 +647,8 @@ extern struct daemon {
   struct irec *interfaces;
   struct listener *listeners;
   struct server *last_server;
+  time_t forwardtime;
+  int forwardcount;
   struct server *srv_save; /* Used for resend on DoD */
   size_t packet_len;       /*      "        "        */
   struct randfd *rfd_save; /*      "        "        */
@@ -719,8 +722,8 @@ size_t resize_packet(HEADER *header, size_t plen,
 /* util.c */
 void rand_init(void);
 unsigned short rand16(void);
-int legal_char(char c);
-int canonicalise(char *s);
+int legal_hostname(char *c);
+char *canonicalise(char *s, int *nomem);
 unsigned char *do_rfc1035_name(unsigned char *p, char *sval);
 void *safe_malloc(size_t size);
 void safe_pipe(int *fd, int read_noblock);
@@ -863,7 +866,7 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)());
 char *dbus_init(void);
 void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset);
 void set_dbus_listeners(int *maxfdp, fd_set *rset, fd_set *wset, fd_set *eset);
-void emit_dbus_signal(int action, char *mac, char *hostname, char *addr);
+void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname);
 #endif
 
 /* helper.c */

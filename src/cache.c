@@ -226,7 +226,7 @@ char *cache_get_name(struct crec *crecp)
 {
   if (crecp->flags & F_BIGNAME)
     return crecp->name.bname->name;
-  else if (crecp->flags & F_DHCP) 
+  else if (crecp->flags & (F_DHCP | F_CONFIG)) 
     return crecp->name.namep;
   
   return crecp->name.sname;
@@ -366,7 +366,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 
   log_query(flags | F_UPSTREAM, name, addr, NULL);
 
-  /* CONFIG bit no needed except for logging */
+  /* CONFIG bit means something else when stored in cache entries */
   flags &= ~F_CONFIG;
 
   /* if previous insertion failed give up now. */
@@ -693,10 +693,10 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
   if (!nameexists)
     for (a = daemon->cnames; a; a = a->next)
       if (hostname_isequal(cache->name.sname, a->target) &&
-	  (lookup = whine_malloc(sizeof(struct crec) + strlen(a->alias)+1-SMALLDNAME)))
+	  (lookup = whine_malloc(sizeof(struct crec))))
 	{
-	  lookup->flags = F_FORWARD | F_IMMORTAL | F_HOSTS | F_CNAME;
-	  strcpy(lookup->name.sname, a->alias);
+	  lookup->flags = F_FORWARD | F_IMMORTAL | F_CONFIG | F_HOSTS | F_CNAME;
+	  lookup->name.namep = a->alias;
 	  lookup->addr.cname.cache = cache;
 	  lookup->addr.cname.uid = index;
 	  cache_hash(lookup);
@@ -821,35 +821,38 @@ static int read_hostsfile(char *filename, int index, int cache_size)
       while (atnl == 0)
 	{
 	  struct crec *cache;
-	  int fqdn;
+	  int fqdn, nomem;
+	  char *canon;
 	  
 	  if ((atnl = gettok(f, token)) == EOF)
 	    break;
 
 	  fqdn = !!strchr(token, '.');
 
-	  if (canonicalise(token))
+	  if ((canon = canonicalise(token, &nomem)))
 	    {
 	      /* If set, add a version of the name with a default domain appended */
 	      if ((daemon->options & OPT_EXPAND) && domain_suffix && !fqdn && 
 		  (cache = whine_malloc(sizeof(struct crec) + 
-					strlen(token)+2+strlen(domain_suffix)-SMALLDNAME)))
+					strlen(canon)+2+strlen(domain_suffix)-SMALLDNAME)))
 		{
-		  strcpy(cache->name.sname, token);
+		  strcpy(cache->name.sname, canon);
 		  strcat(cache->name.sname, ".");
 		  strcat(cache->name.sname, domain_suffix);
 		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
 		  addr_dup = 1;
 		  name_count++;
 		}
-	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(token)+1-SMALLDNAME)))
+	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(canon)+1-SMALLDNAME)))
 		{
-		  strcpy(cache->name.sname, token);
+		  strcpy(cache->name.sname, canon);
 		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
 		  name_count++;
 		}
+	      free(canon);
+	      
 	    }
-	  else
+	  else if (!nomem)
 	    my_syslog(LOG_ERR, _("bad name at %s line %d"), filename, lineno); 
 	}
     } 
@@ -1103,7 +1106,7 @@ void cache_add_dhcp_entry(char *host_name,
 	    
 	    if (aliasc)
 	      {
-		aliasc->flags = F_FORWARD | F_DHCP | F_CNAME;
+		aliasc->flags = F_FORWARD | F_CONFIG | F_DHCP | F_CNAME;
 		if (ttd == 0)
 		  aliasc->flags |= F_IMMORTAL;
 		else
@@ -1285,12 +1288,12 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, char *ar
 	dest = "<CNAME>";
     }
     
-  if (flags & F_DHCP)
+  if (flags & F_CONFIG)
+    source = "config";
+  else if (flags & F_DHCP)
     source = "DHCP";
   else if (flags & F_HOSTS)
     source = arg;
-  else if (flags & F_CONFIG)
-    source = "config";
   else if (flags & F_UPSTREAM)
     source = "reply";
   else if (flags & F_SERVER)

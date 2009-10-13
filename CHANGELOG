@@ -1,5 +1,78 @@
+version 2.51
+            Add support for internationalised DNS. Non-ASCII characters
+            in domain names found in /etc/hosts, /etc/ethers and 
+	    /etc/dnsmasq.conf will be correctly handled by translation to
+            punycode, as specified in RFC3490. This function is only
+            available if dnsmasq is compiled with internationalisation
+            support, and adds a dependency on GNU libidn. Without i18n
+            support, dnsmasq continues to be compilable with just
+            standard tools. Thanks to Yves Dorfsman for the
+            suggestion. 
+
+            Add two more environment variables for lease-change scripts:
+	    First, DNSMASQ_SUPPLIED_HOSTNAME; this is set to the hostname
+	    supplied by a client, even if the actual hostname used is
+	    over-ridden by dhcp-host or dhcp-ignore-names directives.
+	    Also DNSMASQ_RELAY_ADDRESS which gives the address of 
+            a DHCP relay, if used.
+	    Suggestions from Michael Rack.
+
+	    Fix regression which broke echo of relay-agent
+	    options. Thanks to Michael Rack for spotting this.
+          
+            Don't treat option 67 as being interchangeable with
+            dhcp-boot parameters if it's specified as
+            dhcp-option-force.
+
+	    Make the code to call scripts on lease-change compile-time
+	    optional. It can be switched off by editing src/config.h
+	    or building with "make COPTS=-DNO_SCRIPT".
+ 
+	    Make the TFTP server cope with filenames from Windows/DOS
+	    which use '\' as pathname separator. Thanks to Ralf for
+	    the patch.
+
+	    Updated Polish translation. Thanks to Jan Psota.
+ 
+	    Warn if an IP address is duplicated in /etc/ethers. Thanks
+	    to Felix Schwarz for pointing this out.
+
+	    Teach --conf-dir to take an option list of file suffices
+	    which will be ignored when scanning the directory. Useful
+	    for backup files etc. Thanks to Helmut Hullen for the
+	    suggestion. 
+
+	    Add new DHCP option named tftpserver-address, which
+	    corresponds to the third argument of dhcp-boot. This
+	    allows the complete functionality of dhcp-boot to be
+	    replicated with dhcp-option. Useful when using 
+	    dhcp-optsfile.
+
+	    Test which upstream nameserver to use every 10 seconds
+            or 50 queries and not just when a query times out and 
+            is retried. This should improve performance when there
+            is a slow nameserver in the list. Thanks to Joe for the
+            suggestion. 
+
+	    Don't do any PXE processing, even for clients with the 
+	    correct vendorclass, unless at least one pxe-prompt or 
+            pxe-service option is given. This stops dnsmasq 
+            interfering with proxy PXE subsystems when it is just 
+            the DHCP server. Thanks to Spencer Clark for spotting this.
+
+	    Limit the blocksize used for TFTP transfers to a value
+	    which avoids packet fragmentation, based on the MTU of the
+	    local interface. Many netboot ROMs can't cope with
+	    fragmented packets.
+
+	    Honour dhcp-ignore configuration for PXE and proxy-PXE 
+	    requests. Thanks to Niels Basjes for the bug report.
+
+            Updated French translation. Thanks to Gildas Le Nadan.
+
+
 version 2.50
-            Fix security problem which allowed any host permitted to 
+	    Fix security problem which allowed any host permitted to 
             do TFTP to possibly compromise dnsmasq by remote buffer 
             overflow when TFTP enabled. Thanks to Core Security 
 	    Technologies and Iván Arce, Pablo Hernán Jorge, Alejandro 
@@ -358,3 +431,8 @@ version 2.43
 	    ports. Thanks to Patrick McLean for spotting this.
 
 	    Updated French translation. Thanks to Gildas Le Nadan.
+
+
+version 2.42
+            The changelog for version 2.42 and earlier is 
+            available in CHANGELOG.archive.

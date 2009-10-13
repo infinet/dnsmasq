@@ -14,13 +14,15 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.50"
+#define VERSION "2.51"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
 #define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
+#define FORWARD_TEST 50 /* try all servers every 50 queries */
+#define FORWARD_TIME 10 /* or 10 seconds */
 #define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define LEASE_RETRY 60 /* on error, retry writing leasefile after LEASE_RETRY seconds */
 #define CACHESIZ 150 /* default cache size */
@@ -126,6 +128,9 @@ HAVE_TFTP
 HAVE_DHCP
    define this to get dnsmasq's DHCP server.
 
+HAVE_SCRIPT
+   define this to get the ability to call scripts on lease-change
+
 HAVE_GETOPT_LONG
    define this if you have GNU libc or GNU getopt. 
 
@@ -162,6 +167,7 @@ NOTES:
 /* platform independent options- uncomment to enable */
 #define HAVE_DHCP
 #define HAVE_TFTP
+#define HAVE_SCRIPT
 /* #define HAVE_BROKEN_RTC */
 /* #define HAVE_DBUS */
 
@@ -174,6 +180,13 @@ NOTES:
 #ifdef NO_DHCP
 #undef HAVE_DHCP
 #endif
+
+/* Allow scripts to be disabled with COPTS=-DNO_SCRIPT */
+#ifdef NO_SCRIPT
+#undef HAVE_SCRIPT
+#endif
+
+
 
 /* platform dependent options. */
 
@@ -271,5 +284,10 @@ NOTES:
 #else
 #  undef HAVE_IPV6
 #  define ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
+#endif
+
+/* Can't do scripts without fork */
+#ifdef NOFORK
+#  undef HAVE_SCRIPT
 #endif
 
