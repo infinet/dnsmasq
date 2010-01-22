@@ -1,3 +1,107 @@
+version 2.52
+            Work around a Linux kernel bug which insists that the 
+	    length of the option passed to setsockopt must be at least
+            sizeof(int) bytes, even if we're calling SO_BINDTODEVICE
+            and the device name is "lo".  Note that this is fixed 
+	    in kernel 2.6.31, but the workaround is harmless and 
+	    allows earlier kernels to be used. Also fix dnsmasq 
+	    bug which reported the wrong address when this failed. 
+	    Thanks to Fedor for finding this.
+
+	    The API for IPv6 PKTINFO changed around Linux kernel
+	    2.6.14. Workaround the case where dnsmasq is compiled
+	    against newer headers, but then run on an old kernel:
+	    necessary for some *WRT distros.
+
+	    Re-read the set of network interfaces when re-loading
+	    /etc/resolv.conf if --bind-interfaces is not set. This
+	    handles the case that loopback interfaces do not exist
+	    when dnsmasq is first started.
+
+	    Tweak the PXE code to support port 4011. This should
+	    reduce broadcasts and make things more reliable when other
+	    servers are around. It also improves inter-operability
+	    with certain clients.
+
+	    Make a pxe-service configuration with no filename or boot 
+	    service type legal: this does a local boot. eg.
+	    pxe-service=x86PC, "Local boot" 
+
+	    Be more conservative in detecting "A for A"
+	    queries. Dnsmasq checks if the name in a type=A query looks
+	    like a dotted-quad IP address and answers the query itself
+	    if so, rather than forwarding it. Previously dnsmasq
+	    relied in the library function inet_addr() to convert
+	    addresses, and that will accept some things which are
+	    confusing in this context, like 1.2.3 or even just
+	    1234. Now we only do A for A processing for four decimal
+	    numbers delimited by dots.
+
+	    A couple of tweaks to fix compilation on Solaris. Thanks
+	    to Joel Macklow for help with this.
+
+	    Another Solaris compilation tweak, needed for Solaris
+	    2009.06. Thanks to Lee Essen for that.
+
+	    Added extract packaging stuff from Lee Essen to 
+	    contrib/Solaris10.
+          
+            Increased the default limit on number of leases to 1000
+            (from 150). This is mainly a defence against DoS attacks,
+            and for the average "one for two class C networks"
+            installation, IP address exhaustion does that just as
+            well. Making the limit greater than the number of IP
+            addresses available in such an installation removes a
+            surprise which otherwise can catch people out.
+
+	    Removed extraneous trailing space in the value of the
+	    DNSMASQ_TIME_REMAINING DNSMASQ_LEASE_LENGTH and
+	    DNSMASQ_LEASE_EXPIRES environment variables. Thanks to
+	    Gildas Le Nadan for spotting this.
+
+	    Provide the network-id tags for a DHCP transaction to 
+	    the lease-change script in the environment variable
+	    DNSMASQ_TAGS. A good suggestion from Gildas Le Nadan.  
+
+	    Add support for RFC3925 "Vendor-Identifying Vendor
+	    Options". The syntax looks like this:  
+	    --dhcp-option=vi-encap:<enterprise number>, .........
+
+	    Add support to --dhcp-match to allow matching against
+	    RFC3925 "Vendor-Identifying Vendor Classes". The syntax
+	    looks like this:
+	    --dhcp-match=tag,vi-encap<enterprise number>, <value>
+	    
+	    Add some application specific code to assist in
+	    implementing the Broadband forum TR069 CPE-WAN
+	    specification. The details are in contrib/CPE-WAN/README
+
+	    Increase the default DNS packet size limit to 4096, as
+	    recommended by RFC5625 section 4.4.3. This can be
+	    reconfigured using --edns-packet-max if needed. Thanks to
+	    Francis Dupont for pointing this out.
+
+	    Rewrite query-ids even for DNSSEC signed packets, since
+	    this is allowed by RFC5625 section 4.5.
+	    
+	    Use getopt_long by default on OS X. It has been supported
+	    since version 10.3.0. Thanks to Arek Dreyer for spotting
+	    this.
+
+	    Added up-to-date startup configuration for MacOSX/launchd
+	    in contrib/MacOSX-launchd. Thanks to Arek Dreyer for
+	    providing this.
+
+	    Fix link error when including Dbus but excluding DHCP. 
+	    Thanks to Oschtan for the bug report.
+
+            Updated French translation. Thanks to Gildas Le Nadan.
+ 
+            Updated Polish translation. Thanks to Jan Psota.
+
+	    Updated Spanish translation. Thanks to Chris Chatham.
+
+
 version 2.51
             Add support for internationalised DNS. Non-ASCII characters
             in domain names found in /etc/hosts, /etc/ethers and 

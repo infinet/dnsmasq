@@ -365,7 +365,7 @@
 #pxe-prompt="Press F8 for menu.", 60
 
 # Available boot services. for PXE.
-#pxe-service=x86PC, "Boot from local disk", 0
+#pxe-service=x86PC, "Boot from local disk"
 
 # Loads <tftp-root>/pxelinux.0 from dnsmasq TFTP server.
 #pxe-service=x86PC, "Install Linux", pxelinux 

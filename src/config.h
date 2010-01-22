@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,19 +14,19 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.51"
+#define VERSION "2.52"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
-#define EDNS_PKTSZ 1280 /* default max EDNS.0 UDP packet from RFC2671 */
+#define EDNS_PKTSZ 4096 /* default max EDNS.0 UDP packet from RFC5625 */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
 #define FORWARD_TEST 50 /* try all servers every 50 queries */
 #define FORWARD_TIME 10 /* or 10 seconds */
 #define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define LEASE_RETRY 60 /* on error, retry writing leasefile after LEASE_RETRY seconds */
 #define CACHESIZ 150 /* default cache size */
-#define MAXLEASES 150 /* maximum number of DHCP leases */
+#define MAXLEASES 1000 /* maximum number of DHCP leases */
 #define PING_WAIT 3 /* wait for ping address-in-use test */
 #define PING_CACHE_TIME 30 /* Ping test assumed to be valid this long. */
 #define DECLINE_BACKOFF 600 /* disable DECLINEd static addresses for this long */
@@ -66,6 +66,7 @@
 #define DHCP_CLIENT_PORT 68
 #define DHCP_SERVER_ALTPORT 1067
 #define DHCP_CLIENT_ALTPORT 1068
+#define PXE_PORT 4011
 #define TFTP_PORT 69
 #define TFTP_MAX_CONNECTIONS 50 /* max simultaneous connections */
 #define LOG_MAX 5 /* log-queue length */
@@ -242,7 +243,7 @@ NOTES:
 
 #elif defined(__APPLE__)
 #define HAVE_BSD_NETWORK
-#undef HAVE_GETOPT_LONG
+#define HAVE_GETOPT_LONG
 #define HAVE_ARC4RANDOM
 #define HAVE_SOCKADDR_SA_LEN
 /* Define before sys/socket.h is included so we get socklen_t */
@@ -259,8 +260,6 @@ NOTES:
 #define HAVE_GETOPT_LONG
 #undef HAVE_ARC4RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
-#define _XPG4_2
-#define __EXTENSIONS__
 #define ETHER_ADDR_LEN 6 
  
 #endif

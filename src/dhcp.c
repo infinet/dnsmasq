@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ struct iface_param {
 static int complete_context(struct in_addr local, int if_index, 
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam);
 
-void dhcp_init(void)
+static int make_fd(int port)
 {
   int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   struct sockaddr_in saddr;
@@ -67,7 +67,7 @@ void dhcp_init(void)
   
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_family = AF_INET;
-  saddr.sin_port = htons(daemon->dhcp_server_port);
+  saddr.sin_port = htons(port);
   saddr.sin_addr.s_addr = INADDR_ANY;
 #ifdef HAVE_SOCKADDR_SA_LEN
   saddr.sin_len = sizeof(struct sockaddr_in);
@@ -76,7 +76,20 @@ void dhcp_init(void)
   if (bind(fd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in)))
     die(_("failed to bind DHCP server socket: %s"), NULL, EC_BADNET);
 
-  daemon->dhcpfd = fd;
+  return fd;
+}
+
+void dhcp_init(void)
+{
+#if defined(HAVE_BSD_NETWORK)
+  int oneopt = 1;
+#endif
+
+  daemon->dhcpfd = make_fd(daemon->dhcp_server_port);
+  if (daemon->enable_pxe)
+    daemon->pxefd = make_fd(PXE_PORT);
+  else
+    daemon->pxefd = -1;
 
 #if defined(HAVE_BSD_NETWORK)
   /* When we're not using capabilities, we need to do this here before
@@ -99,8 +112,9 @@ void dhcp_init(void)
   daemon->dhcp_packet.iov_base = safe_malloc(daemon->dhcp_packet.iov_len);
 }
   
-void dhcp_packet(time_t now)
+void dhcp_packet(time_t now, int pxe_fd)
 {
+  int fd = pxe_fd ? daemon->pxefd : daemon->dhcpfd;
   struct dhcp_packet *mess;
   struct dhcp_context *context;
   struct iname *tmp;
@@ -135,7 +149,7 @@ void dhcp_packet(time_t now)
   while (1)
     {
       msg.msg_flags = 0;
-      while ((sz = recvmsg(daemon->dhcpfd, &msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
+      while ((sz = recvmsg(fd, &msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
       
       if (sz == -1)
 	return;
@@ -165,7 +179,7 @@ void dhcp_packet(time_t now)
   msg.msg_name = &dest;
   msg.msg_namelen = sizeof(dest);
 
-  while ((sz = recvmsg(daemon->dhcpfd, &msg, 0)) == -1 && errno == EINTR);
+  while ((sz = recvmsg(fd, &msg, 0)) == -1 && errno == EINTR);
  
   if ((msg.msg_flags & MSG_TRUNC) || sz < (ssize_t)(sizeof(*mess) - sizeof(mess->options)))
     return;
@@ -243,7 +257,7 @@ void dhcp_packet(time_t now)
     return;
   lease_prune(NULL, now); /* lose any expired leases */
   iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, 
-			   now, unicast_dest, &is_inform);
+			   now, unicast_dest, &is_inform, pxe_fd);
   lease_update_file(now);
   lease_update_dns();
     
@@ -264,7 +278,12 @@ void dhcp_packet(time_t now)
   dest.sin_len = sizeof(struct sockaddr_in);
 #endif
      
-  if (mess->giaddr.s_addr)
+  if (pxe_fd)
+    { 
+      if (mess->ciaddr.s_addr != 0)
+	dest.sin_addr = mess->ciaddr;
+    }
+  else if (mess->giaddr.s_addr)
     {
       /* Send to BOOTP relay  */
       dest.sin_port = htons(daemon->dhcp_server_port);
@@ -348,10 +367,10 @@ void dhcp_packet(time_t now)
 #endif
    
 #ifdef HAVE_SOLARIS_NETWORK
-  setsockopt(daemon->dhcpfd, IPPROTO_IP, IP_BOUND_IF, &iface_index, sizeof(iface_index));
+  setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, &iface_index, sizeof(iface_index));
 #endif
   
-  while(sendmsg(daemon->dhcpfd, &msg, 0) == -1 && retry_send());
+  while(sendmsg(fd, &msg, 0) == -1 && retry_send());
 }
  
 /* This is a complex routine: it gets called with each (address,netmask,broadcast) triple 

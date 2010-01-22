@@ -49,7 +49,8 @@ ese directorio.
 .TP
 .B \-E, --expand-hosts
 Agregar el dominio a nombres sencillos (sin punto) en /etc/hosts de la
-misma manera que con nombres derivados de DHCP.
+misma manera que con nombres derivados de DHCP. Nótese que esto no
+aplica a nombres de dominio en cnames, expedientes PTR, TXT, etc.
 .TP
 .B \-T, --local-ttl=<tiempo>
 Al responder con información desde /etc/hosts o desde el archivo
@@ -133,8 +134,8 @@ solo DHCP y/o TFTP.
 .TP
 .B \-P, --edns-packet-max=<tamaño>
 Especificar el paquete UDP EDNS.0 más grande que es soportado por
-el reenviador DNS. Por predeterminado es 1280, lo cual es el
-máximo recomendado en RFC2671 para ethernet.
+el reenviador DNS. Por predeterminado es 4096, lo cual es el
+tamaño recomendado en RFC5625.
 .TP
 .B \-Q, --query-port=<puerto>
 Enviar búsquedas outbound desde, y escuchar por respuestas en,
@@ -459,7 +460,7 @@ de casos. La única situación conocida donde esto debe ser incrementado
 es al usar resolvedores de bitácoras de servidores web, los cuales pueden
 generar un número inmenso de búsquedas simultáneas.
 .TP
-.B \-F, --dhcp-range=[[net:]network-id,]<dirección-inicio>,<dirección-final>[[,<máscara>],<broadcast>][,<tiempo de arriendo>]
+.B \-F, --dhcp-range=[[net:]network-id,]<dirección-inicio>,<dirección-final>[,<máscara>[,<broadcast>]][,<tiempo de arriendo>]
 Habilitar el servidor DHCP. Direcciones serán distribuidas desde el
 rango <dirección-inicio> hasta <dirección-final> y desde direcciones definidas
 estáticamente en opciones
@@ -578,6 +579,11 @@ Leer información host DHCP desde el archivo especificado. El archivo contiene in
 Leer información sobre opciones DHCP desde el archivo especificado. La
 ventaja de usar esta opción es la misma que con --dhcp-hostsfile: el
 archivo dhcp-optsfile será re-leído cuando dnsmasq recibe un SIGHUP.
+Nótese que es posible colocar la información mediante
+.B --dhcp-boot
+como opciones DHCP, usando los nombres de opción bootfile-name,
+server-ip-address, y tftp-server. Esto permite que sean incluidas en
+un archivo dhcp-optsfile.
 .TP
 .B \-Z, --read-ethers
 Leer /etc/ethers en busca de información sobre hosts para el servidor
@@ -587,7 +593,7 @@ dnsmasq, estas líneas tienen exáctamente el mismo efecto que opciones
 .B --dhcp-host
 que contienen la misma información. /etc/ethers es re-leída cuando dnsmasq recibe un SIGHUP.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<valor>[,<valor>]]
 Especificar opciones diferentes o extra a clientes DHCP. Por
 predeterminado, dnsmasq envía algunas opciones estándar a clientes
 DHCP. La máscara de subred y dirección broadcast son fijadas igual
@@ -657,9 +663,16 @@ enviará opción 175, dentro de la cual está opción 190. Si múltiples
 opciones son brindadas que están encapsuladas con el mismo número de
 opción entonces serán correctamente combinadas en una opción encapsulada.
 encap: y vendor: no pueden ser fijadas ambas dentro de la misma opción dhcp-option.
+
+La variante final en opciones encapsuladas es "Vendor-Identifying Vendor Options"
+como especificado en RFC3925. Estos son denotados así:
+.B --dhcp-option=rfc3925-encap:2, 10, "text"
+El número en la sección rfc3925-encap: es el número enterprise usado
+para identificar esta opción.
+
 La dirección 0.0.0.0 no es tratada de forma especial en opciones encapsuladas.
 .TP
-.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][rfc3925-encap:<enterprise>,][vendor:[<vendor-class>],]<opt>,[<valor>[,<valor>]]
 Esto funciona exáctamente de la misma forma que
 .B --dhcp-option
 excepto que la opción siempre será enviada, aún si el cliente no la pide en
@@ -713,7 +726,7 @@ network-id es fijado.
 .B --dhcp-subscrid=<network-id>,<subscriber-id>
 Trazar de opciones relay subscriber-id RFC3993 a opciones network-id.
 .TP
-.B --dhcp-match=<network-id>,<option number>|option:<option name>[,<value>]
+.B --dhcp-match=<network-id>,<option number>|option:<option name>|vi-encap:<enterprise>[,<valor>]
 Sin un valor, fijar la etiqueta network-id si el cliente envía una opción
 DHCP del número o valor brindado. Cuando un valor es brindado, fijar la
 etiqueta solo si la opción es enviada y coincide con el valor. El valor puede
@@ -729,6 +742,11 @@ coincidir, así que
 fijará la etiqueta a "efi-ia32" si el número 6 aparece en la lista de
 architecturas enviada por los clientes en opción 93. (Ver RFC 4578 para
 detalles.) Si el valor es un string, coincidencia substring es usada.
+
+La forma especial con vi-encap:<enterpise number> busca coincidencia con
+clases de vendedor identificadoras para el enterprise especificado. Por
+favor ver RFC 3925 para mas detalles sobre las bestias raras e interesantes.
+.TP
 .B \-J, --dhcp-ignore=<network-id>[,<network-id>]
 Cuando todos los network ids brindados coincidan con el juego de
 network ids derivados de las clases net, host, y vendor, ignorar
@@ -762,7 +780,7 @@ el inicio atravéz de una red. Si las opcionales network-ids son brindadas,
 ellas deberán coincidir para que esta configuración sea enviada. Nótese
 que network-ids están prefijadas con "net:" para distinguirlas.
 .TP
-.B --pxe-service=[net:<network-id>,]<CSA>,<texto de menú>,<nombre base>|<tipo de servicio boot>[,<dirección de servidor>]
+.B --pxe-service=[net:<network-id>,]<CSA>,<texto de menú>[,<nombre base>|<tipo de servicio boot>][,<dirección de servidor>]
 La mayoría de usos para boot-ROMS PXE simplemente permiten al sistema PXE
 obtener una dirección IP y entonces bajar el archivo especificado por
 .B dhcp-boot
@@ -784,10 +802,11 @@ dirección IP final es brindada.
 Nótese que el sufijo "layer" (normalmente ".0") es brindado por PXE, y
 no debe ser agregado al nombre base. Si un número entero es brindado en vez
 de un nombre base, entonces el cliente PXE buscará un servicio boot adecuado
-para ese tipo de red. Esta búsqueda puede ser hecha mediante multicast o
-broadcast, o directamente a un servidor si la dirección IP es brindada. Un
-tipo de servicio boot de 0 es especial, y abortará el proceso boot de red
-y continuará desde medio local.
+para ese tipo de red. Esta búsqueda puede ser hecha mediante broadcast,
+o directamente a un servidor si la dirección IP es brindada. Si ningún tipo
+de servicio boot o nombre de archivo es brindado (o un tipo de servicio boot
+de 0 es especificado), entonces la opción de menú abortará el proceso net boot
+y continuará desde el medio local.
 .TP
 .B --pxe-prompt=[net:<network-id>,]<prompt>[,<timeout>]
 Fijar esto hace que un aviso sea expuesto despues del boot PXE. Si el timeout
@@ -879,10 +898,11 @@ El ambiente es heredado del usuario que ha invocado a dnsmasq, y si el
 host brindó un client-id, es almacenado en la variable de ambiente
 DNSMASQ_CLIENT_ID. Si el dominio completamente calificado del host
 es conocido, la parte de dominio es almacenada en DNSMASQ_DOMAIN. Si
-el cliente brinda información de clase de vendedoro usuario,
-estos son brindados en las variables DNSMASQ_VENDOR_CLASS y
+el cliente brinda información de clase de vendedor, nombre de host,
+o clase de usuario, estos son brindados en las variables
+DNSMASQ_VENDOR_CLASS, DNSMASQ_SUPPLIED_HOSTNAME, y
 DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn, pero solo para acciones "add"
-y "old" cuando un host resume un arriendo existente, dado a que estos
+y "old" cuando un host reanuda un arriendo existente, dado a que estos
 datos no son almacenados en la base de datos de arriendos de dnsmasq.
 Si dnsmasq fue compilado con HAVE_BROKEN_RTC, entonces la duración del
 arriendo (en segundos) es almacenada en DNSMASQ_LEASE_LENGTH, de otra
@@ -894,7 +914,10 @@ evento "old" es generado con el nuevo estado del arriendo, (por ejemplo, sin
 nombre), y el nombre anterior es brindado en la variable de ambiente
 DNSMASQ_OLD_HOSTNAME. DNSMASQ_INTERFACE almacena el nombre de la interface
 en la cual llegó el pedido; esto no es fijado para acciones "viejas"
-cuando dnsmasq re-inicia.
+cuando dnsmasq re-inicia. DNSMASQ_RELAY_ADDRESS es fijado si el cliente
+usó un relay DHCP para contactar a dnsmasq y la dirección IP del relay
+es conocida. DNSMASQ_TAGS contiene todas las etiquetas network-id fijadas
+durante la transacción DHCP, separadas por espacios.
 Todos los descriptores de archivo están cerrados
 excepto stdin, stdout, y stderr los cuales están abiertos a /dev/null
 (excepto en modo debug).
@@ -1040,11 +1063,13 @@ Especificar un archivo de configuración diferente. La opción conf-file
 también es permitida en archivos de configuración, para incluir múltiples
 archivos de configuración.
 .TP
-.B \-7, --conf-dir=<directorio>
+.B \-7, --conf-dir=<directorio>[,<file-extension>......]
 Leer todos los archivos dentro del directorio brindado como archivos
-de configuración. Archivos cuyos nombres terminen con ~ o comienzen
-con . o comienzen y terminen con # son ignorados. Esta opción puede
-ser brindada en la línea de comandos o en un archivo de configuración.
+de configuración. Si extensiones son brindadas, cualquier archivo que
+termine en esas extensiones son ignorados. Cualquier archivos cuyos nombres
+terminen con ~ o comienzen con . o comienzen y terminen con # siempre son
+ignorados. Esta opción puede ser brindada en la línea de comandos o en un
+archivo de configuración.
 .SH ARCHIVO DE CONFIGURACION
 Al inicio, dnsmasq lee
 .I /etc/dnsmasq.conf,
@@ -1284,6 +1309,23 @@ servidores de banners bien conocidos, todos resolviendose a 127.0.0.1 o
 o en un archivo hosts adicional. La lista puede ser muy larga. Dnsmasq ha sido
 probado exitósamente con un millón de nombres. Ese tamaño de archivo necesita
 un CPU de 1GHz y aproximadamente 60MB de RAM.
+
+.SH INTERNACIONALIZACION
+
+Dnsmasq puede ser compilado con soporte para internacionalización. Para hacer esto,
+los targets make "all-i18n" y "install-i18n" deberán ser usados en vez de
+los targets estándares "all" y "install". Cuando internacionalización es
+compilada, dnsmasq producirá mensajes de bitácora en el lenguaje local y soportará
+dominios internacionalizados (IDN). Nombres de dominio en /etc/hosts, /etc/ethers,
+y /etc/dnsmasq.conf que contienen carácteres no-ASCII serán traducidos a
+representación interna DNS punycode. Nótese que dnsmasq determina ambos el
+lenguaje para mensajes y el juego de carácteres asumido para archivos de configuración
+de la variable ambiental LANG. Esto debe estar fijado al valor predeterminado del sistema
+por el guión responsable de iniciar dnsmasq. Al editar archivos de configuración,
+tener cuidado de hacerlo usando solo el locale predeterminado del sistema y no
+uno especifico del usuario, dado a que dnsmasq no tiene ninguna manera directa de
+determinar el juego de caracteres en uso, y debe asumir que es el predeterminado
+del sistema.
 
 .SH ARCHIVOS
 .IR /etc/dnsmasq.conf 

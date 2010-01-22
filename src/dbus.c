@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -390,6 +390,7 @@ void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset)
     }
 }
 
+#ifdef HAVE_DHCP
 void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
 {
   DBusConnection *connection = (DBusConnection *)daemon->dbus;
@@ -432,5 +433,6 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
   
   dbus_message_unref(message);
 }
+#endif
 
 #endif

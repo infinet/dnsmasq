@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -596,6 +596,11 @@ int main (int argc, char **argv)
 	{
 	  FD_SET(daemon->dhcpfd, &rset);
 	  bump_maxfd(daemon->dhcpfd, &maxfd);
+	  if (daemon->pxefd != -1)
+	    {
+	      FD_SET(daemon->pxefd, &rset);
+	      bump_maxfd(daemon->pxefd, &maxfd);
+	    }
 	}
 #endif
 
@@ -676,8 +681,13 @@ int main (int argc, char **argv)
 #endif      
 
 #ifdef HAVE_DHCP
-      if (daemon->dhcp && FD_ISSET(daemon->dhcpfd, &rset))
-	dhcp_packet(now);
+      if (daemon->dhcp)
+	{
+	  if (FD_ISSET(daemon->dhcpfd, &rset))
+	    dhcp_packet(now, 0);
+	  if (daemon->pxefd != -1 && FD_ISSET(daemon->pxefd, &rset))
+	    dhcp_packet(now, 1);
+	}
 
 #  ifdef HAVE_SCRIPT
       if (daemon->helperfd != -1 && FD_ISSET(daemon->helperfd, &wset))

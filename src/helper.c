@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,11 +31,12 @@
 #if defined(HAVE_DHCP) && defined(HAVE_SCRIPT)
 
 static void my_setenv(const char *name, const char *value, int *error);
+static unsigned char *grab_extradata(unsigned char *buf, unsigned char *end,  char *env, int *err);
 
 struct script_data
 {
   unsigned char action, hwaddr_len, hwaddr_type;
-  unsigned char clid_len, hostname_len, uclass_len, vclass_len, shost_len;
+  unsigned char clid_len, hostname_len, ed_len;
   struct in_addr addr, giaddr;
   unsigned int remaining_time;
 #ifdef HAVE_BROKEN_RTC
@@ -112,6 +113,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       struct script_data data;
       char *p, *action_str, *hostname = NULL;
       unsigned char *buf = (unsigned char *)daemon->namebuff;
+      unsigned char *end, *alloc_buff = NULL;
       int err = 0;
 
       /* we read zero bytes when pipe closed: this is our signal to exit */ 
@@ -138,8 +140,8 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
             p += sprintf(p, ":");
         }
       
-      /* and CLID into packet */
-      if (!read_write(pipefd[0], buf, data.clid_len, 1))
+      /* and CLID into packet, avoid overwrite from bad data */
+      if ((data.clid_len > daemon->packet_buff_sz) || !read_write(pipefd[0], buf, data.clid_len, 1))
 	continue;
       for (p = daemon->packet, i = 0; i < data.clid_len; i++)
 	{
@@ -150,18 +152,25 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       
       /* and expiry or length into dhcp_buff2 */
 #ifdef HAVE_BROKEN_RTC
-      sprintf(daemon->dhcp_buff2, "%u ", data.length);
+      sprintf(daemon->dhcp_buff2, "%u", data.length);
 #else
-      sprintf(daemon->dhcp_buff2, "%lu ", (unsigned long)data.expires);
+      sprintf(daemon->dhcp_buff2, "%lu", (unsigned long)data.expires);
 #endif
       
+      /* supplied data may just exceed normal buffer (unlikely) */
+      if ((data.hostname_len + data.ed_len) > daemon->packet_buff_sz && 
+	  !(alloc_buff = buf = malloc(data.hostname_len + data.ed_len)))
+	continue;
+      
       if (!read_write(pipefd[0], buf, 
-		      data.hostname_len + data.uclass_len + data.vclass_len + data.shost_len, 1))
+		      data.hostname_len + data.ed_len, 1))
 	continue;
       
       /* possible fork errors are all temporary resource problems */
       while ((pid = fork()) == -1 && (errno == EAGAIN || errno == ENOMEM))
 	sleep(2);
+
+      free(alloc_buff);
       
       if (pid == -1)
 	continue;
@@ -204,51 +213,6 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       my_setenv("DNSMASQ_LEASE_EXPIRES", daemon->dhcp_buff2, &err); 
 #endif
       
-      if (data.vclass_len != 0)
-	{
-	  buf[data.vclass_len - 1] = 0; /* don't trust zero-term */
-	  /* cannot have = chars in env - truncate if found . */
-	  if ((p = strchr((char *)buf, '=')))
-	    *p = 0;
-	  my_setenv("DNSMASQ_VENDOR_CLASS", (char *)buf, &err);
-	  buf += data.vclass_len;
-	}
-      
-      if (data.uclass_len != 0)
-	{
-	  unsigned char *end = buf + data.uclass_len;
-	  buf[data.uclass_len - 1] = 0; /* don't trust zero-term */
-	  
-	  for (i = 0; buf < end;)
-	    {
-	      size_t len = strlen((char *)buf) + 1;
-	      if ((p = strchr((char *)buf, '=')))
-		*p = 0;
-	      if (strlen((char *)buf) != 0)
-		{
-		  sprintf(daemon->dhcp_buff2, "DNSMASQ_USER_CLASS%i", i++);
-		  my_setenv(daemon->dhcp_buff2, (char *)buf, &err);
-		}
-	      buf += len;
-	    }
-	}
-      
-      if (data.shost_len != 0)
-	{
-	  buf[data.shost_len - 1] = 0; /* don't trust zero-term */
-	  /* cannot have = chars in env - truncate if found . */
-	  if ((p = strchr((char *)buf, '=')))
-	    *p = 0;
-	  my_setenv("DNSMASQ_SUPPLIED_HOSTNAME", (char *)buf, &err);
-	  buf += data.shost_len;
-	}
-
-      if (data.giaddr.s_addr != 0)
-	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
-
-      sprintf(daemon->dhcp_buff2, "%u ", data.remaining_time);
-      my_setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, &err);
-      
       if (data.hostname_len != 0)
 	{
 	  char *dot;
@@ -260,8 +224,29 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	    {
 	      my_setenv("DNSMASQ_DOMAIN", dot+1, &err);
 	      *dot = 0;
-	    }
+	    } 
+	  buf += data.hostname_len;
 	}
+
+      end = buf + data.ed_len;
+      buf = grab_extradata(buf, end, "DNSMASQ_VENDOR_CLASS", &err);
+      buf = grab_extradata(buf, end, "DNSMASQ_SUPPLIED_HOSTNAME", &err);
+      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_OUI", &err);
+      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_SERIAL", &err);   
+      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_CLASS", &err);
+      buf = grab_extradata(buf, end, "DNSMASQ_TAGS", &err);
+      
+      for (i = 0; buf; i++)
+	{
+	  sprintf(daemon->dhcp_buff2, "DNSMASQ_USER_CLASS%i", i);
+	  buf = grab_extradata(buf, end, daemon->dhcp_buff2, &err);
+	}
+      
+      if (data.giaddr.s_addr != 0)
+	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
+
+      sprintf(daemon->dhcp_buff2, "%u", data.remaining_time);
+      my_setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, &err);
       
       if (data.action == ACTION_OLD_HOSTNAME && hostname)
 	{
@@ -294,30 +279,48 @@ static void my_setenv(const char *name, const char *value, int *error)
     *error = errno;
 }
  
+static unsigned char *grab_extradata(unsigned char *buf, unsigned char *end,  char *env, int *err)
+{
+  unsigned char *next;
+
+  if (!buf || (buf == end))
+    return NULL;
+
+  for (next = buf; *next != 0; next++)
+    if (next == end)
+      return NULL;
+  
+  if (next != buf)
+    {
+      char *p;
+      /* No "=" in value */
+      if ((p = strchr((char *)buf, '=')))
+	*p = 0;
+      my_setenv(env, (char *)buf, err);
+    }
+
+  return next + 1;
+}
+
 /* pack up lease data into a buffer */    
 void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t now)
 {
   unsigned char *p;
   size_t size;
-  unsigned int hostname_len = 0, clid_len = 0, vclass_len = 0;
-  unsigned int uclass_len = 0, shost_len = 0;
+  unsigned int hostname_len = 0, clid_len = 0, ed_len = 0;
   
   /* no script */
   if (daemon->helperfd == -1)
     return;
 
-  if (lease->vendorclass)
-    vclass_len = lease->vendorclass_len;
-  if (lease->userclass)
-    uclass_len = lease->userclass_len;
-  if (lease->supplied_hostname)
-    shost_len = lease->supplied_hostname_len;
+  if (lease->extradata)
+    ed_len = lease->extradata_len;
   if (lease->clid)
     clid_len = lease->clid_len;
   if (hostname)
     hostname_len = strlen(hostname) + 1;
 
-  size = sizeof(struct script_data) +  clid_len + vclass_len + uclass_len + shost_len + hostname_len;
+  size = sizeof(struct script_data) +  clid_len + ed_len + hostname_len;
 
   if (size > buf_size)
     {
@@ -339,26 +342,13 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
   buf->hwaddr_len = lease->hwaddr_len;
   buf->hwaddr_type = lease->hwaddr_type;
   buf->clid_len = clid_len;
-  buf->vclass_len = vclass_len;
-  buf->uclass_len = uclass_len;
-  buf->shost_len = shost_len;
+  buf->ed_len = ed_len;
   buf->hostname_len = hostname_len;
   buf->addr = lease->addr;
   buf->giaddr = lease->giaddr;
   memcpy(buf->hwaddr, lease->hwaddr, lease->hwaddr_len);
-  buf->interface[0] = 0;
-#ifdef HAVE_LINUX_NETWORK
-  if (lease->last_interface != 0)
-    {
-      struct ifreq ifr;
-      ifr.ifr_ifindex = lease->last_interface;
-      if (ioctl(daemon->dhcpfd, SIOCGIFNAME, &ifr) != -1)
-	strncpy(buf->interface, ifr.ifr_name, IF_NAMESIZE);
-    }
-#else
-  if (lease->last_interface != 0)
-    if_indextoname(lease->last_interface, buf->interface);
-#endif
+  if (!indextoname(daemon->dhcpfd, lease->last_interface, buf->interface))
+    buf->interface[0] = 0;
   
 #ifdef HAVE_BROKEN_RTC 
   buf->length = lease->length;
@@ -373,27 +363,16 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
       memcpy(p, lease->clid, clid_len);
       p += clid_len;
     }
-  if (vclass_len != 0)
-    {
-      memcpy(p, lease->vendorclass, vclass_len);
-      p += vclass_len;
-    }
-  if (uclass_len != 0)
-    {
-      memcpy(p, lease->userclass, uclass_len);
-      p += uclass_len;
-    }
-  if (shost_len != 0)
-    {
-      memcpy(p, lease->supplied_hostname, shost_len);
-      p += shost_len;
-    } 
   if (hostname_len != 0)
     {
       memcpy(p, hostname, hostname_len);
       p += hostname_len;
     }
-
+  if (ed_len != 0)
+    {
+      memcpy(p, lease->extradata, ed_len);
+      p += ed_len;
+    }
   bytes_in_buf = p - (unsigned char *)buf;
 }
 

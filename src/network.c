@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -294,16 +294,35 @@ static int create_ipv6_listener(struct listener **link, int port)
       setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
       !fix_fd(fd) ||
       !fix_fd(tcpfd) ||
-#ifdef IPV6_RECVPKTINFO
-      setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1 ||
-#else
-      setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1 ||
-#endif
       bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
       listen(tcpfd, 5) == -1 ||
       bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1) 
     return 0;
-      
+
+  /* The API changed around Linux 2.6.14 but the old ABI is still supported:
+     handle all combinations of headers and kernel.
+     OpenWrt note that this fixes the problem addressed by your very broken patch. */
+
+  daemon->v6pktinfo = IPV6_PKTINFO;
+
+#ifdef IPV6_RECVPKTINFO
+#  ifdef IPV6_2292PKTINFO
+  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
+    {
+      if (errno == ENOPROTOOPT && setsockopt(fd, IPV6_LEVEL, IPV6_2292PKTINFO, &opt, sizeof(opt)) != -1)
+	daemon->v6pktinfo = IPV6_2292PKTINFO;
+      else
+	return 0;
+    }
+#  else
+  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
+    return 0;
+#  endif 
+#else
+  if (setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1)
+    return 0;
+#endif
+  
   l = safe_malloc(sizeof(struct listener));
   l->fd = fd;
   l->tcpfd = tcpfd;
@@ -553,7 +572,7 @@ int local_bind(int fd, union mysockaddr *addr, char *intname, int is_tcp)
     
 #if defined(SO_BINDTODEVICE)
   if (intname[0] != 0 &&
-      setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, intname, strlen(intname)) == -1)
+      setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, intname, IF_NAMESIZE) == -1)
     return 0;
 #endif
 
@@ -652,7 +671,7 @@ void pre_allocate_sfds(void)
 	errno != 0 &&
 	(daemon->options & OPT_NOWILD))
       {
-	prettyprint_addr(&srv->addr, daemon->namebuff);
+	prettyprint_addr(&srv->source_addr, daemon->namebuff);
 	if (srv->interface[0] != 0)
 	  {
 	    strcat(daemon->namebuff, " ");
@@ -670,6 +689,10 @@ void check_servers(void)
   struct server *new, *tmp, *ret = NULL;
   int port = 0;
 
+  /* interface may be new since startup */
+  if (!(daemon->options & OPT_NOWILD))
+    enumerate_interfaces();
+  
   for (new = daemon->servers; new; new = tmp)
     {
       tmp = new->next;

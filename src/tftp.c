@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -130,7 +130,7 @@ void tftp_request(struct listener *listen, time_t now)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
 	  return;
      
-      strncpy(name, ifr.ifr_name, IF_NAMESIZE);
+      strncpy(ifr.ifr_name, name, IF_NAMESIZE);
       if (ioctl(listen->tftpfd, SIOCGIFMTU, &ifr) != -1)
 	mtu = ifr.ifr_mtu;      
     }
@@ -279,7 +279,7 @@ void tftp_request(struct listener *listen, time_t now)
     free_transfer(transfer);
   else
     {
-      my_syslog(MS_TFTP | LOG_INFO, _("TFTP sent %s to %s"), daemon->namebuff, inet_ntoa(peer.sin_addr));
+      my_syslog(MS_TFTP | LOG_INFO, _("sent %s to %s"), daemon->namebuff, inet_ntoa(peer.sin_addr));
       transfer->next = daemon->tftp_trans;
       daemon->tftp_trans = transfer;
     }
@@ -413,7 +413,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 			  *(q++) = *r;
 		      *q = 0;
 		    }
-		  my_syslog(MS_TFTP | LOG_ERR, _("TFTP error %d %s received from %s"),
+		  my_syslog(MS_TFTP | LOG_ERR, _("error %d %s received from %s"),
 			    (int)ntohs(mess->block), err, 
 			    inet_ntoa(transfer->peer.sin_addr));	
 		  
@@ -444,7 +444,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	      /* don't complain about timeout when we're awaiting the last
 		 ACK, some clients never send it */
 	      if (len != 0)
-		my_syslog(MS_TFTP | LOG_ERR, _("TFTP failed sending %s to %s"), 
+		my_syslog(MS_TFTP | LOG_ERR, _("failed sending %s to %s"), 
 			  transfer->file->filename, inet_ntoa(transfer->peer.sin_addr));
 	      len = 0;
 	    }
@@ -503,7 +503,7 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
   mess->op = htons(OP_ERR);
   mess->err = htons(err);
   ret += (snprintf(mess->message, 500,  message, file, errstr) + 1);
-  my_syslog(MS_TFTP | LOG_ERR, "TFTP %s", mess->message);
+  my_syslog(MS_TFTP | LOG_ERR, "%s", mess->message);
   
   return  ret;
 }

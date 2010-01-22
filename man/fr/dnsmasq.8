@@ -140,8 +140,7 @@ que le DHCP ou le TFTP.
 .TP
 .B \-P, --edns-packet-max=<taille>
 Spécifie la taille maximum de paquet UDP EDNS.0 supporté par le relai DNS. Le
-défaut est de 1280, qui est la valeur maximale
-recommandée pour ethernet dans la RFC2671.
+défaut est de 4096, qui est la valeur recommandée dans la RFC5625.
 .TP
 .B \-Q, --query-port=<numéro de port>
 Envoie et écoute les requêtes DNS sortantes depuis le port UDP spécifié par
@@ -503,7 +502,7 @@ lorsqu'un serveur web a la résolution de nom activée pour l'enregistrement de
 son journal des requêtes, ce qui peut générer un nombre important de requêtes
 simultanées.
 .TP
-.B \-F, --dhcp-range=[[net:]identifiant de réseau,]<adresse de début>,<adresse de fin>[[,<masque de réseau>],<broadcast>][,<durée de bail>]
+.B \-F, --dhcp-range=[[net:]identifiant de réseau,]<adresse de début>,<adresse de fin>[,<masque de réseau>[,<broadcast>]][,<durée de bail>]
 Active le serveur DHCP. Les adresses seront données dans la plage comprise entre
 <adresse de début> et <adresse de fin> et à partir des adresses définies
 statiquement dans l'option
@@ -650,7 +649,7 @@ par Dnsmasq, ces lignes ont exactement le même effet que l'option
 contenant les mêmes informations. /etc/ethers est relu à la réception d'un
 signal SIGHUP par Dnsmasq.
 .TP
-.B \-O, --dhcp-option=[<identifiant_de_réseau>,[<identifiant_de_réseau>,]][encap:<option>,][vendor:[<classe_vendeur>],][<option>|option:<nom d'option>],[<valeur>[,<valeur>]]
+.B \-O, --dhcp-option=[<identifiant_de_réseau>,[<identifiant_de_réseau>,]][encap:<option>,][vi-encap:<entreprise>,][vendor:[<classe_vendeur>],][<option>|option:<nom d'option>],[<valeur>[,<valeur>]]
 Spécifie des options différentes ou supplémentaires pour des clients DHCP. Par
 défaut, Dnsmasq envoie un ensemble standard d'options aux clients DHCP : le
 masque de réseau et l'adresse de broadcast sont les mêmes que pour l'hôte
@@ -729,10 +728,17 @@ Plusieurs options encapsulées avec le même numéro d'option seront correctemen
 combinées au sein d'une seule option encapsulée. Il n'est pas possible de
 spécifier encap: et vendor: au sein d'une même option dhcp.
 
+La dernière variante pour les options encapsulées est "l'option de Vendeur
+identifiant le vendeur" ("Vendor-Identifying Vendor Options") telle que
+décrite dans le RFC3925. Celles-ci sont spécifiées comme suit :
+.B --dhcp-option=vi-encap:2, 10, "text"
+Le numéro dans la section vi-encap: est le numéro IANA de l'entreprise servant
+à identifier cette option.
+
 L'adresse 0.0.0.0 n'est pas traitée de manière particulière lorsque fournie dans
 une option encapsulée.
 .TP
-.B --dhcp-option-force=[<identifiant de réseau>,[<identifiant de réseau>,]][encap:<option>,][vendor:[<classe de vendeur>],]<option>,[<valeur>[,<valeur>]]
+.B --dhcp-option-force=[<identifiant de réseau>,[<identifiant de réseau>,]][encap:<option>,][vi-encap:<entreprise>,][vendor:[<classe de vendeur>],]<option>,[<valeur>[,<valeur>]]
 Cela fonctionne exactement de la même façon que
 .B --dhcp-option
 sauf que cette option sera toujours envoyée, même si le client ne la demande pas
@@ -794,7 +800,7 @@ relais DHCP, alors l'identifiant de réseau est positionné.
 Associe des options de relais DHCP issues de la RFC3993 à des identifiants de
 réseau.
 .TP
-.B --dhcp-match=<identifiant de réseau>,<numéro d'option>|option:<nom d'option>[,<valeur>]
+.B --dhcp-match=<identifiant de réseau>,<numéro d'option>|option:<nom d'option>|vi-encap:<entreprise>[,<valeur>]
 Si aucune valeur n'est spécifiée, associe l'identifiant de réseau si le client
 envoie une option DHCP avec le numéro ou le nom spécifié. Lorsqu'une valeur est
 fournie, positionne le label seulement dans le cas où l'option est fournie et
@@ -811,6 +817,11 @@ spécifie le label "efi-ia32" si le numéro 6 apparaît dnas la liste
 d'architectures envoyé par le client au sein de l'option 93. (se réferer
 au RFC 4578 pour plus de détails). Si la valeur est un chaine de caractères,
 celle-ci est recherchée (correspondance en temps que sous-chaîne).
+
+Pour la forme particulière vi-encap:<numéro d'entreprise>, la comparaison se
+fait avec les classes de vendeur "identifiant de vendeur" ("vendor-identifying
+vendor classes") pour l'entreprise dont le numéro est fourni en option.
+Veuillez vous réferer à la RFC 3925 pour plus de détail.
 .TP
 .B \-J, --dhcp-ignore=<identifiant de réseau>[,<identifiant de réseau>]
 Lorsque tous les identifiants de réseau fournis coïncident avec la liste
@@ -847,7 +858,7 @@ Si d'éventuels identifiants de réseau sont fournis, ils doivent coïncider ave
 ceux du client pour que cet élement de configuration lui soit envoyé. Il est à
 noter que les identifiants de réseau doivent-être préfixés par "net:".
 .TP
-.B --pxe-service=[net:<identifiant de réseau>,]<CSA>,<entrée de menu>,<nom de fichier>|<type de service de démarrage>[,<adresse de serveur>]
+.B --pxe-service=[net:<identifiant de réseau>,]<CSA>,<entrée de menu>[,<nom de fichier>|<type de service de démarrage>][,<adresse de serveur>]
 La plupart des ROMS de démarrage PXE ne permettent au système PXE que la simple
 obtention d'une adresse IP, le téléchargement du fichier spécifié dans
 .B dhcp-boot
@@ -870,10 +881,12 @@ Veuillez noter que le suffixe de "couche" (en principe ".0") est fourni par PXE
 et ne doit pas être rajouté au nom de fichier. Si une valeur numérique entière
 est fournir pour le type de démarrage, en remplacement du nom de fichier, le
 client PXE devra chercher un service de démarrage de ce type sur le réseau.
-Cette recherche peut être faite via multicast ou broadcast, ou directement
-auprès d'un serveur si son adresse IP est fournie dans l'option. Un service de
-démarrage de type 0 est spécial et provoquera une interruption du démarrage par
-le réseau ainsi que la poursuite du démarrage sur un média local.
+Cette recherche peut être faite via broadcast ou directement auprès d'un
+serveur si son adresse IP est fournie dans l'option.
+Si aucun nom de fichier n'est donné ni aucune valeur de type de service de
+démarrage n'est fournie (ou qu'une valeur de 0 est donnée pour le type de
+service), alors l'entrée de menu provoque l'interruption du démarrage par
+le réseau et la poursuite du démarrage sur un média local.
 .TP
 .B --pxe-prompt=[net:<identifiant de réseau>,]<invite>[,<délai>]
 Cette option permet d'afficher une invite à la suite du démarrage PXE. Si un
@@ -984,7 +997,9 @@ DNSMASQ_INTERFACE contient le nom de l'interface sur laquelle la requête est
 arrivée; ceci n'est pas renseigné dans le cas des actions "old" ayant lieu
 après un redémarrage de dnsmasq. La variable DNSMASQ_RELAY_ADDRESS est
 renseignée si le client a utilisé un relai DHCP pour contacter Dnsmasq, si
-l'adresse IP du relai est connue.
+l'adresse IP du relai est connue. DNSMASQ_TAGS contient tous les labels
+d'identifiants de réseau fournis pendant la transaction DHCP, séparés par des
+espaces.
 Tous les descripteurs de fichiers sont fermés, sauf stdin, stdout et stderr qui
 sont ouverts sur /dev/null (sauf en mode déverminage).
 Le script n'est pas lancé de manière concurrente : si un autre changement de
@@ -1420,6 +1435,25 @@ en associant des serveurs de publicité bien connus à l'adresse 127.0.0.1 ou
 ou d'un fichier d'hôte additionnel. Cette liste peut-être très longue, Dnsmasq
 ayant été testé avec succès avec un million de noms. Cette taille de fichier
 nécessite un processeur à 1 Ghz et environ 60 Mo de RAM.
+
+.SH INTERNATIONALISATION
+Dnsmasq peut être compilé pour supporter l'internationalisation. Pour cela,
+les cibles "all-i18n" et "install-i18n" doivent être données à make, en lieu
+et place des cibles standards "all" et "install". Lorsque compilé avec le
+support de l'internationalisation, dnsmasq supporte les noms de domaines
+internationalisés ("internationalised domain names" ou IDN), et les messages de
+traces ("logs") sont écrits dans la langue locale. Les noms de domaines dans
+/etc/hosts, /etc/ethers et /etc/dnsmasq.conf contenant des caractères
+non-ASCII seront transformés selon la représentation punycode interne
+aux DNS. Veuillez noter que dnsmasq détermine la langue pour les messages
+ainsi que le jeu de caractères susceptible d'être utilisé dans les fichiers
+de configuration à partir de la variable d'environnement LANG. Ceci devrait
+être configuré à la valeur par défaut du système par les scripts démarrant
+dnsmasq. Lorsque les fichiers de configuration sont édités, veuillez faire
+attention à le faire en utilisant la valeur de locale par défaut du système
+et non une valeur spécifique à l'utilisateur, puisque dnsmasq n'a aucun
+moyen de déterminer directement la valeur de jeu de caractère utilisé,
+et assume de ce fait qu'il s'agit de la valeur par défaut du système.
 
 .SH FICHIERS
 .IR /etc/dnsmasq.conf 

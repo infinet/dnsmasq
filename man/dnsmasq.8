@@ -123,8 +123,7 @@ to zero completely disables DNS function, leaving only DHCP and/or TFTP.
 .TP
 .B \-P, --edns-packet-max=<size>
 Specify the largest EDNS.0 UDP packet which is supported by the DNS
-forwarder. Defaults to 1280, which is the RFC2671-recommended maximum
-for ethernet.
+forwarder. Defaults to 4096, which is the RFC5625-recommended size.
 .TP
 .B \-Q, --query-port=<query_port>
 Send outbound DNS queries from, and listen for their replies on, the
@@ -427,7 +426,7 @@ Set the maximum number of concurrent DNS queries. The default value is
 where this needs to be increased is when using web-server log file
 resolvers, which can generate large numbers of concurrent queries.
 .TP
-.B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[[,<netmask>],<broadcast>][,<lease time>]
+.B \-F, --dhcp-range=[[net:]network-id,]<start-addr>,<end-addr>[,<netmask>[,<broadcast>]][,<lease time>]
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
 in 
@@ -564,7 +563,7 @@ have exactly the same effect as
 options containing the same information. /etc/ethers is re-read when 
 dnsmasq receives SIGHUP.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
+.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
 Specify different or extra options to DHCP clients. By default,
 dnsmasq sends some standard options to DHCP clients, the netmask and
 broadcast address are set to the same as the host running dnsmasq, and
@@ -632,10 +631,16 @@ options are given which are encapsulated with the same option number
 then they will be correctly combined into one encapsulated option.
 encap: and vendor: are may not both be set in the same dhcp-option.
 
+The final variant on encapsulated options is "Vendor-Identifying
+Vendor Options" as specified by RFC3925. These are denoted like this: 
+.B --dhcp-option=vi-encap:2, 10, "text"
+The number in the vi-encap: section is the IANA enterprise number
+used to identify this option.
+
 The address 0.0.0.0 is not treated specially in
 encapsulated options.
 .TP
-.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
+.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 This works in exactly the same way as
 .B --dhcp-option
 except that the option will always be sent, even if the client does
@@ -687,7 +692,7 @@ agent ID and one provided by a relay agent, the network-id tag is set.
 .B --dhcp-subscrid=<network-id>,<subscriber-id>
 Map from RFC3993 subscriber-id relay agent options to network-id tags.
 .TP
-.B --dhcp-match=<network-id>,<option number>|option:<option name>[,<value>]
+.B --dhcp-match=<network-id>,<option number>|option:<option name>|vi-encap:<enterprise>[,<value>]
 Without a value, set the network-id tag if the client sends a DHCP
 option of the given number or name. When a value is given, set the tag only if
 the option is sent and matches the value. The value may be of the form
@@ -702,7 +707,11 @@ must match, so
 
 will set the tag "efi-ia32" if the the number 6 appears in the list of
 architectures sent by the client in option 93. (See RFC 4578 for
-details.)  If the value is a string, substring matching is used. 
+details.)  If the value is a string, substring matching is used.
+
+The special form with vi-encap:<enterpise number> matches against
+vendor-identifying vendor classes for the specified enterprise. Please
+see RFC 3925 for more details of the rare and interesting beasts.
 .TP
 .B \-J, --dhcp-ignore=<network-id>[,<network-id>]
 When all the given network-ids match the set of network-ids derived
@@ -736,7 +745,7 @@ If the optional network-id(s) are given,
 they must match for this configuration to be sent. Note that
 network-ids are prefixed by "net:" to distinguish them.
 .TP
-.B --pxe-service=[net:<network-id>,]<CSA>,<menu text>,<basename>|<bootservicetype>[,<server address>]
+.B --pxe-service=[net:<network-id>,]<CSA>,<menu text>[,<basename>|<bootservicetype>][,<server address>]
 Most uses of PXE boot-ROMS simply allow the PXE
 system to obtain an IP address and then download the file specified by
 .B dhcp-boot
@@ -759,8 +768,9 @@ suffix (normally ".0") is supplied by PXE, and should not be added to
 the basename. If an integer boot service type, rather than a basename
 is given, then the PXE client will search for a
 suitable boot service for that type on the network. This search may be done
-by multicast or broadcast, or direct to a server if its IP address is provided.  A boot service
-type of 0 is special, and will abort the net boot procedure and
+by broadcast, or direct to a server if its IP address is provided.  
+If no boot service type or filename is provided (or a boot service type of 0 is specified)
+then the menu entry will abort the net boot procedure and
 continue booting from local media.
 .TP
 .B --pxe-prompt=[net:<network-id>,]<prompt>[,<timeout>]
@@ -865,7 +875,9 @@ ie no name, and the former name is provided in the environment
 variable DNSMASQ_OLD_HOSTNAME. DNSMASQ_INTERFACE stores the name of
 the interface on which the request arrived; this is not set for "old"
 actions when dnsmasq restarts. DNSMASQ_RELAY_ADDRESS is set if the client
-used a DHCP relay to contact dnsmasq and the IP address of the relay is known.
+used a DHCP relay to contact dnsmasq and the IP address of the relay
+is known. DNSMASQ_TAGS contains all the network-id tags set during the
+DHCP transaction, separated by spaces.
 All file descriptors are
 closed except stdin, stdout and stderr which are open to /dev/null
 (except in debug mode).

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -406,6 +406,7 @@ static const struct {
   { "domain-search", 119, 0 },
   { "sip-server", 120, 0 },
   { "classless-static-route", 121, 0 },
+  { "vendor-id-encap", 125, 0 },
   { "server-ip-address", 255, OT_ADDR_LIST }, /* special, internal only, sets siaddr */
   { NULL, 0, 0 }
 };
@@ -716,6 +717,16 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	  new->u.encap = atoi(arg+6);
 	  new->flags |= DHOPT_ENCAPSULATE;
 	}
+      else if (strstr(arg, "vi-encap:") == arg)
+	{
+	  new->u.encap = atoi(arg+9);
+	  new->flags |= DHOPT_RFC3925;
+	  if (flags == DHOPT_MATCH)
+	    {
+	      new->opt = 1; /* avoid error below */
+	      break;
+	    }
+	}
       else
 	{
 	  new->netid = opt_malloc(sizeof (struct dhcp_netid));
@@ -731,6 +742,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
       arg = comma; 
     }
   
+  /* option may be missing with rfc3925 match */
   if (new->opt == 0)
     problem = _("bad dhcp-option");
   else if (comma)
@@ -835,7 +847,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	  new->val = op = opt_malloc((5 * addrs) + 1);
 	  new->flags |= DHOPT_ADDR;
 
-	  if (!(new->flags & DHOPT_ENCAPSULATE) && new->opt == 120)
+	  if (!(new->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925)) && new->opt == 120)
 	    {
 	      *(op++) = 1; /* RFC 3361 "enc byte" */
 	      new->flags &= ~DHOPT_ADDR;
@@ -872,7 +884,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
       else if (is_string)
 	{
 	  /* text arg */
-	  if ((new->opt == 119 || new->opt == 120) && !(new->flags & DHOPT_ENCAPSULATE))
+	  if ((new->opt == 119 || new->opt == 120) && !(new->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925)))
 	    {
 	      /* dns search, RFC 3397, or SIP, RFC 3361 */
 	      unsigned char *q, *r, *tail;
@@ -946,7 +958,9 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	}
     }
 
-  if ((new->len > 255) || (new->len > 253 && (new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE))))
+  if ((new->len > 255) || 
+      (new->len > 253 && (new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE))) ||
+      (new->len > 250 && (new->flags & DHOPT_RFC3925)))
     problem = _("dhcp-option too long");
   
   if (!problem)
@@ -1460,7 +1474,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		      {
 #if defined(SO_BINDTODEVICE)
 			newlist->source_addr.in.sin_addr.s_addr = INADDR_ANY;
-			strncpy(newlist->interface, source, IF_NAMESIZE);
+			strncpy(newlist->interface, source, IF_NAMESIZE - 1);
 #else
 			problem = _("interface binding not supported");
 #endif
@@ -1485,7 +1499,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		      {
 #if defined(SO_BINDTODEVICE)
 			newlist->source_addr.in6.sin6_addr = in6addr_any; 
-			strncpy(newlist->interface, source, IF_NAMESIZE);
+			strncpy(newlist->interface, source, IF_NAMESIZE - 1);
 #else
 			problem = _("interface binding not supported");
 #endif
@@ -1623,13 +1637,13 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
     case LOPT_BRIDGE:   /* --bridge-interface */
       {
 	struct dhcp_bridge *new = opt_malloc(sizeof(struct dhcp_bridge));
-	if (!(comma = split(arg)))
+	if (!(comma = split(arg)) || strlen(arg) > IF_NAMESIZE - 1 )
 	  {
 	    problem = _("bad bridge-interface");
 	    break;
 	  }
 	
-	strncpy(new->iface, arg, IF_NAMESIZE);
+	strcpy(new->iface, arg);
 	new->alias = NULL;
 	new->next = daemon->bridges;
 	daemon->bridges = new;
@@ -1637,12 +1651,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 	do {
 	  arg = comma;
 	  comma = split(arg);
-	  if (strlen(arg) != 0)
+	  if (strlen(arg) != 0 && strlen(arg) <= IF_NAMESIZE - 1)
 	    {
 	      struct dhcp_bridge *b = opt_malloc(sizeof(struct dhcp_bridge)); 
 	      b->next = new->alias;
 	      new->alias = b;
-	      strncpy(b->iface, arg, IF_NAMESIZE);
+	      strcpy(b->iface, arg);
 	    }
 	} while (comma);
 	
@@ -2067,7 +2081,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		 new->CSA = i;
 		 new->menu = opt_string_alloc(arg);
 		 
-		 if (comma)
+		 if (!comma)
+		   {
+		     new->type = 0; /* local boot */
+		     new->basename = NULL;
+		   }
+		 else
 		   {
 		     arg = comma;
 		     comma = split(arg);
@@ -2084,21 +2103,22 @@ static char *one_opt(int option, char *arg, char *gen_prob, int nest)
 		     
 		     if (comma && (new->server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
 		       option = '?';
-		     
-		     /* Order matters */
-		     new->next = NULL;
-		     if (!daemon->pxe_services)
-		       daemon->pxe_services = new; 
-		     else
-		       {
-			 struct pxe_service *s;
-			 for (s = daemon->pxe_services; s->next; s = s->next);
-			 s->next = new;
-		       }
-		     
-		     daemon->enable_pxe = 1;
-		     break;
 		   }
+
+		 /* Order matters */
+		 new->next = NULL;
+		 if (!daemon->pxe_services)
+		   daemon->pxe_services = new; 
+		 else
+		   {
+		     struct pxe_service *s;
+		     for (s = daemon->pxe_services; s->next; s = s->next);
+		     s->next = new;
+		   }
+		 
+		 daemon->enable_pxe = 1;
+		 break;
+		
 	       }
 	   }
 	 

@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
  
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define COPYRIGHT "Copyright (C) 2000-2009 Simon Kelley" 
+#define COPYRIGHT "Copyright (c) 2000-2010 Simon Kelley" 
 
 #ifndef NO_LARGEFILE
 /* Ensure we can use files >2GB (log files may grow this big) */
@@ -26,6 +26,12 @@
 #ifdef __linux__
 #  define _GNU_SOURCE
 #  include <features.h> 
+#endif
+
+/* Need these defined early */
+#if defined(__sun) || defined(__sun__)
+#  define _XPG4_2
+#  define __EXTENSIONS__
 #endif
 
 /* get these before config.h  for IPv6 stuff... */
@@ -58,7 +64,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #if defined(HAVE_SOLARIS_NETWORK)
-#include <sys/sockio.h>
+#  include <sys/sockio.h>
 #endif
 #include <sys/select.h>
 #include <sys/wait.h>
@@ -66,6 +72,10 @@
 #include <sys/un.h>
 #include <limits.h>
 #include <net/if.h>
+#if defined(HAVE_SOLARIS_NETWORK) && !defined(ifr_mtu)
+/* Some solaris net/if./h omit this. */
+#  define ifr_mtu  ifr_ifru.ifru_metric
+#endif
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -411,8 +421,8 @@ struct dhcp_lease {
   int hwaddr_len, hwaddr_type;
   unsigned char hwaddr[DHCP_CHADDR_MAX]; 
   struct in_addr addr, override, giaddr;
-  unsigned char *vendorclass, *userclass, *supplied_hostname;
-  unsigned int vendorclass_len, userclass_len, supplied_hostname_len;
+  unsigned char *extradata;
+  unsigned int extradata_len, extradata_size;
   int last_interface;
   struct dhcp_lease *next;
 };
@@ -482,6 +492,7 @@ struct dhcp_opt {
 #define DHOPT_VENDOR           256
 #define DHOPT_HEX              512
 #define DHOPT_VENDOR_MATCH    1024
+#define DHOPT_RFC3925         2048
 
 struct dhcp_boot {
   char *file, *sname;
@@ -654,9 +665,10 @@ extern struct daemon {
   struct randfd *rfd_save; /*      "        "        */
   pid_t tcp_pids[MAX_PROCS];
   struct randfd randomsocks[RANDOM_SOCKS];
+  int v6pktinfo; 
 
   /* DHCP state */
-  int dhcpfd, helperfd; 
+  int dhcpfd, helperfd, pxefd; 
 #if defined(HAVE_LINUX_NETWORK)
   int netlinkfd;
 #elif defined(HAVE_BSD_NETWORK)
@@ -784,7 +796,7 @@ struct in_addr get_ifaddr(char *intr);
 /* dhcp.c */
 #ifdef HAVE_DHCP
 void dhcp_init(void);
-void dhcp_packet(time_t now);
+void dhcp_packet(time_t now, int pxe_fd);
 struct dhcp_context *address_available(struct dhcp_context *context, 
 				       struct in_addr addr,
 				       struct dhcp_netid *netids);
@@ -832,7 +844,7 @@ void rerun_scripts(void);
 /* rfc2131.c */
 #ifdef HAVE_DHCP
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
-		  size_t sz, time_t now, int unicast_dest, int *is_inform);
+		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe_fd);
 unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
 			       int clid_len, unsigned char *clid, int *len_out);
 #endif
@@ -866,7 +878,9 @@ int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)());
 char *dbus_init(void);
 void check_dbus_listeners(fd_set *rset, fd_set *wset, fd_set *eset);
 void set_dbus_listeners(int *maxfdp, fd_set *rset, fd_set *wset, fd_set *eset);
+#  ifdef HAVE_DHCP
 void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname);
+#  endif
 #endif
 
 /* helper.c */

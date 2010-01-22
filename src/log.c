@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -267,8 +267,13 @@ void my_syslog(int priority, const char *format, ...)
   else if ((LOG_FACMASK & priority) == MS_DHCP)
     func = "-dhcp";
       
+#ifdef LOG_PRI
   priority = LOG_PRI(priority);
-  
+#else
+  /* Solaris doesn't have LOG_PRI */
+  priority &= LOG_PRIMASK;
+#endif
+
   if (log_stderr) 
     {
       fprintf(stderr, "dnsmasq%s: ", func);

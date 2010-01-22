@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2009 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1327,18 +1327,41 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 	      if (qtype != type && qtype != T_ANY)
 		continue;
 	      
-	      /* Check for "A for A"  queries */
-	      if (qtype == T_A && (addr.addr.addr4.s_addr = inet_addr(name)) != (in_addr_t) -1)
+	      /* Check for "A for A"  queries; be rather conservative 
+		 about what looks like dotted-quad.  */
+	      if (qtype == T_A)
 		{
-		  ans = 1;
-		  if (!dryrun)
+		  char *cp;
+		  unsigned int i, a;
+		  int x;
+
+		  for (cp = name, i = 0, a = 0; *cp; i++)
 		    {
-		      log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, NULL);
-		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-					      daemon->local_ttl, NULL, type, C_IN, "4", &addr))
-			anscount++;
+		      if (!isdigit(*cp) || (x = strtol(cp, &cp, 10)) > 255) 
+			{
+			  i = 5;
+			  break;
+			}
+		      
+		      a = (a << 8) + x;
+		      
+		      if (*cp == '.') 
+			cp++;
 		    }
-		  continue;
+		  
+		  if (i == 4)
+		    {
+		      ans = 1;
+		      if (!dryrun)
+			{
+			  addr.addr.addr4.s_addr = htonl(a);
+			  log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, NULL);
+			  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						  daemon->local_ttl, NULL, type, C_IN, "4", &addr))
+			    anscount++;
+			}
+		      continue;
+		    }
 		}
 
 	      /* interface name stuff */
