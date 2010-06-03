@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.52"
+#define VERSION "2.54"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -22,7 +22,7 @@
 #define EDNS_PKTSZ 4096 /* default max EDNS.0 UDP packet from RFC5625 */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
 #define FORWARD_TEST 50 /* try all servers every 50 queries */
-#define FORWARD_TIME 10 /* or 10 seconds */
+#define FORWARD_TIME 20 /* or 10 seconds */
 #define RANDOM_SOCKS 64 /* max simultaneous random ports */
 #define LEASE_RETRY 60 /* on error, retry writing leasefile after LEASE_RETRY seconds */
 #define CACHESIZ 150 /* default cache size */
@@ -230,13 +230,13 @@ NOTES:
 #elif defined(__FreeBSD__) || \
       defined(__OpenBSD__) || \
       defined(__DragonFly__) || \
-      defined (__FreeBSD_kernel__)
+      defined(__FreeBSD_kernel__)
 #define HAVE_BSD_NETWORK
 /* Later verions of FreeBSD have getopt_long() */
 #if defined(optional_argument) && defined(required_argument)
 #   define HAVE_GETOPT_LONG
 #endif
-#if !defined (__FreeBSD_kernel__)
+#if !defined(__FreeBSD_kernel__)
 #   define HAVE_ARC4RANDOM
 #endif
 #define HAVE_SOCKADDR_SA_LEN

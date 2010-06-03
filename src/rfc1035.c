@@ -513,26 +513,31 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
       
   
 /* is addr in the non-globally-routed IP space? */ 
-static int private_net(struct in_addr addr) 
+static int private_net(struct in_addr addr, int ban_localhost) 
 {
   in_addr_t ip_addr = ntohl(addr.s_addr);
 
   return
-    ((ip_addr & 0xFF000000) == 0x7F000000)  /* 127.0.0.0/8    (loopback) */ || 
+    (((ip_addr & 0xFF000000) == 0x7F000000) && ban_localhost)  /* 127.0.0.0/8    (loopback) */ || 
     ((ip_addr & 0xFFFF0000) == 0xC0A80000)  /* 192.168.0.0/16 (private)  */ ||
     ((ip_addr & 0xFF000000) == 0x0A000000)  /* 10.0.0.0/8     (private)  */ ||
     ((ip_addr & 0xFFF00000) == 0xAC100000)  /* 172.16.0.0/12  (private)  */ ||
     ((ip_addr & 0xFFFF0000) == 0xA9FE0000)  /* 169.254.0.0/16 (zeroconf) */ ;
 }
 
-static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, size_t qlen)
+static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, size_t qlen, char *name)
 {
   int i, qtype, qclass, rdlen;
   unsigned long ttl;
 
   for (i = count; i != 0; i--)
     {
-      if (!(p = skip_name(p, header, qlen, 10)))
+      if (name && (daemon->options & OPT_LOG))
+	{
+	  if (!extract_name(header, qlen, &p, name, 1, 10))
+	    return 0;
+	}
+      else if (!(p = skip_name(p, header, qlen, 10)))
 	return 0; /* bad packet */
       
       GETSHORT(qtype, p); 
@@ -540,15 +545,15 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
       GETLONG(ttl, p);
       GETSHORT(rdlen, p);
       
-      if ((qclass == C_IN) && (qtype == T_A))
+      if (qclass == C_IN && qtype == T_A)
 	{
 	  struct doctor *doctor;
 	  struct in_addr addr;
 	  
 	  if (!CHECK_LEN(header, p, qlen, INADDRSZ))
 	    return 0;
-	   
-	   /* alignment */
+	  
+	  /* alignment */
 	  memcpy(&addr, p, INADDRSZ);
 	  
 	  for (doctor = daemon->doctors; doctor; doctor = doctor->next)
@@ -561,7 +566,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	      else if (ntohl(doctor->in.s_addr) > ntohl(addr.s_addr) || 
 		       ntohl(doctor->end.s_addr) < ntohl(addr.s_addr))
 		continue;
-	     
+	      
 	      addr.s_addr &= ~doctor->mask.s_addr;
 	      addr.s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
 	      /* Since we munged the data, the server it came from is no longer authoritative */
@@ -570,6 +575,30 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	      break;
 	    }
 	}
+      else if (qtype == T_TXT && name && (daemon->options & OPT_LOG))
+	{
+	  unsigned char *p1 = p;
+	  if (!CHECK_LEN(header, p1, qlen, rdlen))
+	    return 0;
+	  while ((p1 - p) < rdlen)
+	    {
+	      unsigned int i, len = *p1;
+	      unsigned char *p2 = p1;
+	      /* make counted string zero-term  and sanitise */
+	      for (i = 0; i < len; i++)
+		if (isprint(*(p2+1)))
+		  {
+		    *p2 = *(p2+1);
+		    p2++;
+		  }
+	      *p2 = 0;
+	      my_syslog(LOG_DEBUG, "reply %s is %s", name, p1);
+	      /* restore */
+	      memmove(p1 + 1, p1, len);
+	      *p1 = len;
+	      p1 += len+1;
+	    }
+	}		  
       
       if (!ADD_RDLEN(header, p, qlen, rdlen))
 	 return 0; /* bad packet */
@@ -578,7 +607,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
   return p; 
 }
 
-static int find_soa(HEADER *header, size_t qlen)
+static int find_soa(HEADER *header, size_t qlen, char *name)
 {
   unsigned char *p;
   int qtype, qclass, rdlen;
@@ -587,7 +616,7 @@ static int find_soa(HEADER *header, size_t qlen)
   
   /* first move to NS section and find TTL from any SOA section */
   if (!(p = skip_questions(header, qlen)) ||
-      !(p = do_doctor(p, ntohs(header->ancount), header, qlen)))
+      !(p = do_doctor(p, ntohs(header->ancount), header, qlen, name)))
     return 0;  /* bad packet */
   
   for (i = ntohs(header->nscount); i != 0; i--)
@@ -623,7 +652,7 @@ static int find_soa(HEADER *header, size_t qlen)
     }
   
   /* rewrite addresses in additioal section too */
-  if (!do_doctor(p, ntohs(header->arcount), header, qlen))
+  if (!do_doctor(p, ntohs(header->arcount), header, qlen, NULL))
     return 0;
   
   if (!found_soa)
@@ -635,8 +664,8 @@ static int find_soa(HEADER *header, size_t qlen)
 /* Note that the following code can create CNAME chains that don't point to a real record,
    either because of lack of memory, or lack of SOA records.  These are treated by the cache code as 
    expired and cleaned out that way. 
-   Return 1 if we reject an address because it look like parct of dns-rebinding attack. */
-int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
+   Return 1 if we reject an address because it look like part of dns-rebinding attack. */
+int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int is_sign, int check_rebind)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -645,11 +674,11 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 
   cache_start_insert();
 
-  /* find_soa is needed for dns_doctor side-effects, so don't call it lazily if there are any. */
-  if (daemon->doctors)
+  /* find_soa is needed for dns_doctor and logging side-effects, so don't call it lazily if there are any. */
+  if (daemon->doctors || (daemon->options & OPT_LOG))
     {
       searched_soa = 1;
-      ttl = find_soa(header, qlen);
+      ttl = find_soa(header, qlen, name);
     }
   
   /* go through the questions. */
@@ -698,6 +727,11 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 		  GETSHORT(aqtype, p1); 
 		  GETSHORT(aqclass, p1);
 		  GETLONG(attl, p1);
+		  if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
+		    {
+		      (p1) -= NS_INT32SZ;
+		      PUTLONG(daemon->max_ttl, p1);
+		    }
 		  GETSHORT(ardlen, p1);
 		  endrr = p1+ardlen;
 		  
@@ -732,7 +766,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen);
+		  ttl = find_soa(header, qlen, NULL);
 		}
 	      if (ttl)
 		cache_insert(NULL, &addr, now, ttl, name_encoding | F_REVERSE | F_NEG | flags);	
@@ -773,6 +807,11 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 		  GETSHORT(aqtype, p1); 
 		  GETSHORT(aqclass, p1);
 		  GETLONG(attl, p1);
+		  if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
+		    {
+		      (p1) -= NS_INT32SZ;
+		      PUTLONG(daemon->max_ttl, p1);
+		    }
 		  GETSHORT(ardlen, p1);
 		  endrr = p1+ardlen;
 		  
@@ -807,9 +846,9 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 			  memcpy(&addr, p1, addrlen);
 			  
 			  /* check for returned address in private space */
-			  if ((daemon->options & OPT_NO_REBIND) &&
+			  if (check_rebind &&
 			      (flags & F_IPV4) &&
-			      private_net(addr.addr.addr4))
+			      private_net(addr.addr.addr4, !(daemon->options & OPT_LOCAL_REBIND)))
 			    return 1;
 			  
 			  newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
@@ -833,7 +872,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now)
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen);
+		  ttl = find_soa(header, qlen, NULL);
 		}
 	      /* If there's no SOA to get the TTL from, but there is a CNAME 
 		 pointing at this, inherit its TTL */
@@ -1120,7 +1159,11 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
   if  (crecp->flags & (F_IMMORTAL | F_DHCP))
     return daemon->local_ttl;
   
-  return crecp->ttd - now;
+  /* Return the Max TTL value if it is lower then the actual TTL */
+  if (daemon->max_ttl == 0 || ((unsigned)(crecp->ttd - now) < daemon->max_ttl))
+    return crecp->ttd - now;
+  else
+    return daemon->max_ttl;
 }
   
 
@@ -1302,7 +1345,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		  } while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
 	      else if (is_arpa == F_IPV4 && 
 		       (daemon->options & OPT_BOGUSPRIV) && 
-		       private_net(addr.addr.addr4))
+		       private_net(addr.addr.addr4, 1))
 		{
 		  /* if not in cache, enabled and private IPV4 address, return NXDOMAIN */
 		  ans = 1;

@@ -456,6 +456,16 @@ A: In almost all cases: none. If you have the normal arrangement with
    and turn on syslog-ng's dns-cache function.
 
 
+Q: DHCP doesn't work with windows Vista, but everything else is fine.
+
+A: The DHCP client on windows Vista (and possibly later versions)
+   demands that the DHCP server send replies as broadcasts. Most other
+   clients don't do this. The broadcasts are send to
+   255.255.255.255. A badly configured firewall which blocks such
+   packets will show exactly these symptoms (Vista fails, others
+   work).
+
+  
 
 
 

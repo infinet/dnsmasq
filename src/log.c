@@ -30,7 +30,8 @@
 
 /* defaults in case we die() before we log_start() */
 static int log_fac = LOG_DAEMON;
-static int log_stderr = 0; 
+static int log_stderr = 0;
+static int echo_stderr = 0;
 static int log_fd = -1;
 static int log_to_file = 0;
 static int entries_alloced = 0;
@@ -54,7 +55,7 @@ int log_start(struct passwd *ent_pw, int errfd)
 {
   int ret = 0;
 
-  log_stderr = !!(daemon->options & OPT_DEBUG);
+  echo_stderr = !!(daemon->options & OPT_DEBUG);
 
   if (daemon->log_fac != -1)
     log_fac = daemon->log_fac;
@@ -67,6 +68,12 @@ int log_start(struct passwd *ent_pw, int errfd)
     { 
       log_to_file = 1;
       daemon->max_logs = 0;
+      if (strcmp(daemon->log_file, "-") == 0)
+	{
+	  log_stderr = 1;
+	  echo_stderr = 0;
+	  log_fd = dup(STDERR_FILENO);
+	}
     }
   
   max_logs = daemon->max_logs;
@@ -90,7 +97,7 @@ int log_start(struct passwd *ent_pw, int errfd)
      change the ownership here so that the file is always owned by
      the dnsmasq user. Then logrotate can just copy the owner.
      Failure of the chown call is OK, (for instance when started as non-root) */
-  if (log_to_file && ent_pw && ent_pw->pw_uid != 0 && 
+  if (log_to_file && !log_stderr && ent_pw && ent_pw->pw_uid != 0 && 
       fchown(log_fd, ent_pw->pw_uid, -1) != 0)
     ret = errno;
 
@@ -99,37 +106,34 @@ int log_start(struct passwd *ent_pw, int errfd)
 
 int log_reopen(char *log_file)
 {
-  if (log_fd != -1)
-    close(log_fd);
-
-  /* NOTE: umask is set to 022 by the time this gets called */
-     
-  if (log_file)
-    {
-      log_fd = open(log_file, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP);
-      return log_fd != -1;
-    }
-  else
+  if (!log_stderr)
+    {      
+      if (log_fd != -1)
+	close(log_fd);
+      
+      /* NOTE: umask is set to 022 by the time this gets called */
+      
+      if (log_file)
+	log_fd = open(log_file, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP);      
+      else
+	{
 #ifdef HAVE_SOLARIS_NETWORK
-    /* Solaris logging is "different", /dev/log is not unix-domain socket.
-       Just leave log_fd == -1 and use the vsyslog call for everything.... */
+	  /* Solaris logging is "different", /dev/log is not unix-domain socket.
+	     Just leave log_fd == -1 and use the vsyslog call for everything.... */
 #   define _PATH_LOG ""  /* dummy */
-    log_fd = -1;
+	  return 1;
 #else
-    {
-       int flags;
-       log_fd = socket(AF_UNIX, connection_type, 0);
-      
-      if (log_fd == -1)
-	return 0;
-      
-      /* if max_logs is zero, leave the socket blocking */
-      if (max_logs != 0 && (flags = fcntl(log_fd, F_GETFL)) != -1)
-	fcntl(log_fd, F_SETFL, flags | O_NONBLOCK);
-    }
+	  int flags;
+	  log_fd = socket(AF_UNIX, connection_type, 0);
+	  
+	  /* if max_logs is zero, leave the socket blocking */
+	  if (log_fd != -1 && max_logs != 0 && (flags = fcntl(log_fd, F_GETFL)) != -1)
+	    fcntl(log_fd, F_SETFL, flags | O_NONBLOCK);
 #endif
-
-  return 1;
+	}
+    }
+  
+  return log_fd != -1;
 }
 
 static void free_entry(void)
@@ -274,7 +278,7 @@ void my_syslog(int priority, const char *format, ...)
   priority &= LOG_PRIMASK;
 #endif
 
-  if (log_stderr) 
+  if (echo_stderr) 
     {
       fprintf(stderr, "dnsmasq%s: ", func);
       va_start(ap, format);
@@ -394,14 +398,19 @@ void check_log_writer(fd_set *set)
 
 void flush_log(void)
 {
-  /* block until queue empty */
-  if (log_fd != -1)
+  /* write until queue empty */
+  while (log_fd != -1)
     {
-      int flags;
-      if ((flags = fcntl(log_fd, F_GETFL)) != -1)
-	fcntl(log_fd, F_SETFL, flags & ~O_NONBLOCK);
+      struct timespec waiter;
       log_write();
-      close(log_fd);
+      if (!entries)
+	{
+	  close(log_fd);	
+	  break;
+	}
+      waiter.tv_sec = 0;
+      waiter.tv_nsec = 1000000; /* 1 ms */
+      nanosleep(&waiter, NULL);
     }
 }
 
@@ -412,11 +421,13 @@ void die(char *message, char *arg1, int exit_code)
   if (!arg1)
     arg1 = errmess;
 
-  log_stderr = 1; /* print as well as log when we die.... */
-  fputc('\n', stderr); /* prettyfy  startup-script message */
+  if (!log_stderr)
+    {
+      echo_stderr = 1; /* print as well as log when we die.... */
+      fputc('\n', stderr); /* prettyfy  startup-script message */
+    }
   my_syslog(LOG_CRIT, message, arg1, errmess);
-  
-  log_stderr = 0;
+  echo_stderr = 0;
   my_syslog(LOG_CRIT, _("FAILED to start up"));
   flush_log();
   

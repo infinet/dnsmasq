@@ -6,7 +6,7 @@
 #
 BIN_DIR="/usr/sbin"
 CONF_DIR="/etc"
-MAN_DIR="/usr/man/man8"
+MAN_DIR="/usr/share/man/man8"
 
 PACKAGE_NAME="dnsmasq"
 

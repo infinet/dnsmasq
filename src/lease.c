@@ -29,11 +29,12 @@ void lease_init(time_t now)
   int clid_len, hw_len, hw_type;
   FILE *leasestream;
   
-  /* These two each hold a DHCP option max size 255
+  /* These each hold a DHCP option max size 255
      and get a terminating zero added */
   daemon->dhcp_buff = safe_malloc(256);
   daemon->dhcp_buff2 = safe_malloc(256); 
-  
+  daemon->dhcp_buff3 = safe_malloc(256);
+ 
   leases_left = daemon->dhcp_max;
 
   if (daemon->options & OPT_LEASE_RO)

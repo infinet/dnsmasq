@@ -245,9 +245,12 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       if (data.giaddr.s_addr != 0)
 	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
 
-      sprintf(daemon->dhcp_buff2, "%u", data.remaining_time);
-      my_setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, &err);
-      
+      if (data.action != ACTION_DEL)
+	{
+	  sprintf(daemon->dhcp_buff2, "%u", data.remaining_time);
+	  my_setenv("DNSMASQ_TIME_REMAINING", daemon->dhcp_buff2, &err);
+	}
+
       if (data.action == ACTION_OLD_HOSTNAME && hostname)
 	{
 	  my_setenv("DNSMASQ_OLD_HOSTNAME", hostname, &err);

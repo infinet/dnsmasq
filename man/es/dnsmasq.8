@@ -68,8 +68,14 @@ información time-to-live (tiempo de vida) en expedientes SOA que
 dnsmasq usa para hacer caché. Si las respuestas de servidores upstream
 omiten esta información, dnsmasq no mete la respuesta en el caché.
 Esta opción brinda un valor predeterminado para el time-to-live que
-dnsmasq usa para meter respuestas en el caché aún en la ausencia de
-un expediente SOA.
+dnsmasq usa para meter respuestas negativas en el caché aún en la
+ausencia de un expediente SOA.
+.TP
+.B --max-ttl=<tiempo>
+Fijar un valor TTL (tiempo de vida) máximo que será entregado a
+clientes. El TTL máximo especificado será otorgado a clientes en vez
+del TTL verdadero si es menor. El valor TTL real es mantenido en el caché
+para prevenir la inundación de los servidores DNS upstream.
 .TP
 .B \-k, --keep-in-foreground
 No ir hacia el fondo al iniciar, pero aparte de eso ejecutar como
@@ -91,7 +97,8 @@ Fijar la facilidad a la cual dnsmasq deberá enviar mensajes syslog,
 esto es DAEMON por predeterminado, y LOCAL0 cuando el modo debug está
 en operación. Si la facilidad brindada contiene por lo menos un carácter
 "/", se trata como un nombre de archivo, y dnsmasq bitacoreará a dicho
-archivo, en vez de syslog. (Errores durante la lectura de la configuración
+archivo, en vez de syslog. Si la facilidad es '-' entonces dnsmasq
+bitacorea a stderr. (Errores durante la lectura de la configuración
 irán a syslog todavía, pero todo output desde un inicio exitoso, y todo
 output mientras en ejecución, irá a este archivo exclusivamente.)
 Al bitacorear a un archivo, dnsmasq cerrará y reabrirá el archivo al
@@ -304,6 +311,17 @@ Denegar (y bitacorear) direcciones de servidores upstream que están
 dentro de rangos IP privados. Esto bloquea un ataque donde un navegador
 detrás de un firewall es usado para analizar máquinas en la red local.
 .TP
+.B --rebind-localhost-ok
+Eximir a 127.0.0.0/8 de verificaciones de rebinding. Este rango de
+direcciones es retornado por servidores de tiempo real tipo hoyo
+negro, así que bloquearlo puede deshabilitar estos servicios.
+.TP
+.B  --rebind-domain-ok=[<domain>]|[[/<domain>/[<domain>/]
+No detectar y bloquear dns-rebind en búsquedas a estos dominios. El
+argumento puede ser o un dominio sencillo, o múltiples dominios
+rodeados por '/', como el syntax de --server, por ejemplo
+.B  --rebind-domain-ok=/dominio1/dominio2/dominio3/
+.TP
 .B \-n, --no-poll
 No revisar periodicamente a /etc/resolv.conf en busca de cambios.
 .TP
@@ -338,6 +356,20 @@ sea nombres sin ningún punto en ellos. Un puerto no-estándar puede
 ser especificado como parte de la dirección IP usando el caracter
 #. Más de una opción -S es permitida, con partes de dominio o
 dirección IP repetidas como sea necesario.
+
+Dominios más específicos toman precedencia sobre los menos específicos,
+así que:
+.B --server=/google.com/1.2.3.4
+.B --server=/www.google.com/2.3.4.5
+enviará búsquedas por *.google.com hacia 1.2.3.4, excepto
+*www.google.com, el cual irá a 2.3.4.5.
+
+La dirección especial de servidor '#' significa "usar los servidores
+estándares", así que
+.B --server=/google.com/1.2.3.4
+.B --server=/www.google.com/#
+enviará búsquedas por *.google.com hacia 1.2.3.4, excepto
+*www.google.com, el cual será reenviado de manera usual.
 
 También se permite una opción -S la cual brinda un dominio pero
 ninguna dirección IP; esto le dice a dnsmasq que un dominio es local
@@ -460,7 +492,7 @@ de casos. La única situación conocida donde esto debe ser incrementado
 es al usar resolvedores de bitácoras de servidores web, los cuales pueden
 generar un número inmenso de búsquedas simultáneas.
 .TP
-.B \-F, --dhcp-range=[[net:]network-id,]<dirección-inicio>,<dirección-final>[,<máscara>[,<broadcast>]][,<tiempo de arriendo>]
+.B \-F, --dhcp-range=[interface:<interface>,][tag:<tag>[,tag:<tag>],][set:<tag],]<dirección-inicio>,<dirección-final>[,<netmask>[,<broadcast>]][,<tiempo de arriendo>]
 Habilitar el servidor DHCP. Direcciones serán distribuidas desde el
 rango <dirección-inicio> hasta <dirección-final> y desde direcciones definidas
 estáticamente en opciones
@@ -477,10 +509,13 @@ cuales la máquina corriendo dnsmasq tiene una interface) la
 máscara de subred es opcional. Pero, es requerida para redes que
 reciben servicio DHCP vía un agente de relay. La dirección de
 broadcast siempre es opcional. Siempre se permite tener más de
-un rango dhcp (dhcp-range) en una subred. El parámetro opcional
-network-id es una etiqueta alfanumérica la cual marca esta red de
+un rango dhcp (dhcp-range) en una subred.
+
+El parámetro opcional
+.B set:<tag>
+fija una etiqueta alfanumérica la cual marca esta red de
 tal forma que opciones dhcp puedan ser especificadas en base a cada red.
-Cuando es prefijada con 'net:' entonces el significado cambia
+Cuando es prefijada con 'tag:' en vez, entonces el significado cambia
 de "fijar etiqueta" a "coincidir con etiqueta". Solo una etiqueta puede
 ser fijada, pero más de una puede ser revisada por coincidencias. La
 dirección final puede ser remplazada por la palabra clave
@@ -497,8 +532,11 @@ caso en el cual dnsmasq proveerá proxy-DHCP en la subred especificada. (Ver
 y
 .B pxe-service
 para detalles.)
+
+La sección interface:<interface name> no es normalmente usada. Ver la
+sección NOTAS para detalles sobre esto.
 .TP
-.B \-G, --dhcp-host=[<dirección de hardware>][,id:<client_id>|*][,net:<netid>][,<dirección IP>][,<nombre de host>][,<tiempo de arriendo>][,ignore]
+.B \-G, --dhcp-host=[<hwaddr>][,id:<client_id>|*][,set:<tag>][,<ipaddr>][,<hostname>][,<tiempo_de_arriendo>][,ignorar]
 Especificar parámetros por host para el servidor DHCP. Esto permite
 que una máquina con una dirección de hardware particular sea siempre
 alocada el mismo nombre de host, dirección IP, y tiempo de arriendo.
@@ -513,10 +551,15 @@ le dice a dnsmasq que debe darle a la máquina con dirección
 ethernet 00:20:e0:3b:13:af el nombre wap, y un arriendo DHCP infinito.
 .B --dhcp-host=lap,192.168.0.199
 le dice a dnsmasq que siempre debe alocarle a la maquina lap
-la dirección IP 192.168.0.199. Direcciones alocadas de esta manera
-no tienen que estar dentro del rango dado con la opción --dhcp-range,
-pero deben estar en la red siendo servida por el servidor DHCP. Se
-permite usar identificadores de clientes en vez de direcciones de
+la dirección IP 192.168.0.199.
+
+Direcciones alocadas de esta manera no tienen que estar dentro
+del rango dado con la opción --dhcp-range, pero deben estar en la subred
+de un rango DHCP (dhcp-range) válido. Para subredes que no necesitan
+una collección de direcciones dinamicamente alocadas, usar la palabra
+clave "static" in la declaración dhcp-range.
+
+Es permitido usar identificadores de cliente en vez de direcciones de
 hardware para identificar hosts prefijando 'id:'. O sea que:
 .B --dhcp-host=id:01:02:03:04,.....
 se refiere al host con identificador de cliente 01:02:03:04.
@@ -530,7 +573,14 @@ presenta un ID de cliente algunas veces pero otras no.
 Si un nombre aparece en /etc/hosts, la dirección asociada puede
 ser alocada a un arriendo DHCP, pero solo si existe una opción
 .B --dhcp-host
-la cual especifica el nombre también. La palabra clave "ignore"
+la cual especifica el nombre también. Solo un hostname puede ser
+brindado en una opción
+.B dhcp-host
+pero aliases son posibles por medio del uso de CNAMEs. (Ver
+.B --cname
+).
+
+La palabra clave "ignore"
 le dice a dnsmasq que no debe ofrecer jamás un arriendo DHCP a
 una máquina. La máquina puede ser especificada por dirección de
 hardware, ID de cliente, o nombre de host, por ejemplo:
@@ -538,14 +588,16 @@ hardware, ID de cliente, o nombre de host, por ejemplo:
 Esto es útil cuando hay otro servidor DHCP en la red que debe ser
 usado por algúnas máquinas.
 
-El net:<network-id> fija la etiqueta network-id cuando sea que
+El set:<tag> fija la etiqueta cuando sea que
 esta directiva dhcp-host está en uso. Esto puede ser usado para
-enviar selectivamente opciones DHCP a este host. Cuando un host
-coincide con cualquier directiva dhcp-host (o una implicada por
-/etc/ethers) entonces la etiqueta network-id especial "known" es
+enviar selectivamente opciones DHCP a este host. Más de una etiqueta
+puede ser fijada en una directiva dhcp-host (pero no en otros lugares
+donde "set:<tag>" es permitido). Cuando un host coincide con 
+cualquier directiva dhcp-host (o una implicada por
+/etc/ethers) entonces la etiqueta especial "known" es
 fijada. Esto permite que dnsmasq sea configurado para ignorar
 pedidos desde máquinas desconocidas usando
-.B --dhcp-ignore=#known
+.B --dhcp-ignore=tag:!known
 Direcciones ethernet (pero no client-ids) pueden tener bytes
 comodínes, así que por ejemplo
 .B --dhcp-host=00:20:e0:3b:13:*,ignore
@@ -591,9 +643,10 @@ DHCP. El formato de /etc/ethers es una dirección de hardware, seguida
 por ya sea un nombre de host o una dirección IP. Al ser leidas por
 dnsmasq, estas líneas tienen exáctamente el mismo efecto que opciones
 .B --dhcp-host
-que contienen la misma información. /etc/ethers es re-leída cuando dnsmasq recibe un SIGHUP.
+que contienen la misma información. /etc/ethers es re-leída cuando
+dnsmasq recibe un SIGHUP.
 .TP
-.B \-O, --dhcp-option=[<network-id>,[<network-id>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<valor>[,<valor>]]
+.B \-O, --dhcp-option=[tag:<tag>,[tag:<tag>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],][<opt>|option:<opt-name>],[<value>[,<value>]]
 Especificar opciones diferentes o extra a clientes DHCP. Por
 predeterminado, dnsmasq envía algunas opciones estándar a clientes
 DHCP. La máscara de subred y dirección broadcast son fijadas igual
@@ -618,9 +671,9 @@ o
 La dirección especial 0.0.0.0 es entendida que significa "la
 dirección de la máquina que corre dnsmasq". Tipos de data permitidos
 son direcciones IP de cuatro segmentos, un número decimal, dígitos hex
-separados por colones, y un string de texto. Si las network-ids
+separados por colones, y un string de texto. Si las etiquetas
 opcionales son brindadas, entonces esta opción es solo enviada cuando
-todas las network-ids coinciden.
+todas las etiquetas coinciden.
 
 Procesamiento especial es llevado a cabo en un argumento de texto para
 la opción 119, en conforme con RFC3397. Direcciones IP textuales o de
@@ -672,7 +725,7 @@ para identificar esta opción.
 
 La dirección 0.0.0.0 no es tratada de forma especial en opciones encapsuladas.
 .TP
-.B --dhcp-option-force=[<network-id>,[<network-id>,]][encap:<opt>,][rfc3925-encap:<enterprise>,][vendor:[<vendor-class>],]<opt>,[<valor>[,<valor>]]
+.B --dhcp-option-force=[tag:<tag>,[tag:<tag>,]][encap:<opt>,][vi-encap:<enterprise>,][vendor:[<vendor-class>],]<opt>,[<value>[,<value>]]
 Esto funciona exáctamente de la misma forma que
 .B --dhcp-option
 excepto que la opción siempre será enviada, aún si el cliente no la pide en
@@ -687,20 +740,21 @@ hacia opciones DHCP. Esto crea espacio extra en el paquete DHCP para opciones,
 pero puede raramente confundir clientes viejos o defectuosos. Esta opción forza
 comportamiento "simple y sencillo" para prevenir problemas en tales casos.
 .TP
-.B \-U, --dhcp-vendorclass=<network-id>,<vendor-class>
-Trazar desde un string vendor-class a un network id. La mayoría de los
+.B \-U, --dhcp-vendorclass=set:<tag>,<vendor-class>
+Trazar desde un string vendor-class a una etiqueta. La mayoría de los
 clientes DHCP proveen una "vendor class" la cual representa, en cierto
 sentido, el tipo de host. Esta opción traza clases de vendedor a network
 ids, de tal forma que opciones DHCP pueden ser selectivamente entregadas
 a diferentes clases de hosts. Por ejemplo
-.B dhcp-vendorclass=printers,Hewlett-Packard JetDirect
+.B dhcp-vendorclass=set:printers,Hewlett-Packard JetDirect
 peritiría que opciones sean fijadas solo para impresoras HP así:
-.B --dhcp-option=printers,3,192.168.4.4 
+.B --dhcp-option=tag:printers,3,192.168.4.4
 El string vendor-class es coordinado con el vendor-class proveido por
-el cliente, para permitir coincidencias borrosas.
+el cliente, para permitir coincidencias borrosas. El prefijo set: es
+opcional, pero permitido por razones de consistencia.
 .TP
-.B \-j, --dhcp-userclass=<network-id>,<user-class>
-Trazar desde un string user-class a un network id (con coordinación
+.B \-j, --dhcp-userclass=set:<tag>,<user-class>
+Trazar desde un string user-class a una etiqueta (con coordinación
 substring, como con vendor-class). La mayoría de los clientes DHCP
 proveen un "user class" el cual es configurable. Esta opción traza
 clases user a network ids, de tal manera que opciones DHCP puedan
@@ -708,26 +762,43 @@ ser selectivamente enviadas a diferentes tipos de hosts. Es posible,
 por ejemplo, usar esto para especificar una impresora diferente para
 hosts en la clase "cuentas" que para los de la clase "ingenieria".
 .TP
-.B \-4, --dhcp-mac=<network-id>,<dirección MAC>
-Trazar desde una dirección MAC a una network id. La dirección MAC
+.B \-4, --dhcp-mac=set:<tag>,<MAC address>
+Trazar desde una dirección MAC a una etiqueta. La dirección MAC
 puede incluir comodínes. Por ejemplo:
-.B --dhcp-mac=3com,01:34:23:*:*:*
+.B --dhcp-mac=set:3com,01:34:23:*:*:*
 fijaría el tag "3com" a cualquier host el cual su MAC coincida con
 el patrón.
 .TP
 .B --dhcp-circuitid=<network-id>,<circuit-id>, --dhcp-remoteid=<network-id>,<remote-id>
-Trazar de opciones agente de relay RFC3046 a opciones network-id. Estos
+Trazar de opciones agente de relay RFC3046 a etiquetas. Estos
 datos pueden ser proveídos por agentes de relay DHCP. El circuit-id o
 remote-id es normlamente brindado como hex separado por doblepuntos, pero
 también se permite un string simple. Si se obtiene una coincidencia exacta
 entre el circuit o agent ID y uno proveído por un agente de relay,
-network-id es fijado.
+la etiqueta es fijada.
 .TP
-.B --dhcp-subscrid=<network-id>,<subscriber-id>
-Trazar de opciones relay subscriber-id RFC3993 a opciones network-id.
+.B --dhcp-subscrid=set:<tag>,<subscriber-id>
+Trazar de opciones relay subscriber-id RFC3993 a etiquetas.
 .TP
-.B --dhcp-match=<network-id>,<option number>|option:<option name>|vi-encap:<enterprise>[,<valor>]
-Sin un valor, fijar la etiqueta network-id si el cliente envía una opción
+.B --dhcp-proxy[=<ip addr>]......
+Un agente de relay normal es usado solamente para reenviar las partes
+iniciales de una interacción DHCP con el servidor DHCP. Una vez que
+un cliente es configurado, se comunica diectamente con el servidor. Esto
+es indeseable si el agente de relay está agregando información extra a
+los paquetes DHCP, tal como usado por
+.B dhcp-circuitid
+y
+.B dhcp-remoteid.
+Una implementación relay completa puede usar la opción serverid-override
+RFC 5107 para obligar al servidor DHCP a usar el relay como un proxy
+completo, con todos los paquetes pasando a travez de el. Esta opción
+provee una manera alternativa de hacer la misma cosa, para relays que
+no tienen soporte RFC 5107. Brindada por si sola, manipula el server-id
+para todas las interacciones via relays. Si una lista de IPs es brindada,
+solo interacciones via relays en esas direcciones son afectadas.
+.TP
+.B --dhcp-match=set:<tag>,<option number>|option:<option name>|vi-encap:<enterprise>[,<value>]
+Sin un valor, fijar la etiqueta si el cliente envía una opción
 DHCP del número o valor brindado. Cuando un valor es brindado, fijar la
 etiqueta solo si la opción es enviada y coincide con el valor. El valor puede
 ser de la forma "01:ff:*:02", caso en el cual el valor debe coincidir (aparte
@@ -737,7 +808,7 @@ del final del valor. El valor también puede ser de la misma forma que
 caso en el cual la opción enviada es tratada como un array, y un elemento debe
 coincidir, así que
 
---dhcp-match=efi-ia32,option:client-arch,6
+--dhcp-match=set:efi-ia32,option:client-arch,6
 
 fijará la etiqueta a "efi-ia32" si el número 6 aparece en la lista de
 architecturas enviada por los clientes en opción 93. (Ver RFC 4578 para
@@ -745,42 +816,58 @@ detalles.) Si el valor es un string, coincidencia substring es usada.
 
 La forma especial con vi-encap:<enterpise number> busca coincidencia con
 clases de vendedor identificadoras para el enterprise especificado. Por
-favor ver RFC 3925 para mas detalles sobre las bestias raras e interesantes.
+favor ver RFC 3925 para mas detalles sobre estas bestias raras e interesantes.
 .TP
-.B \-J, --dhcp-ignore=<network-id>[,<network-id>]
-Cuando todos los network ids brindados coincidan con el juego de
-network ids derivados de las clases net, host, y vendor, ignorar
-el host y no brindarle un arriendo DHCP.
+.B --tag-if=set:<tag>[,set:<tag>[,tag:<tag>[,tag:<tag>]]]
+Llevar a cabo operaciones boolean en etiquetas. Cualquier etiqueta
+que aparece como set:<tag> es fijada si todas las etiquetas que aparecen
+como tag:<tag> estan fijadas, (o desfijadas cuando tag:!<tag> es
+usado). Si ningún tag:<tag> aparece, etiquetas set:<tag> son fijadas
+incondicionalmente. Cualquier cantidad de formas set: y tag:
+pueden aparecer, en cualquier orden. Líneas tag-if son ejecutadas
+en orden, así que si la etiqueta en tag:<tag> es una etiqueta fijada
+por otra
+.B tag-if,
+la línea que fija la etiqueta debe preceder a la que comprueba.
 .TP
-.B --dhcp-ignore-names[=<network-id>[,<network-id>]]
-Cuando todos los network-ids brindados coinciden con el juego de
-network-ids derivado de la red, host, classes de vendedor y usuario,
-ignorar cualquier nombre de host proveido por el host. Nótese que,
-a diferencia de dhcp-ignore, es permisible no brindar ningún tag netid,
+.B \-J, --dhcp-ignore=tag:<tag>[,tag:<tag>]
+Cuando todoas las etiquetas brindadas aparecen en el juego de etiquetas
+ignorar el host y no brindarle un arriendo DHCP.
+.TP
+.B --dhcp-ignore-names[=tag:<tag>[,tag:<tag>]]
+Cuando todos las etiquetas brindadas aparecen en el juego de etiquetas, ignorar cualquier nombre de host proveido por el host. Nótese que,
+a diferencia de dhcp-ignore, es permisible no brindar ninguna etiqueta,
 y en tal caso nombres de host proveidos por clientes DHCP siempre son
 ignorados, y hosts DHCP son agregados al DNS usando solo la configuración
 dhcp-host en dnsmasq y el contenido de /etc/hosts y /etc/ethers.
 .TP
-.B --dhcp-broadcast=<network-id>[,<network-id>]
-Cuando todos los network-ids brindados coinciden con el juego de network-ids
-derivados de la red, host, clases de vendedor y usuarios, siempre usar
-broadcast para comunicarse con el host cuando está sin configurar. La
-mayoría de clientes DHCP que necesitan respuestas broadcast fijan una
-opción en sus pedidos para que esto pase automaticamente, algunos
-clientes BOOTP viejos no lo hacen.
+.B --dhcp-generate-names=tag:<tag>[,tag:<tag>]
+Generar un nombre para clientes DHCP que de otra forma no tienen uno,
+usando la dirección MAC expresada en hex, separada por guiones. Nótese
+que si un host provee un nombre, será usado preferiblemente sobre este,
+a menos que
+.B --dhcp-ignore-names
+esté fijado.
 .TP
-.B \-M, --dhcp-boot=[net:<network-id>,]<filename>,[<servername>[,<server address>]]
+.B --dhcp-broadcast[=tag:<tag>[,tag:<tag>]]
+Cuando todas las etiquetas aparecen en el juego de etiquetas, siempre
+usar broadcast para comunicar con el host cuando no está configurado.
+Es permisible omitir las etiquetas, caso en el cual esto es
+incondicional. La mayoría de clientes DHCP que necesitan
+respuestas broadcast fijan una opción en sus pedidos para que esto pase automaticamente, algunos clientes BOOTP viejos no lo hacen.
+.TP
+.B \-M, --dhcp-boot=[tag:<tag>,]<filename>,[<servername>[,<server address>]]
 Fijar opciones BOOTP que han de ser devueltas por el servidor DHCP. Nombre
 y dirección de servidor son opcionales: si no son brindadas, el nombre es
 dejado en blanco, y la dirección es fijada a la de la máquina que corre
 dnsmasq. Si dnsmasq está brindando servicio TFTP (ver
 .B --enable-tftp
 ) entonces solo el nombre de archivo es requirido aquí para habilitar
-el inicio atravéz de una red. Si las opcionales network-ids son brindadas,
+el inicio atravéz de una red. Si las opcionales etiquetas son brindadas,
 ellas deberán coincidir para que esta configuración sea enviada. Nótese
 que network-ids están prefijadas con "net:" para distinguirlas.
 .TP
-.B --pxe-service=[net:<network-id>,]<CSA>,<texto de menú>[,<nombre base>|<tipo de servicio boot>][,<dirección de servidor>]
+.B --pxe-service=[tag:<tag>,]<CSA>,<menu text>[,<basename>|<bootservicetype>][,<server address>]
 La mayoría de usos para boot-ROMS PXE simplemente permiten al sistema PXE
 obtener una dirección IP y entonces bajar el archivo especificado por
 .B dhcp-boot
@@ -808,7 +895,7 @@ de servicio boot o nombre de archivo es brindado (o un tipo de servicio boot
 de 0 es especificado), entonces la opción de menú abortará el proceso net boot
 y continuará desde el medio local.
 .TP
-.B --pxe-prompt=[net:<network-id>,]<prompt>[,<timeout>]
+.B --pxe-prompt=[tag:<tag>,]<prompt>[,<timeout>]
 Fijar esto hace que un aviso sea expuesto despues del boot PXE. Si el timeout
 es brindado, entonces despues que el timeout se haya vencido sin input del
 teclado, la primera opción del menú sera automaticamente ejecutada. Si el
@@ -834,7 +921,7 @@ en
 .TP
 .B \-X, --dhcp-lease-max=<número>
 Limita a dnsmasq a el número especificado de arriendos DHCP. El
-predeterminado es 150. El limite es para prevenir ataques DoS desde
+predeterminado es 1000. El limite es para prevenir ataques DoS desde
 hosts que crean cientos de arriendos y usan mucha de la memoria del
 proceso dnsmasq.
 .TP
@@ -874,7 +961,7 @@ cuidado.
 .TP
 .B --log-dhcp
 Bitacoréo extra para DHCP: Bitacorear todas las opciones enviadas a
-clientes DHCP y las etiquetas netid usadas para determinarlos.
+clientes DHCP y las etiquetas usadas para determinarlos.
 .TP
 .B \-l, --dhcp-leasefile=<path>
 Usar el archivo especificado para almacenar información de arriendos
@@ -883,6 +970,7 @@ DHCP.
 .B \-6 --dhcp-script=<path>
 Cuando un arriendo DHCP nuevo es creado, o uno viejo es
 destruido, el ejecutable especificado por esta opción es ejecutado.
+<path> debe ser un pathname absoluto, ninguna búsqueda PATH ocurre.
 Los argumentos para el binario son "add", "old", o "del", la dirección
 MAC del host, la dirección IP, y el hostname, si es
 conocido. "add" significa que un arriendo ha sido creado, "del" que
@@ -894,40 +982,64 @@ que no es ethernet, tendrá el tipo de red precolocado, por ejemplo
 "06-01:23:45:67:89:ab" para token ring. El proceso es ejecutado como root
 (asumiendo que dnsmasq fue originalmente ejecutado como root) aún si dnsmasq
 está configurado para cambiar su UID a un usuario sin privilegios.
-El ambiente es heredado del usuario que ha invocado a dnsmasq, y si el
-host brindó un client-id, es almacenado en la variable de ambiente
-DNSMASQ_CLIENT_ID. Si el dominio completamente calificado del host
-es conocido, la parte de dominio es almacenada en DNSMASQ_DOMAIN. Si
-el cliente brinda información de clase de vendedor, nombre de host,
-o clase de usuario, estos son brindados en las variables
+
+
+El ambiente es heredado del usuario que ha invocado a dnsmasq, con algunas
+o todas de las siguientes variables agregadas.
+
+DNSMASQ_CLIENT_ID si el host brindo un client-id.
+
+DNSMASQ_DOMAIN si el nombre de dominio completamente calificado del host
+es conocido, esto es fijado a la parte del dominio.
+
+Si el cliente brinda vendor-class, hostname o user-class, estos son
+brindados en las variables
 DNSMASQ_VENDOR_CLASS, DNSMASQ_SUPPLIED_HOSTNAME, y
 DNSMASQ_USER_CLASS0..DNSMASQ_USER_CLASSn, pero solo para acciones "add"
 y "old" cuando un host reanuda un arriendo existente, dado a que estos
 datos no son almacenados en la base de datos de arriendos de dnsmasq.
+
 Si dnsmasq fue compilado con HAVE_BROKEN_RTC, entonces la duración del
 arriendo (en segundos) es almacenada en DNSMASQ_LEASE_LENGTH, de otra
 manera el tiempo de vencimiento es almacenado en DNSMASQ_LEASE_EXPIRES.
 El número de segundos faltante para el vencimiento del arriendo siempre
 es almacenado en DNSMASQ_TIME_REMAINING.
+
 Si un arriendo solía tener un nombre de host, el cual es removido, un
 evento "old" es generado con el nuevo estado del arriendo, (por ejemplo, sin
 nombre), y el nombre anterior es brindado en la variable de ambiente
-DNSMASQ_OLD_HOSTNAME. DNSMASQ_INTERFACE almacena el nombre de la interface
+DNSMASQ_OLD_HOSTNAME.
+
+DNSMASQ_INTERFACE almacena el nombre de la interface
 en la cual llegó el pedido; esto no es fijado para acciones "viejas"
-cuando dnsmasq re-inicia. DNSMASQ_RELAY_ADDRESS es fijado si el cliente
+cuando dnsmasq re-inicia.
+
+DNSMASQ_RELAY_ADDRESS es fijado si el cliente
 usó un relay DHCP para contactar a dnsmasq y la dirección IP del relay
-es conocida. DNSMASQ_TAGS contiene todas las etiquetas network-id fijadas
+es conocida.
+
+DNSMASQ_TAGS contiene todas las etiquetas network-id fijadas
 durante la transacción DHCP, separadas por espacios.
+
 Todos los descriptores de archivo están cerrados
 excepto stdin, stdout, y stderr los cuales están abiertos a /dev/null
 (excepto en modo debug).
-Este guión no es invocado concurrentemente: si cambios de arriendos
-subsiguientes ocurren, el guión no es invocado otra vez hasta que
-cualquier invocación existente haga exit. Al inicio de dnsmasq, el guión
+
+Este guión no es invocado concurrentemente: máximo una instamcia del
+guión está corriendo a la vez (dnsmasq espera a que una instancia de
+guión haga exit antes de correr la siguiente). Cambios a la base de
+datos de arriendos que requieren que el guión sea invocado son puestos
+en cola esperando el exit de una instancia corriente. Si esta cola permite
+que cambios multiples de estado le ocurran a un arriendo individual antes
+de que el guión pueda ser ejecutado entonces estados anteriores son descartados
+y el estado actual del arriendo es reflejado cuando el guión finalmente corre.
+
+Al inicio de dnsmasq, el guión
 será invocado para todos los arriendos existentes mientras van siendo
 leídos desde el archivo de arriendos. Arriendos vencidos serán llamados
 con "del" y otros con "old". <path> debe ser un path absoluto, ninguna
-búsqueda PATH ocurre. Cuando dnsmasq recibe una señal HUP, el guión será
+búsqueda PATH ocurre cuando arriendos dnsmasq serán llamados con "del"
+y otros con "old". Cuando dnsmasq recibe una señal HUP, el guión será
 invocado para arriendos existentes con un evento "old".
 .TP
 .B --dhcp-scriptuser
@@ -1000,18 +1112,20 @@ sin una dirección especificada cuando
 .B --dhcp-fqdn
 está fijado.
 .TP
-.B --enable-tftp
+.B --enable-tftp[=<interface>]
 Habilitar la función de servidor TFTP. Esto está deliberadamente limitado
 a lo necesario para hacerle a un cliente un inicio vía red. Solo lectura es
 permitida; las extensiones tsize y blksize son soportadas (tsize solo es
-soportada en modo octeto).
+soportada en modo octeto). Ver sección de NOTAS para el uso de el argumento
+de interface.
 .TP
-.B --tftp-root=<directorio>
+.B --tftp-root=<directory>[,<interface>]
 Buscar, relativo al directorio brindado, archivos para transferir mediante el
 uso de TFTP. Cuando esta opción está fijada, paths TFTP que incluyen ".." son
 rechazados, para prevenir que clientes salgan de la raíz especificada. Paths
 absolutos (los que comienzan con "/") están permitidos, pero deben estar
-dentro del tftp-root.
+dentro del tftp-root. Si el argumento opcional de interface es brindado, el
+directorio es solo usado para pedidos TFTP vía esa interface.
 .TP
 .B --tftp-unique-root
 Agregar la dirección IP del cliente TFTP como un componente path del lado del
@@ -1199,36 +1313,46 @@ apunta a un nombre sombreado, entonces buscando el CNAME a travéz de
 dnsmasq resultará en que la dirección no-sombreada será asociada con
 el destino del CNAME. Para circumventar esto, agregar el CNAME a
 /etc/hosts de tal manera que el CNAME es sombreado también.
+
 .PP
-El sistema network-id funciona de la siguiente manera: Para cada pedido
-DHCP, dnsmasq colecciona un juego de etiquetas network-id válidas,
-una del
+El sistema de etiquetas funciona de la siguiente manera: Para cada pedido
+DHCP, dnsmasq colecciona un juego de etiquetas válidas de líneas de
+configuración activas que incluyen set:<tag>, incluyendo una del
 .B dhcp-range
 usado para alocar la dirección, una de cualquier
 .B dhcp-host
-que coincida (y "known" si un dhcp-host coincide), la etiqueta "bootp"
-para pedidos BOOTP, una etiqueta cuyo nombre es el nombre de la
-interface donde llegó el pedido, y posiblemente muchas de clases
-de vendedor y usuario que coincidan que hayan sido enviadas por
-el cliente DHCP. Cualquier opción
+que coincida (y "known" si un dhcp-host coincide).
+La etiqueta "bootp" es fijada para pedidos BOOTP, y una etiqueta cuyo
+nombre es el nombre de la interface donde llegó el pedido tambien es
+fijada.
+
+Cualquier linea de configuración que incluya uno o mas
+construcciones tag:<tag> solo será válida si todas las etiquetas
+coinciden en el juego derivado arriba. Típicamente esto es dhcp-option.
 .B dhcp-option 
-que tenga etiquetas network-id será usada en preferencia de una opción
+que tenga etiquetas será usada en preferencia de una opción
 .B dhcp-option,
 sin etiqueta, con tal que _todas_ las etiquetas coincidan en alguna
-parte del juego coleccionado describido arriba. El prefijo "#" en una
-etiqueta significa "no" así que --dhcp=option=#purple,3,1.2.3.4 envía
-la opción cuando la etiqueta network-id "purple" no está en el juego
-de etiquetas válidas.
+parte del juego coleccionado describido arriba. El prefijo '!' en una
+etiqueta significa "no" así que --dhcp=option=tag:!purple,3,1.2.3.4 envía
+la opción cuando la etiqueta "purple" no está en el juego
+de etiquetas válidas. (Si se está usando esto en una línea de comandos
+en vez de un archivo de configuración, asegurese de escapar !, el cual
+es un metacaracter de shell.)
 .PP
-Si el network-id en un
-.B dhcp-range 
-es prefijado con "net:", entonces su significado cambia de "fijar
-etiqueta" a "coincidir con etiqueta". O sea que si hay más de un
-dhcp-range en en una subred, y uno tiene una etiqueta network-id la
-cual está fijada (por ejemplo una opción de clase de vendedor) entonces
-hosts que fijen la etiqueta network-id serán alocados direcciones en
-el rango etiquetado.
-.PP 
+Nótese que para
+.B dhcp-range
+ambos tag:<tag> y set:<tag> son permitidos, para seleccionar el rango
+en uso basado en (por ejemplo) dhcp-host, y para afectar las opciones
+enviadas, basadas en el rango seleccionado.
+
+Este sistema evolucionó de uno anterior mas limitado y para compatibildad
+reversa "net:" puede ser usada en vez de "tag:" y "set:" puede ser
+omitida. (Excepto en
+.B dhcp-host,
+donde "net:" puede ser usado en vez de "set:".) Por la misma razón, '#'
+puede ser usado en vez de '!' para indicar NO.
+.PP
 El servidor DHCP de dnsmasq funcionará como servidor BOOTP tambien,
 con tal que las direcciones MAC y IP de los clientes sean brindadas,
 ya sea usando configuraciones
@@ -1239,11 +1363,54 @@ o en
 .B dhcp-range 
 esté presente para activar el servidor DHCP en una red particular.
 (Fijar --bootp-dynamic elimina la necesidad de trazados estáticos.) El
-parámetro de nombre de archivos en un pedido BOOTP es revisado para
-ver si coincide con algún network-id en configuraciónes
-.B dhcp-option 
-al igual que la etiqueta "bootp", permitiendo así algún control sobre
-las opciones devueltas a diferentes clases de hosts.
+parámetro de nombre de archivos en un pedido BOOTP es usado como
+una etiqueta, al igual que la etiqueta "bootp", permitiendo así algún
+control sobre las opciones devueltas a diferentes clases de hosts.
+
+.B dhcp-range
+puede tener un nombre de interface brindado como
+"interface:<interface-name>". La semántica de esto es así:
+Para DHCP, si cualquier otro dhcp-range existe _sin_ un nombre de
+interface, entonces el nombre de interface es ignorado y dnsmasq
+se comporta como si las partes de interface no existieran, de otra forma
+DHCP solo se provee a interfaces mencionadas en declaraciones
+dhcp-range. Para DNS, si no hay opciones
+.B --interface
+o
+.B --listen-address
+el comportamiento no se modifica por la parte de interface. Si cualquiera
+de estas opciones está presente, las interfaces mencionadas en dhcp-ranges
+son agregadas all juego que obtienen servicio DNS.
+
+Similarmente,
+.B enable-tftp
+puede tomar un nombre de interface, el cual habilita TFTP solo para una
+interface en particular, ignorando opciones
+.B --interface
+o
+.B --listen-address.
+Adicionalmente, 
+.B --tftp-secure
+y
+.B --tftp-unique-root
+y
+.B --tftp-no-blocksize
+son ignorados por pedidos desde dichas interfaces. (Una directiva
+.B --tftp-root
+brindando un path raíz y una interface debe ser brindada tambien.)
+
+Estas reglas pueden parecer raras a primera vista, pero permiten que
+una simple linea de la forma
+"dhcp-range=interface:virt0,192.168.0.4,192.168.0.200" sea agregada a
+configuración dnsmasq, lo cual brinda servicios DHCP y DNS a esa interface,
+sin afectar los servicios en otras interfaces y irrespectivamente de
+la existencia o no de lineas "interface=<interface>" en alguna otra parte
+de la configuración dnsmasq.
+"enable-tftp=virt0" y "tftp-root=<root>,virt0" hacen el mismo trabajo
+para TFTP.
+La idea es que una linea así pueda ser agregada automaticamente
+por libvirt o sistemas equivalentes, sin estorbar alguna
+configuración manual.
 
 .SH CÓDIGOS EXIT
 .PP
@@ -1276,10 +1443,8 @@ no escalaban tan bien.
 
 .PP
 Dnsmasq es capaz de soportar con DNS y DHCP a por lo menos mil (1,000)
-clientes. Por supuesto que para lograr esto debe aumentarse el valor de
-.B --dhcp-lease-max
-, y tiempos de arriendo no deben ser muy cortos (menos de una hora).
-El valor de
+clientes. Los tiempos de arriendo no deben ser muy cortos (menos
+de una hora). El valor de
 .B --dns-forward-max
 puede ser aumentado: comienze con el equivalente a el número de clientes y
 auméntelo si parece lento el DNS. Nótese que el rendimiento DNS depende

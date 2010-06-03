@@ -63,7 +63,6 @@ static void check_dns_listeners(fd_set *set, time_t now);
 static void sig_handler(int sig);
 static void async_event(int pipe, time_t now);
 static void fatal_event(struct event_desc *ev);
-static void poll_resolv(void);
 
 int main (int argc, char **argv)
 {
@@ -142,7 +141,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifndef HAVE_TFTP
-  if (daemon->options & OPT_TFTP)
+  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
 #endif
 
@@ -184,7 +183,7 @@ int main (int argc, char **argv)
 	    die(_("no interface with address %s"), daemon->namebuff, EC_BADNET);
 	  }
     }
-  else if ((daemon->port != 0 || (daemon->options & OPT_TFTP)) &&
+  else if ((daemon->port != 0 || daemon->tftp_interfaces || daemon->tftp_unlimited) &&
 	   !(daemon->listeners = create_wildcard_listeners()))
     die(_("failed to create listening socket: %s"), NULL, EC_BADNET);
   
@@ -278,8 +277,6 @@ int main (int argc, char **argv)
   
   if (!(daemon->options & OPT_DEBUG))   
     {
-      int nullfd;
-
       /* The following code "daemonizes" the process. 
 	 See Stevens section 12.4 */
       
@@ -344,16 +341,19 @@ int main (int argc, char **argv)
 	      _exit(0);
 	    }
 	}
-         
-      /* open  stdout etc to /dev/null */
-      nullfd = open("/dev/null", O_RDWR);
-      dup2(nullfd, STDOUT_FILENO);
-      dup2(nullfd, STDERR_FILENO);
-      dup2(nullfd, STDIN_FILENO);
-      close(nullfd);
     }
   
-   log_err = log_start(ent_pw, err_pipe[1]); 
+   log_err = log_start(ent_pw, err_pipe[1]);
+
+   if (!(daemon->options & OPT_DEBUG)) 
+     {       
+       /* open  stdout etc to /dev/null */
+       int nullfd = open("/dev/null", O_RDWR);
+       dup2(nullfd, STDOUT_FILENO);
+       dup2(nullfd, STDERR_FILENO);
+       dup2(nullfd, STDIN_FILENO);
+       close(nullfd);
+     }
    
    /* if we are to run scripts, we need to fork a helper before dropping root. */
   daemon->helperfd = -1;
@@ -508,7 +508,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_TFTP
-  if (daemon->options & OPT_TFTP)
+  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
     {
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)
@@ -647,10 +647,11 @@ int main (int argc, char **argv)
 	  difftime(now, daemon->last_resolv) > 1.0 || 
 	  difftime(now, daemon->last_resolv) < -1.0)
 	{
-	  daemon->last_resolv = now;
+	  /* poll_resolv doesn't need to reload first time through, since 
+	     that's queued anyway. */
 
-	  if (daemon->port != 0 && !(daemon->options & OPT_NO_POLL))
-	    poll_resolv();
+	  poll_resolv(0, daemon->last_resolv != 0, now); 	  
+	  daemon->last_resolv = now;
 	}
       
       if (FD_ISSET(piperead, &rset))
@@ -898,7 +899,7 @@ static void async_event(int pipe, time_t now)
       }
 }
 
-static void poll_resolv()
+void poll_resolv(int force, int do_reload, time_t now)
 {
   struct resolvc *res, *latest;
   struct stat statbuf;
@@ -906,19 +907,37 @@ static void poll_resolv()
   /* There may be more than one possible file. 
      Go through and find the one which changed _last_.
      Warn of any which can't be read. */
+
+  if (daemon->port == 0 || (daemon->options & OPT_NO_POLL))
+    return;
+  
   for (latest = NULL, res = daemon->resolv_files; res; res = res->next)
     if (stat(res->name, &statbuf) == -1)
       {
+	if (force)
+	  {
+	    res->mtime = 0; 
+	    continue;
+	  }
+
 	if (!res->logged)
 	  my_syslog(LOG_WARNING, _("failed to access %s: %s"), res->name, strerror(errno));
 	res->logged = 1;
+	
+	if (res->mtime != 0)
+	  { 
+	    /* existing file evaporated, force selection of the latest
+	       file even if its mtime hasn't changed since we last looked */
+	    poll_resolv(1, do_reload, now);
+	    return;
+	  }
       }
     else
       {
 	res->logged = 0;
-	if (statbuf.st_mtime != res->mtime)
-	  {
-	    res->mtime = statbuf.st_mtime;
+	if (force || (statbuf.st_mtime != res->mtime))
+          {
+            res->mtime = statbuf.st_mtime;
 	    if (difftime(statbuf.st_mtime, last_change) > 0.0)
 	      {
 		last_change = statbuf.st_mtime;
@@ -935,8 +954,8 @@ static void poll_resolv()
 	  my_syslog(LOG_INFO, _("reading %s"), latest->name);
 	  warned = 0;
 	  check_servers();
-	  if (daemon->options & OPT_RELOAD)
-	    cache_reload();
+	  if ((daemon->options & OPT_RELOAD) && do_reload)
+	    clear_cache_and_reload(now);
 	}
       else 
 	{
@@ -1125,11 +1144,13 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      
 	      dst_addr_4.s_addr = 0;
 	      
-	       /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
-		  terminate the process. */
+#ifndef NO_FORK
+	      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
+		 terminate the process. */
 	      if (!(daemon->options & OPT_DEBUG))
 		alarm(CHILD_LIFETIME);
-	      
+#endif
+
 	      /* start with no upstream connections. */
 	      for (s = daemon->servers; s; s = s->next)
 		 s->tcpfd = -1; 

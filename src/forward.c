@@ -65,15 +65,15 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
       if (to->sa.sa_family == AF_INET)
 	{
 #if defined(HAVE_LINUX_NETWORK)
-	  struct in_pktinfo *pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
-	  pkt->ipi_ifindex = 0;
-	  pkt->ipi_spec_dst = source->addr.addr4;
+	  struct in_pktinfo p;
+	  p.ipi_ifindex = 0;
+	  p.ipi_spec_dst = source->addr.addr4;
+	  memcpy(CMSG_DATA(cmptr), &p, sizeof(p));
 	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
 	  cmptr->cmsg_level = SOL_IP;
 	  cmptr->cmsg_type = IP_PKTINFO;
 #elif defined(IP_SENDSRCADDR)
-	  struct in_addr *a = (struct in_addr *)CMSG_DATA(cmptr);
-	  *a = source->addr.addr4;
+	  memcpy(CMSG_DATA(cmptr), &(source->addr.addr4), sizeof(source->addr.addr4));
 	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_addr));
 	  cmptr->cmsg_level = IPPROTO_IP;
 	  cmptr->cmsg_type = IP_SENDSRCADDR;
@@ -82,9 +82,10 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
       else
 #ifdef HAVE_IPV6
 	{
-	  struct in6_pktinfo *pkt = (struct in6_pktinfo *)CMSG_DATA(cmptr);
-	  pkt->ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
-	  pkt->ipi6_addr = source->addr.addr6;
+	  struct in6_pktinfo p;
+	  p.ipi6_ifindex = iface; /* Need iface for IPv6 to handle link-local addrs */
+	  p.ipi6_addr = source->addr.addr6;
+	  memcpy(CMSG_DATA(cmptr), &p, sizeof(p));
 	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
 	  cmptr->cmsg_type = daemon->v6pktinfo;
 	  cmptr->cmsg_level = IPV6_LEVEL;
@@ -111,7 +112,7 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
 }
           
 static unsigned short search_servers(time_t now, struct all_addr **addrpp, 
-				     unsigned short qtype, char *qdomain, int *type, char **domain)
+				     unsigned short qtype, char *qdomain, int *type, char **domain, int *norebind)
 			      
 {
   /* If the query ends in the domain in one of our servers, set
@@ -153,38 +154,44 @@ static unsigned short search_servers(time_t now, struct all_addr **addrpp,
 	char *matchstart = qdomain + namelen - domainlen;
 	if (namelen >= domainlen &&
 	    hostname_isequal(matchstart, serv->domain) &&
-	    domainlen >= matchlen &&
-	    (domainlen == 0 || namelen == domainlen || *(serv->domain) == '.' || *(matchstart-1) == '.' ))
+	    (domainlen == 0 || namelen == domainlen || *(matchstart-1) == '.' ))
 	  {
-	    unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
-	    *type = SERV_HAS_DOMAIN;
-	    *domain = serv->domain;
-	    matchlen = domainlen;
-	    if (serv->flags & SERV_NO_ADDR)
-	      flags = F_NXDOMAIN;
-	    else if (serv->flags & SERV_LITERAL_ADDRESS)
+	    if (serv->flags & SERV_NO_REBIND)	
+	      *norebind = 1;
+	    else if (domainlen >= matchlen)
 	      {
-		if (sflag & qtype)
+		unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
+		*type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND);
+		*domain = serv->domain;
+		matchlen = domainlen;
+		if (serv->flags & SERV_NO_ADDR)
+		  flags = F_NXDOMAIN;
+		else if (serv->flags & SERV_LITERAL_ADDRESS)
 		  {
-		    flags = sflag;
-		    if (serv->addr.sa.sa_family == AF_INET) 
-		      *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
+		    if (sflag & qtype)
+		      {
+			flags = sflag;
+			if (serv->addr.sa.sa_family == AF_INET) 
+			  *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
 #ifdef HAVE_IPV6
-		    else
-		      *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+			else
+			  *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
 #endif
+		      }
+		    else if (!flags || (flags & F_NXDOMAIN))
+		      flags = F_NOERR;
 		  }
-		else if (!flags || (flags & F_NXDOMAIN))
-		  flags = F_NOERR;
-	      }
-	  } 
+		else
+		  flags = 0;
+	      } 
+	  }
       }
-
+  
   if (flags == 0 && !(qtype & F_BIGNAME) && 
       (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
     /* don't forward simple names, make exception for NS queries and empty name. */
     flags = F_NXDOMAIN;
-    
+  
   if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now))
     flags = F_NOERR;
 
@@ -197,7 +204,11 @@ static unsigned short search_servers(time_t now, struct all_addr **addrpp,
   
       log_query(logflags | flags | F_CONFIG | F_FORWARD, qdomain, *addrpp, NULL);
     }
-
+  else if ((*type) & SERV_USE_RESOLV)
+    {
+      *type = 0; /* use normal servers for this domain */
+      *domain = NULL;
+    }
   return  flags;
 }
 
@@ -206,7 +217,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 HEADER *header, size_t plen, time_t now, struct frec *forward)
 {
   char *domain = NULL;
-  int type = 0;
+  int type = 0, norebind = 0;
   struct all_addr *addrp = NULL;
   unsigned int crc = questions_crc(header, plen, daemon->namebuff);
   unsigned short flags = 0;
@@ -234,7 +245,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   else 
     {
       if (gotname)
-	flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain);
+	flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
       
       if (!flags && !(forward = get_new_frec(now, NULL)))
 	/* table full - server failure. */
@@ -250,22 +261,33 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  forward->fd = udpfd;
 	  forward->crc = crc;
 	  forward->forwardall = 0;
+	  forward->norebind = norebind;
 	  header->id = htons(forward->new_id);
 
-	  /* In strict_order mode, or when using domain specific servers
-	     always try servers in the order specified in resolv.conf,
+	  /* In strict_order mode, always try servers in the order 
+	     specified in resolv.conf, if a domain is given 
+	     always try all the available servers,
 	     otherwise, use the one last known to work. */
 	  
-	  if (type != 0  || (daemon->options & OPT_ORDER))
-	    start = daemon->servers;
-	  else if (!(start = daemon->last_server) ||
-		   daemon->forwardcount++ > FORWARD_TEST ||
-		   difftime(now, daemon->forwardtime) > FORWARD_TIME)
+	  if (type == 0)
+	    {
+	      if (daemon->options & OPT_ORDER)
+		start = daemon->servers;
+	      else if (!(start = daemon->last_server) ||
+		       daemon->forwardcount++ > FORWARD_TEST ||
+		       difftime(now, daemon->forwardtime) > FORWARD_TIME)
+		{
+		  start = daemon->servers;
+		  forward->forwardall = 1;
+		  daemon->forwardcount = 0;
+		  daemon->forwardtime = now;
+		}
+	    }
+	  else
 	    {
 	      start = daemon->servers;
-	      forward->forwardall = 1;
-	      daemon->forwardcount = 0;
-	      daemon->forwardtime = now;
+	      if (!(daemon->options & OPT_ORDER))
+		forward->forwardall = 1;
 	    }
 	}
     }
@@ -374,7 +396,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 }
 
 static size_t process_reply(HEADER *header, time_t now, 
-			    struct server *server, size_t n)
+			    struct server *server, size_t n, int check_rebind)
 {
   unsigned char *pheader, *sizep;
   int munged = 0, is_sign;
@@ -428,9 +450,9 @@ static size_t process_reply(HEADER *header, time_t now,
 	  header->rcode = NOERROR;
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now))
+      if (extract_addresses(header, n, daemon->namebuff, now, is_sign, check_rebind))
 	{
-	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected"));
+	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
 	}
     }
@@ -543,7 +565,12 @@ void reply_query(int fd, int family, time_t now)
   if (forward->forwardall == 0 || --forward->forwardall == 1 || 
       (header->rcode != REFUSED && header->rcode != SERVFAIL))
     {
-      if ((nn = process_reply(header, now, server, (size_t)n)))
+      int check_rebind = !forward->norebind;
+
+      if (!(daemon->options & OPT_NO_REBIND))
+	check_rebind = 0;
+      
+      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->ra = 1; /* recursion if available */
@@ -635,21 +662,37 @@ void receive_query(struct listener *listen, time_t now)
 	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
 	  if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
 	    {
-	      dst_addr_4 = dst_addr.addr.addr4 = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_spec_dst;
-	      if_index = ((struct in_pktinfo *)CMSG_DATA(cmptr))->ipi_ifindex;
+	      union {
+		unsigned char *c;
+		struct in_pktinfo *p;
+	      } p;
+	      p.c = CMSG_DATA(cmptr);
+	      dst_addr_4 = dst_addr.addr.addr4 = p.p->ipi_spec_dst;
+	      if_index = p.p->ipi_ifindex;
 	    }
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
       if (listen->family == AF_INET)
 	{
 	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	    if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
-	      dst_addr_4 = dst_addr.addr.addr4 = *((struct in_addr *)CMSG_DATA(cmptr));
-	    else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
-#ifdef HAVE_SOLARIS_NETWORK
-	      if_index = *((unsigned int *)CMSG_DATA(cmptr));
-#else
-	      if_index = ((struct sockaddr_dl *)CMSG_DATA(cmptr))->sdl_index;
+	    {
+	      union {
+		unsigned char *c;
+		unsigned int *i;
+		struct in_addr *a;
+#ifndef HAVE_SOLARIS_NETWORK
+		struct sockaddr_dl *s;
 #endif
+	      } p;
+	       p.c = CMSG_DATA(cmptr);
+	       if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVDSTADDR)
+		 dst_addr_4 = dst_addr.addr.addr4 = *(p.a);
+	       else if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_RECVIF)
+#ifdef HAVE_SOLARIS_NETWORK
+		 if_index = *(p.i);
+#else
+  	         if_index = p.s->sdl_index;
+#endif
+	    }
 	}
 #endif
       
@@ -659,8 +702,14 @@ void receive_query(struct listener *listen, time_t now)
 	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
 	    if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == daemon->v6pktinfo)
 	      {
-		dst_addr.addr.addr6 = ((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_addr;
-		if_index =((struct in6_pktinfo *)CMSG_DATA(cmptr))->ipi6_ifindex;
+		union {
+		  unsigned char *c;
+		  struct in6_pktinfo *p;
+		} p;
+		p.c = CMSG_DATA(cmptr);
+		  
+		dst_addr.addr.addr6 = p.p->ipi6_addr;
+		if_index = p.p->ipi6_ifindex;
 	      }
 	}
 #endif
@@ -717,7 +766,7 @@ void receive_query(struct listener *listen, time_t now)
 unsigned char *tcp_request(int confd, time_t now,
 			   struct in_addr local_addr, struct in_addr netmask)
 {
-  int size = 0;
+  int size = 0, norebind = 0;
   size_t m;
   unsigned short qtype, gotname;
   unsigned char c1, c2;
@@ -776,7 +825,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	  char *domain = NULL;
 	  
 	  if (gotname)
-	    flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain);
+	    flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	  
 	  if (type != 0  || (daemon->options & OPT_ORDER) || !daemon->last_server)
 	    last_server = daemon->servers;
@@ -792,7 +841,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	         Note that this code subtley ensures that consecutive queries on this connection
 	         which can go to the same server, do so. */
 	      while (1) 
-		{
+ 		{
 		  if (!firstsendto)
 		    firstsendto = last_server;
 		  else
@@ -857,7 +906,7 @@ unsigned char *tcp_request(int confd, time_t now,
 		     someone might be attempting to insert bogus values into the cache by 
 		     sending replies containing questions and bogus answers. */
 		  if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
-		    m = process_reply(header, now, last_server, (unsigned int)m);
+		    m = process_reply(header, now, last_server, (unsigned int)m, (daemon->options & OPT_NO_REBIND) && !norebind );
 		  
 		  break;
 		}

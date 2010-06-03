@@ -1045,7 +1045,14 @@ void cache_add_dhcp_entry(char *host_name,
       /* check all addresses associated with name */
       if (crec->flags & F_HOSTS)
 	{
-	  if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
+	  /* if in hosts, don't need DHCP record */
+	  in_hosts = 1;
+	  
+	  if (crec->flags & F_CNAME)
+	    my_syslog(LOG_WARNING, 
+		      _("%s is a CNAME, not giving it to the DHCP lease of %s"),
+		      host_name, inet_ntoa(*host_address));
+	  else if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
 	    {
 	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
 	      my_syslog(LOG_WARNING, 
@@ -1053,11 +1060,7 @@ void cache_add_dhcp_entry(char *host_name,
 			  "the name exists in %s with address %s"), 
 			host_name, inet_ntoa(*host_address),
 			record_source(crec->uid), daemon->namebuff);
-	      return;
-	    }
-	  else
-	    /* if in hosts, don't need DHCP record */
-	    in_hosts = 1;
+	    }	  
 	}
       else if (!(crec->flags & F_DHCP))
 	{

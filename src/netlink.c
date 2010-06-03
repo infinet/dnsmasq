@@ -281,8 +281,8 @@ static void nl_routechange(struct nlmsghdr *h)
 	return;
 
       /* Force re-reading resolv file right now, for luck. */
-      daemon->last_resolv = 0;
-
+      poll_resolv(1, 1, dnsmasq_time()); 
+      
       if (daemon->srv_save)
 	{
 	  if (daemon->srv_save->sfd)
