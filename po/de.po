@@ -35,7 +35,7 @@ msgstr "Fehlerhafte Adresse in %s Zeile %d"
 msgid "bad name at %s line %d"
 msgstr "Fehlerhafter Name in %s Zeile %d"
 
-#: cache.c:863 dhcp.c:955
+#: cache.c:863 dhcp.c:956
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "%s gelesen - %d Adressen"
@@ -44,7 +44,7 @@ msgstr "%s gelesen - %d Adressen"
 msgid "cleared cache"
 msgstr "Cache geleert"
 
-#: cache.c:933 option.c:1103
+#: cache.c:933 option.c:1112
 #, c-format
 msgid "cannot access directory %s: %s"
 msgstr "Kann auf Verzeichnis %s nicht zugreifen: %s"
@@ -583,201 +583,201 @@ msgstr "Fehlerhafte DHCP-Option"
 msgid "bad IP address"
 msgstr "Fehlerhafte IP-Adresse"
 
-#: option.c:937
+#: option.c:941
 msgid "bad domain in dhcp-option"
 msgstr "Fehlerhafte Domäne in DHCP-Option"
 
-#: option.c:998
+#: option.c:1007
 msgid "dhcp-option too long"
 msgstr "DHCP-Option zu lang"
 
-#: option.c:1007
+#: option.c:1016
 msgid "illegal dhcp-match"
 msgstr "Unzulässige dhcp-match-Option"
 
-#: option.c:1043
+#: option.c:1052
 msgid "illegal repeated flag"
 msgstr "unzulässig wiederholte Markierung"
 
-#: option.c:1051
+#: option.c:1060
 msgid "illegal repeated keyword"
 msgstr "unzulässig wiederholtes Schlüsselwort"
 
-#: option.c:1134 tftp.c:413
+#: option.c:1143 tftp.c:413
 #, c-format
 msgid "cannot access %s: %s"
 msgstr "Kann auf %s nicht zugreifen: %s"
 
-#: option.c:1179
+#: option.c:1188
 msgid "only one dhcp-hostsfile allowed"
 msgstr "nur eine DHCP-Hostdatei (dhcp-hostsfile) zulässig"
 
-#: option.c:1186
+#: option.c:1195
 msgid "only one dhcp-optsfile allowed"
 msgstr "nur eine DHCP-Optionsdatei (dhcp-optsfile) zulässig"
 
-#: option.c:1231
+#: option.c:1240
 msgid "bad MX preference"
 msgstr "unzulässige MX-Präferenz-Angabe"
 
-#: option.c:1236
+#: option.c:1245
 msgid "bad MX name"
 msgstr "unzulässiger MX-Name"
 
-#: option.c:1250
+#: option.c:1259
 msgid "bad MX target"
 msgstr "unzulässiges MX-Ziel"
 
-#: option.c:1260
+#: option.c:1269
 msgid "cannot run scripts under uClinux"
 msgstr "unter uClinux ist die Skriptausführung nicht möglich"
 
-#: option.c:1262
+#: option.c:1271
 msgid "recompile with HAVE_SCRIPT defined to enable lease-change scripts"
 msgstr "Neuübersetzung mit HAVE_SCRIPT nötig, um Lease-Änderungs-Skripte auszuführen"
 
-#: option.c:1507 option.c:1511
+#: option.c:1516 option.c:1520
 msgid "bad port"
 msgstr "unzulässiger Port"
 
-#: option.c:1530 option.c:1555
+#: option.c:1539 option.c:1564
 msgid "interface binding not supported"
 msgstr "Schnittstellenbindung nicht unterstützt"
 
-#: option.c:1701
+#: option.c:1710
 msgid "bad port range"
 msgstr "unzulässiger Portbereich"
 
-#: option.c:1718
+#: option.c:1727
 msgid "bad bridge-interface"
 msgstr "unzulässige Brücken-Schnittstelle"
 
-#: option.c:1760
+#: option.c:1769
 msgid "bad dhcp-range"
 msgstr "unzulässiger DHCP-Bereich"
 
-#: option.c:1788
+#: option.c:1797
 msgid "only one tag allowed"
 msgstr "nur eine Marke zulässig"
 
-#: option.c:1835
+#: option.c:1844
 msgid "inconsistent DHCP range"
 msgstr "inkonsistenter DHCP-Bereich"
 
-#: option.c:2010
+#: option.c:2019
 msgid "bad DHCP host name"
 msgstr "unzulässiger DHCP-Hostname"
 
-#: option.c:2091
+#: option.c:2100
 msgid "bad tag-if"
 msgstr "unzulässige bedingte Marke (tag-if)"
 
-#: option.c:2365 option.c:2664
+#: option.c:2374 option.c:2673
 msgid "invalid port number"
 msgstr "unzulässige Portnummer"
 
-#: option.c:2427
+#: option.c:2436
 msgid "bad dhcp-proxy address"
 msgstr "Fehlerhafte DHCP-Proxy-Adresse"
 
-#: option.c:2467
+#: option.c:2476
 msgid "invalid alias range"
 msgstr "unzulässiger Alias-Bereich"
 
-#: option.c:2480
+#: option.c:2489
 msgid "bad interface name"
 msgstr "unzulässiger Schnittestellenname"
 
-#: option.c:2505
+#: option.c:2514
 msgid "bad CNAME"
 msgstr "unzulässiger CNAME"
 
-#: option.c:2510
+#: option.c:2519
 msgid "duplicate CNAME"
 msgstr "doppelter CNAME"
 
-#: option.c:2530
+#: option.c:2539
 msgid "bad PTR record"
 msgstr "unzulässiger PTR-Eintrag"
 
-#: option.c:2561
+#: option.c:2570
 msgid "bad NAPTR record"
 msgstr "unzulässiger NAPTR-Eintrag"
 
-#: option.c:2586
+#: option.c:2595
 msgid "TXT record string too long"
 msgstr "TXT-Eintrag zu lang"
 
-#: option.c:2634
+#: option.c:2643
 msgid "bad TXT record"
 msgstr "unzulässiger TXT-Eintrag"
 
-#: option.c:2650
+#: option.c:2659
 msgid "bad SRV record"
 msgstr "unzulässiger SRV-Eintrag"
 
-#: option.c:2657
+#: option.c:2666
 msgid "bad SRV target"
 msgstr "unzulässiges SRV-Ziel"
 
-#: option.c:2671
+#: option.c:2680
 msgid "invalid priority"
 msgstr "unzulässige Priorität"
 
-#: option.c:2678
+#: option.c:2687
 msgid "invalid weight"
 msgstr "unzulässige Wichtung"
 
-#: option.c:2697
+#: option.c:2706
 msgid "unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)"
 msgstr "unzulässige Option (prüfen Sie, ob dnsmasq mit DHCP/TFTP/DBus-Unterstützt übersetzt wurde)"
 
-#: option.c:2739
+#: option.c:2748
 #, c-format
 msgid "files nested too deep in %s"
 msgstr "Dateien in %s zu tief verschachtelt"
 
-#: option.c:2747 tftp.c:567
+#: option.c:2756 tftp.c:567
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "kann %s nicht lesen: %s"
 
-#: option.c:2804
+#: option.c:2813
 msgid "missing \""
 msgstr "fehlende \\\""
 
-#: option.c:2863
+#: option.c:2872
 msgid "bad option"
 msgstr "unzulässige Option"
 
-#: option.c:2865
+#: option.c:2874
 msgid "extraneous parameter"
 msgstr "überschüssiger Parameter"
 
-#: option.c:2867
+#: option.c:2876
 msgid "missing parameter"
 msgstr "fehler Parameter"
 
-#: option.c:2871
+#: option.c:2880
 msgid "error"
 msgstr "Fehler"
 
-#: option.c:2876
+#: option.c:2885
 #, c-format
 msgid "%s at line %d of %%s"
 msgstr "%s in Zeile %d von %%s"
 
-#: option.c:2933 option.c:2964
+#: option.c:2942 option.c:2973
 #, c-format
 msgid "read %s"
 msgstr "%s gelesen"
 
-#: option.c:3036
+#: option.c:3045
 #, c-format
 msgid "Dnsmasq version %s  %s\n"
 msgstr "Dnsmasq Version %s  %s\n"
 
-#: option.c:3037
+#: option.c:3046
 #, c-format
 msgid ""
 "Compile time options %s\n"
@@ -786,63 +786,63 @@ msgstr ""
 "Übersetzungs-Optionen %s\n"
 "\n"
 
-#: option.c:3038
+#: option.c:3047
 #, c-format
 msgid "This software comes with ABSOLUTELY NO WARRANTY.\n"
 msgstr "Für diese Software wird ABSOLUT KEINE GARANTIE gewährt.\n"
 
 # FIXME: this must be one long string! -- MA
-#: option.c:3039
+#: option.c:3048
 #, c-format
 msgid "Dnsmasq is free software, and you are welcome to redistribute it\n"
 msgstr ""
 
-#: option.c:3040
+#: option.c:3049
 #, c-format
 msgid "under the terms of the GNU General Public License, version 2 or 3.\n"
 msgstr ""
 
-#: option.c:3051
+#: option.c:3060
 msgid "try --help"
 msgstr "versuchen Sie --help"
 
-#: option.c:3053
+#: option.c:3062
 msgid "try -w"
 msgstr "versuchen Sie -w"
 
-#: option.c:3056
+#: option.c:3065
 #, c-format
 msgid "bad command line options: %s"
 msgstr "unzulässige Optionen auf der Befehlszeile: %s"
 
-#: option.c:3097
+#: option.c:3106
 #, c-format
 msgid "cannot get host-name: %s"
 msgstr "kann Hostnamen nicht ermitteln: %s"
 
-#: option.c:3125
+#: option.c:3134
 msgid "only one resolv.conf file allowed in no-poll mode."
 msgstr "mit -n/--no-poll ist nur eine resolv.conf-Datei zulässig."
 
-#: option.c:3135
+#: option.c:3144
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "Um die Domäne zu lesen, muss genau eine resolv.conf-Datei verwendet werden."
 
-#: option.c:3138 network.c:813 dhcp.c:814
+#: option.c:3147 network.c:813 dhcp.c:814
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "konnte %s nicht lesen: %s"
 
-#: option.c:3155
+#: option.c:3164
 #, c-format
 msgid "no search directive found in %s"
 msgstr "keine \"search\"-Anweisung in %s gefunden"
 
-#: option.c:3176
+#: option.c:3185
 msgid "there must be a default domain when --dhcp-fqdn is set"
 msgstr "für --dhcp-fqdn muss eine Domäne vorausgewählt werden"
 
-#: option.c:3180
+#: option.c:3189
 msgid "syntax check OK"
 msgstr "Syntaxprüfung OK"
 
@@ -1191,22 +1191,22 @@ msgstr "ungültige Zeile %2$d in Datei %1$s"
 msgid "ignoring %s line %d, duplicate name or IP address"
 msgstr "ignoriere %s Zeile %d, doppelter Name oder doppelte IP-Adresse"
 
-#: dhcp.c:977
+#: dhcp.c:978
 #, c-format
 msgid "duplicate IP address %s in dhcp-config directive."
 msgstr "doppelte IP-Adresse %s in \"dhcp-config\"-Anweisung"
 
-#: dhcp.c:980
+#: dhcp.c:981
 #, c-format
 msgid "duplicate IP address %s in %s."
 msgstr "doppelte IP-Adresse %s in %s."
 
-#: dhcp.c:1023
+#: dhcp.c:1024
 #, c-format
 msgid "%s has more than one address in hostsfile, using %s for DHCP"
 msgstr "%s hat mehr als eine Adresse in hosts-Datei, benutze %s für DHCP"
 
-#: dhcp.c:1028
+#: dhcp.c:1029
 #, c-format
 msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "doppelte IP-Adresse %s (%s) in \"dhcp-config\"-Anweisung"

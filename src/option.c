@@ -931,34 +931,43 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      
 	      while (arg && *arg)
 		{
-		  char *dom;
-		  if (!(dom = arg = canonicalise_opt(arg)))
+		  char *in, *dom = NULL;
+		  size_t domlen = 1;
+		  /* Allow "." as an empty domain */
+		  if (strcmp (arg, ".") != 0)
 		    {
-		      problem = _("bad domain in dhcp-option");
-		      break;
+		      if (!(dom = canonicalise_opt(arg)))
+			{
+			  problem = _("bad domain in dhcp-option");
+			  break;
+			}
+		      domlen = strlen(dom) + 2;
 		    }
-		  
-		  newp = opt_malloc(len + strlen(arg) + 2 + header_size);
+		      
+		  newp = opt_malloc(len + domlen + header_size);
 		  if (m)
-		    memcpy(newp, m, header_size + len);
+		    {
+		      memcpy(newp, m, header_size + len);
+		      free(m);
+		    }
 		  m = newp;
 		  p = m + header_size;
 		  q = p + len;
 		  
 		  /* add string on the end in RFC1035 format */
-		  while (*arg) 
+		  for (in = dom; in && *in;) 
 		    {
 		      unsigned char *cp = q++;
 		      int j;
-		      for (j = 0; *arg && (*arg != '.'); arg++, j++)
-			*q++ = *arg;
+		      for (j = 0; *in && (*in != '.'); in++, j++)
+			*q++ = *in;
 		      *cp = j;
-		      if (*arg)
-			arg++;
+		      if (*in)
+			in++;
 		    }
 		  *q++ = 0;
 		  free(dom);
-
+		  
 		  /* Now tail-compress using earlier names. */
 		  newlen = q - p;
 		  for (tail = p + len; *tail; tail += (*tail) + 1)

@@ -1,3 +1,19 @@
+version 2.55
+           Fix crash when /etc/ethers is in use. Thanks to 
+	   Gianluigi Tiesi for finding this.
+
+	   Fix crash in netlink_multicast(). Thanks to Arno Wald for
+	   finding this one.
+
+	   Allow the empty domain "." in dhcp domain-search (119)
+	   options. 
+
+
+version 2.54
+           There is no version 2.54 to avoid confusion with 2.53,
+           which incorrectly identifies itself as 2.54.
+
+
 version 2.53
             Fix failure to compile on Debian/kFreeBSD. Thanks to 
 	    Axel Beckert and Petr Salinger.

@@ -917,6 +917,7 @@ void dhcp_read_ethers(void)
 	      config->flags = CONFIG_FROM_ETHERS;
 	      config->hwaddr = NULL;
 	      config->domain = NULL;
+	      config->netid = NULL;
 	      config->next = daemon->dhcp_conf;
 	      daemon->dhcp_conf = config;
 	    }

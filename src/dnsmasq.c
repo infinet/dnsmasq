@@ -641,6 +641,11 @@ int main (int argc, char **argv)
 
       check_log_writer(&wset);
 
+#ifdef HAVE_LINUX_NETWORK
+      if (FD_ISSET(daemon->netlinkfd, &rset))
+	netlink_multicast();
+#endif
+
       /* Check for changes to resolv files once per second max. */
       /* Don't go silent for long periods if the clock goes backwards. */
       if (daemon->last_resolv == 0 || 
@@ -656,11 +661,6 @@ int main (int argc, char **argv)
       
       if (FD_ISSET(piperead, &rset))
 	async_event(piperead, now);
-      
-#ifdef HAVE_LINUX_NETWORK
-      if (FD_ISSET(daemon->netlinkfd, &rset))
-	netlink_multicast();
-#endif
       
 #ifdef HAVE_DBUS
       /* if we didn't create a DBus connection, retry now. */ 
