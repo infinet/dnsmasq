@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
  
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define COPYRIGHT "Copyright (c) 2000-2010 Simon Kelley" 
+#define COPYRIGHT "Copyright (c) 2000-2011 Simon Kelley" 
 
 #ifndef NO_LARGEFILE
 /* Ensure we can use files >2GB (log files may grow this big) */
@@ -163,38 +163,44 @@ struct event_desc {
 */
 #define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
 
-#define OPT_BOGUSPRIV      (1u<<0)
-#define OPT_FILTER         (1u<<1)
-#define OPT_LOG            (1u<<2)
-#define OPT_SELFMX         (1u<<3)
-#define OPT_NO_HOSTS       (1u<<4)
-#define OPT_NO_POLL        (1u<<5)
-#define OPT_DEBUG          (1u<<6)
-#define OPT_ORDER          (1u<<7)
-#define OPT_NO_RESOLV      (1u<<8)
-#define OPT_EXPAND         (1u<<9)
-#define OPT_LOCALMX        (1u<<10)
-#define OPT_NO_NEG         (1u<<11)
-#define OPT_NODOTS_LOCAL   (1u<<12)
-#define OPT_NOWILD         (1u<<13)
-#define OPT_ETHERS         (1u<<14)
-#define OPT_RESOLV_DOMAIN  (1u<<15)
-#define OPT_NO_FORK        (1u<<16)
-#define OPT_AUTHORITATIVE  (1u<<17)
-#define OPT_LOCALISE       (1u<<18)
-#define OPT_DBUS           (1u<<19)
-#define OPT_DHCP_FQDN      (1u<<20)
-#define OPT_NO_PING        (1u<<21)
-#define OPT_LEASE_RO       (1u<<22)
-#define OPT_ALL_SERVERS    (1u<<23)
-#define OPT_RELOAD         (1u<<24)
-#define OPT_LOCAL_REBIND   (1u<<25)  
-#define OPT_TFTP_SECURE    (1u<<26)
-#define OPT_TFTP_NOBLOCK   (1u<<27)
-#define OPT_LOG_OPTS       (1u<<28)
-#define OPT_TFTP_APREF     (1u<<29)
-#define OPT_NO_OVERRIDE    (1u<<30)
-#define OPT_NO_REBIND      (1u<<31)
+/* Trust the compiler dead-code elimator.... */
+#define option_bool(x) (((x) < 32) ? daemon->options & (1u << (x)) : daemon->options2 & (1u << ((x) - 32)))
+
+#define OPT_BOGUSPRIV      0
+#define OPT_FILTER         1
+#define OPT_LOG            2
+#define OPT_SELFMX         3
+#define OPT_NO_HOSTS       4
+#define OPT_NO_POLL        5
+#define OPT_DEBUG          6
+#define OPT_ORDER          7
+#define OPT_NO_RESOLV      8
+#define OPT_EXPAND         9
+#define OPT_LOCALMX        10
+#define OPT_NO_NEG         11
+#define OPT_NODOTS_LOCAL   12
+#define OPT_NOWILD         13
+#define OPT_ETHERS         14
+#define OPT_RESOLV_DOMAIN  15
+#define OPT_NO_FORK        16
+#define OPT_AUTHORITATIVE  17
+#define OPT_LOCALISE       18
+#define OPT_DBUS           19
+#define OPT_DHCP_FQDN      20
+#define OPT_NO_PING        21
+#define OPT_LEASE_RO       22
+#define OPT_ALL_SERVERS    23
+#define OPT_RELOAD         24
+#define OPT_LOCAL_REBIND   25  
+#define OPT_TFTP_SECURE    26
+#define OPT_TFTP_NOBLOCK   27
+#define OPT_LOG_OPTS       28
+#define OPT_TFTP_APREF     29
+#define OPT_NO_OVERRIDE    30
+#define OPT_NO_REBIND      31
+#define OPT_ADD_MAC        32
+#define OPT_DNSSEC         33
+#define OPT_LAST           34
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -235,7 +241,8 @@ struct naptr {
 };
 
 struct txt_record {
-  char *name, *txt;
+  char *name;
+  unsigned char *txt;
   unsigned short class, len;
   struct txt_record *next;
 };
@@ -280,22 +287,28 @@ struct crec {
   } name;
 };
 
-#define F_IMMORTAL  1
-#define F_CONFIG    2
-#define F_REVERSE   4
-#define F_FORWARD   8
-#define F_DHCP      16 
-#define F_NEG       32       
-#define F_HOSTS     64
-#define F_IPV4      128
-#define F_IPV6      256
-#define F_BIGNAME   512
-#define F_UPSTREAM  1024
-#define F_SERVER    2048
-#define F_NXDOMAIN  4096
-#define F_QUERY     8192
-#define F_CNAME     16384
-#define F_NOERR     32768
+#define F_IMMORTAL  (1u<<0)
+#define F_NAMEP     (1u<<1)
+#define F_REVERSE   (1u<<2)
+#define F_FORWARD   (1u<<3)
+#define F_DHCP      (1u<<4)
+#define F_NEG       (1u<<5)       
+#define F_HOSTS     (1u<<6)
+#define F_IPV4      (1u<<7)
+#define F_IPV6      (1u<<8)
+#define F_BIGNAME   (1u<<9)
+#define F_NXDOMAIN  (1u<<10)
+#define F_CNAME     (1u<<11)
+#define F_NOERR     (1u<<12)
+#define F_CONFIG    (1u<<13)
+/* below here are only valid as args to log_query: cache
+   entries are limited to 16 bits */
+#define F_UPSTREAM  (1u<<16)
+#define F_RRNAME    (1u<<17)
+#define F_SERVER    (1u<<18)
+#define F_QUERY     (1u<<19)
+#define F_NSRR      (1u<<20)
+
 
 /* struct sockaddr is not large enough to hold any address,
    and specifically not big enough to hold an IPv6 address.
@@ -374,7 +387,7 @@ struct resolvc {
   char *name;
 };
 
-/* adn-hosts parms from command-line */
+/* adn-hosts parms from command-line (also dhcp-hostsfile and dhcp-optsfile */
 #define AH_DIR      1
 #define AH_INACTIVE 2
 struct hostsfile {
@@ -383,6 +396,9 @@ struct hostsfile {
   char *fname;
   int index; /* matches to cache entries for logging */
 };
+
+#define FREC_NOREBIND           1
+#define FREC_CHECKING_DISABLED  2
 
 struct frec {
   union mysockaddr source;
@@ -394,7 +410,7 @@ struct frec {
 #endif
   unsigned int iface;
   unsigned short orig_id, new_id;
-  int fd, forwardall, norebind;
+  int fd, forwardall, flags;
   unsigned int crc;
   time_t time;
   struct frec *next;
@@ -601,7 +617,7 @@ struct tftp_transfer {
   int backoff;
   unsigned int block, blocksize, expansion;
   off_t offset;
-  struct sockaddr_in peer;
+  union mysockaddr peer;
   char opt_blocksize, opt_transize, netascii, carrylf;
   struct tftp_file *file;
   struct tftp_transfer *next;
@@ -629,7 +645,7 @@ extern struct daemon {
      config file arguments. All set (including defaults)
      in option.c */
 
-  unsigned int options;
+  unsigned int options, options2;
   struct resolvc default_resolv, *resolv_files;
   time_t last_resolv;
   struct mx_srv_record *mxnames;
@@ -669,7 +685,7 @@ extern struct daemon {
   int enable_pxe;
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *dhcp_gen_names; 
   struct dhcp_netid_list *force_broadcast, *bootp_dynamic;
-  char *dhcp_hosts_file, *dhcp_opts_file;
+  struct hostsfile *dhcp_hosts_file, *dhcp_opts_file;
   int dhcp_max, tftp_max;
   int dhcp_server_port, dhcp_client_port;
   int start_tftp_port, end_tftp_port; 
@@ -727,7 +743,7 @@ extern struct daemon {
 
 /* cache.c */
 void cache_init(void);
-void log_query(unsigned short flags, char *name, struct all_addr *addr, char *arg); 
+void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg); 
 char *record_source(int index);
 void querystr(char *str, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
@@ -747,13 +763,13 @@ char *cache_get_name(struct crec *crecp);
 char *get_domain(struct in_addr addr);
 
 /* rfc1035.c */
-unsigned short extract_request(HEADER *header, size_t qlen, 
+unsigned int extract_request(HEADER *header, size_t qlen, 
 			       char *name, unsigned short *typep);
 size_t setup_reply(HEADER *header, size_t  qlen,
-		   struct all_addr *addrp, unsigned short flags,
+		   struct all_addr *addrp, unsigned int flags,
 		   unsigned long local_ttl);
 int extract_addresses(HEADER *header, size_t qlen, char *namebuff, 
-		      time_t now, int is_sign, int checkrebind);
+		      time_t now, int is_sign, int checkrebind, int checking_disabled);
 size_t answer_request(HEADER *header, char *limit, size_t qlen,  
 		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
 int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name, 
@@ -764,6 +780,7 @@ int check_for_local_domain(char *name, time_t now);
 unsigned int questions_crc(HEADER *header, size_t plen, char *buff);
 size_t resize_packet(HEADER *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
+size_t add_mac(HEADER *header, size_t plen, char *limit, union mysockaddr *l3);
 
 /* util.c */
 void rand_init(void);
@@ -804,6 +821,8 @@ void flush_log(void);
 void read_opts (int argc, char **argv, char *compile_opts);
 char *option_string(unsigned char opt, int *is_ip, int *is_name);
 void reread_dhcp(void);
+void set_option_bool(unsigned int opt);
+struct hostsfile *expand_filelist(struct hostsfile *list);
 
 /* forward.c */
 void reply_query(int fd, int family, time_t now);
@@ -908,7 +927,7 @@ void send_via_bpf(struct dhcp_packet *mess, size_t len,
 #endif
 
 /* bpf.c or netlink.c */
-int iface_enumerate(void *parm, int (*ipv4_callback)(), int (*ipv6_callback)());
+int iface_enumerate(int family, void *parm, int (callback)());
 
 /* dbus.c */
 #ifdef HAVE_DBUS

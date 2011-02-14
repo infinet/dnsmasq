@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ static int make_fd(int port)
   /* When bind-interfaces is set, there might be more than one dnmsasq
      instance binding port 67. That's OK if they serve different networks.
      Need to set REUSEADDR to make this posible, or REUSEPORT on *BSD. */
-  if (daemon->options & OPT_NOWILD)
+  if (option_bool(OPT_NOWILD))
     {
 #ifdef SO_REUSEPORT
       int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &oneopt, sizeof(oneopt));
@@ -96,7 +96,7 @@ void dhcp_init(void)
      we drop root. Also, set buffer size small, to avoid wasting
      kernel buffers */
   
-  if (daemon->options & OPT_NO_PING)
+  if (option_bool(OPT_NO_PING))
     daemon->dhcp_icmp_fd = -1;
   else if ((daemon->dhcp_icmp_fd = make_icmp_sock()) == -1 ||
 	   setsockopt(daemon->dhcp_icmp_fd, SOL_SOCKET, SO_RCVBUF, &oneopt, sizeof(oneopt)) == -1 )
@@ -295,7 +295,7 @@ void dhcp_packet(time_t now, int pxe_fd)
 	}
     } 
 
-  if (!iface_enumerate(&parm, complete_context, NULL))
+  if (!iface_enumerate(AF_INET, &parm, complete_context))
     return;
   lease_prune(NULL, now); /* lose any expired leases */
   iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, 
@@ -660,7 +660,7 @@ int address_allocate(struct dhcp_context *context,
 		
 		*addrp = addr;
 
-		if (daemon->options & OPT_NO_PING)
+		if (option_bool(OPT_NO_PING))
 		  return 1;
 		
 		/* check if we failed to ping addr sometime in the last

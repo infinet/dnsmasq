@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -383,7 +383,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   /* keep _a_ local address available. */
   fallback = context->local;
   
-  if (daemon->options & OPT_LOG_OPTS)
+  if (option_bool(OPT_LOG_OPTS))
     {
       struct dhcp_context *context_tmp;
       for (context_tmp = context; context_tmp; context_tmp = context_tmp->current)
@@ -603,7 +603,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	client_hostname = daemon->dhcp_buff;
     }
 
-  if (client_hostname && daemon->options & OPT_LOG_OPTS)
+  if (client_hostname && option_bool(OPT_LOG_OPTS))
     my_syslog(MS_DHCP | LOG_INFO, _("%u client provides name: %s"), ntohl(mess->xid), client_hostname);
   
   if (have_config(config, CONFIG_NAME))
@@ -756,7 +756,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
     }
   match_vendor_opts(opt, daemon->dhcp_opts);
   
-  if (daemon->options & OPT_LOG_OPTS)
+  if (option_bool(OPT_LOG_OPTS))
     {
       if (sanitise(opt, daemon->namebuff))
 	my_syslog(MS_DHCP | LOG_INFO, _("%u vendor class: %s"), ntohl(mess->xid), daemon->namebuff);
@@ -865,40 +865,49 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  pxearch = option_uint(opt, 0, 2);
 
 	  /* proxy DHCP here. */
-	  if ((mess_type == DHCPDISCOVER || (pxe && mess_type == DHCPREQUEST)) && 
-	      (context->flags & CONTEXT_PROXY))
+	  if ((mess_type == DHCPDISCOVER || (pxe && mess_type == DHCPREQUEST)))
 	    {
-	      struct dhcp_boot *boot = find_boot(tagif_netid);
-
-	      mess->yiaddr.s_addr = 0;
-	      if  (mess_type == DHCPDISCOVER || mess->ciaddr.s_addr == 0)
-		{
-		  mess->ciaddr.s_addr = 0;
-		  mess->flags |= htons(0x8000); /* broadcast */
-		}
-
-	      clear_packet(mess, end);
+	      struct dhcp_context *tmp;
 	      
-	      /* Provide the bootfile here, for gPXE, and in case we have no menu items
-		 and set discovery_control = 8 */
-	      if (boot)
+	      for (tmp = context; tmp; tmp = tmp->current)
+		if ((tmp->flags & CONTEXT_PROXY) &&
+		    match_netid(tmp->filter, tagif_netid, 1))
+		  break;
+	      
+	      if (tmp)
 		{
-		  if (boot->next_server.s_addr)
-		    mess->siaddr = boot->next_server;
+		  struct dhcp_boot *boot = find_boot(tagif_netid);
+		
+		  mess->yiaddr.s_addr = 0;
+		  if  (mess_type == DHCPDISCOVER || mess->ciaddr.s_addr == 0)
+		    {
+		      mess->ciaddr.s_addr = 0;
+		      mess->flags |= htons(0x8000); /* broadcast */
+		    }
 		  
-		  if (boot->file)
-		    strncpy((char *)mess->file, boot->file, sizeof(mess->file)-1);
+		  clear_packet(mess, end);
+		  
+		  /* Provide the bootfile here, for gPXE, and in case we have no menu items
+		     and set discovery_control = 8 */
+		  if (boot)
+		    {
+		      if (boot->next_server.s_addr)
+			mess->siaddr = boot->next_server;
+		      
+		      if (boot->file)
+			strncpy((char *)mess->file, boot->file, sizeof(mess->file)-1);
+		    }
+		  
+		  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, 
+			     mess_type == DHCPDISCOVER ? DHCPOFFER : DHCPACK);
+		  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, htonl(context->local.s_addr));
+		  pxe_misc(mess, end, uuid);
+		  prune_vendor_opts(tagif_netid);
+		  do_encap_opts(pxe_opts(pxearch, tagif_netid, context->local), OPTION_VENDOR_CLASS_OPT, DHOPT_VENDOR_MATCH, mess, end, 0);
+		  
+		  log_packet("PXE", NULL, emac, emac_len, iface_name, ignore ? "proxy-ignored" : "proxy", mess->xid);
+		  return ignore ? 0 : dhcp_packet_size(mess, tagif_netid, agent_id, real_end);	  
 		}
-
-	      option_put(mess, end, OPTION_MESSAGE_TYPE, 1, 
-			 mess_type == DHCPDISCOVER ? DHCPOFFER : DHCPACK);
-	      option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, htonl(context->local.s_addr));
-	      pxe_misc(mess, end, uuid);
-	      prune_vendor_opts(tagif_netid);
-	      do_encap_opts(pxe_opts(pxearch, tagif_netid, context->local), OPTION_VENDOR_CLASS_OPT, DHOPT_VENDOR_MATCH, mess, end, 0);
-	      
-	      log_packet("PXE", NULL, emac, emac_len, iface_name, ignore ? "proxy-ignored" : "proxy", mess->xid);
-	      return ignore ? 0 : dhcp_packet_size(mess, tagif_netid, agent_id, real_end);	  
 	    }
 	}
     }
@@ -1085,7 +1094,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		      /* In auth mode, a REQUEST sent to the wrong server
 			 should be faulted, so that the client establishes 
 			 communication with us, otherwise, silently ignore. */
-		      if (!(daemon->options & OPT_AUTHORITATIVE))
+		      if (!option_bool(OPT_AUTHORITATIVE))
 			return 0;
 		      message = _("wrong server-ID");
 		    }
@@ -1101,7 +1110,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  else
 	    {
 	      /* INIT-REBOOT */
-	      if (!lease && !(daemon->options & OPT_AUTHORITATIVE))
+	      if (!lease && !option_bool(OPT_AUTHORITATIVE))
 		return 0;
 	      
 	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
@@ -1116,8 +1125,13 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	     as long as we can allocate the lease now - checked below.
 	     This makes for a smooth recovery from a lost lease DB */
 	  if ((lease && mess->ciaddr.s_addr != lease->addr.s_addr) ||
-	      (!lease && !(daemon->options & OPT_AUTHORITATIVE)))
+	      (!lease && !option_bool(OPT_AUTHORITATIVE)))
 	    {
+	      /* A client rebinding will broadcast the request, so we may see it even 
+		 if the lease is held by another server. Just ignore it in that case. 
+		 If the request is unicast to us, then somethings wrong, NAK */
+	      if (!unicast_dest)
+		return 0;
 	      message = _("lease not found");
 	      /* ensure we broadcast NAK */
 	      unicast_dest = 0;
@@ -1235,6 +1249,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      lease->changed = 1;
 	      free(lease->extradata);
+	      lease->extradata = NULL;
 	      lease->extradata_size = lease->extradata_len = 0;
 	      
 	      add_extradata_opt(lease, option_find(mess, sz, OPTION_VENDOR_ID, 1));
@@ -1568,7 +1583,7 @@ static void log_packet(char *type, void *addr, unsigned char *ext_mac,
   
   print_mac(daemon->namebuff, ext_mac, mac_len);
   
-  if(daemon->options & OPT_LOG_OPTS)
+  if(option_bool(OPT_LOG_OPTS))
      my_syslog(MS_DHCP | LOG_INFO, "%u %s(%s) %s%s%s %s",
 	       ntohl(xid), 
 	       type,
@@ -1737,7 +1752,7 @@ static size_t dhcp_packet_size(struct dhcp_packet *mess, struct dhcp_netid *neti
     }
   
   /* We do logging too */
-  if (netid && (daemon->options & OPT_LOG_OPTS))
+  if (netid && option_bool(OPT_LOG_OPTS))
     {
       char *s = daemon->namebuff;
       for (*s = 0; netid; netid = netid->next)
@@ -1763,19 +1778,19 @@ static size_t dhcp_packet_size(struct dhcp_packet *mess, struct dhcp_netid *neti
   if (overload && (option_uint(overload, 0, 1) & 1))
     {
       *dhcp_skip_opts(mess->file) = OPTION_END;
-      if (daemon->options & OPT_LOG_OPTS)
+      if (option_bool(OPT_LOG_OPTS))
 	log_options(mess->file, mess->xid);
     }
-  else if ((daemon->options & OPT_LOG_OPTS) && strlen((char *)mess->file) != 0)
+  else if (option_bool(OPT_LOG_OPTS) && strlen((char *)mess->file) != 0)
     my_syslog(MS_DHCP | LOG_INFO, _("%u bootfile name: %s"), ntohl(mess->xid), (char *)mess->file);
   
   if (overload && (option_uint(overload, 0, 1) & 2))
     {
       *dhcp_skip_opts(mess->sname) = OPTION_END;
-      if (daemon->options & OPT_LOG_OPTS)
+      if (option_bool(OPT_LOG_OPTS))
 	log_options(mess->sname, mess->xid);
     }
-  else if ((daemon->options & OPT_LOG_OPTS) && strlen((char *)mess->sname) != 0)
+  else if (option_bool(OPT_LOG_OPTS) && strlen((char *)mess->sname) != 0)
     my_syslog(MS_DHCP | LOG_INFO, _("%u server name: %s"), ntohl(mess->xid), (char *)mess->sname);
 
 
@@ -1787,7 +1802,7 @@ static size_t dhcp_packet_size(struct dhcp_packet *mess, struct dhcp_netid *neti
   if (id_list)
     mess->flags |= htons(0x8000); /* force broadcast */
   
-  if (daemon->options & OPT_LOG_OPTS)
+  if (option_bool(OPT_LOG_OPTS))
     {
       if (mess->siaddr.s_addr != 0)
 	my_syslog(MS_DHCP | LOG_INFO, _("%u next server: %s"), ntohl(mess->xid), inet_ntoa(mess->siaddr));
@@ -2218,7 +2233,7 @@ static void do_options(struct dhcp_context *context,
     my_syslog(MS_DHCP | LOG_WARNING, _("Ignoring domain %s for DHCP host name %s"), config_domain, hostname);
   
   /* logging */
-  if ((daemon->options & OPT_LOG_OPTS) && req_options)
+  if (option_bool(OPT_LOG_OPTS) && req_options)
     {
       char *q = daemon->namebuff;
       for (i = 0; req_options[i] != OPTION_END; i++)
@@ -2251,7 +2266,7 @@ static void do_options(struct dhcp_context *context,
     {
       if (boot->sname)
 	{	  
-	  if (!(daemon->options & OPT_NO_OVERRIDE) &&
+	  if (!option_bool(OPT_NO_OVERRIDE) &&
 	      req_options && 
 	      in_list(req_options, OPTION_SNAME))
 	    option_put_string(mess, end, OPTION_SNAME, boot->sname, 1);
@@ -2261,7 +2276,7 @@ static void do_options(struct dhcp_context *context,
       
       if (boot->file)
 	{
-	  if (!(daemon->options & OPT_NO_OVERRIDE) &&
+	  if (!option_bool(OPT_NO_OVERRIDE) &&
 	      req_options && 
 	      in_list(req_options, OPTION_FILENAME))
 	    option_put_string(mess, end, OPTION_FILENAME, boot->file, 1);
@@ -2300,7 +2315,7 @@ static void do_options(struct dhcp_context *context,
      fields look like they are in use, even when they aren't. This gets restored
      at the end of this function. */
 
-  if (!req_options || (daemon->options & OPT_NO_OVERRIDE))
+  if (!req_options || option_bool(OPT_NO_OVERRIDE))
     {
       f0 = mess->file[0];
       mess->file[0] = 1;
@@ -2537,7 +2552,7 @@ static void do_options(struct dhcp_context *context,
     memcpy(p, daemon->dhcp_buff3, vendor_class_len);	    
    
    /* restore BOOTP anti-overload hack */
-  if (!req_options || (daemon->options & OPT_NO_OVERRIDE))
+  if (!req_options || option_bool(OPT_NO_OVERRIDE))
     {
       mess->file[0] = f0;
       mess->sname[0] = s0;

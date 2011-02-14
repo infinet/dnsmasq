@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -365,7 +365,8 @@ void prettyprint_time(char *buf, unsigned int t)
 }
 
 
-/* in may equal out, when maxlen may be -1 (No max len). */
+/* in may equal out, when maxlen may be -1 (No max len). 
+   Return -1 for extraneous no-hex chars found. */
 int parse_hex(char *in, unsigned char *out, int maxlen, 
 	      unsigned int *wildcard_mask, int *mac_type)
 {
@@ -377,7 +378,10 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
   
   while (maxlen == -1 || i < maxlen)
     {
-      for (r = in; *r != 0 && *r != ':' && *r != '-'; r++);
+      for (r = in; *r != 0 && *r != ':' && *r != '-'; r++)
+	if (!isxdigit((int)*r))
+	  return -1;
+      
       if (*r == 0)
 	maxlen = i;
       

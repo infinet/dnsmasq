@@ -1,17 +1,141 @@
+version 2.56
+            Add a patch to allow dnsmasq to get interface names right in a
+            Solaris zone. Thanks to Dj Padzensky for this.
+
+	    Improve data-type parsing heuristics so that
+	    --dhcp-option=option:domain-search,. 
+	    treats the value as a string and not an IP address.
+	    Thanks to Clemens Fischer for spotting that.
+
+	    Add IPv6 support to the TFTP server. Many thanks to Jan 
+	    'RedBully' Seiffert for the patches.
+	    
+	    Log DNS queries at level LOG_INFO, rather then
+	    LOG_DEBUG. This makes things consistent with DHCP
+	    logging. Thanks to Adam Pribyl for spotting the problem.
+
+            Ensure that dnsmasq terminates cleanly when using
+            --syslog-async even if it cannot make a connection to the
+            syslogd.
+
+	    Add --add-mac option. This is to support currently 
+	    experimental DNS filtering facilities. Thanks to Benjamin
+	    Petrin for the orignal patch. 
+
+	    Fix bug which meant that tags were ignored in dhcp-range
+	    configuration specifying PXE-proxy service. Thanks to
+	    Cristiano Cumer for spotting this.
+
+	    Raise an error if there is extra junk, not part of an
+ 	    option, on the command line.
+
+	    Flag a couple of log messages in cache.c as coming from
+	    the DHCP subsystem. Thanks to Olaf Westrik for the patch.
+
+	    Omit timestamps from logs when a) logging to stderr and 
+	    b) --keep-in-forground is set. The logging facility on the
+	    other end of stderr can be assumned to supply them. Thanks
+	    to John Hallam for the patch.
+
+	    Don't complain about strings longer than 255 characters in
+	    --txt-record, just split the long strings into 255
+	    character chunks instead.
+
+	    Fix crash on double-free. This bug can only happen when
+	    dhcp-script is in use and then only in rare circumstances
+	    triggered by high DHCP transaction rate and a slow
+	    script. Thanks to Ferenc Wagner for finding the problem.
+
+	    Only log that a file has been sent by TFTP after the
+	    transfer has completed succesfully. 
+
+	    A good suggestion from Ferenc Wagner: extend
+	    the --domain option to allow this sort of thing:
+            --domain=thekelleys.org.uk,192.168.0.0/24,local
+	    which automatically creates
+	    --local=/thekelleys.org.uk/
+	    --local=/0.168.192.in-addr.arpa/ 
+
+	    Tighten up syntax checking of hex contants in the config
+	    file.  Thanks to Fred Damen for spotting this.
+
+	    Add dnsmasq logo/icon, contributed by Justin Swift. Many
+	    thanks for that.
+
+	    Never cache DNS replies which have the 'cd' bit set, or
+	    which result from queries forwarded with the 'cd' bit
+	    set. The 'cd' bit instructs a DNSSEC validating server
+	    upstream to ignore signature failures and return replies
+	    anyway. Without this change it's possible to pollute the
+	    dnsmasq cache with bad data by making a query with the
+	    'cd' bit set and subsequent queries would return this data
+	    without its being marked as suspect. Thanks to Anders
+	    Kaseorg for pointing out this problem.
+
+	    Add --proxy-dnssec flag, for compliance with RFC
+	    4035. Dnsmasq will now clear the 'ad' bit in answers returned
+	    from upstream validating nameservers unless this option is
+	    set.
+
+	    Allow a filename of "-" for --conf-file to read
+	    stdin. Suggestion from Timothy Redaelli.
+
+	    Rotate the order of SRV records in replies, to provide
+	    round-robin load balancing when all the priorities are
+	    equal. Thanks to Peter McKinney for the suggestion.	
+
+	    Edit
+	    contrib/MacOSX-launchd/uk.org.thekelleys.dnsmasq.plist 
+	    so that it doesn't log all queries to a file by
+	    default. Thanks again to Peter McKinney.    
+
+	    By default, setting an IPv4 address for a domain but not
+	    an IPv6 address causes dnsmasq to return
+	    an NODATA reply for IPv6 (or vice-versa). So
+	    --address=/google.com/1.2.3.4 stops IPv6 queries for
+	    *google.com from being forwarded. Make it possible to
+	    override this behaviour by defining the sematics if the
+	    same domain appears in  both --server and --address.
+	    In that case, the --address has priority for the address
+	    family in which is appears, but the --server has priority
+	    of the address family which doesn't appear in --adddress  
+	    So:
+	    --address=/google.com/1.2.3.4
+	    --server=/google.com/#
+	    will return 1.2.3.4 for IPv4 queries for *.google.com but
+	    forward IPv6 queries to the normal upstream nameserver.
+	    Similarly when setting an IPv6 address
+	    only this will allow forwarding of IPv4 queries. Thanks to
+	    William for pointing out the need for this.
+
+	    Allow more than one --dhcp-optsfile and --dhcp-hostsfile
+	    and make them understand directories as arguments in the
+	    same way as --addn-hosts. Suggestion from John Hanks. 
+
+	    Ignore rebinding requests for leases we don't know
+	    about. Rebind is broadcast, so we might get to overhear a
+	    request meant for another DHCP server. NAKing this is
+	    wrong. Thanks to Brad D'Hondt for assistance with this.
+
+	    Fix cosmetic bug which produced strange output when
+	    dumping cache statistics with some configurations. Thanks
+	    to Fedor Kozhevnikov for spotting this.
+
+
 version 2.55
-           Fix crash when /etc/ethers is in use. Thanks to 
-	   Gianluigi Tiesi for finding this.
+            Fix crash when /etc/ethers is in use. Thanks to 
+	    Gianluigi Tiesi for finding this.
 
-	   Fix crash in netlink_multicast(). Thanks to Arno Wald for
-	   finding this one.
+	    Fix crash in netlink_multicast(). Thanks to Arno Wald for
+	    finding this one.
 
-	   Allow the empty domain "." in dhcp domain-search (119)
-	   options. 
+	    Allow the empty domain "." in dhcp domain-search (119)
+	    options. 
 
 
 version 2.54
-           There is no version 2.54 to avoid confusion with 2.53,
-           which incorrectly identifies itself as 2.54.
+            There is no version 2.54 to avoid confusion with 2.53,
+            which incorrectly identifies itself as 2.54.
 
 
 version 2.53

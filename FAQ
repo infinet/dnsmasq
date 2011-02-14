@@ -354,7 +354,7 @@ A: Yes, from version-2.21. The support is only available running under
    If a physical interface has more than one IP address or aliases
    with extra IP addresses, then any dhcp-ranges corresponding to
    these addresses can be used for address allocation. So if an
-   interface has addresses 192.168.1.0/24 and 192.68.2.0/24 and there
+   interface has addresses 192.168.1.0/24 and 192.168.2.0/24 and there
    are DHCP ranges 192.168.1.100-192.168.1.200 and
    192.168.2.100-192.168.2.200 then both ranges would be used for host
    connected to the physical interface. A more typical use might be to
@@ -413,10 +413,11 @@ A: Change your kernel configuration: either deselect CONFIG_SECURITY
    _or_ select CONFIG_SECURITY_CAPABILITIES. Alternatively, you can 
    remove the need to set capabilities by running dnsmasq as root.
 
-Q: Where can I get .rpms Suitable for Suse?
 
-A: Dnsmasq is in Suse itself, and the latest releases are also
-   available at ftp://ftp.suse.com/pub/people/ug/
+Q: Where can I get .rpms Suitable for openSUSE/SLES?
+
+A: Dnsmasq is in openSUSE itself, and the latest releases are also
+   available at http://download.opensuse.org/repositories/network/
 
 
 Q: Can I run dnsmasq in a Linux vserver?

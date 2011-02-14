@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,6 +33,67 @@ int indextoname(int fd, int index, char *name)
 
   return 1;
 }
+
+
+#elif defined(HAVE_SOLARIS_NETWORK)
+
+#include <zone.h>
+#include <alloca.h>
+#ifndef LIFC_UNDER_IPMP
+#  define LIFC_UNDER_IPMP 0
+#endif
+
+int indextoname(int fd, int index, char *name)
+{
+  int64_t lifc_flags;
+  struct lifnum lifn;
+  int numifs, bufsize, i;
+  struct lifconf lifc;
+  struct lifreq *lifrp;
+  
+  if (index == 0)
+    return 0;
+  
+  if (getzoneid() == GLOBAL_ZONEID) 
+    {
+      if (!if_indextoname(index, name))
+	return 0;
+      return 1;
+    }
+  
+  lifc_flags = LIFC_NOXMIT | LIFC_TEMPORARY | LIFC_ALLZONES | LIFC_UNDER_IPMP;
+  lifn.lifn_family = AF_UNSPEC;
+  lifn.lifn_flags = lifc_flags;
+  if (ioctl(fd, SIOCGLIFNUM, &lifn) < 0) 
+    return 0;
+  
+  numifs = lifn.lifn_count;
+  bufsize = numifs * sizeof(struct lifreq);
+  
+  lifc.lifc_family = AF_UNSPEC;
+  lifc.lifc_flags = lifc_flags;
+  lifc.lifc_len = bufsize;
+  lifc.lifc_buf = alloca(bufsize);
+  
+  if (ioctl(fd, SIOCGLIFCONF, &lifc) < 0)  
+    return 0;
+  
+  lifrp = lifc.lifc_req;
+  for (i = lifc.lifc_len / sizeof(struct lifreq); i; i--, lifrp++) 
+    {
+      struct lifreq lifr;
+      strncpy(lifr.lifr_name, lifrp->lifr_name, IF_NAMESIZE);
+      if (ioctl(fd, SIOCGLIFINDEX, &lifr) < 0) 
+	return 0;
+      
+      if (lifr.lifr_index == index) {
+	strncpy(name, lifr.lifr_name, IF_NAMESIZE);
+	return 1;
+      }
+    }
+  return 0;
+}
+
 
 #else
 
@@ -188,15 +249,14 @@ static int iface_allowed(struct irec **irecp, int if_index,
   
 #ifdef HAVE_TFTP
   /* implement wierd TFTP service rules */
-  if (addr->sa.sa_family == AF_INET)
-    for (ir = daemon->tftp_interfaces; ir; ir = ir->next)
-      if (strcmp(ir->interface, ifr.ifr_name) == 0)
-	{
-	  tftp_ok = 1;
-	  break;
-	}
+  for (ir = daemon->tftp_interfaces; ir; ir = ir->next)
+    if (strcmp(ir->interface, ifr.ifr_name) == 0)
+      {
+	tftp_ok = 1;
+	break;
+      }
 #endif
-
+  
   if (!ir)
     {
       if (addr->sa.sa_family == AF_INET &&
@@ -276,10 +336,11 @@ static int iface_allowed_v4(struct in_addr local, int if_index,
 int enumerate_interfaces(void)
 {
 #ifdef HAVE_IPV6
-  return iface_enumerate(&daemon->interfaces, iface_allowed_v4, iface_allowed_v6);
-#else
-  return iface_enumerate(&daemon->interfaces, iface_allowed_v4, NULL);
+  if (!iface_enumerate(AF_INET6, &daemon->interfaces, iface_allowed_v6))
+    return 0; 
 #endif
+
+  return iface_enumerate(AF_INET, &daemon->interfaces, iface_allowed_v4); 
 }
 
 /* set NONBLOCK bit on fd: See Stevens 16.6 */
@@ -294,233 +355,207 @@ int fix_fd(int fd)
   return 1;
 }
 
-#if defined(HAVE_IPV6)
-static int create_ipv6_listener(struct listener **link, int port)
+static int make_sock(union mysockaddr *addr, int type)
 {
-  union mysockaddr addr;
-  int tcpfd, fd;
-  struct listener *l;
-  int opt = 1;
-
-  memset(&addr, 0, sizeof(addr));
-  addr.in6.sin6_family = AF_INET6;
-  addr.in6.sin6_addr = in6addr_any;
-  addr.in6.sin6_port = htons(port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in6.sin6_len = sizeof(addr.in6);
+  int family = addr->sa.sa_family;
+  int fd, rc, opt = 1;
+#ifdef HAVE_IPV6
+  static int dad_count = 0;
 #endif
-
-  /* No error of the kernel doesn't support IPv6 */
-  if ((fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1)
-    return (errno == EPROTONOSUPPORT ||
-	    errno == EAFNOSUPPORT ||
-	    errno == EINVAL);
   
-  if ((tcpfd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
-    return 0;
-      
-  if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-      setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-      setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
-      setsockopt(tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
-      !fix_fd(fd) ||
-      !fix_fd(tcpfd) ||
-      bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
-      listen(tcpfd, 5) == -1 ||
-      bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1) 
-    return 0;
-
-  /* The API changed around Linux 2.6.14 but the old ABI is still supported:
-     handle all combinations of headers and kernel.
-     OpenWrt note that this fixes the problem addressed by your very broken patch. */
-
-  daemon->v6pktinfo = IPV6_PKTINFO;
-
-#ifdef IPV6_RECVPKTINFO
-#  ifdef IPV6_2292PKTINFO
-  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
+  if ((fd = socket(family, type, 0)) == -1)
     {
-      if (errno == ENOPROTOOPT && setsockopt(fd, IPV6_LEVEL, IPV6_2292PKTINFO, &opt, sizeof(opt)) != -1)
-	daemon->v6pktinfo = IPV6_2292PKTINFO;
-      else
-	return 0;
+      int port;
+
+      /* No error if the kernel just doesn't support this IP flavour */
+      if (errno == EPROTONOSUPPORT ||
+	  errno == EAFNOSUPPORT ||
+	  errno == EINVAL)
+	return -1;
+      
+    err:
+      port = prettyprint_addr(addr, daemon->namebuff);
+      if (!option_bool(OPT_NOWILD))
+	sprintf(daemon->namebuff, "port %d", port);
+      die(_("failed to create listening socket for %s: %s"), 
+	  daemon->namebuff, EC_BADNET);
+    }	
+
+  if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 || !fix_fd(fd))
+    goto err;
+  
+#ifdef HAVE_IPV6
+  if (family == AF_INET6 && setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
+    goto err;
+#endif
+  
+  while (1)
+    {
+      if ((rc = bind(fd, (struct sockaddr *)addr, sa_len(addr))) != -1)
+	break;
+      
+#ifdef HAVE_IPV6
+      /* An interface may have an IPv6 address which is still undergoing DAD. 
+	 If so, the bind will fail until the DAD completes, so we try over 20 seconds
+	 before failing. */
+      if (family == AF_INET6 && 
+	  (errno == ENODEV || errno == EADDRNOTAVAIL) && 
+	  dad_count++ < DAD_WAIT)
+	{
+	  sleep(1);
+	  continue;
+	}
+#endif
+      break;
     }
+  
+  if (rc == -1)
+    goto err;
+  
+  if (type == SOCK_STREAM)
+    {
+      if (listen(fd, 5) == -1)
+	goto err;
+    }
+  else if (!option_bool(OPT_NOWILD))
+    {
+      if (family == AF_INET)
+	{
+#if defined(HAVE_LINUX_NETWORK) 
+	  if (setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1)
+	    goto err;
+#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
+	  if (setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
+	      setsockopt(fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1)
+	    goto err;
+#endif
+	}
+#ifdef HAVE_IPV6
+      else
+	{
+	  /* The API changed around Linux 2.6.14 but the old ABI is still supported:
+	     handle all combinations of headers and kernel.
+	     OpenWrt note that this fixes the problem addressed by your very broken patch. */
+	  daemon->v6pktinfo = IPV6_PKTINFO;
+	  
+#  ifdef IPV6_RECVPKTINFO
+#    ifdef IPV6_2292PKTINFO
+	  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
+	    {
+	      if (errno == ENOPROTOOPT && setsockopt(fd, IPV6_LEVEL, IPV6_2292PKTINFO, &opt, sizeof(opt)) != -1)
+		daemon->v6pktinfo = IPV6_2292PKTINFO;
+	      else
+		goto err;
+	    }
+#    else
+	  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
+	    goto err;
+#    endif 
 #  else
-  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
-    return 0;
-#  endif 
-#else
-  if (setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1)
-    return 0;
+	  if (setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1)
+	    goto err;
+#  endif
+	}
 #endif
-  
-  l = safe_malloc(sizeof(struct listener));
-  l->fd = fd;
-  l->tcpfd = tcpfd;
-  l->tftpfd = -1;
-  l->family = AF_INET6;
-  l->next = NULL;
-  *link = l;
-  
-  return 1;
+    }
+
+  return fd;
 }
+      
+static struct listener *create_listeners(union mysockaddr *addr, int do_tftp)
+{
+  struct listener *l = NULL;
+  int fd = -1, tcpfd = -1, tftpfd = -1;
+
+  if (daemon->port != 0)
+    {
+      fd = make_sock(addr, SOCK_DGRAM);
+      tcpfd = make_sock(addr, SOCK_STREAM);
+    }
+  
+#ifdef HAVE_TFTP
+  if (do_tftp)
+    {
+      if (addr->sa.sa_family == AF_INET)
+	{
+	  /* port must be restored to DNS port for TCP code */
+	  short save = addr->in.sin_port;
+	  addr->in.sin_port = htons(TFTP_PORT);
+	  tftpfd = make_sock(addr, SOCK_DGRAM);
+	  addr->in.sin_port = save;
+	}
+#  ifdef HAVE_IPV6
+      else
+	{
+	  short save = addr->in6.sin6_port;
+	  addr->in6.sin6_port = htons(TFTP_PORT);
+	  tftpfd = make_sock(addr, SOCK_DGRAM);
+	  addr->in6.sin6_port = save;
+	}  
+#  endif
+    }
 #endif
+
+  if (fd != -1 || tcpfd != -1 || tftpfd != -1)
+    {
+      l = safe_malloc(sizeof(struct listener));
+      l->next = NULL;
+      l->family = addr->sa.sa_family;
+      l->fd = fd;
+      l->tcpfd = tcpfd;
+      l->tftpfd = tftpfd;
+    }
+
+  return l;
+}
 
 struct listener *create_wildcard_listeners(void)
 {
   union mysockaddr addr;
-  int opt = 1;
-  struct listener *l, *l6 = NULL;
-  int tcpfd = -1, fd = -1, tftpfd = -1;
+  struct listener *l;
+  int tftp_enabled = daemon->tftp_unlimited || daemon->tftp_interfaces; 
 
   memset(&addr, 0, sizeof(addr));
+#ifdef HAVE_SOCKADDR_SA_LEN
+  addr.in.sin_len = sizeof(addr.in);
+#endif
   addr.in.sin_family = AF_INET;
   addr.in.sin_addr.s_addr = INADDR_ANY;
   addr.in.sin_port = htons(daemon->port);
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
 
-  if (daemon->port != 0)
-    {
-      
-      if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ||
-	  (tcpfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-	return NULL;
-      
-      if (setsockopt(tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  bind(tcpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1 ||
-	  listen(tcpfd, 5) == -1 ||
-	  !fix_fd(tcpfd) ||
+  l = create_listeners(&addr, tftp_enabled);
+
 #ifdef HAVE_IPV6
-	  !create_ipv6_listener(&l6, daemon->port) ||
-#endif
-	  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	  !fix_fd(fd) ||
-#if defined(HAVE_LINUX_NETWORK) 
-	  setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
-#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
-	  setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
-	  setsockopt(fd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
-#endif 
-	  bind(fd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-	return NULL;
-    }
+  memset(&addr, 0, sizeof(addr));
+#  ifdef HAVE_SOCKADDR_SA_LEN
+  addr.in6.sin6_len = sizeof(addr.in6);
+#  endif
+  addr.in6.sin6_family = AF_INET6;
+  addr.in6.sin6_addr = in6addr_any;
+  addr.in6.sin6_port = htons(daemon->port);
   
-#ifdef HAVE_TFTP
-  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
-    {
-      addr.in.sin_port = htons(TFTP_PORT);
-      if ((tftpfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-	return NULL;
-      
-      if (!fix_fd(tftpfd) ||
-#if defined(HAVE_LINUX_NETWORK) 
-	  setsockopt(tftpfd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1 ||
-#elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
-	  setsockopt(tftpfd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
-	  setsockopt(tftpfd, IPPROTO_IP, IP_RECVIF, &opt, sizeof(opt)) == -1 ||
-#endif 
-	  bind(tftpfd, (struct sockaddr *)&addr, sa_len(&addr)) == -1)
-	return NULL;
-    }
+  if (l) 
+    l->next = create_listeners(&addr, tftp_enabled);
+  else 
+    l = create_listeners(&addr, tftp_enabled);
 #endif
-  
-  l = safe_malloc(sizeof(struct listener));
-  l->family = AF_INET;
-  l->fd = fd;
-  l->tcpfd = tcpfd;
-  l->tftpfd = tftpfd;
-  l->next = l6;
 
   return l;
 }
 
 struct listener *create_bound_listeners(void)
 {
-  struct listener *listeners = NULL;
+  struct listener *new, *listeners = NULL;
   struct irec *iface;
-  int rc, opt = 1;
-#ifdef HAVE_IPV6
-  static int dad_count = 0;
-#endif
 
   for (iface = daemon->interfaces; iface; iface = iface->next)
-    {
-      struct listener *new = safe_malloc(sizeof(struct listener));
-      new->family = iface->addr.sa.sa_family;
-      new->iface = iface;
-      new->next = listeners;
-      new->tftpfd = -1;
-      new->tcpfd = -1;
-      new->fd = -1;
-      listeners = new;
-
-      if (daemon->port != 0)
-	{
-	  if ((new->tcpfd = socket(iface->addr.sa.sa_family, SOCK_STREAM, 0)) == -1 ||
-	      (new->fd = socket(iface->addr.sa.sa_family, SOCK_DGRAM, 0)) == -1 ||
-	      setsockopt(new->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	      setsockopt(new->tcpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	      !fix_fd(new->tcpfd) ||
-	      !fix_fd(new->fd))
-	    die(_("failed to create listening socket: %s"), NULL, EC_BADNET);
-	  
-#ifdef HAVE_IPV6
-	  if (iface->addr.sa.sa_family == AF_INET6)
-	    {
-	      if (setsockopt(new->fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1 ||
-		  setsockopt(new->tcpfd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
-		die(_("failed to set IPV6 options on listening socket: %s"), NULL, EC_BADNET);
-	    }
-#endif
-
-	  while(1)
-	    {
-	      if ((rc = bind(new->fd, &iface->addr.sa, sa_len(&iface->addr))) != -1)
-		break;
-	      
-#ifdef HAVE_IPV6
-	      /* An interface may have an IPv6 address which is still undergoing DAD. 
-		 If so, the bind will fail until the DAD completes, so we try over 20 seconds
-		 before failing. */
-	      if (iface->addr.sa.sa_family == AF_INET6 && (errno == ENODEV || errno == EADDRNOTAVAIL) && 
-		  dad_count++ < DAD_WAIT)
-		{
-		  sleep(1);
-		  continue;
-		}
-#endif
-	      break;
-	    }
-	  
-	  if (rc == -1 || bind(new->tcpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
-	    {
-	      prettyprint_addr(&iface->addr, daemon->namebuff);
-	      die(_("failed to bind listening socket for %s: %s"), 
-		  daemon->namebuff, EC_BADNET);
-	    }
-	    
-	  if (listen(new->tcpfd, 5) == -1)
-	    die(_("failed to listen on socket: %s"), NULL, EC_BADNET);
-	}
-
-#ifdef HAVE_TFTP
-      if (iface->addr.sa.sa_family == AF_INET && iface->tftp_ok)
-	{
-	  short save = iface->addr.in.sin_port;
-	  iface->addr.in.sin_port = htons(TFTP_PORT);
-	  if ((new->tftpfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ||
-	      setsockopt(new->tftpfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 ||
-	      !fix_fd(new->tftpfd) ||
-	      bind(new->tftpfd, &iface->addr.sa, sa_len(&iface->addr)) == -1)
-	    die(_("failed to create TFTP socket: %s"), NULL, EC_BADNET);
-	  iface->addr.in.sin_port = save;
-	}
-#endif
-
-    }
-
+    if ((new = create_listeners(&iface->addr, iface->tftp_ok)))
+      {
+	new->iface = iface;
+	new->next = listeners;
+	listeners = new;
+      }
+  
   return listeners;
 }
 
@@ -700,7 +735,7 @@ void pre_allocate_sfds(void)
     if (!(srv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)) &&
 	!allocate_sfd(&srv->source_addr, srv->interface) &&
 	errno != 0 &&
-	(daemon->options & OPT_NOWILD))
+	option_bool(OPT_NOWILD))
       {
 	prettyprint_addr(&srv->source_addr, daemon->namebuff);
 	if (srv->interface[0] != 0)
@@ -721,7 +756,7 @@ void check_servers(void)
   int port = 0;
 
   /* interface may be new since startup */
-  if (!(daemon->options & OPT_NOWILD))
+  if (!option_bool(OPT_NOWILD))
     enumerate_interfaces();
   
   for (new = daemon->servers; new; new = tmp)
@@ -921,7 +956,9 @@ struct in_addr get_ifaddr(char *intr)
   
   ret.sin_addr.s_addr = -1;
 
-  for (l = daemon->listeners; l && l->family != AF_INET; l = l->next);
+  for (l = daemon->listeners; 
+       l && (l->family != AF_INET || l->fd == -1);
+       l = l->next);
   
   strncpy(ifr.ifr_name, intr, IF_NAMESIZE);
   ifr.ifr_addr.sa_family = AF_INET;

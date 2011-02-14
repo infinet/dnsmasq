@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,12 +55,12 @@ int log_start(struct passwd *ent_pw, int errfd)
 {
   int ret = 0;
 
-  echo_stderr = !!(daemon->options & OPT_DEBUG);
+  echo_stderr = option_bool(OPT_DEBUG);
 
   if (daemon->log_fac != -1)
     log_fac = daemon->log_fac;
 #ifdef LOG_LOCAL0
-  else if (daemon->options & OPT_DEBUG)
+  else if (option_bool(OPT_DEBUG))
     log_fac = LOG_LOCAL0;
 #endif
 
@@ -327,7 +327,11 @@ void my_syslog(int priority, const char *format, ...)
       if (!log_to_file)
 	p += sprintf(p, "<%d>", priority | log_fac);
 
-      p += sprintf(p, "%.15s dnsmasq%s[%d]: ", ctime(&time_now) + 4, func, (int)pid);
+      /* Omit timestamp for default daemontools situation */
+      if (!log_stderr || !option_bool(OPT_NO_FORK)) 
+	p += sprintf(p, "%.15s ", ctime(&time_now) + 4);
+      
+      p += sprintf(p, "dnsmasq%s[%d]: ", func, (int)pid);
         
       len = p - entry->payload;
       va_start(ap, format);  
@@ -398,12 +402,13 @@ void check_log_writer(fd_set *set)
 
 void flush_log(void)
 {
-  /* write until queue empty */
+  /* write until queue empty, but don't loop forever if there's
+   no connection to the syslog in existance */
   while (log_fd != -1)
     {
       struct timespec waiter;
       log_write();
-      if (!entries)
+      if (!entries || !connection_good)
 	{
 	  close(log_fd);	
 	  break;

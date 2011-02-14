@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ void cache_init(void)
   struct crec *crecp;
   int i;
 
-  if (daemon->options & OPT_LOG)
+  if (option_bool(OPT_LOG))
     addrbuff = safe_malloc(ADDRSTRLEN);
   
   bignames_left = daemon->cachesize/10;
@@ -226,7 +226,7 @@ char *cache_get_name(struct crec *crecp)
 {
   if (crecp->flags & F_BIGNAME)
     return crecp->name.bname->name;
-  else if (crecp->flags & (F_DHCP | F_CONFIG)) 
+  else if (crecp->flags & F_NAMEP) 
     return crecp->name.namep;
   
   return crecp->name.sname;
@@ -366,9 +366,6 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 
   log_query(flags | F_UPSTREAM, name, addr, NULL);
 
-  /* CONFIG bit means something else when stored in cache entries */
-  flags &= ~F_CONFIG;
-
   /* if previous insertion failed give up now. */
   if (insert_error)
     return NULL;
@@ -503,7 +500,7 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
       /* first search, look for relevant entries and push to top of list
 	 also free anything which has expired */
       struct crec *next, **up, **insert = NULL, **chainp = &ans;
-      int ins_flags = 0;
+      unsigned short ins_flags = 0;
       
       for (up = hash_bucket(name), crecp = *up; crecp; crecp = next)
 	{
@@ -695,7 +692,7 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
       if (hostname_isequal(cache->name.sname, a->target) &&
 	  (lookup = whine_malloc(sizeof(struct crec))))
 	{
-	  lookup->flags = F_FORWARD | F_IMMORTAL | F_CONFIG | F_HOSTS | F_CNAME;
+	  lookup->flags = F_FORWARD | F_IMMORTAL | F_NAMEP | F_HOSTS | F_CNAME;
 	  lookup->name.namep = a->alias;
 	  lookup->addr.cname.cache = cache;
 	  lookup->addr.cname.uid = index;
@@ -832,7 +829,7 @@ static int read_hostsfile(char *filename, int index, int cache_size)
 	  if ((canon = canonicalise(token, &nomem)))
 	    {
 	      /* If set, add a version of the name with a default domain appended */
-	      if ((daemon->options & OPT_EXPAND) && domain_suffix && !fqdn && 
+	      if (option_bool(OPT_EXPAND) && domain_suffix && !fqdn && 
 		  (cache = whine_malloc(sizeof(struct crec) + 
 					strlen(canon)+2+strlen(domain_suffix)-SMALLDNAME)))
 		{
@@ -896,107 +893,17 @@ void cache_reload(void)
 	  up = &cache->hash_next;
       }
   
-  if ((daemon->options & OPT_NO_HOSTS) && !daemon->addn_hosts)
+  if (option_bool(OPT_NO_HOSTS) && !daemon->addn_hosts)
     {
       if (daemon->cachesize > 0)
 	my_syslog(LOG_INFO, _("cleared cache"));
       return;
     }
 
-  if (!(daemon->options & OPT_NO_HOSTS))
+  if (!option_bool(OPT_NO_HOSTS))
     total_size = read_hostsfile(HOSTSFILE, 0, total_size);
-  
-  for (i = 0, ah = daemon->addn_hosts; ah; ah = ah->next)
-    {
-      if (i <= ah->index)
-	i = ah->index + 1;
-
-      if (ah->flags & AH_DIR)
-	ah->flags |= AH_INACTIVE;
-      else
-	ah->flags &= ~AH_INACTIVE;
-    }
-
-  for (ah = daemon->addn_hosts; ah; ah = ah->next)
-    if (!(ah->flags & AH_INACTIVE))
-      {
-	struct stat buf;
-	if (stat(ah->fname, &buf) != -1 && S_ISDIR(buf.st_mode))
-	  {
-	    DIR *dir_stream;
-	    struct dirent *ent;
-	    
-	    /* don't read this as a file */
-	    ah->flags |= AH_INACTIVE;
-	    
-	    if (!(dir_stream = opendir(ah->fname)))
-	      my_syslog(LOG_ERR, _("cannot access directory %s: %s"), 
-			ah->fname, strerror(errno));
-	    else
-	      {
-		while ((ent = readdir(dir_stream)))
-		  {
-		    size_t lendir = strlen(ah->fname);
-		    size_t lenfile = strlen(ent->d_name);
-		    struct hostsfile *ah1;
-		    char *path;
-		    
-		    /* ignore emacs backups and dotfiles */
-		    if (lenfile == 0 || 
-			ent->d_name[lenfile - 1] == '~' ||
-			(ent->d_name[0] == '#' && ent->d_name[lenfile - 1] == '#') ||
-			ent->d_name[0] == '.')
-		      continue;
-		    
-		    /* see if we have an existing record.
-		       dir is ah->fname 
-		       file is ent->d_name
-		       path to match is ah1->fname */
-
-		    for (ah1 = daemon->addn_hosts; ah1; ah1 = ah1->next)
-		      {
-			if (lendir < strlen(ah1->fname) &&
-			    strstr(ah1->fname, ah->fname) == ah1->fname &&
-			    ah1->fname[lendir] == '/' &&
-			    strcmp(ah1->fname + lendir + 1, ent->d_name) == 0)
-			  {
-			    ah1->flags &= ~AH_INACTIVE;
-			    break;
-			  }
-		      }
-		    
-		    /* make new record */
-		    if (!ah1)
-		      {
-			if (!(ah1 = whine_malloc(sizeof(struct hostsfile))))
-			  continue;
-			
-			if (!(path = whine_malloc(lendir + lenfile + 2)))
-			  {
-			    free(ah1);
-			    continue;
-			  }
-		      	
-			strcpy(path, ah->fname);
-			strcat(path, "/");
-			strcat(path, ent->d_name);
-			ah1->fname = path;
-			ah1->index = i++;
-			ah1->flags = AH_DIR;
-			ah1->next = daemon->addn_hosts;
-			daemon->addn_hosts = ah1;
-		      }
-		    
-		    /* inactivate record if not regular file */
-		    if ((ah1->flags & AH_DIR) && stat(ah1->fname, &buf) != -1 && !S_ISREG(buf.st_mode))
-		      ah1->flags |= AH_INACTIVE; 
-
-		  }
-		closedir(dir_stream);
-	      }
-	  }
-      }
-	    
+  	   
+  daemon->addn_hosts = expand_filelist(daemon->addn_hosts);
   for (ah = daemon->addn_hosts; ah; ah = ah->next)
     if (!(ah->flags & AH_INACTIVE))
       total_size = read_hostsfile(ah->fname, ah->index, total_size);
@@ -1036,7 +943,7 @@ void cache_add_dhcp_entry(char *host_name,
 			  struct in_addr *host_address, time_t ttd) 
 {
   struct crec *crec = NULL, *aliasc;
-  unsigned short flags =  F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
+  unsigned short flags =  F_NAMEP | F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
   int in_hosts = 0;
   struct cname *a;
   
@@ -1049,13 +956,13 @@ void cache_add_dhcp_entry(char *host_name,
 	  in_hosts = 1;
 	  
 	  if (crec->flags & F_CNAME)
-	    my_syslog(LOG_WARNING, 
+	    my_syslog(MS_DHCP | LOG_WARNING, 
 		      _("%s is a CNAME, not giving it to the DHCP lease of %s"),
 		      host_name, inet_ntoa(*host_address));
 	  else if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
 	    {
 	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
-	      my_syslog(LOG_WARNING, 
+	      my_syslog(MS_DHCP | LOG_WARNING, 
 			_("not giving name %s to the DHCP lease of %s because "
 			  "the name exists in %s with address %s"), 
 			host_name, inet_ntoa(*host_address),
@@ -1109,7 +1016,7 @@ void cache_add_dhcp_entry(char *host_name,
 	    
 	    if (aliasc)
 	      {
-		aliasc->flags = F_FORWARD | F_CONFIG | F_DHCP | F_CNAME;
+		aliasc->flags = F_FORWARD | F_NAMEP | F_DHCP | F_CNAME;
 		if (ttd == 0)
 		  aliasc->flags |= F_IMMORTAL;
 		else
@@ -1143,12 +1050,15 @@ void dump_cache(time_t now)
     serv->flags &= ~SERV_COUNTED;
   
   for (serv = daemon->servers; serv; serv = serv->next)
-    if (!(serv->flags & (SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED)))
+    if (!(serv->flags & 
+	  (SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED | SERV_USE_RESOLV | SERV_NO_REBIND)))
       {
 	int port;
 	unsigned int queries = 0, failed_queries = 0;
 	for (serv1 = serv; serv1; serv1 = serv1->next)
-	  if (!(serv1->flags & (SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED)) && sockaddr_isequal(&serv->addr, &serv1->addr))
+	  if (!(serv1->flags & 
+		(SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED | SERV_USE_RESOLV | SERV_NO_REBIND)) && 
+	      sockaddr_isequal(&serv->addr, &serv1->addr))
 	    {
 	      serv1->flags |= SERV_COUNTED;
 	      queries += serv1->queries;
@@ -1158,11 +1068,11 @@ void dump_cache(time_t now)
 	my_syslog(LOG_INFO, _("server %s#%d: queries sent %u, retried or failed %u"), addrbuff, port, queries, failed_queries);
       }
   
-  if ((daemon->options & (OPT_DEBUG | OPT_LOG)))
+  if (option_bool(OPT_DEBUG) || option_bool(OPT_LOG))
     {
       struct crec *cache ;
       int i;
-      my_syslog(LOG_DEBUG, "Host                                     Address                        Flags     Expires");
+      my_syslog(LOG_INFO, "Host                                     Address                        Flags     Expires");
     
       for (i=0; i<hash_size; i++)
 	for (cache = hash_table[i]; cache; cache = cache->hash_next)
@@ -1208,7 +1118,7 @@ void dump_cache(time_t now)
 	    /* ctime includes trailing \n - eat it */
 	    *(p-1) = 0;
 #endif
-	    my_syslog(LOG_DEBUG, daemon->namebuff);
+	    my_syslog(LOG_INFO, daemon->namebuff);
 	  }
     }
 }
@@ -1237,12 +1147,12 @@ void querystr(char *str, unsigned short type)
       sprintf(str,"query[%s]", typestr[i].name);
 }
 
-void log_query(unsigned short flags, char *name, struct all_addr *addr, char *arg)
+void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
 {
   char *source, *dest = addrbuff;
   char *verb = "is";
   
-  if (!(daemon->options & OPT_LOG))
+  if (!option_bool(OPT_LOG))
     return;
 
   if (addr)
@@ -1283,13 +1193,9 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, char *ar
 	}
     }
   else if (flags & F_CNAME)
-    {
-      /* nasty abuse of NXDOMAIN and CNAME flags */
-      if (flags & F_NXDOMAIN)
-	dest = arg;
-      else
-	dest = "<CNAME>";
-    }
+    dest = "<CNAME>";
+  else if (flags & F_RRNAME)
+    dest = arg;
     
   if (flags & F_CONFIG)
     source = "config";
@@ -1315,6 +1221,6 @@ void log_query(unsigned short flags, char *name, struct all_addr *addr, char *ar
   if (strlen(name) == 0)
     name = ".";
 
-  my_syslog(LOG_DEBUG, "%s %s %s %s", source, name, verb, dest);
+  my_syslog(LOG_INFO, "%s %s %s %s", source, name, verb, dest);
 }
 

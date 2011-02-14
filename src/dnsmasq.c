@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -133,10 +133,10 @@ int main (int argc, char **argv)
 #elif !(defined(IP_RECVDSTADDR) && \
 	defined(IP_RECVIF) && \
 	defined(IP_SENDSRCADDR))
-  if (!(daemon->options & OPT_NOWILD))
+  if (!option_bool(OPT_NOWILD))
     {
       bind_fallback = 1;
-      daemon->options |= OPT_NOWILD;
+      set_option_bool(OPT_NOWILD);
     }
 #endif
 
@@ -168,7 +168,7 @@ int main (int argc, char **argv)
   if (!enumerate_interfaces())
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
     
-  if (daemon->options & OPT_NOWILD) 
+  if (option_bool(OPT_NOWILD)) 
     {
       daemon->listeners = create_bound_listeners();
 
@@ -183,14 +183,13 @@ int main (int argc, char **argv)
 	    die(_("no interface with address %s"), daemon->namebuff, EC_BADNET);
 	  }
     }
-  else if ((daemon->port != 0 || daemon->tftp_interfaces || daemon->tftp_unlimited) &&
-	   !(daemon->listeners = create_wildcard_listeners()))
-    die(_("failed to create listening socket: %s"), NULL, EC_BADNET);
+  else 
+    daemon->listeners = create_wildcard_listeners();
   
   if (daemon->port != 0)
     cache_init();
     
-  if (daemon->options & OPT_DBUS)
+  if (option_bool(OPT_DBUS))
 #ifdef HAVE_DBUS
     {
       char *err;
@@ -275,7 +274,7 @@ int main (int argc, char **argv)
 
   err_pipe[1] = -1;
   
-  if (!(daemon->options & OPT_DEBUG))   
+  if (!option_bool(OPT_DEBUG))   
     {
       /* The following code "daemonizes" the process. 
 	 See Stevens section 12.4 */
@@ -284,7 +283,7 @@ int main (int argc, char **argv)
 	die(_("cannot chdir to filesystem root: %s"), NULL, EC_MISC); 
 
 #ifndef NO_FORK      
-      if (!(daemon->options & OPT_NO_FORK))
+      if (!option_bool(OPT_NO_FORK))
 	{
 	  pid_t pid;
 	  
@@ -345,7 +344,7 @@ int main (int argc, char **argv)
   
    log_err = log_start(ent_pw, err_pipe[1]);
 
-   if (!(daemon->options & OPT_DEBUG)) 
+   if (!option_bool(OPT_DEBUG)) 
      {       
        /* open  stdout etc to /dev/null */
        int nullfd = open("/dev/null", O_RDWR);
@@ -362,7 +361,7 @@ int main (int argc, char **argv)
     daemon->helperfd = create_helper(pipewrite, err_pipe[1], script_uid, script_gid, max_fd);
 #endif
 
-  if (!(daemon->options & OPT_DEBUG) && getuid() == 0)   
+  if (!option_bool(OPT_DEBUG) && getuid() == 0)   
     {
       int bad_capabilities = 0;
       gid_t dummy;
@@ -440,7 +439,7 @@ int main (int argc, char **argv)
     }
   
 #ifdef HAVE_LINUX_NETWORK
-  if (daemon->options & OPT_DEBUG) 
+  if (option_bool(OPT_DEBUG)) 
     prctl(PR_SET_DUMPABLE, 1);
 #endif
 
@@ -454,7 +453,7 @@ int main (int argc, char **argv)
   my_syslog(LOG_INFO, _("compile time options: %s"), compile_opts);
   
 #ifdef HAVE_DBUS
-  if (daemon->options & OPT_DBUS)
+  if (option_bool(OPT_DBUS))
     {
       if (daemon->dbus)
 	my_syslog(LOG_INFO, _("DBus support enabled: connected to system bus"));
@@ -470,12 +469,12 @@ int main (int argc, char **argv)
   if (bind_fallback)
     my_syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
   
-  if (!(daemon->options & OPT_NOWILD)) 
+  if (!option_bool(OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
       if (if_tmp->name && !if_tmp->used)
 	my_syslog(LOG_WARNING, _("warning: interface %s does not currently exist"), if_tmp->name);
    
-  if (daemon->port != 0 && (daemon->options & OPT_NO_RESOLV))
+  if (daemon->port != 0 && option_bool(OPT_NO_RESOLV))
     {
       if (daemon->resolv_files && !daemon->resolv_files->is_default)
 	my_syslog(LOG_WARNING, _("warning: ignoring resolv-file flag because no-resolv is set"));
@@ -518,7 +517,7 @@ int main (int argc, char **argv)
       my_syslog(MS_TFTP | LOG_INFO, "TFTP %s%s %s", 
 		daemon->tftp_prefix ? _("root is ") : _("enabled"),
 		daemon->tftp_prefix ? daemon->tftp_prefix: "",
-		daemon->options & OPT_TFTP_SECURE ? _("secure mode") : "");
+		option_bool(OPT_TFTP_SECURE) ? _("secure mode") : "");
       
       /* This is a guess, it assumes that for small limits, 
 	 disjoint files might be served, but for large limits, 
@@ -580,7 +579,7 @@ int main (int argc, char **argv)
 
       /* Whilst polling for the dbus, or doing a tftp transfer, wake every quarter second */
       if (daemon->tftp_trans ||
-	  ((daemon->options & OPT_DBUS) && !daemon->dbus))
+	  (option_bool(OPT_DBUS) && !daemon->dbus))
 	{
 	  t.tv_sec = 0;
 	  t.tv_usec = 250000;
@@ -664,7 +663,7 @@ int main (int argc, char **argv)
       
 #ifdef HAVE_DBUS
       /* if we didn't create a DBus connection, retry now. */ 
-     if ((daemon->options & OPT_DBUS) && !daemon->dbus)
+     if (option_bool(OPT_DBUS) && !daemon->dbus)
 	{
 	  char *err;
 	  if ((err = dbus_init()))
@@ -801,7 +800,7 @@ static void async_event(int pipe, time_t now)
       {
       case EVENT_RELOAD:
 	clear_cache_and_reload(now);
-	if (daemon->port != 0 && daemon->resolv_files && (daemon->options & OPT_NO_POLL))
+	if (daemon->port != 0 && daemon->resolv_files && option_bool(OPT_NO_POLL))
 	  {
 	    reload_servers(daemon->resolv_files->name);
 	    check_servers();
@@ -908,7 +907,7 @@ void poll_resolv(int force, int do_reload, time_t now)
      Go through and find the one which changed _last_.
      Warn of any which can't be read. */
 
-  if (daemon->port == 0 || (daemon->options & OPT_NO_POLL))
+  if (daemon->port == 0 || option_bool(OPT_NO_POLL))
     return;
   
   for (latest = NULL, res = daemon->resolv_files; res; res = res->next)
@@ -954,7 +953,7 @@ void poll_resolv(int force, int do_reload, time_t now)
 	  my_syslog(LOG_INFO, _("reading %s"), latest->name);
 	  warned = 0;
 	  check_servers();
-	  if ((daemon->options & OPT_RELOAD) && do_reload)
+	  if (option_bool(OPT_RELOAD) && do_reload)
 	    clear_cache_and_reload(now);
 	}
       else 
@@ -977,7 +976,7 @@ void clear_cache_and_reload(time_t now)
 #ifdef HAVE_DHCP
   if (daemon->dhcp)
     {
-      if (daemon->options & OPT_ETHERS)
+      if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
       reread_dhcp();
       dhcp_update_configs(daemon->dhcp_conf);
@@ -1094,7 +1093,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	  if (confd == -1)
 	    continue;
 	  
-	  if (daemon->options & OPT_NOWILD)
+	  if (option_bool(OPT_NOWILD))
 	    iface = listener->iface;
 	  else
 	    {
@@ -1120,7 +1119,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      close(confd);
 	    }
 #ifndef NO_FORK
-	  else if (!(daemon->options & OPT_DEBUG) && (p = fork()) != 0)
+	  else if (!option_bool(OPT_DEBUG) && (p = fork()) != 0)
 	    {
 	      if (p != -1)
 		{
@@ -1147,7 +1146,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 #ifndef NO_FORK
 	      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
 		 terminate the process. */
-	      if (!(daemon->options & OPT_DEBUG))
+	      if (!option_bool(OPT_DEBUG))
 		alarm(CHILD_LIFETIME);
 #endif
 
@@ -1179,7 +1178,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 		    close(s->tcpfd);
 		  }
 #ifndef NO_FORK		   
-	      if (!(daemon->options & OPT_DEBUG))
+	      if (!option_bool(OPT_DEBUG))
 		{
 		  flush_log();
 		  _exit(0);

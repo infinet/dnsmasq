@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -111,8 +111,8 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
     }
 }
           
-static unsigned short search_servers(time_t now, struct all_addr **addrpp, 
-				     unsigned short qtype, char *qdomain, int *type, char **domain, int *norebind)
+static unsigned int search_servers(time_t now, struct all_addr **addrpp, 
+				     unsigned int qtype, char *qdomain, int *type, char **domain, int *norebind)
 			      
 {
   /* If the query ends in the domain in one of our servers, set
@@ -122,13 +122,13 @@ static unsigned short search_servers(time_t now, struct all_addr **addrpp,
   unsigned int namelen = strlen(qdomain);
   unsigned int matchlen = 0;
   struct server *serv;
-  unsigned short flags = 0;
+  unsigned int flags = 0;
   
   for (serv = daemon->servers; serv; serv=serv->next)
     /* domain matches take priority over NODOTS matches */
     if ((serv->flags & SERV_FOR_NODOTS) && *type != SERV_HAS_DOMAIN && !strchr(qdomain, '.') && namelen != 0)
       {
-	unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
+	unsigned int sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
 	*type = SERV_FOR_NODOTS;
 	if (serv->flags & SERV_NO_ADDR)
 	  flags = F_NXDOMAIN;
@@ -158,37 +158,57 @@ static unsigned short search_servers(time_t now, struct all_addr **addrpp,
 	  {
 	    if (serv->flags & SERV_NO_REBIND)	
 	      *norebind = 1;
-	    else if (domainlen >= matchlen)
+	    else
 	      {
-		unsigned short sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
-		*type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND);
-		*domain = serv->domain;
-		matchlen = domainlen;
-		if (serv->flags & SERV_NO_ADDR)
-		  flags = F_NXDOMAIN;
-		else if (serv->flags & SERV_LITERAL_ADDRESS)
+		unsigned int sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
+		/* implement priority rules for --address and --server for same domain.
+		   --address wins if the address is for the correct AF
+		   --server wins otherwise. */
+		if (domainlen != 0 && domainlen == matchlen)
 		  {
-		    if (sflag & qtype)
+		    if ((serv->flags & SERV_LITERAL_ADDRESS))
 		      {
-			flags = sflag;
-			if (serv->addr.sa.sa_family == AF_INET) 
-			  *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
-#ifdef HAVE_IPV6
-			else
-			  *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
-#endif
+			if (!(sflag & qtype) && flags == 0)
+			  continue;
 		      }
-		    else if (!flags || (flags & F_NXDOMAIN))
-		      flags = F_NOERR;
+		    else
+		      {
+			if (flags & (F_IPV4 | F_IPV6))
+			  continue;
+		      }
 		  }
-		else
-		  flags = 0;
-	      } 
+		
+		if (domainlen >= matchlen)
+		  {
+		    *type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND);
+		    *domain = serv->domain;
+		    matchlen = domainlen;
+		    if (serv->flags & SERV_NO_ADDR)
+		      flags = F_NXDOMAIN;
+		    else if (serv->flags & SERV_LITERAL_ADDRESS)
+		      {
+			if (sflag & qtype)
+			  {
+			    flags = sflag;
+			    if (serv->addr.sa.sa_family == AF_INET) 
+			      *addrpp = (struct all_addr *)&serv->addr.in.sin_addr;
+#ifdef HAVE_IPV6
+			    else
+			      *addrpp = (struct all_addr *)&serv->addr.in6.sin6_addr;
+#endif
+			  }
+			else if (!flags || (flags & F_NXDOMAIN))
+			  flags = F_NOERR;
+		      }
+		    else
+		      flags = 0;
+		  } 
+	      }
 	  }
       }
   
-  if (flags == 0 && !(qtype & F_BIGNAME) && 
-      (daemon->options & OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
+  if (flags == 0 && !(qtype & F_NSRR) && 
+      option_bool(OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
     /* don't forward simple names, make exception for NS queries and empty name. */
     flags = F_NXDOMAIN;
   
@@ -220,10 +240,13 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   int type = 0, norebind = 0;
   struct all_addr *addrp = NULL;
   unsigned int crc = questions_crc(header, plen, daemon->namebuff);
-  unsigned short flags = 0;
-  unsigned short gotname = extract_request(header, plen, daemon->namebuff, NULL);
+  unsigned int flags = 0;
+  unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
   struct server *start = NULL;
     
+  /* RFC 4035: sect 4.6 para 2 */
+  header->ad = 0;
+
   /* may be no servers available. */
   if (!daemon->servers)
     forward = NULL;
@@ -232,7 +255,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       /* retry on existing query, send to all available servers  */
       domain = forward->sentto->domain;
       forward->sentto->failed_queries++;
-      if (!(daemon->options & OPT_ORDER))
+      if (!option_bool(OPT_ORDER))
 	{
 	  forward->forwardall = 1;
 	  daemon->last_server = NULL;
@@ -261,9 +284,13 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  forward->fd = udpfd;
 	  forward->crc = crc;
 	  forward->forwardall = 0;
-	  forward->norebind = norebind;
-	  header->id = htons(forward->new_id);
+	  if (norebind)
+	    forward->flags |= FREC_NOREBIND;
+	  if (header->cd)
+	    forward->flags |= FREC_CHECKING_DISABLED;
 
+	  header->id = htons(forward->new_id);
+	  
 	  /* In strict_order mode, always try servers in the order 
 	     specified in resolv.conf, if a domain is given 
 	     always try all the available servers,
@@ -271,7 +298,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  if (type == 0)
 	    {
-	      if (daemon->options & OPT_ORDER)
+	      if (option_bool(OPT_ORDER))
 		start = daemon->servers;
 	      else if (!(start = daemon->last_server) ||
 		       daemon->forwardcount++ > FORWARD_TEST ||
@@ -286,7 +313,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  else
 	    {
 	      start = daemon->servers;
-	      if (!(daemon->options & OPT_ORDER))
+	      if (!option_bool(OPT_ORDER))
 		forward->forwardall = 1;
 	    }
 	}
@@ -300,7 +327,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
     {
       struct server *firstsentto = start;
       int forwarded = 0;
-
+      
+      if (udpaddr && option_bool(OPT_ADD_MAC))
+	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, udpaddr);
+      
       while (1)
 	{ 
 	  /* only send to servers dealing with our domain.
@@ -389,14 +419,14 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   if (udpfd != -1)
     {
       plen = setup_reply(header, plen, addrp, flags, daemon->local_ttl);
-      send_from(udpfd, daemon->options & OPT_NOWILD, (char *)header, plen, udpaddr, dst_addr, dst_iface);
+      send_from(udpfd, option_bool(OPT_NOWILD), (char *)header, plen, udpaddr, dst_addr, dst_iface);
     }
 
   return 0;
 }
 
 static size_t process_reply(HEADER *header, time_t now, 
-			    struct server *server, size_t n, int check_rebind)
+			    struct server *server, size_t n, int check_rebind, int checking_disabled)
 {
   unsigned char *pheader, *sizep;
   int munged = 0, is_sign;
@@ -416,6 +446,10 @@ static size_t process_reply(HEADER *header, time_t now,
 	PUTSHORT(daemon->edns_pktsz, psave);
     }
 
+  /* RFC 4035 sect 4.6 para 3 */
+  if (!is_sign && !option_bool(OPT_DNSSEC))
+    header->ad = 0;
+
   if (header->opcode != QUERY || (header->rcode != NOERROR && header->rcode != NXDOMAIN))
     return n;
   
@@ -425,7 +459,7 @@ static size_t process_reply(HEADER *header, time_t now,
     {
       prettyprint_addr(&server->addr, daemon->namebuff);
       my_syslog(LOG_WARNING, _("nameserver %s refused to do a recursive query"), daemon->namebuff);
-      if (!(daemon->options & OPT_LOG))
+      if (!option_bool(OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
     
@@ -450,7 +484,7 @@ static size_t process_reply(HEADER *header, time_t now,
 	  header->rcode = NOERROR;
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, is_sign, check_rebind))
+      if (extract_addresses(header, n, daemon->namebuff, now, is_sign, check_rebind, checking_disabled))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
@@ -512,7 +546,7 @@ void reply_query(int fd, int family, time_t now)
   server = forward->sentto;
   
   if ((header->rcode == SERVFAIL || header->rcode == REFUSED) &&
-      !(daemon->options & OPT_ORDER) &&
+      !option_bool(OPT_ORDER) &&
       forward->forwardall == 0)
     /* for broken servers, attempt to send to another one. */
     {
@@ -554,7 +588,7 @@ void reply_query(int fd, int family, time_t now)
 		break;
 	      }
 	} 
-      if (!(daemon->options & OPT_ALL_SERVERS))
+      if (!option_bool(OPT_ALL_SERVERS))
 	daemon->last_server = server;
     }
   
@@ -565,16 +599,16 @@ void reply_query(int fd, int family, time_t now)
   if (forward->forwardall == 0 || --forward->forwardall == 1 || 
       (header->rcode != REFUSED && header->rcode != SERVFAIL))
     {
-      int check_rebind = !forward->norebind;
+      int check_rebind = !(forward->flags & FREC_NOREBIND);
 
-      if (!(daemon->options & OPT_NO_REBIND))
+      if (!option_bool(OPT_NO_REBIND))
 	check_rebind = 0;
       
-      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind)))
+      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, forward->flags & FREC_CHECKING_DISABLED)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->ra = 1; /* recursion if available */
-	  send_from(forward->fd, daemon->options & OPT_NOWILD, daemon->packet, nn, 
+	  send_from(forward->fd, option_bool(OPT_NOWILD), daemon->packet, nn, 
 		    &forward->source, &forward->dest, forward->iface);
 	}
       free_frec(forward); /* cancel */
@@ -614,7 +648,7 @@ void receive_query(struct listener *listen, time_t now)
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
-  if (listen->family == AF_INET && (daemon->options & OPT_NOWILD))
+  if (listen->family == AF_INET && option_bool(OPT_NOWILD))
     {
       dst_addr_4 = listen->iface->addr.in.sin_addr;
       netmask = listen->iface->netmask;
@@ -649,8 +683,8 @@ void receive_query(struct listener *listen, time_t now)
   if (listen->family == AF_INET6)
     source_addr.in6.sin6_flowinfo = 0;
 #endif
-  
-  if (!(daemon->options & OPT_NOWILD))
+
+  if (!option_bool(OPT_NOWILD))
     {
       struct ifreq ifr;
 
@@ -721,7 +755,7 @@ void receive_query(struct listener *listen, time_t now)
 	return;
       
       if (listen->family == AF_INET &&
-	  (daemon->options & OPT_LOCALISE) &&
+	  option_bool(OPT_LOCALISE) &&
 	  ioctl(listen->fd, SIOCGIFNETMASK, &ifr) == -1)
 	return;
       
@@ -748,7 +782,7 @@ void receive_query(struct listener *listen, time_t now)
 		      dst_addr_4, netmask, now);
   if (m >= 1)
     {
-      send_from(listen->fd, daemon->options & OPT_NOWILD, (char *)header, 
+      send_from(listen->fd, option_bool(OPT_NOWILD), (char *)header, 
 		m, &source_addr, &dst_addr, if_index);
       daemon->local_answer++;
     }
@@ -766,7 +800,9 @@ void receive_query(struct listener *listen, time_t now)
 unsigned char *tcp_request(int confd, time_t now,
 			   struct in_addr local_addr, struct in_addr netmask)
 {
-  int size = 0, norebind = 0;
+  size_t size = 0;
+  int norebind = 0;
+  int checking_disabled;
   size_t m;
   unsigned short qtype, gotname;
   unsigned char c1, c2;
@@ -787,6 +823,12 @@ unsigned char *tcp_request(int confd, time_t now,
 	continue;
       
       header = (HEADER *)packet;
+
+      /* save state of "cd" flag in query */
+      checking_disabled = header->cd;
+       
+      /* RFC 4035: sect 4.6 para 2 */
+      header->ad = 0;
       
       if ((gotname = extract_request(header, (unsigned int)size, daemon->namebuff, &qtype)))
 	{
@@ -819,15 +861,24 @@ unsigned char *tcp_request(int confd, time_t now,
       
       if (m == 0)
 	{
-	  unsigned short flags = 0;
+	  unsigned int flags = 0;
 	  struct all_addr *addrp = NULL;
 	  int type = 0;
 	  char *domain = NULL;
-	  
+	   
+	  if (option_bool(OPT_ADD_MAC))
+	    {
+	      union mysockaddr peer_addr;
+	      socklen_t peer_len = sizeof(union mysockaddr);
+	      
+	      if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) != -1)
+		size = add_mac(header, size, ((char *) header) + 65536, &peer_addr);
+	    }
+      
 	  if (gotname)
 	    flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	  
-	  if (type != 0  || (daemon->options & OPT_ORDER) || !daemon->last_server)
+	  if (type != 0  || option_bool(OPT_ORDER) || !daemon->last_server)
 	    last_server = daemon->servers;
 	  else
 	    last_server = daemon->last_server;
@@ -906,7 +957,8 @@ unsigned char *tcp_request(int confd, time_t now,
 		     someone might be attempting to insert bogus values into the cache by 
 		     sending replies containing questions and bogus answers. */
 		  if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
-		    m = process_reply(header, now, last_server, (unsigned int)m, (daemon->options & OPT_NO_REBIND) && !norebind );
+		    m = process_reply(header, now, last_server, (unsigned int)m, 
+				      option_bool(OPT_NO_REBIND) && !norebind, checking_disabled);
 		  
 		  break;
 		}
@@ -938,6 +990,7 @@ static struct frec *allocate_frec(time_t now)
       f->time = now;
       f->sentto = NULL;
       f->rfd4 = NULL;
+      f->flags = 0;
 #ifdef HAVE_IPV6
       f->rfd6 = NULL;
 #endif
@@ -990,6 +1043,7 @@ static void free_frec(struct frec *f)
     
   f->rfd4 = NULL;
   f->sentto = NULL;
+  f->flags = 0;
   
 #ifdef HAVE_IPV6
   if (f->rfd6 && --(f->rfd6->refcount) == 0)

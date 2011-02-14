@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -79,14 +79,14 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGALRM, &sigact, NULL);
 
-  if (!(daemon->options & OPT_DEBUG) && uid != 0)
+  if (!option_bool(OPT_DEBUG) && uid != 0)
     {
       gid_t dummy;
       if (setgroups(0, &dummy) == -1 || 
 	  setgid(gid) == -1 || 
 	  setuid(uid) == -1)
 	{
-	  if (daemon->options & OPT_NO_FORK)
+	  if (option_bool(OPT_NO_FORK))
 	    /* send error to daemon process if no-fork */
 	    send_event(event_fd, EVENT_HUSER_ERR, errno);
 	  else

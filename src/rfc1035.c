@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -510,8 +510,122 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
   
   return ret;
 }
-      
+
+struct macparm {
+  unsigned char *limit;
+  HEADER *header;
+  size_t plen;
+  union mysockaddr *l3;
+};
+
+static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
+{
+  struct macparm *parm = parmv;
+  int match = 0;
+  unsigned short rdlen;
+  HEADER *header = parm->header;
+  unsigned char *lenp, *datap, *p;
   
+  if (family == parm->l3->sa.sa_family)
+    {
+      if (family == AF_INET && memcmp (&parm->l3->in.sin_addr, addrp, INADDRSZ) == 0)
+	match = 1;
+#ifdef HAVE_IPV6
+      else
+	if (family == AF_INET6 && memcmp (&parm->l3->in6.sin6_addr, addrp, IN6ADDRSZ) == 0)
+	  match = 1;
+#endif
+    }
+ 
+  if (!match)
+    return 1; /* continue */
+  
+  if (ntohs(header->arcount) == 0)
+    {
+      /* We are adding the pseudoheader */
+      if (!(p = skip_questions(header, parm->plen)) ||
+	  !(p = skip_section(p, 
+			     ntohs(header->ancount) + ntohs(header->nscount), 
+			     header, parm->plen)))
+	return 0;
+      *p++ = 0; /* empty name */
+      PUTSHORT(T_OPT, p);
+      PUTSHORT(PACKETSZ, p); /* max packet length - is 512 suitable default for non-EDNS0 resolvers? */
+      PUTLONG(0, p);    /* extended RCODE */
+      lenp = p;
+      PUTSHORT(0, p);    /* RDLEN */
+      rdlen = 0;
+      if (((ssize_t)maclen) > (parm->limit - (p + 4)))
+	return 0; /* Too big */
+      header->arcount = htons(1);
+      datap = p;
+    }
+  else
+    {
+      int i, is_sign;
+      unsigned short code, len;
+      
+      if (ntohs(header->arcount) != 1 ||
+	  !(p = find_pseudoheader(header, parm->plen, NULL, NULL, &is_sign)) ||
+	  is_sign ||
+	  (!(p = skip_name(p, header, parm->plen, 10))))
+	return 0;
+      
+      p += 8; /* skip UDP length and RCODE */
+      
+      lenp = p;
+      GETSHORT(rdlen, p);
+      if (!CHECK_LEN(header, p, parm->plen, rdlen))
+	return 0; /* bad packet */
+      datap = p;
+
+      /* check if option already there */
+      for (i = 0; i + 4 < rdlen; i += len + 4)
+	{
+	  GETSHORT(code, p);
+	  GETSHORT(len, p);
+	  if (code == EDNS0_OPTION_MAC)
+	    return 0;
+	  p += len;
+	}
+      
+      if (((ssize_t)maclen) > (parm->limit - (p + 4)))
+	return 0; /* Too big */
+    }
+  
+  PUTSHORT(EDNS0_OPTION_MAC, p);
+  PUTSHORT(maclen, p);
+  memcpy(p, mac, maclen);
+  p += maclen;  
+
+  PUTSHORT(p - datap, lenp);
+  parm->plen = p - (unsigned char *)header;
+  
+  return 0; /* done */
+}	      
+     
+
+size_t add_mac(HEADER *header, size_t plen, char *limit, union mysockaddr *l3)
+{
+  struct macparm parm;
+     
+/* Must have an existing pseudoheader as the only ar-record, 
+   or have no ar-records. Must also not be signed */
+   
+  if (ntohs(header->arcount) > 1)
+    return plen;
+
+  parm.header = header;
+  parm.limit = (unsigned char *)limit;
+  parm.plen = plen;
+  parm.l3 = l3;
+
+  iface_enumerate(AF_UNSPEC, &parm, filter_mac);
+  
+  return parm.plen; 
+}
+
+    
 /* is addr in the non-globally-routed IP space? */ 
 static int private_net(struct in_addr addr, int ban_localhost) 
 {
@@ -532,7 +646,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 
   for (i = count; i != 0; i--)
     {
-      if (name && (daemon->options & OPT_LOG))
+      if (name && option_bool(OPT_LOG))
 	{
 	  if (!extract_name(header, qlen, &p, name, 1, 10))
 	    return 0;
@@ -575,7 +689,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	      break;
 	    }
 	}
-      else if (qtype == T_TXT && name && (daemon->options & OPT_LOG))
+      else if (qtype == T_TXT && name && option_bool(OPT_LOG))
 	{
 	  unsigned char *p1 = p;
 	  if (!CHECK_LEN(header, p1, qlen, rdlen))
@@ -592,7 +706,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 		    p2++;
 		  }
 	      *p2 = 0;
-	      my_syslog(LOG_DEBUG, "reply %s is %s", name, p1);
+	      my_syslog(LOG_INFO, "reply %s is %s", name, p1);
 	      /* restore */
 	      memmove(p1 + 1, p1, len);
 	      *p1 = len;
@@ -665,7 +779,8 @@ static int find_soa(HEADER *header, size_t qlen, char *name)
    either because of lack of memory, or lack of SOA records.  These are treated by the cache code as 
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
-int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int is_sign, int check_rebind)
+int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, 
+		      int is_sign, int check_rebind, int checking_disabled)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -675,7 +790,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int i
   cache_start_insert();
 
   /* find_soa is needed for dns_doctor and logging side-effects, so don't call it lazily if there are any. */
-  if (daemon->doctors || (daemon->options & OPT_LOG))
+  if (daemon->doctors || option_bool(OPT_LOG))
     {
       searched_soa = 1;
       ttl = find_soa(header, qlen, name);
@@ -761,7 +876,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int i
 		}
 	    }
 	  
-	   if (!found && !(daemon->options & OPT_NO_NEG))
+	   if (!found && !option_bool(OPT_NO_NEG))
 	    {
 	      if (!searched_soa)
 		{
@@ -848,7 +963,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int i
 			  /* check for returned address in private space */
 			  if (check_rebind &&
 			      (flags & F_IPV4) &&
-			      private_net(addr.addr.addr4, !(daemon->options & OPT_LOCAL_REBIND)))
+			      private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
 			    return 1;
 			  
 			  newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
@@ -867,7 +982,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int i
 		}
 	    }
 	  
-	  if (!found && !(daemon->options & OPT_NO_NEG))
+	  if (!found && !option_bool(OPT_NO_NEG))
 	    {
 	      if (!searched_soa)
 		{
@@ -889,18 +1004,19 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, int i
 	}
     }
   
-  /* Don't put stuff from a truncated packet into the cache, but do everything else */
-  if (!header->tc)
+  /* Don't put stuff from a truncated packet into the cache,
+     also don't cache replies where DNSSEC validation was turned off, either
+     the upstream server told us so, or the original query specified it. */
+  if (!header->tc && !header->cd && !checking_disabled)
     cache_end_insert();
 
   return 0;
 }
 
 /* If the packet holds exactly one query
-   return F_IPV4 or F_IPV6  and leave the name from the query in name. 
-   Abuse F_BIGNAME to indicate an NS query - yuck. */
+   return F_IPV4 or F_IPV6  and leave the name from the query in name */
 
-unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned short *typep)
+unsigned int extract_request(HEADER *header, size_t qlen, char *name, unsigned short *typep)
 {
   unsigned char *p = (unsigned char *)(header+1);
   int qtype, qclass;
@@ -929,7 +1045,7 @@ unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned
       if (qtype == T_ANY)
 	return  F_IPV4 | F_IPV6;
       if (qtype == T_NS || qtype == T_SOA)
-	return F_QUERY | F_BIGNAME;
+	return F_QUERY | F_NSRR;
     }
   
   return F_QUERY;
@@ -937,7 +1053,7 @@ unsigned short extract_request(HEADER *header, size_t qlen, char *name, unsigned
 
 
 size_t setup_reply(HEADER *header, size_t qlen,
-		struct all_addr *addrp, unsigned short flags, unsigned long ttl)
+		struct all_addr *addrp, unsigned int flags, unsigned long ttl)
 {
   unsigned char *p = skip_questions(header, qlen);
   
@@ -1249,7 +1365,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		  ans = 1;
 		  if (!dryrun)
 		    {
-		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<TXT>");
+		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<TXT>");
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					      daemon->local_ttl, NULL,
 					      T_TXT, t->class, "t", t->len, t->txt))
@@ -1300,7 +1416,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		  ans = 1;
 		  if (!dryrun)
 		    {
-		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<PTR>");
+		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<PTR>");
 		      for (ptr = daemon->ptr; ptr; ptr = ptr->next)
 			if (hostname_isequal(name, ptr->name) &&
 			    add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
@@ -1344,7 +1460,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		      }
 		  } while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
 	      else if (is_arpa == F_IPV4 && 
-		       (daemon->options & OPT_BOGUSPRIV) && 
+		       option_bool(OPT_BOGUSPRIV) && 
 		       private_net(addr.addr.addr4, 1))
 		{
 		  /* if not in cache, enabled and private IPV4 address, return NXDOMAIN */
@@ -1442,7 +1558,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		  
 		  /* See if a putative address is on the network from which we recieved
 		     the query, is so we'll filter other answers. */
-		  if (local_addr.s_addr != 0 && (daemon->options & OPT_LOCALISE) && flag == F_IPV4)
+		  if (local_addr.s_addr != 0 && option_bool(OPT_LOCALISE) && flag == F_IPV4)
 		    {
 		      struct crec *save = crecp;
 		      do {
@@ -1525,7 +1641,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		  if (!dryrun)
 		    {
 		      unsigned int offset;
-		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<MX>");
+		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<MX>");
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl,
 					      &offset, T_MX, C_IN, "sd", rec->weight, rec->target))
 			{
@@ -1536,16 +1652,16 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		    }
 		  }
 	      
-	      if (!found && (daemon->options & (OPT_SELFMX | OPT_LOCALMX)) && 
+	      if (!found && (option_bool(OPT_SELFMX) || option_bool(OPT_LOCALMX)) && 
 		  cache_find_by_name(NULL, name, now, F_HOSTS | F_DHCP))
 		{ 
 		  ans = 1;
 		  if (!dryrun)
 		    {
-		      log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<MX>");
+		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<MX>");
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, NULL, 
 					      T_MX, C_IN, "sd", 1, 
-					      (daemon->options & OPT_SELFMX) ? name : daemon->mxtarget))
+					      option_bool(OPT_SELFMX) ? name : daemon->mxtarget))
 			anscount++;
 		    }
 		}
@@ -1554,7 +1670,8 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 	  if (qtype == T_SRV || qtype == T_ANY)
 	    {
 	      int found = 0;
-	      
+	      struct mx_srv_record *move = NULL, **up = &daemon->mxnames;
+
 	      for (rec = daemon->mxnames; rec; rec = rec->next)
 		if (rec->issrv && hostname_isequal(name, rec->name))
 		  {
@@ -1562,7 +1679,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		    if (!dryrun)
 		      {
 			unsigned int offset;
-			log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<SRV>");
+			log_query(F_CONFIG | F_RRNAME, name, NULL, "<SRV>");
 			if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, 
 						&offset, T_SRV, C_IN, "sssd", 
 						rec->priority, rec->weight, rec->srvport, rec->target))
@@ -1572,9 +1689,27 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 			      rec->offset = offset;
 			  }
 		      }
+		    
+		    /* unlink first SRV record found */
+		    if (!move)
+		      {
+			move = rec;
+			*up = rec->next;
+		      }
+		    else
+		      up = &rec->next;      
 		  }
+		else
+		  up = &rec->next;
+
+	      /* put first SRV record back at the end. */
+	      if (move)
+		{
+		  *up = move;
+		  move->next = NULL;
+		}
 	      
-	      if (!found && (daemon->options & OPT_FILTER) &&  (qtype == T_SRV || (qtype == T_ANY && strchr(name, '_'))))
+	      if (!found && option_bool(OPT_FILTER) && (qtype == T_SRV || (qtype == T_ANY && strchr(name, '_'))))
 		{
 		  ans = 1;
 		  if (!dryrun)
@@ -1591,7 +1726,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 		    ans = 1;
 		    if (!dryrun)
 		      {
-			log_query(F_CNAME | F_FORWARD | F_CONFIG | F_NXDOMAIN, name, NULL, "<NAPTR>");
+			log_query(F_CONFIG | F_RRNAME, name, NULL, "<NAPTR>");
 			if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, 
 						NULL, T_NAPTR, C_IN, "sszzzd", 
 						na->order, na->pref, na->flags, na->services, na->regexp, na->replace))
@@ -1603,7 +1738,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 	  if (qtype == T_MAILB)
 	    ans = 1, nxdomain = 1;
 
-	  if (qtype == T_SOA && (daemon->options & OPT_FILTER))
+	  if (qtype == T_SOA && option_bool(OPT_FILTER))
 	    {
 	      ans = 1; 
 	      if (!dryrun)

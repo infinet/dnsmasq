@@ -23,7 +23,7 @@ options. It includes a secure, read-only,
 TFTP server to allow net/PXE boot of DHCP hosts and also supports BOOTP.
 .PP
 Dnsmasq 
-supports IPv6 for DNS, but not DHCP.
+supports IPv6 for DNS and TFTP, but not DHCP.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
 functions, for instance "--pid-file" disables writing a PID file. On
@@ -415,7 +415,9 @@ all that match are returned.
 .TP
 .B \-Y, --txt-record=<name>[[,<text>],<text>]
 Return a TXT DNS record. The value of TXT record is a set of strings,
-so  any number may be included, split by commas.
+so  any number may be included, delimited by commas; use quotes to put
+commas into a string. Note that the maximum length of a single string
+is 255 characters, longer strings are split into 255 character chunks.
 .TP
 .B --ptr-record=<name>[,<target>]
 Return a PTR DNS record.
@@ -442,6 +444,15 @@ the name. More than one name may be associated with an interface
 address by repeating the flag; in that case the first instance is used
 for the reverse address-to-name mapping.
 .TP
+.B --add-mac
+Add the MAC address of the requestor to DNS queries which are
+forwarded upstream. This may be used to DNS filtering by the upstream
+server. The MAC address can only be added if the requestor is on the same
+subnet as the dnsmasq server. Note that the mechanism used to achieve this (an EDNS0 option)
+is not yet standardised, so this should be considered
+experimental. Also note that exposing MAC addresses in this way may
+have security and privacy implications. 
+.TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.
 .TP
@@ -455,6 +466,20 @@ Set the maximum number of concurrent DNS queries. The default value is
 150, which should be fine for most setups. The only known situation
 where this needs to be increased is when using web-server log file
 resolvers, which can generate large numbers of concurrent queries.
+.TP
+.B --proxy-dnssec
+A resolver on a client machine can do DNSSEC validation in two ways: it
+can perform the cryptograhic operations on the reply it receives, or
+it can rely on the upstream recursive nameserver to do the validation
+and set a bit in the reply if it succeeds. Dnsmasq is not a DNSSEC
+validator, so it cannot perform the validation role of the recursive nameserver,
+but it can pass through the validation results from its own upstream
+nameservers. This option enables this behaviour. You should only do
+this if you trust all the configured upstream nameservers 
+.I and the network between you and them.
+If you use the first DNSSEC mode, validating resolvers in clients,
+this option is not required. Dnsmasq always returns all the data
+needed for a client to do validation itself. 
 .TP
 .B \-F, --dhcp-range=[interface:<interface>,][tag:<tag>[,tag:<tag>],][set:<tag],]<start-addr>,<end-addr>[,<netmask>[,<broadcast>]][,<lease time>]
 Enable the DHCP server. Addresses will be given out from the range
@@ -588,15 +613,17 @@ time and there is no way for dnsmasq to enforce this. It is, for instance,
 useful to allocate a stable IP address to a laptop which
 has both wired and wireless interfaces.
 .TP
-.B --dhcp-hostsfile=<file>
-Read DHCP host information from the specified file. The file contains 
+.B --dhcp-hostsfile=<path>
+Read DHCP host information from the specified file. If a directory
+is given, then read all the files contained in that directory. The file contains 
 information about one host per line. The format of a line is the same
 as text to the right of '=' in --dhcp-host. The advantage of storing DHCP host information
 in this file is that it can be changed without re-starting dnsmasq:
 the file will be re-read when dnsmasq receives SIGHUP.
 .TP
-.B --dhcp-optsfile=<file>
-Read DHCP option information from the specified file. The advantage of 
+.B --dhcp-optsfile=<path>
+Read DHCP option information from the specified file.  If a directory
+is given, then read all the files contained in that directory. The advantage of 
 using this option is the same as for --dhcp-hostsfile: the
 dhcp-optsfile will be re-read when dnsmasq receives SIGHUP. Note that
 it is possible to encode the information in a
@@ -946,7 +973,8 @@ all of the following variables added.
 DNSMASQ_CLIENT_ID if the host provided a client-id.
 
 DNSMASQ_DOMAIN if the fully-qualified domain name of the host is
-known, this is set to the  domain part.
+known, this is set to the  domain part. (Note that the hostname passed
+to the script as an argument is never fully-qualified.)
 
 If the client provides vendor-class, hostname or user-class, 
 these are provided in DNSMASQ_VENDOR_CLASS
@@ -1020,7 +1048,7 @@ as if they had arrived at <interface>. This option is necessary when
 using "old style" bridging on BSD platforms, since
 packets arrive at tap interfaces which don't have an IP address.
 .TP
-.B \-s, --domain=<domain>[,<address range>]
+.B \-s, --domain=<domain>[,<address range>[,local]]
 Specifies DNS domains for the DHCP server. Domains may be be given 
 unconditionally (without the IP range) or for limited IP ranges. This has two effects;
 firstly it causes the DHCP server to return the domain to any hosts
@@ -1039,11 +1067,22 @@ and have a machine whose DHCP hostname is "laptop". The IP address for that mach
 .B dnsmasq
 both as "laptop" and "laptop.thekelleys.org.uk". If the domain is
 given as "#" then the domain is read from the first "search" directive
-in /etc/resolv.conf (or equivalent). The address range can be of the form
+in /etc/resolv.conf (or equivalent).
+
+The address range can be of the form
 <ip address>,<ip address> or <ip address>/<netmask> or just a single
 <ip address>. See 
 .B --dhcp-fqdn
 which can change the behaviour of dnsmasq with domains.
+
+If the address range is given as ip-address/network-size, then a
+additional flag "local" may be supplied which has the effect of adding
+--local declarations for forward and reverse DNS queries. Eg.
+.B --domain=thekelleys.org.uk,192.168.0.0/24,local
+is identical to
+.B --domain=thekelleys.org.uk,192.168.0.0/24
+--local=/thekelleys.org.uk/ --local=/0.168.192.in-addr.arpa/
+The network size must be 8, 16 or 24 for this to be legal.
 .TP
 .B --dhcp-fqdn
 In the default mode, dnsmasq inserts the unqualified names of
@@ -1123,7 +1162,8 @@ of concurrent TFTP connections is limited by the size of the port range.
 .TP  
 .B \-C, --conf-file=<file>
 Specify a different configuration file. The conf-file option is also allowed in
-configuration files, to include multiple configuration files.
+configuration files, to include multiple configuration files. A
+filename of "-" causes dnsmasq to read configuration from stdin.
 .TP
 .B \-7, --conf-dir=<directory>[,<file-extension>......]
 Read all the files in the given directory as configuration
@@ -1445,6 +1485,9 @@ assume that it is the system default.
 .IR /usr/local/etc/dnsmasq.conf
 
 .IR /etc/resolv.conf
+.IR /var/run/dnsmasq/resolv.conf
+.IR /etc/ppp/resolv.conf
+.IR /etc/dhcpc/resolv.conf
 
 .IR /etc/hosts
 
