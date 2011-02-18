@@ -1,3 +1,29 @@
+version 2.57
+	    Add patches to allow build under Android.
+
+	    Provide our own header for the DNS protocol, rather than
+	    relying on arpa/nameser.h. This has proved more or less
+	    defective over the years and the final straw is that it's
+	    effectively empty on Android.
+
+	    Fix regression in 2.56 which caused hex constants in
+	    configuration to be rejected if they contain the '*'
+	    wildcard.
+
+	    Correct wrong casts of arguments to ctype.h functions,
+	    isdigit(), isxdigit() etc. Thanks to Matthias Andree for
+	    spotting this.
+
+	    Allow build with IDN support independently from i18n. 
+            IDN support continues to be included automatically 
+	    when i18n is included. 
+            'make COPTS=-DHAVE_IDN' is the magic incantation. 
+
+	    Modify check on extraneous command line junk (added in
+	    2.56) so that it doesn't complain about extra _empty_ 
+	    arguments. Otherwise this breaks libvirt.
+
+
 version 2.56
             Add a patch to allow dnsmasq to get interface names right in a
             Solaris zone. Thanks to Dj Padzensky for this.
@@ -117,9 +143,9 @@ version 2.56
 	    request meant for another DHCP server. NAKing this is
 	    wrong. Thanks to Brad D'Hondt for assistance with this.
 
-	    Fix cosmetic bug which produced strange output when
-	    dumping cache statistics with some configurations. Thanks
-	    to Fedor Kozhevnikov for spotting this.
+            Fix cosmetic bug which produced strange output when
+            dumping cache statistics with some configurations. Thanks
+            to Fedor Kozhevnikov for spotting this.
 
 
 version 2.55

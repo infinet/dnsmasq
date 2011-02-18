@@ -7,8 +7,8 @@
 # The following two options make you a better netizen, since they
 # tell dnsmasq to filter out queries which the public DNS cannot
 # answer, and which load the servers (especially the root servers)
-# necessarily. If you have a dial-on-demand link they also stop
-# these requests from bringing up the link necessarily.
+# unnecessarily. If you have a dial-on-demand link they also stop
+# these requests from bringing up the link unnecessarily.
 
 # Never forward plain names (without a dot or domain part)
 #domain-needed
@@ -161,7 +161,8 @@
 # of valid alternatives, so we will give examples of each. Note that
 # IP addresses DO NOT have to be in the range given above, they just
 # need to be on the same network. The order of the parameters in these
-# do not matter, it's permissible to give name,address and MAC in any order
+# do not matter, it's permissible to give name, address and MAC in any
+# order.
 
 # Always allocate the host with Ethernet address 11:22:33:44:55:66
 # The IP address 192.168.0.60

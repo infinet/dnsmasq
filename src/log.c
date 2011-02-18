@@ -16,6 +16,10 @@
 
 #include "dnsmasq.h"
 
+#ifdef __ANDROID__
+#  include <android/log.h>
+#endif
+
 /* Implement logging to /dev/log asynchronously. If syslogd is 
    making DNS lookups through dnsmasq, and dnsmasq blocks awaiting
    syslogd, then the two daemons can deadlock. We get around this
@@ -117,7 +121,7 @@ int log_reopen(char *log_file)
 	log_fd = open(log_file, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR|S_IRGRP);      
       else
 	{
-#ifdef HAVE_SOLARIS_NETWORK
+#if defined(HAVE_SOLARIS_NETWORK) || defined(__ANDROID__)
 	  /* Solaris logging is "different", /dev/log is not unix-domain socket.
 	     Just leave log_fd == -1 and use the vsyslog call for everything.... */
 #   define _PATH_LOG ""  /* dummy */
@@ -289,8 +293,28 @@ void my_syslog(int priority, const char *format, ...)
 
   if (log_fd == -1)
     {
-      /* fall-back to syslog if we die during startup or fail during running. */
+#ifdef __ANDROID__
+      /* do android-specific logging. 
+	 log_fd is always -1 on Android except when logging to a file. */
+      int alog_lvl;
+      
+      if (priority <= LOG_ERR)
+	alog_lvl = ANDROID_LOG_ERROR;
+      else if (priority == LOG_WARNING)
+	alog_lvl = ANDROID_LOG_WARN;
+      else if (priority <= LOG_INFO)
+	alog_lvl = ANDROID_LOG_INFO;
+      else
+	alog_lvl = ANDROID_LOG_DEBUG;
+
+      va_start(ap, format);
+      __android_log_vprint(alog_lvl, "dnsmasq", format, ap);
+      va_end(ap);
+#else
+      /* fall-back to syslog if we die during startup or 
+	 fail during running (always on Solaris). */
       static int isopen = 0;
+
       if (!isopen)
 	{
 	  openlog("dnsmasq", LOG_PID, log_fac);
@@ -299,6 +323,8 @@ void my_syslog(int priority, const char *format, ...)
       va_start(ap, format);  
       vsyslog(priority, format, ap);
       va_end(ap);
+#endif
+
       return;
     }
   

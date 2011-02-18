@@ -512,9 +512,9 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 		    err = "";
 		  else
 		    {
-		      char *q, *r;
-		      for (q = r = err; *r; r++)
-			if (isprint((int)*r))
+		      unsigned char *q, *r;
+		      for (q = r = (unsigned char *)err; *r; r++)
+			if (isprint(*r))
 			  *(q++) = *r;
 		      *q = 0;
 		    }

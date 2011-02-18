@@ -51,8 +51,11 @@ static char *compile_opts =
 #ifndef HAVE_TFTP
 "no-"
 #endif
-"TFTP";
-
+"TFTP "
+#if !defined(LOCALEDIR) && !defined(HAVE_IDN)
+"no-"
+#endif 
+"IDN";
 
 
 static volatile pid_t pid = 0;
@@ -150,6 +153,11 @@ int main (int argc, char **argv)
     die(_("asychronous logging is not available under Solaris"), NULL, EC_BADCONF);
 #endif
   
+#ifdef __ANDROID__
+  if (daemon->max_logs != 0)
+    die(_("asychronous logging is not available under Android"), NULL, EC_BADCONF);
+#endif
+
   rand_init();
   
   now = dnsmasq_time();
@@ -384,7 +392,7 @@ int main (int argc, char **argv)
 	    (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW) | (1 << CAP_SETUID);
 	  
 	  /* Tell kernel to not clear capabilities when dropping root */
-	  if (capset(hdr, data) == -1 || prctl(PR_SET_KEEPCAPS, 1) == -1)
+	  if (capset(hdr, data) == -1 || prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) == -1)
 	    bad_capabilities = errno;
 			  
 #elif defined(HAVE_SOLARIS_NETWORK)
@@ -440,7 +448,7 @@ int main (int argc, char **argv)
   
 #ifdef HAVE_LINUX_NETWORK
   if (option_bool(OPT_DEBUG)) 
-    prctl(PR_SET_DUMPABLE, 1);
+    prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
 #endif
 
   if (daemon->port == 0)

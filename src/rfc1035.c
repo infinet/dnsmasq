@@ -16,7 +16,7 @@
 
 #include "dnsmasq.h"
 
-static int add_resource_record(HEADER *header, char *limit, int *truncp, 
+static int add_resource_record(struct dns_header *header, char *limit, int *truncp, 
 			       unsigned int nameoffset, unsigned char **pp, 
 			       unsigned long ttl, unsigned int *offset, unsigned short type, 
 			       unsigned short class, char *format, ...);
@@ -27,7 +27,7 @@ static int add_resource_record(HEADER *header, char *limit, int *truncp,
 #define ADD_RDLEN(header, pp, plen, len) \
     (!CHECK_LEN(header, pp, plen, len) ? 0 : (long)((pp) += (len)), 1)
 
-static int extract_name(HEADER *header, size_t plen, unsigned char **pp, 
+static int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
 			char *name, int isExtract, int extrabytes)
 {
   unsigned char *cp = (unsigned char *)name, *p = *pp, *p1 = NULL;
@@ -217,7 +217,7 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
 	     as CNAME targets according to RFC 2317 */
 	  char *cp;
 	  for (cp = cp1; *cp; cp++)
-	    if (!isdigit((int)*cp))
+	    if (!isdigit((unsigned char)*cp))
 	      return 0;
 	  
 	  addr[3] = addr[2];
@@ -244,7 +244,7 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
       if (*name == '\\' && *(name+1) == '[' && 
 	  (*(name+2) == 'x' || *(name+2) == 'X'))
 	{	  
-	  for (j = 0, cp1 = name+3; *cp1 && isxdigit((int) *cp1) && j < 32; cp1++, j++)
+	  for (j = 0, cp1 = name+3; *cp1 && isxdigit((unsigned char) *cp1) && j < 32; cp1++, j++)
 	    {
 	      char xdig[2];
 	      xdig[0] = *cp1;
@@ -262,7 +262,7 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
 	{
 	  for (cp1 = name; cp1 != penchunk; cp1 += strlen(cp1)+1)
 	    {
-	      if (*(cp1+1) || !isxdigit((int)*cp1))
+	      if (*(cp1+1) || !isxdigit((unsigned char)*cp1))
 		return 0;
 	      
 	      for (j = sizeof(struct all_addr)-1; j>0; j--)
@@ -278,7 +278,7 @@ static int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
   return 0;
 }
 
-static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen, int extrabytes)
+static unsigned char *skip_name(unsigned char *ansp, struct dns_header *header, size_t plen, int extrabytes)
 {
   while(1)
     {
@@ -333,7 +333,7 @@ static unsigned char *skip_name(unsigned char *ansp, HEADER *header, size_t plen
   return ansp;
 }
 
-static unsigned char *skip_questions(HEADER *header, size_t plen)
+static unsigned char *skip_questions(struct dns_header *header, size_t plen)
 {
   int q;
   unsigned char *ansp = (unsigned char *)(header+1);
@@ -348,7 +348,7 @@ static unsigned char *skip_questions(HEADER *header, size_t plen)
   return ansp;
 }
 
-static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *header, size_t plen)
+static unsigned char *skip_section(unsigned char *ansp, int count, struct dns_header *header, size_t plen)
 {
   int i, rdlen;
   
@@ -371,7 +371,7 @@ static unsigned char *skip_section(unsigned char *ansp, int count, HEADER *heade
    than CRC the raw bytes, since replies might be compressed differently. 
    We ignore case in the names for the same reason. Return all-ones
    if there is not question section. */
-unsigned int questions_crc(HEADER *header, size_t plen, char *name)
+unsigned int questions_crc(struct dns_header *header, size_t plen, char *name)
 {
   int q;
   unsigned int crc = 0xffffffff;
@@ -413,7 +413,7 @@ unsigned int questions_crc(HEADER *header, size_t plen, char *name)
 }
 
 
-size_t resize_packet(HEADER *header, size_t plen, unsigned char *pheader, size_t hlen)
+size_t resize_packet(struct dns_header *header, size_t plen, unsigned char *pheader, size_t hlen)
 {
   unsigned char *ansp = skip_questions(header, plen);
     
@@ -437,7 +437,7 @@ size_t resize_packet(HEADER *header, size_t plen, unsigned char *pheader, size_t
   return ansp - (unsigned char *)header;
 }
 
-unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsigned char **p, int *is_sign)
+unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t  *len, unsigned char **p, int *is_sign)
 {
   /* See if packet has an RFC2671 pseudoheader, and if so return a pointer to it. 
      also return length of pseudoheader in *len and pointer to the UDP size in *p
@@ -453,7 +453,7 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
     {
       *is_sign = 0;
 
-      if (header->opcode == QUERY)
+      if (OPCODE(header) == QUERY)
 	{
 	  for (i = ntohs(header->qdcount); i != 0; i--)
 	    {
@@ -513,7 +513,7 @@ unsigned char *find_pseudoheader(HEADER *header, size_t plen, size_t  *len, unsi
 
 struct macparm {
   unsigned char *limit;
-  HEADER *header;
+  struct dns_header *header;
   size_t plen;
   union mysockaddr *l3;
 };
@@ -523,7 +523,7 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
   struct macparm *parm = parmv;
   int match = 0;
   unsigned short rdlen;
-  HEADER *header = parm->header;
+  struct dns_header *header = parm->header;
   unsigned char *lenp, *datap, *p;
   
   if (family == parm->l3->sa.sa_family)
@@ -605,7 +605,7 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
 }	      
      
 
-size_t add_mac(HEADER *header, size_t plen, char *limit, union mysockaddr *l3)
+size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3)
 {
   struct macparm parm;
      
@@ -639,7 +639,7 @@ static int private_net(struct in_addr addr, int ban_localhost)
     ((ip_addr & 0xFFFF0000) == 0xA9FE0000)  /* 169.254.0.0/16 (zeroconf) */ ;
 }
 
-static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, size_t qlen, char *name)
+static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *header, size_t qlen, char *name)
 {
   int i, qtype, qclass, rdlen;
   unsigned long ttl;
@@ -684,7 +684,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
 	      addr.s_addr &= ~doctor->mask.s_addr;
 	      addr.s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
 	      /* Since we munged the data, the server it came from is no longer authoritative */
-	      header->aa = 0;
+	      header->hb3 &= ~HB3_AA;
 	      memcpy(p, &addr, INADDRSZ);
 	      break;
 	    }
@@ -721,7 +721,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, HEADER *header, siz
   return p; 
 }
 
-static int find_soa(HEADER *header, size_t qlen, char *name)
+static int find_soa(struct dns_header *header, size_t qlen, char *name)
 {
   unsigned char *p;
   int qtype, qclass, rdlen;
@@ -779,7 +779,7 @@ static int find_soa(HEADER *header, size_t qlen, char *name)
    either because of lack of memory, or lack of SOA records.  These are treated by the cache code as 
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
-int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now, 
+int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
 		      int is_sign, int check_rebind, int checking_disabled)
 {
   unsigned char *p, *p1, *endrr, *namep;
@@ -803,7 +803,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now,
     {
       int found = 0, cname_count = 5;
       struct crec *cpp = NULL;
-      int flags = header->rcode == NXDOMAIN ? F_NXDOMAIN : 0;
+      int flags = RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0;
       unsigned long cttl = ULONG_MAX, attl;
       
       namep = p;
@@ -844,7 +844,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now,
 		  GETLONG(attl, p1);
 		  if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
 		    {
-		      (p1) -= NS_INT32SZ;
+		      (p1) -= 4;
 		      PUTLONG(daemon->max_ttl, p1);
 		    }
 		  GETSHORT(ardlen, p1);
@@ -924,7 +924,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now,
 		  GETLONG(attl, p1);
 		  if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
 		    {
-		      (p1) -= NS_INT32SZ;
+		      (p1) -= 4;
 		      PUTLONG(daemon->max_ttl, p1);
 		    }
 		  GETSHORT(ardlen, p1);
@@ -1007,7 +1007,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now,
   /* Don't put stuff from a truncated packet into the cache,
      also don't cache replies where DNSSEC validation was turned off, either
      the upstream server told us so, or the original query specified it. */
-  if (!header->tc && !header->cd && !checking_disabled)
+  if (!(header->hb3 & HB3_TC) && !(header->hb4 & HB4_CD) && !checking_disabled)
     cache_end_insert();
 
   return 0;
@@ -1016,7 +1016,7 @@ int extract_addresses(HEADER *header, size_t qlen, char *name, time_t now,
 /* If the packet holds exactly one query
    return F_IPV4 or F_IPV6  and leave the name from the query in name */
 
-unsigned int extract_request(HEADER *header, size_t qlen, char *name, unsigned short *typep)
+unsigned int extract_request(struct dns_header *header, size_t qlen, char *name, unsigned short *typep)
 {
   unsigned char *p = (unsigned char *)(header+1);
   int qtype, qclass;
@@ -1024,7 +1024,7 @@ unsigned int extract_request(HEADER *header, size_t qlen, char *name, unsigned s
   if (typep)
     *typep = 0;
 
-  if (ntohs(header->qdcount) != 1 || header->opcode != QUERY)
+  if (ntohs(header->qdcount) != 1 || OPCODE(header) != QUERY)
     return 0; /* must be exactly one query. */
   
   if (!extract_name(header, qlen, &p, name, 1, 4))
@@ -1052,42 +1052,43 @@ unsigned int extract_request(HEADER *header, size_t qlen, char *name, unsigned s
 }
 
 
-size_t setup_reply(HEADER *header, size_t qlen,
+size_t setup_reply(struct dns_header *header, size_t qlen,
 		struct all_addr *addrp, unsigned int flags, unsigned long ttl)
 {
   unsigned char *p = skip_questions(header, qlen);
   
-  header->qr = 1; /* response */
-  header->aa = 0; /* authoritive */
-  header->ra = 1; /* recursion if available */
-  header->tc = 0; /* not truncated */
+  /* clear authoritative and truncated flags, set QR flag */
+  header->hb3 = (header->hb3 & ~(HB3_AA | HB3_TC)) | HB3_QR;
+  /* set RA flag */
+  header->hb4 |= HB4_RA;
+
   header->nscount = htons(0);
   header->arcount = htons(0);
   header->ancount = htons(0); /* no answers unless changed below */
   if (flags == F_NEG)
-    header->rcode = SERVFAIL; /* couldn't get memory */
+    SET_RCODE(header, SERVFAIL); /* couldn't get memory */
   else if (flags == F_NOERR)
-    header->rcode = NOERROR; /* empty domain */
+    SET_RCODE(header, NOERROR); /* empty domain */
   else if (flags == F_NXDOMAIN)
-    header->rcode = NXDOMAIN;
+    SET_RCODE(header, NXDOMAIN);
   else if (p && flags == F_IPV4)
     { /* we know the address */
-      header->rcode = NOERROR;
+      SET_RCODE(header, NOERROR);
       header->ancount = htons(1);
-      header->aa = 1;
-      add_resource_record(header, NULL, NULL, sizeof(HEADER), &p, ttl, NULL, T_A, C_IN, "4", addrp);
+      header->hb3 |= HB3_AA;
+      add_resource_record(header, NULL, NULL, sizeof(struct dns_header), &p, ttl, NULL, T_A, C_IN, "4", addrp);
     }
 #ifdef HAVE_IPV6
   else if (p && flags == F_IPV6)
     {
-      header->rcode = NOERROR;
+      SET_RCODE(header, NOERROR);
       header->ancount = htons(1);
-      header->aa = 1;
-      add_resource_record(header, NULL, NULL, sizeof(HEADER), &p, ttl, NULL, T_AAAA, C_IN, "6", addrp);
+      header->hb3 |= HB3_AA;
+      add_resource_record(header, NULL, NULL, sizeof(struct dns_header), &p, ttl, NULL, T_AAAA, C_IN, "6", addrp);
     }
 #endif
   else /* nowhere to forward to */
-    header->rcode = REFUSED;
+    SET_RCODE(header, REFUSED);
  
   return p - (unsigned char *)header;
 }
@@ -1127,7 +1128,7 @@ int check_for_local_domain(char *name, time_t now)
 /* Is the packet a reply with the answer address equal to addr?
    If so mung is into an NXDOMAIN reply and also put that information
    in the cache. */
-int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name, 
+int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *baddr, time_t now)
 {
   unsigned char *p;
@@ -1174,7 +1175,7 @@ int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name,
   return 0;
 }
 
-static int add_resource_record(HEADER *header, char *limit, int *truncp, unsigned int nameoffset, unsigned char **pp, 
+static int add_resource_record(struct dns_header *header, char *limit, int *truncp, unsigned int nameoffset, unsigned char **pp, 
 			       unsigned long ttl, unsigned int *offset, unsigned short type, unsigned short class, char *format, ...)
 {
   va_list ap;
@@ -1284,7 +1285,7 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
   
 
 /* return zero if we can't answer from cache, or packet size if we can */
-size_t answer_request(HEADER *header, char *limit, size_t qlen,  
+size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, time_t now) 
 {
   char *name = daemon->namebuff;
@@ -1327,7 +1328,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
       dryrun = 1;
     }
 
-  if (ntohs(header->qdcount) == 0 || header->opcode != QUERY )
+  if (ntohs(header->qdcount) == 0 || OPCODE(header) != QUERY )
     return 0;
   
   for (rec = daemon->mxnames; rec; rec = rec->next)
@@ -1496,7 +1497,7 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
 
 		  for (cp = name, i = 0, a = 0; *cp; i++)
 		    {
-		      if (!isdigit(*cp) || (x = strtol(cp, &cp, 10)) > 255) 
+		      if (!isdigit((unsigned char)*cp) || (x = strtol(cp, &cp, 10)) > 255) 
 			{
 			  i = 5;
 			  break;
@@ -1785,14 +1786,23 @@ size_t answer_request(HEADER *header, char *limit, size_t qlen,
       }
   
   /* done all questions, set up header and return length of result */
-  header->qr = 1; /* response */
-  header->aa = auth; /* authoritive - only hosts and DHCP derived names. */
-  header->ra = 1; /* recursion if available */
-  header->tc = trunc; /* truncation */
+  /* clear authoritative and truncated flags, set QR flag */
+  header->hb3 = (header->hb3 & ~(HB3_AA | HB3_TC)) | HB3_QR;
+  /* set RA flag */
+  header->hb4 |= HB4_RA;
+   
+  /* authoritive - only hosts and DHCP derived names. */
+  if (auth)
+    header->hb3 |= HB3_AA;
+  
+  /* truncation */
+  if (trunc)
+    header->hb3 |= HB3_TC;
+
   if (anscount == 0 && nxdomain)
-    header->rcode = NXDOMAIN;
+    SET_RCODE(header, NXDOMAIN);
   else
-    header->rcode = NOERROR; /* no error */
+    SET_RCODE(header, NOERROR); /* no error */
   header->ancount = htons(anscount);
   header->nscount = htons(0);
   header->arcount = htons(addncount);

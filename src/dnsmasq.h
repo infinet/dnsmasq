@@ -24,7 +24,9 @@
 
 /* Get linux C library versions and define _GNU_SOURCE for kFreeBSD. */
 #if defined(__linux__) || defined(__GLIBC__)
-#  define _GNU_SOURCE
+#  ifndef __ANDROID__
+#      define _GNU_SOURCE
+#  endif
 #  include <features.h> 
 #endif
 
@@ -39,17 +41,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#ifdef __APPLE__
-#  include <nameser.h>
-#  include <arpa/nameser_compat.h>
-#else
-#  include <arpa/nameser.h>
-#endif
-
 /* and this. */
 #include <getopt.h>
 
 #include "config.h"
+
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+
+#include "dns_protocol.h"
+#include "dhcp_protocol.h"
 
 #define gettext_noop(S) (S)
 #ifndef LOCALEDIR
@@ -89,7 +91,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <stdarg.h>
-#if defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun__) || defined (__sun)
+#if defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun__) || defined (__sun) || defined (__ANDROID__)
 #  include <netinet/if_ether.h>
 #else
 #  include <net/ethernet.h>
@@ -163,7 +165,7 @@ struct event_desc {
 */
 #define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
 
-/* Trust the compiler dead-code elimator.... */
+/* Trust the compiler dead-code eliminator.... */
 #define option_bool(x) (((x) < 32) ? daemon->options & (1u << (x)) : daemon->options2 & (1u << ((x) - 32)))
 
 #define OPT_BOGUSPRIV      0
@@ -422,8 +424,6 @@ struct frec {
 #define ACTION_OLD           3
 #define ACTION_ADD           4
 
-#define DHCP_CHADDR_MAX 16
-
 struct dhcp_lease {
   int clid_len;          /* length of client identifier */
   unsigned char *clid;   /* clientid */
@@ -581,21 +581,6 @@ struct dhcp_context {
 #define CONTEXT_NETMASK   2
 #define CONTEXT_BRDCAST   4
 #define CONTEXT_PROXY     8
-
-
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-
-
-struct dhcp_packet {
-  u8 op, htype, hlen, hops;
-  u32 xid;
-  u16 secs, flags;
-  struct in_addr ciaddr, yiaddr, siaddr, giaddr;
-  u8 chaddr[DHCP_CHADDR_MAX], sname[64], file[128];
-  u8 options[312];
-};
 
 struct ping_result {
   struct in_addr addr;
@@ -763,24 +748,24 @@ char *cache_get_name(struct crec *crecp);
 char *get_domain(struct in_addr addr);
 
 /* rfc1035.c */
-unsigned int extract_request(HEADER *header, size_t qlen, 
+unsigned int extract_request(struct dns_header *header, size_t qlen, 
 			       char *name, unsigned short *typep);
-size_t setup_reply(HEADER *header, size_t  qlen,
+size_t setup_reply(struct dns_header *header, size_t  qlen,
 		   struct all_addr *addrp, unsigned int flags,
 		   unsigned long local_ttl);
-int extract_addresses(HEADER *header, size_t qlen, char *namebuff, 
+int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff, 
 		      time_t now, int is_sign, int checkrebind, int checking_disabled);
-size_t answer_request(HEADER *header, char *limit, size_t qlen,  
+size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
-int check_for_bogus_wildcard(HEADER *header, size_t qlen, char *name, 
+int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
-unsigned char *find_pseudoheader(HEADER *header, size_t plen,
+unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
 				 size_t *len, unsigned char **p, int *is_sign);
 int check_for_local_domain(char *name, time_t now);
-unsigned int questions_crc(HEADER *header, size_t plen, char *buff);
-size_t resize_packet(HEADER *header, size_t plen, 
+unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
+size_t resize_packet(struct dns_header *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
-size_t add_mac(HEADER *header, size_t plen, char *limit, union mysockaddr *l3);
+size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 
 /* util.c */
 void rand_init(void);

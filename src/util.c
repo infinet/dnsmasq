@@ -24,7 +24,7 @@
 #include <sys/times.h>
 #endif
 
-#ifdef LOCALEDIR
+#if defined(LOCALEDIR) || defined(HAVE_IDN)
 #include <idna.h>
 #endif
 
@@ -43,11 +43,9 @@ unsigned short rand16(void)
 
 /* SURF random number generator */
 
-typedef unsigned int uint32;
-
-static uint32 seed[32];
-static uint32 in[12];
-static uint32 out[8];
+static u32 seed[32];
+static u32 in[12];
+static u32 out[8];
 
 void rand_init()
 {
@@ -66,7 +64,7 @@ void rand_init()
 
 static void surf(void)
 {
-  uint32 t[12]; uint32 x; uint32 sum = 0;
+  u32 t[12]; u32 x; u32 sum = 0;
   int r; int i; int loop;
 
   for (i = 0;i < 12;++i) t[i] = in[i] ^ seed[12 + i];
@@ -120,11 +118,11 @@ static int check_name(char *in)
 	dotgap = 0;
       else if (++dotgap > MAXLABEL)
 	return 0;
-      else if (isascii(c) && iscntrl(c)) 
+      else if (isascii((unsigned char)c) && iscntrl((unsigned char)c)) 
 	/* iscntrl only gives expected results for ascii */
 	return 0;
-#ifndef LOCALEDIR
-      else if (!isascii(c))
+#if !defined(LOCALEDIR) && !defined(HAVE_IDN)
+      else if (!isascii((unsigned char)c))
 	return 0;
 #endif
       else if (c != ' ')
@@ -170,7 +168,7 @@ int legal_hostname(char *name)
 char *canonicalise(char *in, int *nomem)
 {
   char *ret = NULL;
-#ifdef LOCALEDIR
+#if defined(LOCALEDIR) || defined(HAVE_IDN)
   int rc;
 #endif
 
@@ -180,7 +178,7 @@ char *canonicalise(char *in, int *nomem)
   if (!check_name(in))
     return NULL;
   
-#ifdef LOCALEDIR
+#if defined(LOCALEDIR) || defined(HAVE_IDN)
   if ((rc = idna_to_ascii_lz(in, &ret, 0)) != IDNA_SUCCESS)
     {
       if (ret)
@@ -379,7 +377,7 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
   while (maxlen == -1 || i < maxlen)
     {
       for (r = in; *r != 0 && *r != ':' && *r != '-'; r++)
-	if (!isxdigit((int)*r))
+	if (*r != '*' && !isxdigit((unsigned char)*r))
 	  return -1;
       
       if (*r == 0)

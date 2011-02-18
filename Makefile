@@ -1,4 +1,4 @@
-# dnsmasq is Copyright (c) 2000-2010 Simon Kelley
+# dnsmasq is Copyright (c) 2000-2011 Simon Kelley
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@ MAN = man
 
 DNSMASQ_CFLAGS=`echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --cflags dbus-1` 
 DNSMASQ_LIBS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --libs dbus-1` 
+IDN_CFLAGS=`echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --cflags libidn` 
+IDN_LIBS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --libs libidn` 
 SUNOS_LIBS= `if uname | grep SunOS 2>&1 >/dev/null; then echo -lsocket -lnsl -lposix4; fi`
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
@@ -42,8 +44,8 @@ OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
 
 all :
 	@cd $(SRC) && $(MAKE) \
- BUILD_CFLAGS="$(DNSMASQ_CFLAGS)" \
- BUILD_LIBS="$(DNSMASQ_LIBS) $(SUNOS_LIBS)" \
+ BUILD_CFLAGS="$(DNSMASQ_CFLAGS) $(IDN_CFLAGS)" \
+ BUILD_LIBS="$(DNSMASQ_LIBS) $(IDN_LIBS) $(SUNOS_LIBS)" \
  -f ../Makefile dnsmasq 
 
 clean :
