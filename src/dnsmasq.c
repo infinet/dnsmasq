@@ -40,7 +40,7 @@ static char *compile_opts =
 #ifndef LOCALEDIR
 "no-"
 #endif
-"I18N "
+"i18n "
 #ifndef HAVE_DHCP
 "no-"
 #endif
@@ -52,6 +52,10 @@ static char *compile_opts =
 "no-"
 #endif
 "TFTP "
+#ifndef HAVE_CONNTRACK
+"no-"
+#endif
+"conntrack "
 #if !defined(LOCALEDIR) && !defined(HAVE_IDN)
 "no-"
 #endif 
@@ -146,6 +150,14 @@ int main (int argc, char **argv)
 #ifndef HAVE_TFTP
   if (daemon->tftp_unlimited || daemon->tftp_interfaces)
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
+#endif
+
+#ifdef HAVE_CONNTRACK
+  if (option_bool(OPT_CONNTRACK) && (daemon->query_port != 0 || daemon->osport))
+    die (_("Cannot use --conntrack AND --query-port"), NULL, EC_BADCONF); 
+#else
+  if (option_bool(OPT_CONNTRACK))
+    die(_("Conntrack support not available: set HAVE_CONNTRACK in src/config.h"), NULL, EC_BADCONF);
 #endif
 
 #ifdef HAVE_SOLARIS_NETWORK
@@ -1147,9 +1159,6 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      unsigned char *buff;
 	      struct server *s; 
 	      int flags;
-	      struct in_addr dst_addr_4;
-	      
-	      dst_addr_4.s_addr = 0;
 	      
 #ifndef NO_FORK
 	      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
@@ -1168,10 +1177,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
 		fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
 	      
-	      if (listener->family == AF_INET)
-		dst_addr_4 = iface->addr.in.sin_addr;
-	      
-	      buff = tcp_request(confd, now, dst_addr_4, iface->netmask);
+	      buff = tcp_request(confd, now, &iface->addr, iface->netmask);
 	       
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);

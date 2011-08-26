@@ -333,7 +333,15 @@ int prettyprint_addr(union mysockaddr *addr, char *buf)
     }
   else if (addr->sa.sa_family == AF_INET6)
     {
+      char name[IF_NAMESIZE];
       inet_ntop(AF_INET6, &addr->in6.sin6_addr, buf, ADDRSTRLEN);
+      if (addr->in6.sin6_scope_id != 0 &&
+	  if_indextoname(addr->in6.sin6_scope_id, name) &&
+	  strlen(buf) + strlen(name) + 2 <= ADDRSTRLEN)
+	{
+	  strcat(buf, "%");
+	  strcat(buf, name);
+	}
       port = ntohs(addr->in6.sin6_port);
     }
 #else

@@ -154,6 +154,19 @@ static void log_write(void)
    
   while (entries)
     {
+      /* The data in the payoad is written with a terminating zero character 
+	 and the length reflects this. For a stream connection we need to 
+	 send the zero as a record terminator, but this isn't done for a 
+	 datagram connection, so treat the length as one less than reality 
+	 to elide the zero. If we're logging to a file, turn the zero into 
+	 a newline, and leave the length alone. */
+      int len_adjust = 0;
+
+      if (log_to_file)
+	entries->payload[entries->offset + entries->length - 1] = '\n';
+      else if (connection_type == SOCK_DGRAM)
+	len_adjust = 1;
+
       /* Avoid duplicates over a fork() */
       if (entries->pid != getpid())
 	{
@@ -163,11 +176,11 @@ static void log_write(void)
 
       connection_good = 1;
 
-      if ((rc = write(log_fd, entries->payload + entries->offset, entries->length)) != -1)
+      if ((rc = write(log_fd, entries->payload + entries->offset, entries->length - len_adjust)) != -1)
 	{
 	  entries->length -= rc;
 	  entries->offset += rc;
-	  if (entries->length == 0)
+	  if (entries->length == len_adjust)
 	    {
 	      free_entry();
 	      if (entries_lost != 0)
@@ -366,10 +379,6 @@ void my_syslog(int priority, const char *format, ...)
       entry->length = len > MAX_MESSAGE ? MAX_MESSAGE : len;
       entry->offset = 0;
       entry->pid = pid;
-
-      /* replace terminator with \n */
-      if (log_to_file)
-	entry->payload[entry->length - 1] = '\n';
     }
   
   /* almost always, logging won't block, so try and write this now,

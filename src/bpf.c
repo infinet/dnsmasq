@@ -35,6 +35,13 @@ static struct iovec ifreq = {
 #include <net/if_dl.h>
 #include <netinet/if_ether.h>
 
+#ifndef SA_SIZE
+#define SA_SIZE(sa)                                             \
+    (  (!(sa) || ((struct sockaddr *)(sa))->sa_len == 0) ?      \
+        sizeof(long)            :                               \
+        1 + ( (((struct sockaddr *)(sa))->sa_len - 1) | (sizeof(long) - 1) ) )
+#endif
+
 int arp_enumerate(void *parm, int (*callback)())
 {
   int mib[6];

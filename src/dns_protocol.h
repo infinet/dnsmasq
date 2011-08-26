@@ -56,7 +56,7 @@ struct dns_header {
   u16 id;
   u8  hb3,hb4;
   u16 qdcount,ancount,nscount,arcount;
-} ;
+};
 
 #define HB3_QR       0x80
 #define HB3_OPCODE   0x78

@@ -323,6 +323,21 @@ struct dhcp_lease *lease_find_by_addr(struct in_addr addr)
   return NULL;
 }
 
+/* Find largest assigned address in context */
+struct in_addr lease_find_max_addr(struct dhcp_context *context)
+{
+  struct dhcp_lease *lease;
+  struct in_addr addr = context->start;
+  
+  if (!(context->flags & (CONTEXT_STATIC | CONTEXT_PROXY)))
+    for (lease = leases; lease; lease = lease->next)
+      if (((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(context->start.s_addr)) &&
+	  ((unsigned)ntohl(lease->addr.s_addr)) <= ((unsigned)ntohl(context->end.s_addr)) &&
+	  ((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(addr.s_addr)))
+	addr = lease->addr;
+  
+  return addr;
+}
 
 struct dhcp_lease *lease_allocate(struct in_addr addr)
 {

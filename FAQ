@@ -303,7 +303,7 @@ A: Yes, new releases of dnsmasq are always announced through
 
 Q: What does the dhcp-authoritative option do? 
 
-A: See http://www.isc.org/index.pl?/sw/dhcp/authoritative.php - that's
+A: See http://www.isc.org/files/auth.html - that's
    for the ISC daemon, but the same applies to dnsmasq.
 
 Q: Why does my Gentoo box pause for a minute before getting a new
@@ -381,7 +381,7 @@ A: Probably the nameserver is an authoritative nameserver for a
 Q: Does the dnsmasq DHCP server probe addresses before allocating
    them, as recommended in RFC2131?
 
-A: Yes, dynmaically allocated IP addresses are checked by sending an
+A: Yes, dynamically allocated IP addresses are checked by sending an
    ICMP echo request (ping). If a reply is received, then dnsmasq
    assumes that the address is in use, and attempts to allocate an
    different address. The wait for a reply is between two and three

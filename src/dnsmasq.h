@@ -202,7 +202,9 @@ struct event_desc {
 #define OPT_NO_REBIND      31
 #define OPT_ADD_MAC        32
 #define OPT_DNSSEC         33
-#define OPT_LAST           34
+#define OPT_CONSEC_ADDR    34
+#define OPT_CONNTRACK      35
+#define OPT_LAST           36
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -309,7 +311,6 @@ struct crec {
 #define F_RRNAME    (1u<<17)
 #define F_SERVER    (1u<<18)
 #define F_QUERY     (1u<<19)
-#define F_NSRR      (1u<<20)
 
 
 /* struct sockaddr is not large enough to hold any address,
@@ -517,9 +518,10 @@ struct dhcp_opt {
 #define DHOPT_HEX              512
 #define DHOPT_VENDOR_MATCH    1024
 #define DHOPT_RFC3925         2048
+#define DHOPT_TAGOK           4096
 
 struct dhcp_boot {
-  char *file, *sname;
+  char *file, *sname, *tftp_sname;
   struct in_addr next_server;
   struct dhcp_netid *netid;
   struct dhcp_boot *next;
@@ -585,6 +587,7 @@ struct dhcp_context {
 struct ping_result {
   struct in_addr addr;
   time_t time;
+  unsigned int hash;
   struct ping_result *next;
 };
 
@@ -742,6 +745,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 			  time_t now, unsigned long ttl, unsigned short flags);
 void cache_reload(void);
 void cache_add_dhcp_entry(char *host_name, struct in_addr *host_address, time_t ttd);
+struct in_addr a_record_from_hosts(char *name, time_t now);
 void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
 char *cache_get_name(struct crec *crecp);
@@ -813,7 +817,7 @@ struct hostsfile *expand_filelist(struct hostsfile *list);
 void reply_query(int fd, int family, time_t now);
 void receive_query(struct listener *listen, time_t now);
 unsigned char *tcp_request(int confd, time_t now,
-			   struct in_addr local_addr, struct in_addr netmask);
+			   union mysockaddr *local_addr, struct in_addr netmask);
 void server_gone(struct server *server);
 struct frec *get_new_frec(time_t now, int *wait);
 
@@ -875,6 +879,7 @@ void lease_set_interface(struct dhcp_lease *lease, int interface);
 struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr, int hw_len, int hw_type,  
 					unsigned char *clid, int clid_len);
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
+struct in_addr lease_find_max_addr(struct dhcp_context *context);
 void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(void);
 int do_script_run(time_t now);
@@ -884,7 +889,7 @@ void rerun_scripts(void);
 /* rfc2131.c */
 #ifdef HAVE_DHCP
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
-		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe_fd);
+		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe_fd, struct in_addr fallback);
 unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
 			       int clid_len, unsigned char *clid, int *len_out);
 #endif
@@ -937,4 +942,10 @@ int helper_buf_empty(void);
 #ifdef HAVE_TFTP
 void tftp_request(struct listener *listen, time_t now);
 void check_tftp_listeners(fd_set *rset, time_t now);
+#endif
+
+/* conntrack.c */
+#ifdef HAVE_CONNTRACK
+int get_incoming_mark(union mysockaddr *peer_addr, struct all_addr *local_addr,
+		      int istcp, unsigned int *markp);
 #endif

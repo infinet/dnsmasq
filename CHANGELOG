@@ -1,3 +1,95 @@
+version 2.58
+	    Provide a definition of the SA_SIZE macro where it's 
+	    missing. Fixes build failure on openBSD.
+
+	    Don't include a zero terminator at the end of messages
+	    sent to /dev/log when /dev/log is a datagram socket.
+	    Thanks to Didier Rabound for spotting the problem.
+
+	    Add --dhcp-sequential-ip flag, to force allocation of IP
+	    addresses in ascending order. Note that the default
+	    pseudo-random mode is in general better but some
+	    server-deployment applications need this.
+
+	    Fix problem where a server-id of 0.0.0.0 is sent to a
+	    client when a dhcp-relay is in use if a client renews a
+	    lease after dnsmasq restart and before any clients on the
+	    subnet get a new lease. Thanks to Mike Ruiz for assistance
+	    in chasing this one down. 
+
+	    Don't return NXDOMAIN to an AAAA query if we have CNAME
+	    which points to an A record only: NODATA is the correct
+	    reply in this case. Thanks to Tom Fernandes for spotting
+	    the problem.
+
+	    Relax the need to supply a netmask in --dhcp-range for
+	    networks which use a DHCP relay. Whilst this is still
+	    desireable, in the absence of a netmask dnsmasq will use
+	    a default based on the class (A, B, or C) of the address. 
+	    This should at least remove a cause of mysterious failure 
+	    for people using RFC1918 addresses and relays.
+
+	    Add support for Linux conntrack connection marking. If 
+	    enabled with --conntrack, the connection mark for incoming
+	    DNS queries will be copied  to the outgoing connections
+	    used to answer those queries. This allows clever firewall
+	    and accounting stuff. Only available if dnsmasq is
+	    compiled with HAVE_CONNTRACK and adds a dependency on 
+	    libnetfilter-conntrack. Thanks to Ed Wildgoose for the
+	    initial idea, testing and sponsorship of this function.
+
+	    Provide a sane error message when someone attempts to 
+	    match a tag in --dhcp-host.
+
+	    Tweak the behaviour of --domain-needed, to avoid problems
+	    with recursive nameservers downstream of dnsmasq. The new
+	    behaviour only stops A and AAAA queries, and returns
+	    NODATA rather than NXDOMAIN replies. 
+
+	    Efficiency fix for very large DHCP configurations, thanks
+	    to James Gartrell and Mike Ruiz for help with this. 
+
+	    Allow the TFTP-server address in --dhcp-boot to be a
+	    domain-name which is looked up in /etc/hosts. This can 
+	    give multiple IP addresses which are used round-robin,
+	    thus doing TFTP server load-balancing. Thanks to Sushil
+	    Agrawal for the patch.
+
+	    When two tagged dhcp-options for a particular option
+	    number are both valid, use the one which is valid without
+	    a tag from the dhcp-range. Allows overriding of the value
+	    of a DHCP option for a particular host as well as
+	    per-network values.  So 
+	    --dhcp-range=set:interface1,......
+	    --dhcp-host=set:myhost,.....  
+	    --dhcp-option=tag:interface1,option:nis-domain,"domain1" 
+	    --dhcp-option=tag:myhost,option:nis-domain,"domain2" 
+	    will set the NIS-domain to domain1 for hosts in the range, but
+       	    override that to domain2 for a particular host.
+
+	    Fix bug which resulted in truncated files and timeouts for
+	    some TFTP transfers. The bug only occurs with netascii
+	    transfers and needs an unfortunate relationship between
+	    file size, blocksize and the number of newlines in the
+	    last block before it manifests itself. Many thanks to 
+	    Alkis Georgopoulos for spotting the problem and providing
+	    a comprehensive test-case. 
+
+	    Fix regression in TFTP server on *BSD platforms introduced
+	    in version 2.56, due to confusion with sockaddr
+	    length. Many thanks to Loïc Pefferkorn for finding this.
+
+	    Support scope-ids in IPv6 addresses of nameservers from
+	    /etc/resolv.conf and in --server options. Eg
+	    nameserver fe80::202:a412:4512:7bbf%eth0 or
+	    server=fe80::202:a412:4512:7bbf%eth0. Thanks to 
+	    Michael Stapelberg for the suggestion.
+
+	    Update Polish translation, thanks to Jan Psota.
+
+	    Update French translation. Thanks to Gildas Le Nadan.
+
+
 version 2.57
 	    Add patches to allow build under Android.
 

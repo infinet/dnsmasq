@@ -207,10 +207,10 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp,
 	  }
       }
   
-  if (flags == 0 && !(qtype & F_NSRR) && 
+  if (flags == 0 && !(qtype & F_QUERY) && 
       option_bool(OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
-    /* don't forward simple names, make exception for NS queries and empty name. */
-    flags = F_NXDOMAIN;
+    /* don't forward A or AAAA queries for simple names, except the empty name */
+    flags = F_NOERR;
   
   if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now))
     flags = F_NOERR;
@@ -243,7 +243,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   unsigned int flags = 0;
   unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
   struct server *start = NULL;
-    
+  
   /* RFC 4035: sect 4.6 para 2 */
   header->hb4 &= ~HB4_AD;
   
@@ -366,6 +366,16 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		      daemon->rfd_save = forward->rfd4;
 		      fd = forward->rfd4->fd;
 		    }
+
+#ifdef HAVE_CONNTRACK
+		  /* Copy connection mark of incoming query to outgoing connection. */
+		  if (option_bool(OPT_CONNTRACK))
+		    {
+		      unsigned int mark;
+		      if (get_incoming_mark(udpaddr, dst_addr, 0, &mark))
+			setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
+		    }
+#endif
 		}
 	      
 	      if (sendto(fd, (char *)header, plen, 0,
@@ -797,7 +807,7 @@ void receive_query(struct listener *listen, time_t now)
    about resources for debug mode, when the fork is suppressed: that's
    done by the caller. */
 unsigned char *tcp_request(int confd, time_t now,
-			   struct in_addr local_addr, struct in_addr netmask)
+			   union mysockaddr *local_addr, struct in_addr netmask)
 {
   size_t size = 0;
   int norebind = 0;
@@ -809,7 +819,13 @@ unsigned char *tcp_request(int confd, time_t now,
   unsigned char *packet = whine_malloc(65536 + MAXDNAME + RRFIXEDSZ);
   struct dns_header *header;
   struct server *last_server;
+  struct in_addr dst_addr_4;
+  union mysockaddr peer_addr;
+  socklen_t peer_len = sizeof(union mysockaddr);
   
+  if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) == -1)
+    return packet;
+
   while (1)
     {
       if (!packet ||
@@ -831,29 +847,28 @@ unsigned char *tcp_request(int confd, time_t now,
       
       if ((gotname = extract_request(header, (unsigned int)size, daemon->namebuff, &qtype)))
 	{
-	  union mysockaddr peer_addr;
-	  socklen_t peer_len = sizeof(union mysockaddr);
+	  char types[20];
 	  
-	  if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) != -1)
-	    {
-	      char types[20];
-
-	      querystr(types, qtype);
-
-	      if (peer_addr.sa.sa_family == AF_INET) 
-		log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 
-			  (struct all_addr *)&peer_addr.in.sin_addr, types);
+	  querystr(types, qtype);
+	  
+	  if (peer_addr.sa.sa_family == AF_INET) 
+	    log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 
+		      (struct all_addr *)&peer_addr.in.sin_addr, types);
 #ifdef HAVE_IPV6
-	      else
-		log_query(F_QUERY | F_IPV6 | F_FORWARD, daemon->namebuff, 
-			  (struct all_addr *)&peer_addr.in6.sin6_addr, types);
+	  else
+	    log_query(F_QUERY | F_IPV6 | F_FORWARD, daemon->namebuff, 
+		      (struct all_addr *)&peer_addr.in6.sin6_addr, types);
 #endif
-	    }
 	}
+      
+      if (local_addr->sa.sa_family == AF_INET)
+	dst_addr_4 = local_addr->in.sin_addr;
+      else
+	dst_addr_4.s_addr = 0;
       
       /* m > 0 if answered from cache */
       m = answer_request(header, ((char *) header) + 65536, (unsigned int)size, 
-			 local_addr, netmask, now);
+			 dst_addr_4, netmask, now);
 
       /* Do this by steam now we're not in the select() loop */
       check_log_writer(NULL); 
@@ -866,14 +881,8 @@ unsigned char *tcp_request(int confd, time_t now,
 	  char *domain = NULL;
 	   
 	  if (option_bool(OPT_ADD_MAC))
-	    {
-	      union mysockaddr peer_addr;
-	      socklen_t peer_len = sizeof(union mysockaddr);
-	      
-	      if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) != -1)
-		size = add_mac(header, size, ((char *) header) + 65536, &peer_addr);
-	    }
-      
+	    size = add_mac(header, size, ((char *) header) + 65536, &peer_addr);
+	          
 	  if (gotname)
 	    flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	  
@@ -907,18 +916,38 @@ unsigned char *tcp_request(int confd, time_t now,
 		  if (type != (last_server->flags & SERV_TYPE) ||
 		      (type == SERV_HAS_DOMAIN && !hostname_isequal(domain, last_server->domain)))
 		    continue;
-		  
-		  if ((last_server->tcpfd == -1) &&
-		      (last_server->tcpfd = socket(last_server->addr.sa.sa_family, SOCK_STREAM, 0)) != -1 &&
-		      (!local_bind(last_server->tcpfd,  &last_server->source_addr, last_server->interface, 1) ||
-		       connect(last_server->tcpfd, &last_server->addr.sa, sa_len(&last_server->addr)) == -1))
+
+		  if (last_server->tcpfd == -1)
 		    {
-		      close(last_server->tcpfd);
-		      last_server->tcpfd = -1;
+		      if ((last_server->tcpfd = socket(last_server->addr.sa.sa_family, SOCK_STREAM, 0)) == -1)
+			continue;
+		      
+		      if ((!local_bind(last_server->tcpfd,  &last_server->source_addr, last_server->interface, 1) ||
+			   connect(last_server->tcpfd, &last_server->addr.sa, sa_len(&last_server->addr)) == -1))
+			{
+			  close(last_server->tcpfd);
+			  last_server->tcpfd = -1;
+			  continue;
+			}
+
+#ifdef HAVE_CONNTRACK
+		      /* Copy connection mark of incoming query to outgoing connection. */
+		      if (option_bool(OPT_CONNTRACK))
+			{
+			  unsigned int mark;
+			  struct all_addr local;
+#ifdef HAVE_IPV6		      
+			  if (local_addr->sa.sa_family == AF_INET6)
+			    local.addr.addr6 = local_addr->in6.sin6_addr;
+			  else
+#endif
+			    local.addr.addr4 = local_addr->in.sin_addr;
+			  
+			  if (get_incoming_mark(&peer_addr, &local, 1, &mark))
+			    setsockopt(last_server->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
+			}
+#endif	
 		    }
-		  
-		  if (last_server->tcpfd == -1)	
-		    continue;
 
 		  c1 = size >> 8;
 		  c2 = size;

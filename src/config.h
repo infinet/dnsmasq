@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "2.57"
+#define VERSION "2.58"
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
 #define MAX_PROCS 20 /* max no children for TCP requests */
@@ -134,6 +134,12 @@ HAVE_IDN
          included when internationalisation support is built, using the 
 	 *-i18n makefile targets, even if HAVE_IDN is not explicitly set.
 
+HAVE_CONNTRACK
+   define this to include code which propogates conntrack marks from
+   incoming DNS queries to the corresponding upstream queries. This adds
+   a build-dependency on libnetfilter_conntrack, but the resulting binary will
+   still run happily on a kernel without conntrack support.
+
 NOTES:
    For Linux you should define 
       HAVE_LINUX_NETWORK
@@ -159,6 +165,7 @@ NOTES:
 /* #define HAVE_BROKEN_RTC */
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
+/* #define HAVE_CONNTRACK */
 
 /* Allow TFTP to be disabled with COPTS=-DNO_TFTP */
 #ifdef NO_TFTP

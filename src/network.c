@@ -896,20 +896,38 @@ int reload_servers(char *fname)
 	  source_addr.in.sin_port = htons(daemon->query_port);
 	}
 #ifdef HAVE_IPV6
-      else if (inet_pton(AF_INET6, token, &addr.in6.sin6_addr) > 0)
-	{
+      else 
+	{	
+	  int scope_index = 0;
+	  char *scope_id = strchr(token, '%');
+	  
+	  if (scope_id)
+	    {
+	      *(scope_id++) = 0;
+	      scope_index = if_nametoindex(scope_id);
+	    }
+	  
+	  if (inet_pton(AF_INET6, token, &addr.in6.sin6_addr) > 0)
+	    {
 #ifdef HAVE_SOCKADDR_SA_LEN
-	  source_addr.in6.sin6_len = addr.in6.sin6_len = sizeof(source_addr.in6);
+	      source_addr.in6.sin6_len = addr.in6.sin6_len = sizeof(source_addr.in6);
 #endif
-	  source_addr.in6.sin6_family = addr.in6.sin6_family = AF_INET6;
-	  addr.in6.sin6_port = htons(NAMESERVER_PORT);
-	  source_addr.in6.sin6_addr = in6addr_any;
-	  source_addr.in6.sin6_port = htons(daemon->query_port);
+	      source_addr.in6.sin6_family = addr.in6.sin6_family = AF_INET6;
+	      source_addr.in6.sin6_flowinfo = addr.in6.sin6_flowinfo = 0;
+	      addr.in6.sin6_port = htons(NAMESERVER_PORT);
+	      addr.in6.sin6_scope_id = scope_index;
+	      source_addr.in6.sin6_addr = in6addr_any;
+	      source_addr.in6.sin6_port = htons(daemon->query_port);
+	      source_addr.in6.sin6_scope_id = 0;
+	    }
+	  else
+	    continue;
 	}
-#endif /* IPV6 */
+#else /* IPV6 */
       else
 	continue;
-      
+#endif 
+
       if (old_servers)
 	{
 	  serv = old_servers;

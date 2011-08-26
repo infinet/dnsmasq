@@ -922,6 +922,21 @@ char *get_domain(struct in_addr addr)
 }
 
 #ifdef HAVE_DHCP
+struct in_addr a_record_from_hosts(char *name, time_t now)
+{
+  struct crec *crecp = NULL;
+  struct in_addr ret;
+  
+  while ((crecp = cache_find_by_name(crecp, name, now, F_IPV4)))
+    if (crecp->flags & F_HOSTS)
+      return *(struct in_addr *)&crecp->addr;
+
+  my_syslog(MS_DHCP | LOG_WARNING, _("No IPv4 address found for %s"), name);
+  
+  ret.s_addr = 0;
+  return ret;
+}
+
 void cache_unhash_dhcp(void)
 {
   struct crec *cache, **up;

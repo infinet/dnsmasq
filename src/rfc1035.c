@@ -642,7 +642,6 @@ static int private_net(struct in_addr addr, int ban_localhost)
 static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *header, size_t qlen, char *name)
 {
   int i, qtype, qclass, rdlen;
-  unsigned long ttl;
 
   for (i = count; i != 0; i--)
     {
@@ -656,7 +655,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *
       
       GETSHORT(qtype, p); 
       GETSHORT(qclass, p);
-      GETLONG(ttl, p);
+      p += 4; /* ttl */
       GETSHORT(rdlen, p);
       
       if (qclass == C_IN && qtype == T_A)
@@ -1044,8 +1043,6 @@ unsigned int extract_request(struct dns_header *header, size_t qlen, char *name,
 	return F_IPV6;
       if (qtype == T_ANY)
 	return  F_IPV4 | F_IPV6;
-      if (qtype == T_NS || qtype == T_SOA)
-	return F_QUERY | F_NSRR;
     }
   
   return F_QUERY;
@@ -1101,12 +1098,17 @@ int check_for_local_domain(char *name, time_t now)
   struct txt_record *txt;
   struct interface_name *intr;
   struct ptr_record *ptr;
-  
-  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)) &&
+  struct naptr *naptr;
+
+  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6 | F_CNAME)) &&
       (crecp->flags & (F_HOSTS | F_DHCP)))
     return 1;
   
-  for (mx = daemon->mxnames; mx; mx = mx->next)
+  for (naptr = daemon->naptr; naptr; naptr = naptr->next)
+     if (hostname_isequal(name, naptr->name))
+      return 1;
+
+   for (mx = daemon->mxnames; mx; mx = mx->next)
     if (hostname_isequal(name, mx->name))
       return 1;
 
@@ -1309,11 +1311,11 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 
   if (find_pseudoheader(header, qlen, NULL, &pheader, &is_sign))
     { 
-      unsigned short udpsz, ext_rcode, flags;
+      unsigned short udpsz, flags;
       unsigned char *psave = pheader;
 
       GETSHORT(udpsz, pheader);
-      GETSHORT(ext_rcode, pheader);
+      pheader += 2; /* ext_rcode */
       GETSHORT(flags, pheader);
       
       sec_reqd = flags & 0x8000; /* do bit */ 

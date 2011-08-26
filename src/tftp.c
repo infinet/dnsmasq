@@ -222,17 +222,22 @@ void tftp_request(struct listener *listen, time_t now)
     if (strcmp(ir->interface, name) == 0)
       special = 1;
 
-#ifdef HAVE_SOCKADDR_SA_LEN
-  addr.sa.sa_len = sa_len(&addr);
-#endif
-
   if (listen->family == AF_INET)
-    addr.in.sin_port = htons(port);
+    {
+      addr.in.sin_port = htons(port);
+#ifdef HAVE_SOCKADDR_SA_LEN
+      addr.in.sin_len = sizeof(addr.in);
+#endif
+    }
 #ifdef HAVE_IPV6
   else
     {
       addr.in6.sin6_port = htons(port);
       addr.in6.sin6_flowinfo = 0;
+      addr.in6.sin6_scope_id = 0;
+#ifdef HAVE_SOCKADDR_SA_LEN
+      addr.in6.sin6_len = sizeof(addr.in6);
+#endif
     }
 #endif
 
@@ -260,7 +265,7 @@ void tftp_request(struct listener *listen, time_t now)
   /* if we have a nailed-down range, iterate until we find a free one. */
   while (1)
     {
-      if (bind(transfer->sockfd, &addr.sa, sizeof(addr)) == -1 ||
+      if (bind(transfer->sockfd, &addr.sa, sa_len(&addr)) == -1 ||
 #if defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DONT)
 	  setsockopt(transfer->sockfd, SOL_IP, IP_MTU_DISCOVER, &mtuflag, sizeof(mtuflag)) == -1 ||
 #endif
@@ -685,15 +690,13 @@ static ssize_t get_block(char *packet, struct tftp_transfer *transfer)
 	  for (i = 0, newcarrylf = 0; i < size; i++)
 	    if (mess->data[i] == '\n' && ( i != 0 || !transfer->carrylf))
 	      {
-		if (size == transfer->blocksize)
-		  {
-		    transfer->expansion++;
-		    if (i == size - 1)
-		      newcarrylf = 1; /* don't expand LF again if it moves to the next block */
-		  }
-		else
+		transfer->expansion++;
+
+		if (size != transfer->blocksize)
 		  size++; /* room in this block */
-	      
+		else  if (i == size - 1)
+		  newcarrylf = 1; /* don't expand LF again if it moves to the next block */
+		  
 		/* make space and insert CR */
 		memmove(&mess->data[i+1], &mess->data[i], size - (i + 1));
 		mess->data[i] = '\r';

@@ -348,6 +348,9 @@
 # external one. (See below for how to enable the TFTP server.)
 #dhcp-boot=pxelinux.0
 
+# The same as above, but use custom tftp-server instead machine running dnsmasq
+#dhcp-boot=pxelinux,server.name,192.168.1.100
+
 # Boot for Etherboot gPXE. The idea is to send two different
 # filenames, the first loads gPXE, and the second tells gPXE what to
 # load. The dhcp-match sets the gpxe tag for requests from gPXE.
@@ -421,6 +424,14 @@
 # address of the server are given after the filename.
 # Can fail with old PXE ROMS. Overridden by --pxe-service.
 #dhcp-boot=/var/ftpd/pxelinux.0,boothost,192.168.0.3
+
+# If there are multiple external tftp servers having a same name
+# (using /etc/hosts) then that name can be specified as the
+# tftp_servername (the third option to dhcp-boot) and in that
+# case dnsmasq resolves this name and returns the resultant IP
+# addresses in round robin fasion. This facility can be used to
+# load balance the tftp load among a set of servers.
+#dhcp-boot=/var/ftpd/pxelinux.0,boothost,tftp_server_name
 
 # Set the limit on DHCP leases, the default is 150
 #dhcp-lease-max=150

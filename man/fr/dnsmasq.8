@@ -347,10 +347,10 @@ Cela est utile si les nouveaux serveurs sont susceptibles d'avoir des données
 différentes de celles stockées dans le cache.
 .TP
 .B \-D, --domain-needed
-Indique à Dnsmasq de ne jamais transmettre en amont de requêtes pour des noms
-simples, ne comprenant donc ni points ni nom de domaine. Si un nom n'est pas
-dans /etc/hosts ou dans la liste des baux DHCP, alors une réponse de type
-"non trouvé" est renvoyée.
+Indique à Dnsmasq de ne jamais transmettre en amont de requêtes A ou AAAA pour
+des noms simples, c'est à dire ne comprenant ni points ni nom de domaine. Si un
+nom n'est pas dans /etc/hosts ou dans la liste des baux DHCP, alors une réponse
+de type "non trouvé" est renvoyée.
 .TP
 .B \-S, --local, --server=[/[<domaine>]/[domaine/]][<Adresse IP>[#<port>][@<Adresse IP source>|<interface>[#<port>]]]
 Spécifie directement l'adresse IP d'un serveur de nom amont. Cette option ne
@@ -401,6 +401,10 @@ est synonyme de
 .B server
 ("serveur") afin de rendre plus claire l'utilisation de cette option pour cet
 usage particulier.
+
+Les adresses IPv6 peuvent inclure un identifiant de zone sous la forme
+%interface tel que par exemple
+fe80::202:a412:4512:7bbf%eth0.
 
 La chaîne de caractères optionnelle suivant le caractère @ permet de définir
 la source que Dnsmasq doit utiliser pour les réponses à ce
@@ -565,6 +569,16 @@ Si vous utilisez le premier mode DNSSEC, la validation par le resolveur des
 clients, cette option n'est pas requise. Dnsmasq retourne toujours toutes les
 données nécessaires par un client pour effectuer la validation lui-même.
 .TP
+.B --conntrack
+Lis le marquage de suivi de connexion Linux associé aux requêtes DNS entrantes
+et positionne la même marque au trafic amont utilisé pour répondre à ces
+requétes. Cela permet au trafic généré par Dnsmasq d'étre associé aux requêtes
+l'ayant déclenché, ce qui est pratique pour la gestion de la bande passante
+(accounting) et le filtrage (firewall). Dnsmasq doit pour cela être compilé
+avec le support conntrack, le noyau doit également inclure conntrack et être
+configuré pour cela. Cette option ne peut pas être combinée avec
+--query-port. 
+.TP
 .B \-F, --dhcp-range=[interface:<interface>,][tag:<label>[,tag:<label>],][set:<label],]<adresse de début>,<adresse de fin>[,<masque de réseau>[,<broadcast>]][,<durée de bail>]
 Active le serveur DHCP. Les adresses seront données dans la plage comprise entre
 <adresse de début> et <adresse de fin> et à partir des adresses définies
@@ -579,9 +593,14 @@ minutes.
 Cette option peut être répétée, avec différentes adresses,
 pour activer le service DHCP sur plus d'un réseau. Pour des réseaux directement
 connectés (c'est-à-dire des réseaux dans lesquels la machine sur laquelle tourne
-Dnsmasq possède une interface), le masque de réseau est optionnel. Il est par
-contre requis pour les réseaux pour lesquels le service DHCP se fait via un
-relais DHCP ("relay agent"). L'adresse de broadcast est toujours optionnelle.
+Dnsmasq possède une interface), le masque de réseau est optionnel : Dnsmasq la
+déterminera à partir de la configuration des interfaces.
+
+Pour les réseaux pour lesquels le service DHCP se fait via un relais DHCP
+("relay agent"), Dnsmasq est incapable de déterminer le masque par lui-même,
+aussi il doit être spécifié, faute de quoi Dnsmasq essaiera de le deviner en
+fonction de la classe (A, B ou C) de l'adresse réseau. L'adresse de broadcast
+est toujours optionnelle.
 
 Il est toujours possible d'avoir plus d'une plage DHCP pour un même
 sous-réseau.
@@ -969,7 +988,7 @@ option s'applique inconditionnellement. La plupart des clients DHCP nécessitant
 d'un broadcast activent une option dans leur requête, ce qui fait que cela
 se fait automatiquement, mais ce n'est pas la cas de certains vieux clients BOOTP.
 .TP
-.B \-M, --dhcp-boot=[tag:<label>,]<nom de fichier>,[<nom de serveur>[,<adresse de serveur>]]
+.B \-M, --dhcp-boot=[tag:<label>,]<nom de fichier>,[<nom de serveur>[,<adresse de serveur>|<nom du serveur tftp>]]
 Spécifie les options BOOTP devant être retournées par le serveur DHCP. Le nom de
 serveur ainsi que l'adresse sont optionnels : s'ils ne sont pas fournis, le nom
 est laissé vide et l'adresse fournie est celle de la machine sur laquelle
@@ -979,6 +998,25 @@ s'exécute Dnsmasq. Si Dnsmasq founit un service TFTP (voir
 le réseau.
 Si d'éventuels labels sont fournis, ils doivent coïncider avec
 ceux du client pour que cet élement de configuration lui soit envoyé.
+Une adresse de serveur TFTP peut être spécifiée à la place de l'adresse IP,
+sous la forme d'un nom de domaine qui sera cherché dans le fichier /etc/hosts.
+Ce nom peut être associé dans /etc/hosts avec plusieurs adresses IP, auquel cas
+celles-ci seront utilisées tour à tour (algorithme round-robin).
+Cela peut-être utiliser pour équilibrer la charge tftp sur plusieurs serveurs.
+.TP
+.B --dhcp-sequential-ip
+Dnsmasq est conçu pour choisir l'adresse IP des clients DHCP en utilisant
+un hachage de l'adresse MAC du client. Cela permet en général à l'adresse
+IP du client de rester stable au fil du temps, même lorsque le client laisse
+expirer son bail DHCP de temps en temps. Dans ce mode de fonctionnement par
+défaut, les adresses IP sont distribuées de façon pseudo-aléatoire dans la
+totalité de la plage d'adresses utilisable. Il existe des circonstances (par
+exemples pour du déploiement de serveur) où il est plus pratique d'allouer les
+adresses IP de manière séquentielle, en commençant par la plus petite adresse
+disponible, et c'est ce mode de fonctionnement qui est permis par cette option.
+Veuillez noter que dans ce mode séquentiel, les clients qui laissent expirer
+leur bail ont beaucoup plus de chance de voir leur adresse IP changer, aussi
+cette option ne devrait pas être utilisée dans un cas général.
 .TP
 .B --pxe-service=[tag:<label>,]<CSA>,<entrée de menu>[,<nom de fichier>|<type de service de démarrage>][,<adresse de serveur>]
 La plupart des ROMS de démarrage PXE ne permettent au système PXE que la simple
@@ -1417,7 +1455,6 @@ Dans le cas de l'utilisation du logiciel logrotate, les options requises sont
 .B create 
 et
 .B delaycompress.
-
  
 .PP
 Dnsmasq est un logiciel de transmission de requêtes DNS : il n'est pas capable
@@ -1509,6 +1546,21 @@ labels définis pour l'hôte considéré. (dans le cas de l'utilisation dans une
 ligne de commande au lieu d'un fichier de configuration, ne pas oublier
 d'échapper le caractère !, qui est un méta-caractère d'interpréteur de commande
 shell).
+
++When selecting dhcp-options, a tag from dhcp-range is second class
++relative to other tags, to make it easy to override options for
++individual hosts, so 
+
+Lors de la sélection d'une option, une étiquette spécifiée par dhcp-range
+passe après les autres étiquettes, ce qui permet de facilement remplacer des
+option génériques pour des hôtes spécifiques, ainsi :
+.B dhcp-range=set:interface1,......
+.B dhcp-host=set:monhote,.....
+.B dhcp-option=tag:interface1,option:nis-domain,"domaine1"
+.B dhcp-option=tag:monhote,option:nis-domain,"domaine2"
+va positionner l'option NIS-domain à domaine1 pour les hôtes dans la plage
+d'adresse, sauf pour monhote pour lequel cette valeur sera domaine2.
+
 .PP
 Veuillez noter que pour
 .B dhcp-range
