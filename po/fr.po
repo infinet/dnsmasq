@@ -856,7 +856,7 @@ msgstr "seul un fichier resolv.conf est autorisé dans le mode no-poll"
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "un fichier resolv.conf (et un seul) est nécessaire pour y récuperer le nom de domaine."
 
-#: option.c:3403 network.c:848 dhcp.c:823
+#: option.c:3403 network.c:845 dhcp.c:823
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "impossible de lire %s : %s"
@@ -889,63 +889,63 @@ msgstr "détection d'une possible attaque de type DNS-rebind: %s"
 msgid "unknown interface %s in bridge-interface"
 msgstr "interface %s inconnue spécifiée comme interface de pont"
 
-#: network.c:380
+#: network.c:384
 #, c-format
 msgid "failed to create listening socket for %s: %s"
 msgstr "impossible de créer une socket d'écoute pour %s : %s"
 
-#: network.c:746
+#: network.c:743
 #, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "impossible de lier la socket de serveur pour %s : %s"
 
-#: network.c:783
+#: network.c:780
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignore le serveur de nom %s - interface locale"
 
-#: network.c:794
+#: network.c:791
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignore le serveur de nom %s - ne peut construire/lier la socket : %m"
 
-#: network.c:811
+#: network.c:808
 msgid "unqualified"
 msgstr "non-qualifié(e)"
 
-#: network.c:811
+#: network.c:808
 msgid "names"
 msgstr "noms"
 
-#: network.c:813
+#: network.c:810
 msgid "default"
 msgstr "défaut"
 
-#: network.c:815
+#: network.c:812
 msgid "domain"
 msgstr "domaine"
 
-#: network.c:818
+#: network.c:815
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "utilise les adresses locales seulement pour %s %s"
 
-#: network.c:820
+#: network.c:817
 #, c-format
 msgid "using standard nameservers for %s %s"
 msgstr "utilisation des serveurs de nom standards pour %s %s"
 
-#: network.c:822
+#: network.c:819
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "utilise le serveur de nom %s#%d pour %s %s"
 
-#: network.c:825
+#: network.c:822
 #, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "utilise le serveur de nom %s#%d (via %s)"
 
-#: network.c:827
+#: network.c:824
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "utilise le serveur de nom %s#%d"
@@ -987,7 +987,7 @@ msgstr "interface %s inconnue"
 msgid "no interface with address %s"
 msgstr "pas d'interface avec l'adresse %s"
 
-#: dnsmasq.c:219 dnsmasq.c:690
+#: dnsmasq.c:219 dnsmasq.c:716
 #, c-format
 msgid "DBus error: %s"
 msgstr "Erreur DBus : %s"
@@ -1006,164 +1006,164 @@ msgstr "utilisateur ou groupe inconnu : %s"
 msgid "cannot chdir to filesystem root: %s"
 msgstr "Ne peut effectuer un 'chdir' à la racine du système de fichier : %s"
 
-#: dnsmasq.c:467
+#: dnsmasq.c:477
 #, c-format
 msgid "started, version %s DNS disabled"
 msgstr "démarrage avec le DNS désactivé (version %s)"
 
-#: dnsmasq.c:469
+#: dnsmasq.c:479
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "demarré, version %s (taille de cache %d)"
 
-#: dnsmasq.c:471
+#: dnsmasq.c:481
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "démarrage avec le cache désactivé (version %s)"
 
-#: dnsmasq.c:473
+#: dnsmasq.c:483
 #, c-format
 msgid "compile time options: %s"
 msgstr "options à la compilation : %s"
 
-#: dnsmasq.c:479
+#: dnsmasq.c:489
 msgid "DBus support enabled: connected to system bus"
 msgstr "Support DBus autorisé : connecté au bus système"
 
-#: dnsmasq.c:481
+#: dnsmasq.c:491
 msgid "DBus support enabled: bus connection pending"
 msgstr "Support DBus autorisé : connexion au bus en attente"
 
-#: dnsmasq.c:486
+#: dnsmasq.c:496
 #, c-format
 msgid "warning: failed to change owner of %s: %s"
 msgstr "Impossible de changer pour l'utilisateur %s : %s"
 
-#: dnsmasq.c:490
+#: dnsmasq.c:500
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr "active l'option --bind-interfaces à cause de limitations dans le système d'exploitation"
 
-#: dnsmasq.c:495
+#: dnsmasq.c:505
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "attention : l'interface %s n'existe pas actuellement"
 
-#: dnsmasq.c:500
+#: dnsmasq.c:510
 msgid "warning: ignoring resolv-file flag because no-resolv is set"
 msgstr "attention : l'option « resolv-file » sera ignorée car « no-resolv » a été spécifié"
 
 #
-#: dnsmasq.c:503
+#: dnsmasq.c:513
 msgid "warning: no upstream servers configured"
 msgstr "attention : aucun serveur amont n'est configuré"
 
-#: dnsmasq.c:507
+#: dnsmasq.c:517
 #, c-format
 msgid "asynchronous logging enabled, queue limit is %d messages"
 msgstr "mode asynchrone d'écriture de traces, la taille maximum de la queue est de %d messages."
 
-#: dnsmasq.c:520
+#: dnsmasq.c:530
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "baux statiques DHCP seulement sur %.0s%s, durée de validité de bail %s"
 
-#: dnsmasq.c:522
+#: dnsmasq.c:532
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
 msgstr "DHCP, proxy sur le sous-réseau %.0s%s%.0s"
 
-#: dnsmasq.c:523
+#: dnsmasq.c:533
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, plage d'adresses %s -- %s, durée de bail %s"
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "root is "
 msgstr "root est"
 
 #
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "enabled"
 msgstr "activé"
 
-#: dnsmasq.c:540
+#: dnsmasq.c:550
 msgid "secure mode"
 msgstr "mode sécurisé"
 
-#: dnsmasq.c:566
+#: dnsmasq.c:576
 #, c-format
 msgid "restricting maximum simultaneous TFTP transfers to %d"
 msgstr "le nombre maximum de transferts TFTP simultanés sera restreint à %d"
 
-#: dnsmasq.c:692
+#: dnsmasq.c:718
 msgid "connected to system DBus"
 msgstr "connecté au systeme DBus"
 
-#: dnsmasq.c:787
+#: dnsmasq.c:813
 #, c-format
 msgid "cannot fork into background: %s"
 msgstr "Ne peut se lancer en tâche de fond : %s"
 
-#: dnsmasq.c:790
+#: dnsmasq.c:816
 #, c-format
 msgid "failed to create helper: %s"
 msgstr "impossible de créer le 'helper' : %s"
 
-#: dnsmasq.c:793
+#: dnsmasq.c:819
 #, c-format
 msgid "setting capabilities failed: %s"
 msgstr "impossible de configurer la capacité %s"
 
-#: dnsmasq.c:797
+#: dnsmasq.c:823
 #, c-format
 msgid "failed to change user-id to %s: %s"
 msgstr "Impossible de changer l'identifiant utilisateur pour %s : %s"
 
-#: dnsmasq.c:802
+#: dnsmasq.c:828
 #, c-format
 msgid "failed to change group-id to %s: %s"
 msgstr "Impossible de changer l'identifiant de groupe pour %s : %s"
 
-#: dnsmasq.c:805
+#: dnsmasq.c:831
 #, c-format
 msgid "failed to open pidfile %s: %s"
 msgstr "impossible de lire le fichier de PID %s : %s"
 
-#: dnsmasq.c:808
+#: dnsmasq.c:834
 #, c-format
 msgid "cannot open %s: %s"
 msgstr "Ne peut pas lire %s : %s"
 
-#: dnsmasq.c:863
+#: dnsmasq.c:889
 #, c-format
 msgid "child process killed by signal %d"
 msgstr "Le processus fils a été terminé par le signal %d"
 
-#: dnsmasq.c:867
+#: dnsmasq.c:893
 #, c-format
 msgid "child process exited with status %d"
 msgstr "Le processus fils s'est terminé avec le statut %d"
 
-#: dnsmasq.c:871
+#: dnsmasq.c:897
 #, c-format
 msgid "failed to execute %s: %s"
 msgstr "impossible d'exécuter à %s : %s"
 
-#: dnsmasq.c:915
+#: dnsmasq.c:941
 msgid "exiting on receipt of SIGTERM"
 msgstr "sortie sur réception du signal SIGTERM"
 
-#: dnsmasq.c:943
+#: dnsmasq.c:969
 #, c-format
 msgid "failed to access %s: %s"
 msgstr "impossible d'accéder à %s : %s"
 
-#: dnsmasq.c:973
+#: dnsmasq.c:999
 #, c-format
 msgid "reading %s"
 msgstr "Lecture de %s"
 
-#: dnsmasq.c:984
+#: dnsmasq.c:1010
 #, c-format
 msgid "no servers found in %s, will retry"
 msgstr "aucun serveur trouvé dans %s, va réessayer"
@@ -1443,7 +1443,7 @@ msgstr "ne peux envoyer l'option RFC3925 : trop d'options pour le numéro d'entre
 msgid "cannot create netlink socket: %s"
 msgstr "ne peux lier une socket netlink : %s"
 
-#: netlink.c:288
+#: netlink.c:289
 #, c-format
 msgid "netlink returns error: %s"
 msgstr "Erreur netlink : %s"

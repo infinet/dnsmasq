@@ -184,7 +184,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		}
 	      if (!((*callback)(addr,
 				(int)((struct sockaddr_in6 *)&ifr->ifr_addr)->sin6_scope_id,
-				(int)if_nametoindex(ifr->ifr_name),
+				(int)if_nametoindex(ifr->ifr_name), 0, 
 				parm)))
 		goto err;
 	    }

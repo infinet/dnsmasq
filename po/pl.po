@@ -25,20 +25,17 @@ msgstr ""
 msgid "failed to load names from %s: %s"
 msgstr "nie potrafię wczytać nazw z %s: %s"
 
-#: cache.c:795
-#: dhcp.c:874
+#: cache.c:795 dhcp.c:874
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "błędny adres w pliku %s, w linii %d"
 
-#: cache.c:853
-#: dhcp.c:890
+#: cache.c:853 dhcp.c:890
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "błędna nazwa w pliku %s, w linii %d"
 
-#: cache.c:860
-#: dhcp.c:965
+#: cache.c:860 dhcp.c:965
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "wczytałem %s - %d adresów"
@@ -91,8 +88,7 @@ msgstr "brak możliwości użycia generatora liczb losowych: %s"
 msgid "failed to allocate memory"
 msgstr "nie udało się przydzielić pamięci"
 
-#: util.c:227
-#: option.c:579
+#: util.c:227 option.c:579
 msgid "could not get memory"
 msgstr "nie można dostać pamięci"
 
@@ -612,14 +608,12 @@ msgstr "wielokrotne użycie opcji niedozwolone (pojawiła się wcześniej w lini
 msgid "illegal repeated keyword"
 msgstr "wielokrotne użycie opcji niedozwolone (pojawiła się wsześniej w pliku konfiguracyjnym)"
 
-#: option.c:1153
-#: option.c:3062
+#: option.c:1153 option.c:3062
 #, c-format
 msgid "cannot access directory %s: %s"
 msgstr "brak dostępu do katalogu %s: %s"
 
-#: option.c:1184
-#: tftp.c:465
+#: option.c:1184 tftp.c:465
 #, c-format
 msgid "cannot access %s: %s"
 msgstr "brak dostępu do %s: %s"
@@ -652,18 +646,15 @@ msgstr "w uClinuksie nie ma możliwości uruchamiania skryptów"
 msgid "recompile with HAVE_SCRIPT defined to enable lease-change scripts"
 msgstr "żeby mieć możliwość używania skryptów wywoływanych przy zmianie dzierżawy, przekompiluj dnsmasq-a z włączoną flagą HAVE_SCRIPT"
 
-#: option.c:1607
-#: option.c:1611
+#: option.c:1607 option.c:1611
 msgid "bad port"
 msgstr "nieprawidłowy numer portu"
 
-#: option.c:1634
-#: option.c:1665
+#: option.c:1634 option.c:1665
 msgid "interface binding not supported"
 msgstr "nie ma możliwości dowiązywania do interfejsu"
 
-#: option.c:1645
-#: option.c:2614
+#: option.c:1645 option.c:2614
 msgid "bad interface name"
 msgstr "nieprawidłowa nazwa interfejsu"
 
@@ -687,8 +678,7 @@ msgstr "można wskazać tylko jeden znacznik sieci"
 msgid "inconsistent DHCP range"
 msgstr "niespójny zakres adresów DHCP"
 
-#: option.c:2039
-#: option.c:2067
+#: option.c:2039 option.c:2067
 msgid "bad hex constant"
 msgstr "zapis niezgodny z formatem szesnastkowym"
 
@@ -704,8 +694,7 @@ msgstr "niedopuszczalna nazwa komputera w dhcp-host"
 msgid "bad tag-if"
 msgstr "nieprawidłowa składnia 'tag-if'"
 
-#: option.c:2499
-#: option.c:2784
+#: option.c:2499 option.c:2784
 msgid "invalid port number"
 msgstr "nieprawidłowy numer portu"
 
@@ -782,14 +771,12 @@ msgstr "błąd"
 msgid "%s at line %d of %%s"
 msgstr "%s w linii %d pliku %%s"
 
-#: option.c:3017
-#: tftp.c:629
+#: option.c:3017 tftp.c:629
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "błąd odczytu z pliku %s: %s"
 
-#: option.c:3183
-#: option.c:3219
+#: option.c:3183 option.c:3219
 #, c-format
 msgid "read %s"
 msgstr "przeczytałem %s"
@@ -853,9 +840,7 @@ msgstr "w trybie no-poll można wskazać najwyżej jeden plik resolv.conf."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "musisz mieć dokładnie jeden plik resolv.conf do odczytu domen."
 
-#: option.c:3403
-#: network.c:848
-#: dhcp.c:823
+#: option.c:3403 network.c:845 dhcp.c:823
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "nie udało się odczytać %s: %s"
@@ -888,63 +873,63 @@ msgstr "prawdopodobnie wykryto atak DNS-rebind: %s"
 msgid "unknown interface %s in bridge-interface"
 msgstr "nieznany interfejs %s w bridge-u"
 
-#: network.c:380
+#: network.c:384
 #, c-format
 msgid "failed to create listening socket for %s: %s"
 msgstr "nie udało się otworzyć gniazda %s: %s"
 
-#: network.c:746
+#: network.c:743
 #, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "błąd przy przyznawaniu nazwy gniazdu serwera %s: %s"
 
-#: network.c:783
+#: network.c:780
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorowanie serwera nazw %s - interfejs lokalny"
 
-#: network.c:794
+#: network.c:791
 #, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorowanie serwera nazw %s - nie można utworzyć/dowiązać gniazda: %s"
 
-#: network.c:811
+#: network.c:808
 msgid "unqualified"
 msgstr "niekwalifikowane(-a)"
 
-#: network.c:811
+#: network.c:808
 msgid "names"
 msgstr "nazwy"
 
-#: network.c:813
+#: network.c:810
 msgid "default"
 msgstr "domyślne"
 
-#: network.c:815
+#: network.c:812
 msgid "domain"
 msgstr "domeny"
 
-#: network.c:818
+#: network.c:815
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "używam adresów lokalnych tylko dla %s %s"
 
-#: network.c:820
+#: network.c:817
 #, c-format
 msgid "using standard nameservers for %s %s"
 msgstr "używam standardowych serwerów nazw dla %s %s"
 
-#: network.c:822
+#: network.c:819
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "używam serwera nazw %s#%d dla %s %s"
 
-#: network.c:825
+#: network.c:822
 #, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "używam serwera nazw %s#%d (przez %s)"
 
-#: network.c:827
+#: network.c:824
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "używam serwera nazw %s#%d"
@@ -984,8 +969,7 @@ msgstr "nieznany interfejs %s"
 msgid "no interface with address %s"
 msgstr "brak interfejsu z adresem %s"
 
-#: dnsmasq.c:219
-#: dnsmasq.c:690
+#: dnsmasq.c:219 dnsmasq.c:716
 #, c-format
 msgid "DBus error: %s"
 msgstr "błąd DBus: %s"
@@ -1004,162 +988,162 @@ msgstr "nieznany użytkownik lub grupa: %s"
 msgid "cannot chdir to filesystem root: %s"
 msgstr "nie potrafię wejść do głównego katalogu: %s"
 
-#: dnsmasq.c:467
+#: dnsmasq.c:477
 #, c-format
 msgid "started, version %s DNS disabled"
 msgstr "uruchomiony, wersja %s, DNS wyłączony"
 
-#: dnsmasq.c:469
+#: dnsmasq.c:479
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "uruchomiony, wersja %s, %d miejsc w pamięci podręcznej"
 
-#: dnsmasq.c:471
+#: dnsmasq.c:481
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "uruchomiony, wersja %s, pamięć podręczna wyłączona"
 
-#: dnsmasq.c:473
+#: dnsmasq.c:483
 #, c-format
 msgid "compile time options: %s"
 msgstr "opcje kompilacji: %s"
 
-#: dnsmasq.c:479
+#: dnsmasq.c:489
 msgid "DBus support enabled: connected to system bus"
 msgstr "obsługa DBus włączona, podłączono do serwera DBus"
 
-#: dnsmasq.c:481
+#: dnsmasq.c:491
 msgid "DBus support enabled: bus connection pending"
 msgstr "obsługa DBus włączona, trwa podłączanie do serwera DBus"
 
-#: dnsmasq.c:486
+#: dnsmasq.c:496
 #, c-format
 msgid "warning: failed to change owner of %s: %s"
 msgstr "UWAGA! Nie udało się zmienić użytkownika pliku %s: %s"
 
-#: dnsmasq.c:490
+#: dnsmasq.c:500
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr "ustawiam --bind-interfaces z powodu ograniczeń systemu operacyjnego"
 
-#: dnsmasq.c:495
+#: dnsmasq.c:505
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "uwaga: interfejs %s nie jest włączony"
 
-#: dnsmasq.c:500
+#: dnsmasq.c:510
 msgid "warning: ignoring resolv-file flag because no-resolv is set"
 msgstr "uwaga: ignoruję opcję resolv-file, ponieważ wybrano tryb no-resolv"
 
-#: dnsmasq.c:503
+#: dnsmasq.c:513
 msgid "warning: no upstream servers configured"
 msgstr "uwaga: nie wskazano nadrzędnych serwerów DNS"
 
-#: dnsmasq.c:507
+#: dnsmasq.c:517
 #, c-format
 msgid "asynchronous logging enabled, queue limit is %d messages"
 msgstr "włączono asynchroniczny tryb zapisu do logów z kolejką na %d komunikatów"
 
-#: dnsmasq.c:520
+#: dnsmasq.c:530
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP: tylko statyczne dzierżawy na %.0s%s, czas dzierżawy %s"
 
-#: dnsmasq.c:522
+#: dnsmasq.c:532
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
 msgstr "DHCP: pośrednik na podsieci %.0s%s%.0s"
 
-#: dnsmasq.c:523
+#: dnsmasq.c:533
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP: zakres IP %s -- %s, czas dzierżawy %s"
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "root is "
 msgstr "z głównym katalogiem w "
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "enabled"
 msgstr "włączony"
 
-#: dnsmasq.c:540
+#: dnsmasq.c:550
 msgid "secure mode"
 msgstr "w trybie bezpiecznym"
 
-#: dnsmasq.c:566
+#: dnsmasq.c:576
 #, c-format
 msgid "restricting maximum simultaneous TFTP transfers to %d"
 msgstr "ograniczam ilość jednoczesnych przesłań TFTP do %d"
 
-#: dnsmasq.c:692
+#: dnsmasq.c:718
 msgid "connected to system DBus"
 msgstr "podłączono do DBus-a"
 
-#: dnsmasq.c:787
+#: dnsmasq.c:813
 #, c-format
 msgid "cannot fork into background: %s"
 msgstr "nie potrafię przełączyć się do pracy w tle: %s"
 
-#: dnsmasq.c:790
+#: dnsmasq.c:816
 #, c-format
 msgid "failed to create helper: %s"
 msgstr "nie udało się utworzyć procesu pomocniczego: %s"
 
-#: dnsmasq.c:793
+#: dnsmasq.c:819
 #, c-format
 msgid "setting capabilities failed: %s"
 msgstr "nie powiodło się ustawianie ograniczeń (capabilities): %s"
 
-#: dnsmasq.c:797
+#: dnsmasq.c:823
 #, c-format
 msgid "failed to change user-id to %s: %s"
 msgstr "nie udało się zmienić użytkownika procesu na %s: %s"
 
-#: dnsmasq.c:802
+#: dnsmasq.c:828
 #, c-format
 msgid "failed to change group-id to %s: %s"
 msgstr "nie udało się zmienić grupy procesu na %s: %s"
 
-#: dnsmasq.c:805
+#: dnsmasq.c:831
 #, c-format
 msgid "failed to open pidfile %s: %s"
 msgstr "nie udało się otworzyć pliku z PID-em %s: %s"
 
-#: dnsmasq.c:808
+#: dnsmasq.c:834
 #, c-format
 msgid "cannot open %s: %s"
 msgstr "nie można otworzyć %s: %s"
 
-#: dnsmasq.c:863
+#: dnsmasq.c:889
 #, c-format
 msgid "child process killed by signal %d"
 msgstr "proces potomny zabity sygnałem %d"
 
-#: dnsmasq.c:867
+#: dnsmasq.c:893
 #, c-format
 msgid "child process exited with status %d"
 msgstr "proces potomny zakończył się z kodem powrotu %d"
 
-#: dnsmasq.c:871
+#: dnsmasq.c:897
 #, c-format
 msgid "failed to execute %s: %s"
 msgstr "nie udało się uruchomić %s: %s"
 
-#: dnsmasq.c:915
+#: dnsmasq.c:941
 msgid "exiting on receipt of SIGTERM"
 msgstr "zakończyłem działanie z powodu odebrania SIGTERM"
 
-#: dnsmasq.c:943
+#: dnsmasq.c:969
 #, c-format
 msgid "failed to access %s: %s"
 msgstr "brak dostępu do %s: %s"
 
-#: dnsmasq.c:973
+#: dnsmasq.c:999
 #, c-format
 msgid "reading %s"
 msgstr "czytanie %s"
 
-#: dnsmasq.c:984
+#: dnsmasq.c:1010
 #, c-format
 msgid "no servers found in %s, will retry"
 msgstr "w %s nie znalazłem serwerów, spróbuję ponownie później"
@@ -1280,24 +1264,19 @@ msgstr "%u dostępny zakres adresów DHCP: %s -- %s"
 msgid "disabled"
 msgstr "wyłączony(a)"
 
-#: rfc2131.c:428
-#: rfc2131.c:945
-#: rfc2131.c:1337
+#: rfc2131.c:428 rfc2131.c:945 rfc2131.c:1337
 msgid "ignored"
 msgstr "ignoruję"
 
-#: rfc2131.c:443
-#: rfc2131.c:1183
+#: rfc2131.c:443 rfc2131.c:1183
 msgid "address in use"
 msgstr "adres jest w użyciu"
 
-#: rfc2131.c:457
-#: rfc2131.c:999
+#: rfc2131.c:457 rfc2131.c:999
 msgid "no address available"
 msgstr "brak dostępnego adresu"
 
-#: rfc2131.c:464
-#: rfc2131.c:1146
+#: rfc2131.c:464 rfc2131.c:1146
 msgid "wrong network"
 msgstr "nieprawidłowa sieć"
 
@@ -1305,8 +1284,7 @@ msgstr "nieprawidłowa sieć"
 msgid "no address configured"
 msgstr "brak skonfigurowanego adresu"
 
-#: rfc2131.c:485
-#: rfc2131.c:1196
+#: rfc2131.c:485 rfc2131.c:1196
 msgid "no leases left"
 msgstr "brak wolnych dzierżaw"
 
@@ -1353,8 +1331,7 @@ msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo używa go któr
 msgid "not using configured address %s because it was previously declined"
 msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo już poprzednio został odrzucony"
 
-#: rfc2131.c:997
-#: rfc2131.c:1189
+#: rfc2131.c:997 rfc2131.c:1189
 msgid "no unique-id"
 msgstr "brak unikalnego id"
 
@@ -1446,7 +1423,7 @@ msgstr "nie mogę wysłać opcji RFC3925: za długi łańcuch opcji przy numerze
 msgid "cannot create netlink socket: %s"
 msgstr "nie potrafię utworzyć połączenia netlink %s"
 
-#: netlink.c:288
+#: netlink.c:289
 #, c-format
 msgid "netlink returns error: %s"
 msgstr "wystąpił błąd w połączeniu netlink %s"

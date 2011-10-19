@@ -1,3 +1,20 @@
+version 2.59
+	    Fix regression in 2.58 which caused failure to start up
+	    with some combinations of dnsmasq config and IPv6 kernel
+	    network config. Thanks to Brielle Bruns for the bug
+	    report.
+
+	    Improve dnsmasq's behaviour when network interfaces are
+	    still doing duplicate address detection (DAD). Previously,
+	    dnsmasq would wait up to 20 seconds at start-up for the
+	    DAD state to terminate. This is broken for bridge
+	    interfaces on recent Linux kernels, which don't start DAD
+	    until the bridge comes up, and so can take arbitrary
+	    time. The new behaviour lets dnsmasq poll for an arbitrary
+	    time whilst providing service on other interfaces. Thanks
+	    to Stephen Hemminger for pointing out the problem.
+
+
 version 2.58
 	    Provide a definition of the SA_SIZE macro where it's 
 	    missing. Fixes build failure on openBSD.

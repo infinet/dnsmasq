@@ -988,7 +988,7 @@ msgid "must have exactly one resolv.conf to read domain from."
 msgstr "harus mempunyai tepat satu resolv.conf untuk mendapatkan nama domain."
 
 # OK
-#: option.c:3403 network.c:848 dhcp.c:823
+#: option.c:3403 network.c:845 dhcp.c:823
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "gagal membaca %s: %s"
@@ -1025,72 +1025,72 @@ msgid "unknown interface %s in bridge-interface"
 msgstr "antarmuka tidak dikenal %s"
 
 # OK
-#: network.c:380
+#: network.c:384
 #, fuzzy, c-format
 msgid "failed to create listening socket for %s: %s"
 msgstr "gagal membuat socket: %s "
 
-#: network.c:746
+#: network.c:743
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "gagal mem-bind socket untuk mendengarkan %s: %s"
 
 # OK
-#: network.c:783
+#: network.c:780
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "mengabaikan nameserver %s - antarmuka lokal"
 
 # OK
-#: network.c:794
+#: network.c:791
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "mengabaikan nameserver %s - tak dapat membuat/mem-bind socket: %s"
 
 # OK
-#: network.c:811
+#: network.c:808
 msgid "unqualified"
 msgstr "tidak memenuhi syarat"
 
-#: network.c:811
+#: network.c:808
 msgid "names"
 msgstr ""
 
-#: network.c:813
+#: network.c:810
 msgid "default"
 msgstr ""
 
 # OK
-#: network.c:815
+#: network.c:812
 msgid "domain"
 msgstr "domain"
 
 # OK
-#: network.c:818
+#: network.c:815
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "menggunakan alamat lokal saja untuk %s %s"
 
 # OK
-#: network.c:820
+#: network.c:817
 #, fuzzy, c-format
 msgid "using standard nameservers for %s %s"
 msgstr "menggunakan nameserver %s#%d untuk %s %s"
 
 # OK
-#: network.c:822
+#: network.c:819
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "menggunakan nameserver %s#%d untuk %s %s"
 
 # OK
-#: network.c:825
+#: network.c:822
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "menggunakan nameserver %s#%d"
 
 # OK
-#: network.c:827
+#: network.c:824
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "menggunakan nameserver %s#%d"
@@ -1138,7 +1138,7 @@ msgid "no interface with address %s"
 msgstr "tidak ada antarmuka dengan alamat %s"
 
 # OK
-#: dnsmasq.c:219 dnsmasq.c:690
+#: dnsmasq.c:219 dnsmasq.c:716
 #, c-format
 msgid "DBus error: %s"
 msgstr "DBus error: %s"
@@ -1159,186 +1159,186 @@ msgid "cannot chdir to filesystem root: %s"
 msgstr ""
 
 # OK
-#: dnsmasq.c:467
+#: dnsmasq.c:477
 #, fuzzy, c-format
 msgid "started, version %s DNS disabled"
 msgstr "dimulai, cache versi %s di disable"
 
 # OK
-#: dnsmasq.c:469
+#: dnsmasq.c:479
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "dimulai, versi %s ukuran cache %d"
 
 # OK
-#: dnsmasq.c:471
+#: dnsmasq.c:481
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "dimulai, cache versi %s di disable"
 
 # OK
-#: dnsmasq.c:473
+#: dnsmasq.c:483
 #, c-format
 msgid "compile time options: %s"
 msgstr "pilihan-pilihan saat kompilasi: %s"
 
 # OK
-#: dnsmasq.c:479
+#: dnsmasq.c:489
 msgid "DBus support enabled: connected to system bus"
 msgstr "dukungan DBus dimungkinkan: terkoneksi pada bus sistem"
 
 # OK
-#: dnsmasq.c:481
+#: dnsmasq.c:491
 msgid "DBus support enabled: bus connection pending"
 msgstr "dukungan DBus dimungkinkan: koneksi bus ditunda"
 
 # OK
-#: dnsmasq.c:486
+#: dnsmasq.c:496
 #, fuzzy, c-format
 msgid "warning: failed to change owner of %s: %s"
 msgstr "gagal memuat nama-nama dari %s: %s"
 
 # OK
-#: dnsmasq.c:490
+#: dnsmasq.c:500
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr "setelan opsi --bind-interfaces disebabkan keterbatasan OS"
 
 # OK
-#: dnsmasq.c:495
+#: dnsmasq.c:505
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "peringatan: antarmuka %s tidak ada"
 
-#: dnsmasq.c:500
+#: dnsmasq.c:510
 msgid "warning: ignoring resolv-file flag because no-resolv is set"
 msgstr ""
 
 # OK
-#: dnsmasq.c:503
+#: dnsmasq.c:513
 #, fuzzy
 msgid "warning: no upstream servers configured"
 msgstr "menyetel server-server di atas dengan DBus"
 
-#: dnsmasq.c:507
+#: dnsmasq.c:517
 #, c-format
 msgid "asynchronous logging enabled, queue limit is %d messages"
 msgstr ""
 
 # OK
-#: dnsmasq.c:520
+#: dnsmasq.c:530
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP, lease static pada %.0s%s, waktu lease %s"
 
-#: dnsmasq.c:522
+#: dnsmasq.c:532
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
 msgstr ""
 
 # OK
-#: dnsmasq.c:523
+#: dnsmasq.c:533
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, jangkaun IP %s -- %s, waktu lease %s"
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "root is "
 msgstr ""
 
 # OK
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 #, fuzzy
 msgid "enabled"
 msgstr "di disable"
 
-#: dnsmasq.c:540
+#: dnsmasq.c:550
 msgid "secure mode"
 msgstr ""
 
-#: dnsmasq.c:566
+#: dnsmasq.c:576
 #, c-format
 msgid "restricting maximum simultaneous TFTP transfers to %d"
 msgstr ""
 
 # OK
-#: dnsmasq.c:692
+#: dnsmasq.c:718
 msgid "connected to system DBus"
 msgstr "terhubung ke sistem DBus"
 
-#: dnsmasq.c:787
+#: dnsmasq.c:813
 #, c-format
 msgid "cannot fork into background: %s"
 msgstr ""
 
 # OK
-#: dnsmasq.c:790
+#: dnsmasq.c:816
 #, fuzzy, c-format
 msgid "failed to create helper: %s"
 msgstr "gagal membaca %s: %s"
 
-#: dnsmasq.c:793
+#: dnsmasq.c:819
 #, c-format
 msgid "setting capabilities failed: %s"
 msgstr ""
 
 # OK
-#: dnsmasq.c:797
+#: dnsmasq.c:823
 #, fuzzy, c-format
 msgid "failed to change user-id to %s: %s"
 msgstr "gagal memuat nama-nama dari %s: %s"
 
 # OK
-#: dnsmasq.c:802
+#: dnsmasq.c:828
 #, fuzzy, c-format
 msgid "failed to change group-id to %s: %s"
 msgstr "gagal memuat nama-nama dari %s: %s"
 
 # OK
-#: dnsmasq.c:805
+#: dnsmasq.c:831
 #, fuzzy, c-format
 msgid "failed to open pidfile %s: %s"
 msgstr "gagal membaca %s: %s"
 
 # OK
-#: dnsmasq.c:808
+#: dnsmasq.c:834
 #, fuzzy, c-format
 msgid "cannot open %s: %s"
 msgstr "tidak bisa membuka %s:%s"
 
-#: dnsmasq.c:863
+#: dnsmasq.c:889
 #, c-format
 msgid "child process killed by signal %d"
 msgstr ""
 
-#: dnsmasq.c:867
+#: dnsmasq.c:893
 #, c-format
 msgid "child process exited with status %d"
 msgstr ""
 
 # OK
-#: dnsmasq.c:871
+#: dnsmasq.c:897
 #, fuzzy, c-format
 msgid "failed to execute %s: %s"
 msgstr "gagal mengakses %s: %s"
 
-#: dnsmasq.c:915
+#: dnsmasq.c:941
 msgid "exiting on receipt of SIGTERM"
 msgstr "keluar karena menerima SIGTERM"
 
 # OK
-#: dnsmasq.c:943
+#: dnsmasq.c:969
 #, fuzzy, c-format
 msgid "failed to access %s: %s"
 msgstr "gagal mengakses %s: %s"
 
 # OK
-#: dnsmasq.c:973
+#: dnsmasq.c:999
 #, c-format
 msgid "reading %s"
 msgstr "membaca %s"
 
 # OK
-#: dnsmasq.c:984
+#: dnsmasq.c:1010
 #, fuzzy, c-format
 msgid "no servers found in %s, will retry"
 msgstr "tidak ditemukan direktif search di %s"
@@ -1657,7 +1657,7 @@ msgid "cannot create netlink socket: %s"
 msgstr "tidak bisa mem-bind netlink socket: %s"
 
 # OK
-#: netlink.c:288
+#: netlink.c:289
 #, fuzzy, c-format
 msgid "netlink returns error: %s"
 msgstr "DBus error: %s"

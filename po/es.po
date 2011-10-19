@@ -864,7 +864,7 @@ msgstr "solo un archivo resolv.conf permitido en modo no-poll."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "debe haber exáctamente un resolv.conf desde donde leer dominio."
 
-#: option.c:3403 network.c:848 dhcp.c:823
+#: option.c:3403 network.c:845 dhcp.c:823
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "no se pudo leer %s: %s"
@@ -898,63 +898,63 @@ msgstr "posible ataque de revinculación DNS detectado"
 msgid "unknown interface %s in bridge-interface"
 msgstr "interface desconocida %s en bridge-interface"
 
-#: network.c:380
+#: network.c:384
 #, fuzzy, c-format
 msgid "failed to create listening socket for %s: %s"
 msgstr "no se pudo crear un socket escuchador: %s"
 
-#: network.c:746
+#: network.c:743
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "no se pudo acoplar socket escuchador para %s: %s"
 
-#: network.c:783
+#: network.c:780
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorando servidor DNS %s - interface local"
 
-#: network.c:794
+#: network.c:791
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorando servidor DNS %s - no se puede crear/acoplar socket: %s"
 
-#: network.c:811
+#: network.c:808
 msgid "unqualified"
 msgstr "no calificado"
 
-#: network.c:811
+#: network.c:808
 msgid "names"
 msgstr "nombres"
 
-#: network.c:813
+#: network.c:810
 msgid "default"
 msgstr "predeterminado"
 
-#: network.c:815
+#: network.c:812
 msgid "domain"
 msgstr "dominio"
 
-#: network.c:818
+#: network.c:815
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "usando direcciones locales solo para %s %s"
 
-#: network.c:820
+#: network.c:817
 #, fuzzy, c-format
 msgid "using standard nameservers for %s %s"
 msgstr "usando servidor DNS %s#%d para %s %s"
 
-#: network.c:822
+#: network.c:819
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "usando servidor DNS %s#%d para %s %s"
 
-#: network.c:825
+#: network.c:822
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "usando servidor DNS %s#%d(vía %s)"
 
-#: network.c:827
+#: network.c:824
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "usando servidor DNS %s#%d"
@@ -998,7 +998,7 @@ msgstr "interface desconocida %s"
 msgid "no interface with address %s"
 msgstr "ninguna interface con dirección %s"
 
-#: dnsmasq.c:219 dnsmasq.c:690
+#: dnsmasq.c:219 dnsmasq.c:716
 #, c-format
 msgid "DBus error: %s"
 msgstr "error DBus: %s"
@@ -1017,164 +1017,164 @@ msgstr "usuario o grupo desconocido: %s"
 msgid "cannot chdir to filesystem root: %s"
 msgstr "no se puede cambiar directorio a raíz de sistema de archivos: %s"
 
-#: dnsmasq.c:467
+#: dnsmasq.c:477
 #, fuzzy, c-format
 msgid "started, version %s DNS disabled"
 msgstr "iniciado, versión %s DNS deshabilitado"
 
-#: dnsmasq.c:469
+#: dnsmasq.c:479
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "iniciado, versión %s tamaño de caché %d"
 
-#: dnsmasq.c:471
+#: dnsmasq.c:481
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "iniciado, versión %s caché deshabilitado"
 
-#: dnsmasq.c:473
+#: dnsmasq.c:483
 #, c-format
 msgid "compile time options: %s"
 msgstr "opciones de compilación: %s"
 
-#: dnsmasq.c:479
+#: dnsmasq.c:489
 msgid "DBus support enabled: connected to system bus"
 msgstr "soporte DBus habilitado: conectado a bus de sistema"
 
-#: dnsmasq.c:481
+#: dnsmasq.c:491
 msgid "DBus support enabled: bus connection pending"
 msgstr "soporte DBus habilitado: conección a bus pendiente"
 
-#: dnsmasq.c:486
+#: dnsmasq.c:496
 #, fuzzy, c-format
 msgid "warning: failed to change owner of %s: %s"
 msgstr "advertencia: no se pudo cambiar dueño de %s: %s"
 
-#: dnsmasq.c:490
+#: dnsmasq.c:500
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr "fijando opción --bind-interfaces debido a limitaciones de sistema operativo"
 
-#: dnsmasq.c:495
+#: dnsmasq.c:505
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "advertencia: interface %s no existe actuálmente"
 
-#: dnsmasq.c:500
+#: dnsmasq.c:510
 msgid "warning: ignoring resolv-file flag because no-resolv is set"
 msgstr "advertencia: ignorando opción resolv-file porque no-resolv está fijado"
 
-#: dnsmasq.c:503
+#: dnsmasq.c:513
 #, fuzzy
 msgid "warning: no upstream servers configured"
 msgstr "advertencia: ningún servidor upstream configurado"
 
-#: dnsmasq.c:507
+#: dnsmasq.c:517
 #, c-format
 msgid "asynchronous logging enabled, queue limit is %d messages"
 msgstr "bitacoreo asincrónico habilitado, límite de cola es %d mensajes"
 
-#: dnsmasq.c:520
+#: dnsmasq.c:530
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP, arriendos estáticos solo en %.0s%s, tiempo de arriendo %s"
 
-#: dnsmasq.c:522
+#: dnsmasq.c:532
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
 msgstr "DHCP, proxy en subred %.0s%s%.0s"
 
-#: dnsmasq.c:523
+#: dnsmasq.c:533
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, rango de IPs %s -- %s, tiempo de arriendo %s"
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "root is "
 msgstr "root es "
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 #, fuzzy
 msgid "enabled"
 msgstr "habilitado"
 
-#: dnsmasq.c:540
+#: dnsmasq.c:550
 msgid "secure mode"
 msgstr "modo seguro"
 
-#: dnsmasq.c:566
+#: dnsmasq.c:576
 #, c-format
 msgid "restricting maximum simultaneous TFTP transfers to %d"
 msgstr "limitando número máximo de transferencias TFTP simultáneas a %d"
 
-#: dnsmasq.c:692
+#: dnsmasq.c:718
 msgid "connected to system DBus"
 msgstr "conectado a DBus de sistema"
 
-#: dnsmasq.c:787
+#: dnsmasq.c:813
 #, c-format
 msgid "cannot fork into background: %s"
 msgstr "no se puede hacer fork hacia el fondo: %s"
 
-#: dnsmasq.c:790
+#: dnsmasq.c:816
 #, fuzzy, c-format
 msgid "failed to create helper: %s"
 msgstr "no se pudo crear ayudante: %s"
 
-#: dnsmasq.c:793
+#: dnsmasq.c:819
 #, fuzzy, c-format
 msgid "setting capabilities failed: %s"
 msgstr "configuración de capacidades ha fallado: %s"
 
-#: dnsmasq.c:797
+#: dnsmasq.c:823
 #, fuzzy, c-format
 msgid "failed to change user-id to %s: %s"
 msgstr "no se pudo cambiar user-id a %s: %s"
 
-#: dnsmasq.c:802
+#: dnsmasq.c:828
 #, fuzzy, c-format
 msgid "failed to change group-id to %s: %s"
 msgstr "no se pudo cambiar group-id a %s: %s"
 
-#: dnsmasq.c:805
+#: dnsmasq.c:831
 #, fuzzy, c-format
 msgid "failed to open pidfile %s: %s"
 msgstr "no se pudo abrir archivo PID %s: %s"
 
-#: dnsmasq.c:808
+#: dnsmasq.c:834
 #, fuzzy, c-format
 msgid "cannot open %s: %s"
 msgstr "no se puede abrir %s: %s"
 
-#: dnsmasq.c:863
+#: dnsmasq.c:889
 #, c-format
 msgid "child process killed by signal %d"
 msgstr "proceso hijo eliminado por señal %d"
 
-#: dnsmasq.c:867
+#: dnsmasq.c:893
 #, c-format
 msgid "child process exited with status %d"
 msgstr "proceso hijo hizo exit con estado %d"
 
-#: dnsmasq.c:871
+#: dnsmasq.c:897
 #, fuzzy, c-format
 msgid "failed to execute %s: %s"
 msgstr "no se pudo ejecutar %s: %s"
 
-#: dnsmasq.c:915
+#: dnsmasq.c:941
 msgid "exiting on receipt of SIGTERM"
 msgstr "saliendo al recibir SIGTERM"
 
-#: dnsmasq.c:943
+#: dnsmasq.c:969
 #, fuzzy, c-format
 msgid "failed to access %s: %s"
 msgstr "no se pudo accesar %s: %s"
 
-#: dnsmasq.c:973
+#: dnsmasq.c:999
 #, c-format
 msgid "reading %s"
 msgstr "leyendo %s"
 
-#: dnsmasq.c:984
+#: dnsmasq.c:1010
 #, fuzzy, c-format
 msgid "no servers found in %s, will retry"
 msgstr "ningún servidor encontrado en %s, se reintentará"
@@ -1454,7 +1454,7 @@ msgstr "no se puede enviar opción RFC3925: demasiadas opciones para número enter
 msgid "cannot create netlink socket: %s"
 msgstr "no se puede crear socket netlink: %s"
 
-#: netlink.c:288
+#: netlink.c:289
 #, fuzzy, c-format
 msgid "netlink returns error: %s"
 msgstr "netlink retorna error: %s"

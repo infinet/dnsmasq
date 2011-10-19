@@ -862,7 +862,7 @@ msgstr "se permite un singur fişier resolv.conf în modul no-poll"
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "am nevoie de un singur resolv.conf din care să citesc numele domeniului."
 
-#: option.c:3403 network.c:848 dhcp.c:823
+#: option.c:3403 network.c:845 dhcp.c:823
 #, fuzzy, c-format
 msgid "failed to read %s: %s"
 msgstr "nu pot citi %s: %s"
@@ -895,63 +895,63 @@ msgstr ""
 msgid "unknown interface %s in bridge-interface"
 msgstr "interfaţă necunoscută %s"
 
-#: network.c:380
+#: network.c:384
 #, fuzzy, c-format
 msgid "failed to create listening socket for %s: %s"
 msgstr "creearea socket-ului de ascultare a eşuat: %s"
 
-#: network.c:746
+#: network.c:743
 #, fuzzy, c-format
 msgid "failed to bind server socket for %s: %s"
 msgstr "activarea socket-ului de ascultare pentru %s a eşuat: %s"
 
-#: network.c:783
+#: network.c:780
 #, c-format
 msgid "ignoring nameserver %s - local interface"
 msgstr "ignorăm serverul DNS %s - interfaţă locală"
 
-#: network.c:794
+#: network.c:791
 #, fuzzy, c-format
 msgid "ignoring nameserver %s - cannot make/bind socket: %s"
 msgstr "ignorăm serverul DNS %s - nu pot creea/activa socket-ul: %s"
 
-#: network.c:811
+#: network.c:808
 msgid "unqualified"
 msgstr "invalid"
 
-#: network.c:811
+#: network.c:808
 msgid "names"
 msgstr ""
 
-#: network.c:813
+#: network.c:810
 msgid "default"
 msgstr ""
 
-#: network.c:815
+#: network.c:812
 msgid "domain"
 msgstr "domeniu"
 
-#: network.c:818
+#: network.c:815
 #, c-format
 msgid "using local addresses only for %s %s"
 msgstr "folosim adresele locale doar pentru %S %s"
 
-#: network.c:820
+#: network.c:817
 #, fuzzy, c-format
 msgid "using standard nameservers for %s %s"
 msgstr "folosim serverul DNS %s#%d pentru %s %s"
 
-#: network.c:822
+#: network.c:819
 #, c-format
 msgid "using nameserver %s#%d for %s %s"
 msgstr "folosim serverul DNS %s#%d pentru %s %s"
 
-#: network.c:825
+#: network.c:822
 #, fuzzy, c-format
 msgid "using nameserver %s#%d(via %s)"
 msgstr "folosim serverul DNS %s#%d"
 
-#: network.c:827
+#: network.c:824
 #, c-format
 msgid "using nameserver %s#%d"
 msgstr "folosim serverul DNS %s#%d"
@@ -993,7 +993,7 @@ msgstr "interfaţă necunoscută %s"
 msgid "no interface with address %s"
 msgstr "nu exista interfaţă pentru adresa %s"
 
-#: dnsmasq.c:219 dnsmasq.c:690
+#: dnsmasq.c:219 dnsmasq.c:716
 #, c-format
 msgid "DBus error: %s"
 msgstr "eroare DBus: %s"
@@ -1012,167 +1012,167 @@ msgstr ""
 msgid "cannot chdir to filesystem root: %s"
 msgstr ""
 
-#: dnsmasq.c:467
+#: dnsmasq.c:477
 #, fuzzy, c-format
 msgid "started, version %s DNS disabled"
 msgstr "am pornit, versiunea %s memorie temporară dezactivată"
 
-#: dnsmasq.c:469
+#: dnsmasq.c:479
 #, c-format
 msgid "started, version %s cachesize %d"
 msgstr "am ponit, versiunea %s memorie temporară %d"
 
-#: dnsmasq.c:471
+#: dnsmasq.c:481
 #, c-format
 msgid "started, version %s cache disabled"
 msgstr "am pornit, versiunea %s memorie temporară dezactivată"
 
-#: dnsmasq.c:473
+#: dnsmasq.c:483
 #, c-format
 msgid "compile time options: %s"
 msgstr "compilat cu opţiunile: %s"
 
-#: dnsmasq.c:479
+#: dnsmasq.c:489
 msgid "DBus support enabled: connected to system bus"
 msgstr "suportul DBus activ: sunt conectat la magistrala sistem"
 
-#: dnsmasq.c:481
+#: dnsmasq.c:491
 msgid "DBus support enabled: bus connection pending"
 msgstr "suportul DBus activ: aştept conexiunea la magistrală"
 
 # for compatibility purposes the letters â, ă, ş, ţ and î can be written as their look-alike correspondent.
-#: dnsmasq.c:486
+#: dnsmasq.c:496
 #, fuzzy, c-format
 msgid "warning: failed to change owner of %s: %s"
 msgstr "încărcarea numelor din %s: %s a eşuat"
 
-#: dnsmasq.c:490
+#: dnsmasq.c:500
 msgid "setting --bind-interfaces option because of OS limitations"
 msgstr "specific opţiunea --bind-interfaces din cauza limitărilor SO"
 
-#: dnsmasq.c:495
+#: dnsmasq.c:505
 #, c-format
 msgid "warning: interface %s does not currently exist"
 msgstr "atenţie: interfaţa %s nu există momentan"
 
-#: dnsmasq.c:500
+#: dnsmasq.c:510
 msgid "warning: ignoring resolv-file flag because no-resolv is set"
 msgstr ""
 
-#: dnsmasq.c:503
+#: dnsmasq.c:513
 #, fuzzy
 msgid "warning: no upstream servers configured"
 msgstr "configurăm serverele superioare prin Dbus"
 
-#: dnsmasq.c:507
+#: dnsmasq.c:517
 #, c-format
 msgid "asynchronous logging enabled, queue limit is %d messages"
 msgstr ""
 
-#: dnsmasq.c:520
+#: dnsmasq.c:530
 #, c-format
 msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP, împrumuturi statice doar către  %.0s%s, timpul reînoirii %s"
 
-#: dnsmasq.c:522
+#: dnsmasq.c:532
 #, c-format
 msgid "DHCP, proxy on subnet %.0s%s%.0s"
 msgstr ""
 
-#: dnsmasq.c:523
+#: dnsmasq.c:533
 #, c-format
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, domeniu IP %s -- %s, timpul reînoirii %s"
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 msgid "root is "
 msgstr ""
 
-#: dnsmasq.c:538
+#: dnsmasq.c:548
 #, fuzzy
 msgid "enabled"
 msgstr "dezactivat"
 
-#: dnsmasq.c:540
+#: dnsmasq.c:550
 msgid "secure mode"
 msgstr ""
 
-#: dnsmasq.c:566
+#: dnsmasq.c:576
 #, c-format
 msgid "restricting maximum simultaneous TFTP transfers to %d"
 msgstr ""
 
-#: dnsmasq.c:692
+#: dnsmasq.c:718
 msgid "connected to system DBus"
 msgstr "magistrala sistem Dbus conectată"
 
-#: dnsmasq.c:787
+#: dnsmasq.c:813
 #, c-format
 msgid "cannot fork into background: %s"
 msgstr ""
 
-#: dnsmasq.c:790
+#: dnsmasq.c:816
 #, fuzzy, c-format
 msgid "failed to create helper: %s"
 msgstr "nu pot citi %s: %s"
 
-#: dnsmasq.c:793
+#: dnsmasq.c:819
 #, c-format
 msgid "setting capabilities failed: %s"
 msgstr ""
 
 # for compatibility purposes the letters â, ă, ş, ţ and î can be written as their look-alike correspondent.
-#: dnsmasq.c:797
+#: dnsmasq.c:823
 #, fuzzy, c-format
 msgid "failed to change user-id to %s: %s"
 msgstr "încărcarea numelor din %s: %s a eşuat"
 
 # for compatibility purposes the letters â, ă, ş, ţ and î can be written as their look-alike correspondent.
-#: dnsmasq.c:802
+#: dnsmasq.c:828
 #, fuzzy, c-format
 msgid "failed to change group-id to %s: %s"
 msgstr "încărcarea numelor din %s: %s a eşuat"
 
-#: dnsmasq.c:805
+#: dnsmasq.c:831
 #, fuzzy, c-format
 msgid "failed to open pidfile %s: %s"
 msgstr "nu pot citi %s: %s"
 
-#: dnsmasq.c:808
+#: dnsmasq.c:834
 #, fuzzy, c-format
 msgid "cannot open %s: %s"
 msgstr "nu pot deschide %s:%s"
 
-#: dnsmasq.c:863
+#: dnsmasq.c:889
 #, c-format
 msgid "child process killed by signal %d"
 msgstr ""
 
-#: dnsmasq.c:867
+#: dnsmasq.c:893
 #, c-format
 msgid "child process exited with status %d"
 msgstr ""
 
-#: dnsmasq.c:871
+#: dnsmasq.c:897
 #, fuzzy, c-format
 msgid "failed to execute %s: %s"
 msgstr "accesarea serverului %s a eşuat: %s"
 
-#: dnsmasq.c:915
+#: dnsmasq.c:941
 msgid "exiting on receipt of SIGTERM"
 msgstr "am primit SIGTERM, am terminat"
 
-#: dnsmasq.c:943
+#: dnsmasq.c:969
 #, fuzzy, c-format
 msgid "failed to access %s: %s"
 msgstr "accesarea serverului %s a eşuat: %s"
 
-#: dnsmasq.c:973
+#: dnsmasq.c:999
 #, c-format
 msgid "reading %s"
 msgstr "citesc %s"
 
-#: dnsmasq.c:984
+#: dnsmasq.c:1010
 #, fuzzy, c-format
 msgid "no servers found in %s, will retry"
 msgstr "nu s-a găsit nici un criteriu de căutare în %s"
@@ -1452,7 +1452,7 @@ msgstr ""
 msgid "cannot create netlink socket: %s"
 msgstr "nu pot să activez socket-ul netlink: %s"
 
-#: netlink.c:288
+#: netlink.c:289
 #, fuzzy, c-format
 msgid "netlink returns error: %s"
 msgstr "eroare DBus: %s"
