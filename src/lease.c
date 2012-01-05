@@ -24,10 +24,13 @@ static int dns_dirty, file_dirty, leases_left;
 void lease_init(time_t now)
 {
   unsigned long ei;
-  struct in_addr addr;
+  struct all_addr addr;
   struct dhcp_lease *lease;
   int clid_len, hw_len, hw_type;
   FILE *leasestream;
+#ifdef HAVE_DHCP6
+  int v6pass = 0;
+#endif
   
   /* These each hold a DHCP option max size 255
      and get a terminating zero added */
@@ -70,26 +73,46 @@ void lease_init(time_t now)
       rewind(leasestream);
     }
   
+#ifdef HAVE_DHCP6
+ again:
+#endif
+
   /* client-id max length is 255 which is 255*2 digits + 254 colons 
      borrow DNS packet buffer which is always larger than 1000 bytes */
   if (leasestream)
-    while (fscanf(leasestream, "%lu %255s %16s %255s %764s",
+    while (fscanf(leasestream, "%lu %255s %64s %255s %764s",
 		  &ei, daemon->dhcp_buff2, daemon->namebuff, 
 		  daemon->dhcp_buff, daemon->packet) == 5)
       {
-	hw_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, DHCP_CHADDR_MAX, NULL, &hw_type);
-	/* For backwards compatibility, no explict MAC address type means ether. */
-	if (hw_type == 0 && hw_len != 0)
-	  hw_type = ARPHRD_ETHER;
-	
-	addr.s_addr = inet_addr(daemon->namebuff);
-	
-	/* decode hex in place */
+#ifdef HAVE_DHCP6
+	if (!v6pass)
+#endif
+	  {
+	    hw_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, DHCP_CHADDR_MAX, NULL, &hw_type);
+	    /* For backwards compatibility, no explict MAC address type means ether. */
+	    if (hw_type == 0 && hw_len != 0)
+	      hw_type = ARPHRD_ETHER;
+	  }
+
+#ifdef HAVE_DHCP6
+	if (v6pass)
+	  inet_pton(AF_INET6, daemon->namebuff,	&addr.addr.addr6);
+	else
+#endif	
+	  inet_pton(AF_INET, daemon->namebuff, &addr.addr.addr4);	
+
 	clid_len = 0;
 	if (strcmp(daemon->packet, "*") != 0)
 	  clid_len = parse_hex(daemon->packet, (unsigned char *)daemon->packet, 255, NULL, NULL);
 	
-	if (!(lease = lease_allocate(addr)))
+#ifdef HAVE_DHCP6
+	if (v6pass)
+	  lease = lease_allocate6(&addr.addr.addr6);
+	else
+#endif
+	  lease = lease_allocate4(addr.addr.addr4);
+	
+	if (!lease)
 	  die (_("too many stored leases"), NULL, EC_MISC);
        	
 #ifdef HAVE_BROKEN_RTC
@@ -103,8 +126,11 @@ void lease_init(time_t now)
 	   even when sizeof(time_t) == 8 */
 	lease->expires = (time_t)ei;
 #endif
-	
-	lease_set_hwaddr(lease, (unsigned char *)daemon->dhcp_buff2, (unsigned char *)daemon->packet, hw_len, hw_type, clid_len);
+
+#ifdef HAVE_DHCP6
+	if (!v6pass)
+#endif
+	  lease_set_hwaddr(lease, (unsigned char *)daemon->dhcp_buff2, (unsigned char *)daemon->packet, hw_len, hw_type, clid_len);
 	
 	if (strcmp(daemon->dhcp_buff, "*") !=  0)
 	  lease_set_hostname(lease, daemon->dhcp_buff, 0);
@@ -113,6 +139,24 @@ void lease_init(time_t now)
 	   the startup synthesised SIGHUP. */
 	lease->new = lease->changed = 0;
       }
+
+#ifdef HAVE_DHCP6  
+  if (!v6pass)
+    {
+      if (fscanf(leasestream, "duid %255s", daemon->dhcp_buff) == 1)
+	{
+	  daemon->duid_len = parse_hex(daemon->dhcp_buff, (unsigned char *)daemon->dhcp_buff, 130, NULL, NULL);
+	  daemon->duid = safe_malloc(daemon->duid_len);
+	  memcpy(daemon->duid, daemon->dhcp_buff, daemon->duid_len );
+	  v6pass = 1;
+	  goto again;
+	}
+      
+      /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
+      if (daemon->dhcp6)
+      	make_duid(now);
+    }
+#endif
   
 #ifdef HAVE_SCRIPT
   if (!daemon->lease_stream)
@@ -186,11 +230,18 @@ void lease_update_file(time_t now)
       
       for (lease = leases; lease; lease = lease->next)
 	{
+
+#ifdef HAVE_DHCP6
+	  if (lease->is_ipv6)
+	    continue;
+#endif
+
 #ifdef HAVE_BROKEN_RTC
 	  ourprintf(&err, "%u ", lease->length);
 #else
 	  ourprintf(&err, "%lu ", (unsigned long)lease->expires);
 #endif
+
 	  if (lease->hwaddr_type != ARPHRD_ETHER || lease->hwaddr_len == 0) 
 	    ourprintf(&err, "%.2x-", lease->hwaddr_type);
 	  for (i = 0; i < lease->hwaddr_len; i++)
@@ -199,8 +250,10 @@ void lease_update_file(time_t now)
 	      if (i != lease->hwaddr_len - 1)
 		ourprintf(&err, ":");
 	    }
+	  
+	  inet_ntop(AF_INET, &lease->addr, daemon->addrbuff, ADDRSTRLEN); 
 
-	  ourprintf(&err, " %s ", inet_ntoa(lease->addr));
+	  ourprintf(&err, " %s ", daemon->addrbuff);
 	  ourprintf(&err, "%s ", lease->hostname ? lease->hostname : "*");
 	  	  
 	  if (lease->clid && lease->clid_len != 0)
@@ -213,6 +266,43 @@ void lease_update_file(time_t now)
 	    ourprintf(&err, "*\n");	  
 	}
       
+#ifdef HAVE_DHCP6  
+      if (daemon->duid)
+	{
+	  ourprintf(&err, "duid ");
+	  for (i = 0; i < daemon->duid_len - 1; i++)
+	    ourprintf(&err, "%.2x:", daemon->duid[i]);
+	  ourprintf(&err, "%.2x\n", daemon->duid[i]);
+	  
+	  for (lease = leases; lease; lease = lease->next)
+	    {
+	      
+	      if (!lease->is_ipv6)
+		continue;
+
+#ifdef HAVE_BROKEN_RTC
+	      ourprintf(&err, "%u ", lease->length);
+#else
+	      ourprintf(&err, "%lu ", (unsigned long)lease->expires);
+#endif
+    
+	      inet_ntop(AF_INET6, lease->hwaddr, daemon->addrbuff, ADDRSTRLEN);
+	 
+	      ourprintf(&err, "* %s ", daemon->addrbuff);
+	      ourprintf(&err, "%s ", lease->hostname ? lease->hostname : "*");
+	      
+	      if (lease->clid && lease->clid_len != 0)
+		{
+		  for (i = 0; i < lease->clid_len - 1; i++)
+		    ourprintf(&err, "%.2x:", lease->clid[i]);
+		  ourprintf(&err, "%.2x\n", lease->clid[i]);
+		}
+	      else
+		ourprintf(&err, "*\n");	  
+	    }
+	}
+#endif      
+	  
       if (fflush(daemon->lease_stream) != 0 ||
 	  fsync(fileno(daemon->lease_stream)) < 0)
 	err = errno;
@@ -275,7 +365,7 @@ void lease_prune(struct dhcp_lease *target, time_t now)
 	  if (lease->hostname)
 	    dns_dirty = 1;
 	  
-	  *up = lease->next; /* unlink */
+ 	  *up = lease->next; /* unlink */
 	  
 	  /* Put on old_leases list 'till we
 	     can run the script */
@@ -297,18 +387,30 @@ struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr, int hw_len, int h
 
   if (clid)
     for (lease = leases; lease; lease = lease->next)
-      if (lease->clid && clid_len == lease->clid_len &&
-	  memcmp(clid, lease->clid, clid_len) == 0)
-	return lease;
+      {
+#ifdef HAVE_DHCP6
+	if (lease->is_ipv6)
+	  continue;
+#endif
+	if (lease->clid && clid_len == lease->clid_len &&
+	    memcmp(clid, lease->clid, clid_len) == 0)
+	  return lease;
+      }
   
   for (lease = leases; lease; lease = lease->next)	
-    if ((!lease->clid || !clid) && 
-	hw_len != 0 && 
-	lease->hwaddr_len == hw_len &&
-	lease->hwaddr_type == hw_type &&
-	memcmp(hwaddr, lease->hwaddr, hw_len) == 0)
-      return lease;
-  
+    {
+#ifdef HAVE_DHCP6
+      if (lease->is_ipv6)
+	continue;
+#endif   
+      if ((!lease->clid || !clid) && 
+	  hw_len != 0 && 
+	  lease->hwaddr_len == hw_len &&
+	  lease->hwaddr_type == hw_type &&
+	  memcmp(hwaddr, lease->hwaddr, hw_len) == 0)
+	return lease;
+    }
+
   return NULL;
 }
 
@@ -317,9 +419,15 @@ struct dhcp_lease *lease_find_by_addr(struct in_addr addr)
   struct dhcp_lease *lease;
 
   for (lease = leases; lease; lease = lease->next)
-    if (lease->addr.s_addr == addr.s_addr)
-      return lease;
-  
+    {
+#ifdef HAVE_DHCP6
+      if (lease->is_ipv6)
+	continue;
+#endif  
+      if (lease->addr.s_addr == addr.s_addr)
+	return lease;
+    }
+
   return NULL;
 }
 
@@ -331,15 +439,21 @@ struct in_addr lease_find_max_addr(struct dhcp_context *context)
   
   if (!(context->flags & (CONTEXT_STATIC | CONTEXT_PROXY)))
     for (lease = leases; lease; lease = lease->next)
-      if (((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(context->start.s_addr)) &&
-	  ((unsigned)ntohl(lease->addr.s_addr)) <= ((unsigned)ntohl(context->end.s_addr)) &&
-	  ((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(addr.s_addr)))
-	addr = lease->addr;
+      {
+#ifdef HAVE_DHCP6
+	if (lease->is_ipv6)
+	  continue;
+#endif
+	if (((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(context->start.s_addr)) &&
+	    ((unsigned)ntohl(lease->addr.s_addr)) <= ((unsigned)ntohl(context->end.s_addr)) &&
+	    ((unsigned)ntohl(lease->addr.s_addr)) > ((unsigned)ntohl(addr.s_addr)))
+	  addr = lease->addr;
+      }
   
   return addr;
 }
 
-struct dhcp_lease *lease_allocate(struct in_addr addr)
+static struct dhcp_lease *lease_allocate(void)
 {
   struct dhcp_lease *lease;
   if (!leases_left || !(lease = whine_malloc(sizeof(struct dhcp_lease))))
@@ -347,8 +461,6 @@ struct dhcp_lease *lease_allocate(struct in_addr addr)
 
   memset(lease, 0, sizeof(struct dhcp_lease));
   lease->new = 1;
-  lease->addr = addr;
-  lease->hwaddr_len = 256; /* illegal value */
   lease->expires = 1;
 #ifdef HAVE_BROKEN_RTC
   lease->length = 0xffffffff; /* illegal value */
@@ -361,6 +473,26 @@ struct dhcp_lease *lease_allocate(struct in_addr addr)
 
   return lease;
 }
+
+struct dhcp_lease *lease_allocate4(struct in_addr addr)
+{
+  struct dhcp_lease *lease = lease_allocate();
+  lease->addr = addr;
+  lease->hwaddr_len = 256; /* illegal value */
+
+  return lease;
+}
+
+#ifdef HAVE_DHCP6
+struct dhcp_lease *lease_allocate6(struct in6_addr *addrp)
+{
+  struct dhcp_lease *lease = lease_allocate();
+  memcpy(lease->hwaddr, addrp, sizeof(*addrp)) ;
+  lease->is_ipv6 = 1;
+
+  return lease;
+}
+#endif
 
 void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now)
 {

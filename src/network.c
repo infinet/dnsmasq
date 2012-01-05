@@ -107,7 +107,7 @@ int indextoname(int fd, int index, char *name)
 
 #endif
 
-int iface_check(int family, struct all_addr *addr, char *name, int *indexp)
+int iface_check(int family, struct all_addr *addr, char *name)
 {
   struct iname *tmp;
   int ret = 1;
@@ -115,7 +115,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *indexp)
   /* Note: have to check all and not bail out early, so that we set the
      "used" flags. */
   
-  if (daemon->if_names || (addr && daemon->if_addrs))
+  if (daemon->if_names || daemon->if_addrs)
     {
 #ifdef HAVE_DHCP
       struct dhcp_context *range;
@@ -134,7 +134,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *indexp)
 	  ret = tmp->used = 1;
 	        
       for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
-	if (addr && tmp->addr.sa.sa_family == family)
+	if (tmp->addr.sa.sa_family == family)
 	  {
 	    if (family == AF_INET &&
 		tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
@@ -151,38 +151,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *indexp)
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
     if (tmp->name && (strcmp(tmp->name, name) == 0))
       ret = 0;
-  
-  if (indexp)
-    {
-      /* One form of bridging on BSD has the property that packets
-	 can be recieved on bridge interfaces which do not have an IP address.
-	 We allow these to be treated as aliases of another interface which does have
-	 an IP address with --dhcp-bridge=interface,alias,alias */
-      struct dhcp_bridge *bridge, *alias;
-      for (bridge = daemon->bridges; bridge; bridge = bridge->next)
-	{
-	  for (alias = bridge->alias; alias; alias = alias->next)
-	    if (strncmp(name, alias->iface, IF_NAMESIZE) == 0)
-	      {
-		int newindex;
-		
-		if (!(newindex = if_nametoindex(bridge->iface)))
-		  {
-		    my_syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), name);
-		    return 0;
-		  }
-		else 
-		  {
-		    *indexp = newindex;
-		    strncpy(name,  bridge->iface, IF_NAMESIZE);
-		    break;
-		  }
-	      }
-	  if (alias)
-	    break;
-	}
-    }
-  
+    
   return ret; 
 }
       
@@ -263,7 +232,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
   if (!ir)
     {
       if (addr->sa.sa_family == AF_INET &&
-	  !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name, NULL))
+	  !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name))
 	return 1;
       
 #ifdef HAVE_DHCP
@@ -274,7 +243,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
       
 #ifdef HAVE_IPV6
       if (addr->sa.sa_family == AF_INET6 &&
-	  !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name, NULL))
+	  !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name))
 	return 1;
 #endif
     }
@@ -300,12 +269,13 @@ static int iface_allowed(struct irec **irecp, int if_index,
 }
 
 #ifdef HAVE_IPV6
-static int iface_allowed_v6(struct in6_addr *local, 
+static int iface_allowed_v6(struct in6_addr *local, int prefix, 
 			    int scope, int if_index, int dad, void *vparam)
 {
   union mysockaddr addr;
   struct in_addr netmask; /* dummy */
   
+  (void)prefix; /* warning */
   netmask.s_addr = 0;
   
   memset(&addr, 0, sizeof(addr));
@@ -392,7 +362,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
     goto err;
   
 #ifdef HAVE_IPV6
-  if (family == AF_INET6 && setsockopt(fd, IPV6_LEVEL, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
+  if (family == AF_INET6 && setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) == -1)
     goto err;
 #endif
   
@@ -409,7 +379,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
       if (family == AF_INET)
 	{
 #if defined(HAVE_LINUX_NETWORK) 
-	  if (setsockopt(fd, SOL_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1)
+	  if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1)
 	    goto err;
 #elif defined(IP_RECVDSTADDR) && defined(IP_RECVIF)
 	  if (setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1 ||
@@ -418,36 +388,42 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
 #endif
 	}
 #ifdef HAVE_IPV6
-      else
-	{
-	  /* The API changed around Linux 2.6.14 but the old ABI is still supported:
-	     handle all combinations of headers and kernel.
-	     OpenWrt note that this fixes the problem addressed by your very broken patch. */
-	  daemon->v6pktinfo = IPV6_PKTINFO;
-	  
-#  ifdef IPV6_RECVPKTINFO
-#    ifdef IPV6_2292PKTINFO
-	  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
-	    {
-	      if (errno == ENOPROTOOPT && setsockopt(fd, IPV6_LEVEL, IPV6_2292PKTINFO, &opt, sizeof(opt)) != -1)
-		daemon->v6pktinfo = IPV6_2292PKTINFO;
-	      else
-		goto err;
-	    }
-#    else
-	  if (setsockopt(fd, IPV6_LEVEL, IPV6_RECVPKTINFO, &opt, sizeof(opt)) == -1)
-	    goto err;
-#    endif 
-#  else
-	  if (setsockopt(fd, IPV6_LEVEL, IPV6_PKTINFO, &opt, sizeof(opt)) == -1)
-	    goto err;
-#  endif
-	}
+      else if (!set_ipv6pktinfo(fd))
+	goto err;
 #endif
     }
-
+  
   return fd;
 }
+
+#ifdef HAVE_IPV6  
+int set_ipv6pktinfo(int fd)
+{
+  int opt = 1;
+
+  /* The API changed around Linux 2.6.14 but the old ABI is still supported:
+     handle all combinations of headers and kernel.
+     OpenWrt note that this fixes the problem addressed by your very broken patch. */
+  daemon->v6pktinfo = IPV6_PKTINFO;
+  
+#ifdef IPV6_RECVPKTINFO
+  if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &opt, sizeof(opt)) != -1)
+    return 1;
+# ifdef IPV6_2292PKTINFO
+  else if (errno == ENOPROTOOPT && setsockopt(fd, IPPROTO_IPV6, IPV6_2292PKTINFO, &opt, sizeof(opt)) != -1)
+    {
+      daemon->v6pktinfo = IPV6_2292PKTINFO;
+      return 1;
+    }
+# endif 
+#else
+  if (setsockopt(fd, IPPROTO_IPV6, IPV6_PKTINFO, &opt, sizeof(opt)) != -1)
+    return 1;
+#endif
+
+  return 0;
+}
+#endif
       
 static struct listener *create_listeners(union mysockaddr *addr, int do_tftp, int dienow)
 {

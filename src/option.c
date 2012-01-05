@@ -112,6 +112,8 @@ struct myoption {
 #define LOPT_DNSSEC    301
 #define LOPT_INCR_ADDR 302
 #define LOPT_CONNTRACK 303
+#define LOPT_FQDN      304
+#define LOPT_LUASCRIPT 305
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -229,6 +231,8 @@ static const struct myoption opts[] =
     { "proxy-dnssec", 0, 0, LOPT_DNSSEC },
     { "dhcp-sequential-ip", 0, 0,  LOPT_INCR_ADDR },
     { "conntrack", 0, 0, LOPT_CONNTRACK },
+    { "dhcp-client-update", 0, 0, LOPT_FQDN },
+    { "dhcp-luascript", 1, 0, LOPT_LUASCRIPT },
     { NULL, 0, 0, 0 }
   };
 
@@ -353,6 +357,8 @@ static struct {
   { LOPT_DNSSEC, OPT_DNSSEC, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
   { LOPT_INCR_ADDR, OPT_CONSEC_ADDR, NULL, gettext_noop("Attempt to allocate sequential IP addresses to DHCP clients."), NULL },
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
+  { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
+  { LOPT_LUASCRIPT, ARG_DUP, "luascript", gettext_noop("Specify path to Lua script (no default)."), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -1295,16 +1301,25 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
       daemon->lease_file = opt_string_alloc(arg);
       break;
       
-    case '6': /* --dhcp-script */
+      /* Sorry about the gross pre-processor abuse */
+    case '6':             /* --dhcp-script */
+    case LOPT_LUASCRIPT:  /* --dhcp-luascript */
 #  if defined(NO_FORK)
       problem = _("cannot run scripts under uClinux");
 #  elif !defined(HAVE_SCRIPT)
       problem = _("recompile with HAVE_SCRIPT defined to enable lease-change scripts");
 #  else
-      daemon->lease_change_command = opt_string_alloc(arg);
+      if (option == LOPT_LUASCRIPT)
+#    if !defined(HAVE_LUASCRIPT)
+	problem = _("recompile with HAVE_LUASCRIPT defined to enable Lua scripts");
+#    else
+        daemon->luascript = opt_string_alloc(arg);
+#    endif
+      else
+        daemon->lease_change_command = opt_string_alloc(arg);
 #  endif
       break;
-#endif
+#endif /* HAVE_DHCP */
 
     case LOPT_DHCP_HOST: /* --dhcp-hostfile */
     case LOPT_DHCP_OPTS: /* --dhcp-optsfile */
@@ -3299,7 +3314,7 @@ void read_opts(int argc, char **argv, char *compile_opts)
       else if (option == 'v')
 	{
 	  printf(_("Dnsmasq version %s  %s\n"), VERSION, COPYRIGHT);
-	  printf(_("Compile time options %s\n\n"), compile_opts); 
+	  printf(_("Compile time options: %s\n\n"), compile_opts); 
 	  printf(_("This software comes with ABSOLUTELY NO WARRANTY.\n"));
 	  printf(_("Dnsmasq is free software, and you are welcome to redistribute it\n"));
 	  printf(_("under the terms of the GNU General Public License, version 2 or 3.\n"));

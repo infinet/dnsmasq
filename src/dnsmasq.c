@@ -14,53 +14,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/* Declare static char *compiler_opts  in config.h */
+#define DNSMASQ_COMPILE_OPTS
+
 #include "dnsmasq.h"
 
 struct daemon *daemon;
-
-static char *compile_opts = 
-#ifndef HAVE_IPV6
-"no-"
-#endif
-"IPv6 "
-#ifndef HAVE_GETOPT_LONG
-"no-"
-#endif
-"GNU-getopt "
-#ifdef HAVE_BROKEN_RTC
-"no-RTC "
-#endif
-#ifdef NO_FORK
-"no-MMU "
-#endif
-#ifndef HAVE_DBUS
-"no-"
-#endif
-"DBus "
-#ifndef LOCALEDIR
-"no-"
-#endif
-"i18n "
-#ifndef HAVE_DHCP
-"no-"
-#endif
-"DHCP "
-#if defined(HAVE_DHCP) && !defined(HAVE_SCRIPT)
-"no-scripts "
-#endif
-#ifndef HAVE_TFTP
-"no-"
-#endif
-"TFTP "
-#ifndef HAVE_CONNTRACK
-"no-"
-#endif
-"conntrack "
-#if !defined(LOCALEDIR) && !defined(HAVE_IDN)
-"no-"
-#endif 
-"IDN";
-
 
 static volatile pid_t pid = 0;
 static volatile int pipewrite;
@@ -69,7 +28,8 @@ static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp);
 static void check_dns_listeners(fd_set *set, time_t now);
 static void sig_handler(int sig);
 static void async_event(int pipe, time_t now);
-static void fatal_event(struct event_desc *ev);
+static void fatal_event(struct event_desc *ev, char *msg);
+static int read_event(int fd, struct event_desc *evp, char **msg);
 
 int main (int argc, char **argv)
 {
@@ -79,7 +39,7 @@ int main (int argc, char **argv)
   struct iname *if_tmp;
   int piperead, pipefd[2], err_pipe[2];
   struct passwd *ent_pw = NULL;
-#if defined(HAVE_DHCP) && defined(HAVE_SCRIPT)
+#if defined(HAVE_SCRIPT)
   uid_t script_uid = 0;
   gid_t script_gid = 0;
 #endif
@@ -121,6 +81,8 @@ int main (int argc, char **argv)
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
     daemon->edns_pktsz : DNSMASQ_PACKETSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
+
+  daemon->addrbuff = safe_malloc(ADDRSTRLEN);
 
 #ifdef HAVE_DHCP
   if (!daemon->lease_file)
@@ -225,9 +187,10 @@ int main (int argc, char **argv)
   if (daemon->port != 0)
     pre_allocate_sfds();
 
-#if defined(HAVE_DHCP) && defined(HAVE_SCRIPT)
+#if defined(HAVE_SCRIPT)
   /* Note getpwnam returns static storage */
-  if (daemon->dhcp && daemon->lease_change_command && daemon->scriptuser)
+  if (daemon->dhcp && daemon->scriptuser && 
+      (daemon->lease_change_command || daemon->luascript))
     {
       if ((ent_pw = getpwnam(daemon->scriptuser)))
 	{
@@ -290,7 +253,7 @@ int main (int argc, char **argv)
   piperead = pipefd[0];
   pipewrite = pipefd[1];
   /* prime the pipe to load stuff first time. */
-  send_event(pipewrite, EVENT_RELOAD, 0); 
+  send_event(pipewrite, EVENT_RELOAD, 0, NULL); 
 
   err_pipe[1] = -1;
   
@@ -313,18 +276,19 @@ int main (int argc, char **argv)
 	  
 	  if ((pid = fork()) == -1)
 	    /* fd == -1 since we've not forked, never returns. */
-	    send_event(-1, EVENT_FORK_ERR, errno);
+	    send_event(-1, EVENT_FORK_ERR, errno, NULL);
 	   
 	  if (pid != 0)
 	    {
 	      struct event_desc ev;
-	      
+	      char *msg;
+
 	      /* close our copy of write-end */
 	      close(err_pipe[1]);
 	      
 	      /* check for errors after the fork */
-	      if (read_write(err_pipe[0], (unsigned char *)&ev, sizeof(ev), 1))
-		fatal_event(&ev);
+	      if (read_event(err_pipe[0], &ev, &msg))
+		fatal_event(&ev, msg);
 	      
 	      _exit(EC_GOOD);
 	    } 
@@ -336,7 +300,7 @@ int main (int argc, char **argv)
 	  setsid();
 	 
 	  if ((pid = fork()) == -1)
-	    send_event(err_pipe[1], EVENT_FORK_ERR, errno);
+	    send_event(err_pipe[1], EVENT_FORK_ERR, errno, NULL);
 	 
 	  if (pid != 0)
 	    _exit(0);
@@ -356,7 +320,7 @@ int main (int argc, char **argv)
 	    }
 	  else if (getuid() == 0)
 	    {
-	      send_event(err_pipe[1], EVENT_PIDFILE, errno);
+	      send_event(err_pipe[1], EVENT_PIDFILE, errno, daemon->runfile);
 	      _exit(0);
 	    }
 	}
@@ -376,8 +340,8 @@ int main (int argc, char **argv)
    
    /* if we are to run scripts, we need to fork a helper before dropping root. */
   daemon->helperfd = -1;
-#if defined(HAVE_DHCP) && defined(HAVE_SCRIPT) 
-  if (daemon->dhcp && daemon->lease_change_command)
+#ifdef HAVE_SCRIPT 
+  if (daemon->dhcp && (daemon->lease_change_command || daemon->luascript))
     daemon->helperfd = create_helper(pipewrite, err_pipe[1], script_uid, script_gid, max_fd);
 #endif
 
@@ -391,7 +355,7 @@ int main (int argc, char **argv)
 	  (setgroups(0, &dummy) == -1 ||
 	   setgid(gp->gr_gid) == -1))
 	{
-	  send_event(err_pipe[1], EVENT_GROUP_ERR, errno);
+	  send_event(err_pipe[1], EVENT_GROUP_ERR, errno, daemon->groupname);
 	  _exit(0);
 	}
   
@@ -437,14 +401,14 @@ int main (int argc, char **argv)
 
 	  if (bad_capabilities != 0)
 	    {
-	      send_event(err_pipe[1], EVENT_CAP_ERR, bad_capabilities);
+	      send_event(err_pipe[1], EVENT_CAP_ERR, bad_capabilities, NULL);
 	      _exit(0);
 	    }
 	  
 	  /* finally drop root */
 	  if (setuid(ent_pw->pw_uid) == -1)
 	    {
-	      send_event(err_pipe[1], EVENT_USER_ERR, errno);
+	      send_event(err_pipe[1], EVENT_USER_ERR, errno, daemon->username);
 	      _exit(0);
 	    }     
 
@@ -460,7 +424,7 @@ int main (int argc, char **argv)
 	  /* lose the setuid and setgid capbilities */
 	  if (capset(hdr, data) == -1)
 	    {
-	      send_event(err_pipe[1], EVENT_CAP_ERR, errno);
+	      send_event(err_pipe[1], EVENT_CAP_ERR, errno, NULL);
 	      _exit(0);
 	    }
 #endif
@@ -779,28 +743,57 @@ static void sig_handler(int sig)
       else
 	return;
 
-      send_event(pipewrite, event, 0); 
+      send_event(pipewrite, event, 0, NULL); 
       errno = errsave;
     }
 }
 
-void send_event(int fd, int event, int data)
+void send_event(int fd, int event, int data, char *msg)
 {
   struct event_desc ev;
-  
+  struct iovec iov[2];
+
   ev.event = event;
   ev.data = data;
+  ev.msg_sz = msg ? strlen(msg) : 0;
+  
+  iov[0].iov_base = &ev;
+  iov[0].iov_len = sizeof(ev);
+  iov[1].iov_base = msg;
+  iov[1].iov_len = ev.msg_sz;
   
   /* error pipe, debug mode. */
   if (fd == -1)
-    fatal_event(&ev);
+    fatal_event(&ev, msg);
   else
     /* pipe is non-blocking and struct event_desc is smaller than
        PIPE_BUF, so this either fails or writes everything */
-    while (write(fd, &ev, sizeof(ev)) == -1 && errno == EINTR);
+    while (writev(fd, iov, msg ? 2 : 1) == -1 && errno == EINTR);
 }
 
-static void fatal_event(struct event_desc *ev)
+/* NOTE: the memory used to return msg is leaked: use msgs in events only
+   to describe fatal errors. */
+static int read_event(int fd, struct event_desc *evp, char **msg)
+{
+  char *buf;
+
+  if (!read_write(fd, (unsigned char *)evp, sizeof(struct event_desc), 1))
+    return 0;
+  
+  *msg = NULL;
+  
+  if (evp->msg_sz != 0 && 
+      (buf = malloc(evp->msg_sz + 1)) &&
+      read_write(fd, (unsigned char *)buf, evp->msg_sz, 1))
+    {
+      buf[evp->msg_sz] = 0;
+      *msg = buf;
+    }
+
+  return 1;
+}
+    
+static void fatal_event(struct event_desc *ev, char *msg)
 {
   errno = ev->data;
   
@@ -819,19 +812,19 @@ static void fatal_event(struct event_desc *ev)
       die(_("setting capabilities failed: %s"), NULL, EC_MISC);
 
     case EVENT_USER_ERR:
-    case EVENT_HUSER_ERR:
-      die(_("failed to change user-id to %s: %s"), 
-	  ev->event == EVENT_USER_ERR ? daemon->username : daemon->scriptuser,
-	  EC_MISC);
+      die(_("failed to change user-id to %s: %s"), msg, EC_MISC);
 
     case EVENT_GROUP_ERR:
-      die(_("failed to change group-id to %s: %s"), daemon->groupname, EC_MISC);
+      die(_("failed to change group-id to %s: %s"), msg, EC_MISC);
       
     case EVENT_PIDFILE:
-      die(_("failed to open pidfile %s: %s"), daemon->runfile, EC_FILE);
+      die(_("failed to open pidfile %s: %s"), msg, EC_FILE);
 
     case EVENT_LOG_ERR:
-      die(_("cannot open %s: %s"), daemon->log_file ? daemon->log_file : "log", EC_FILE);
+      die(_("cannot open log %s: %s"), msg, EC_FILE);
+    
+    case EVENT_LUA_ERR:
+      die(_("failed to load Lua script: %s"), msg, EC_MISC);
     }
 }	
       
@@ -840,8 +833,12 @@ static void async_event(int pipe, time_t now)
   pid_t p;
   struct event_desc ev;
   int i;
-
-  if (read_write(pipe, (unsigned char *)&ev, sizeof(ev), 1))
+  char *msg;
+  
+  /* NOTE: the memory used to return msg is leaked: use msgs in events only
+     to describe fatal errors. */
+  
+  if (read_event(pipe, &ev, &msg))
     switch (ev.event)
       {
       case EVENT_RELOAD:
@@ -886,11 +883,11 @@ static void async_event(int pipe, time_t now)
 	break;
 	
       case EVENT_KILLED:
-	my_syslog(LOG_WARNING, _("child process killed by signal %d"), ev.data);
+	my_syslog(LOG_WARNING, _("script process killed by signal %d"), ev.data);
 	break;
 
       case EVENT_EXITED:
-	my_syslog(LOG_WARNING, _("child process exited with status %d"), ev.data);
+	my_syslog(LOG_WARNING, _("script process exited with status %d"), ev.data);
 	break;
 
       case EVENT_EXEC_ERR:
@@ -899,9 +896,10 @@ static void async_event(int pipe, time_t now)
 	break;
 
 	/* necessary for fatal errors in helper */
-      case EVENT_HUSER_ERR:
+      case EVENT_USER_ERR:
       case EVENT_DIE:
-	fatal_event(&ev);
+      case EVENT_LUA_ERR:
+	fatal_event(&ev, msg);
 	break;
 
       case EVENT_REOPEN:
@@ -918,7 +916,7 @@ static void async_event(int pipe, time_t now)
 	  if (daemon->tcp_pids[i] != 0)
 	    kill(daemon->tcp_pids[i], SIGALRM);
 	
-#if defined(HAVE_DHCP) && defined(HAVE_SCRIPT)
+#if defined(HAVE_SCRIPT)
 	/* handle pending lease transitions */
 	if (daemon->helperfd != -1)
 	  {

@@ -38,16 +38,18 @@ IDN_CFLAGS= `echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --cflags 
 IDN_LIBS=   `echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --libs libidn` 
 CT_CFLAGS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --cflags libnetfilter_conntrack`
 CT_LIBS=    `echo $(COPTS) | ../bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --libs libnetfilter_conntrack`
+LUA_CFLAGS=`echo $(COPTS) | ../bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --cflags lua5.1` 
+LUA_LIBS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --libs lua5.1` 
 SUNOS_LIBS= `if uname | grep SunOS 2>&1 >/dev/null; then echo -lsocket -lnsl -lposix4; fi`
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
-       helper.o tftp.o log.o conntrack.o
+       helper.o tftp.o log.o conntrack.o dhcp6.o rfc3315.o
 
 all :
 	@cd $(SRC) && $(MAKE) \
- BUILD_CFLAGS="$(DBUS_CFLAGS) $(IDN_CFLAGS) $(CT_CFLAGS)" \
- BUILD_LIBS="$(DBUS_LIBS) $(IDN_LIBS) $(CT_LIBS) $(SUNOS_LIBS)" \
+ BUILD_CFLAGS="$(DBUS_CFLAGS) $(IDN_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS)" \
+ BUILD_LIBS="$(DBUS_LIBS) $(IDN_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS)" \
  -f ../Makefile dnsmasq 
 
 clean :
@@ -64,8 +66,8 @@ install-common :
 all-i18n :
 	@cd $(SRC) && $(MAKE) \
  I18N=-DLOCALEDIR='\"$(LOCALEDIR)\"' \
- BUILD_CFLAGS="$(DBUS_CFLAGS) $(CT_CFLAGS) `$(PKG_CONFIG) --cflags libidn`" \
- BUILD_LIBS="$(DBUS_LIBS) $(CT_LIBS) $(SUNOS_LIBS) `$(PKG_CONFIG) --libs libidn`"  \
+ BUILD_CFLAGS="$(DBUS_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS) `$(PKG_CONFIG) --cflags libidn`" \
+ BUILD_LIBS="$(DBUS_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS) `$(PKG_CONFIG) --libs libidn`"  \
  -f ../Makefile dnsmasq
 	@cd $(PO); for f in *.po; do \
 		cd ../$(SRC) && $(MAKE) \

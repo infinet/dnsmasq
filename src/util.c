@@ -320,6 +320,25 @@ int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
   return (a.s_addr & mask.s_addr) == (b.s_addr & mask.s_addr);
 } 
 
+#ifdef HAVE_IPV6
+int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen)
+{
+  int pfbytes = prefixlen >> 3;
+  int pfbits = prefixlen & 7;
+
+  if (memcmp(&a->s6_addr, &b->s6_addr, pfbytes) != 0)
+    return 0;
+
+  if (pfbits == 0 ||
+      (a->s6_addr[pfbytes] >> (8 - pfbits) != b->s6_addr[pfbytes] >> (8 - pfbits)))
+    return 1;
+
+  return 0;
+}
+
+#endif
+ 
+
 /* returns port number from address */
 int prettyprint_addr(union mysockaddr *addr, char *buf)
 {
@@ -483,7 +502,7 @@ void bump_maxfd(int fd, int *max)
 int retry_send(void)
 {
    struct timespec waiter;
-   if (errno == EAGAIN)
+   if (errno == EAGAIN || errno == EWOULDBLOCK)
      {
        waiter.tv_sec = 0;
        waiter.tv_nsec = 10000;

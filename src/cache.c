@@ -25,7 +25,6 @@ static int cache_inserted = 0, cache_live_freed = 0, insert_error;
 static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
 static int uid = 0;
-static char *addrbuff = NULL;
 
 /* type->string mapping: this is also used by the name-hash function as a mixing table. */
 static const struct {
@@ -75,9 +74,6 @@ void cache_init(void)
   struct crec *crecp;
   int i;
 
-  if (option_bool(OPT_LOG))
-    addrbuff = safe_malloc(ADDRSTRLEN);
-  
   bignames_left = daemon->cachesize/10;
   
   if (daemon->cachesize > 0)
@@ -1057,9 +1053,6 @@ void dump_cache(time_t now)
   my_syslog(LOG_INFO, _("queries forwarded %u, queries answered locally %u"), 
 	    daemon->queries_forwarded, daemon->local_answer);
 
-  if (!addrbuff && !(addrbuff = whine_malloc(ADDRSTRLEN)))
-    return;
-
   /* sum counts from different records for same server */
   for (serv = daemon->servers; serv; serv = serv->next)
     serv->flags &= ~SERV_COUNTED;
@@ -1079,8 +1072,8 @@ void dump_cache(time_t now)
 	      queries += serv1->queries;
 	      failed_queries += serv1->failed_queries;
 	    }
-	port = prettyprint_addr(&serv->addr, addrbuff);
-	my_syslog(LOG_INFO, _("server %s#%d: queries sent %u, retried or failed %u"), addrbuff, port, queries, failed_queries);
+	port = prettyprint_addr(&serv->addr, daemon->addrbuff);
+	my_syslog(LOG_INFO, _("server %s#%d: queries sent %u, retried or failed %u"), daemon->addrbuff, port, queries, failed_queries);
       }
   
   if (option_bool(OPT_DEBUG) || option_bool(OPT_LOG))
@@ -1105,11 +1098,11 @@ void dump_cache(time_t now)
 #ifdef HAVE_IPV6
 	    else 
 	      { 
-		a = addrbuff;
+		a = daemon->addrbuff;
 		if (cache->flags & F_IPV4)
-		  inet_ntop(AF_INET, &cache->addr.addr, addrbuff, ADDRSTRLEN);
+		  inet_ntop(AF_INET, &cache->addr.addr, a, ADDRSTRLEN);
 		else if (cache->flags & F_IPV6)
-		  inet_ntop(AF_INET6, &cache->addr.addr, addrbuff, ADDRSTRLEN);
+		  inet_ntop(AF_INET6, &cache->addr.addr, a, ADDRSTRLEN);
 	      }
 #else
             else 
@@ -1164,7 +1157,7 @@ void querystr(char *str, unsigned short type)
 
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
 {
-  char *source, *dest = addrbuff;
+  char *source, *dest = daemon->addrbuff;
   char *verb = "is";
   
   if (!option_bool(OPT_LOG))
@@ -1174,16 +1167,16 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
     {
 #ifdef HAVE_IPV6
       inet_ntop(flags & F_IPV4 ? AF_INET : AF_INET6,
-		addr, addrbuff, ADDRSTRLEN);
+		addr, daemon->addrbuff, ADDRSTRLEN);
 #else
-      strncpy(addrbuff, inet_ntoa(addr->addr.addr4), ADDRSTRLEN);  
+      strncpy(daemon->addrbuff, inet_ntoa(addr->addr.addr4), ADDRSTRLEN);  
 #endif
     }
 
   if (flags & F_REVERSE)
     {
       dest = name;
-      name = addrbuff;
+      name = daemon->addrbuff;
     }
   
   if (flags & F_NEG)

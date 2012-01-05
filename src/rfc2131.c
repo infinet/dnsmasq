@@ -481,7 +481,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 
 	  if (!message && 
 	      !lease && 
-	      (!(lease = lease_allocate(mess->yiaddr))))
+	      (!(lease = lease_allocate4(mess->yiaddr))))
 	    message = _("no leases left");
 	  
 	  if (!message)
@@ -521,11 +521,10 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       pp = op;
       
       /* Always force update, since the client has no way to do it itself. */
-      if (!(fqdn_flags & 0x01))
-	fqdn_flags |= 0x02;
-      
+      if (!option_bool(OPT_FQDN_UPDATE) && !(fqdn_flags & 0x01))
+	fqdn_flags |= 0x03;
+
       fqdn_flags &= ~0x08;
-      fqdn_flags |= 0x01;
       
       if (fqdn_flags & 0x04)
 	while (*op != 0 && ((op + (*op) + 1) - pp) < len)
@@ -1190,7 +1189,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      else if (!lease)
 		{	     
-		  if ((lease = lease_allocate(mess->yiaddr)))
+		  if ((lease = lease_allocate4(mess->yiaddr)))
 		    do_classes = 1;
 		  else
 		    message = _("no leases left");

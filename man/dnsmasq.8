@@ -51,7 +51,7 @@ apply to domain names in cnames, PTR records, TXT records etc.
 .B \-T, --local-ttl=<time>
 When replying with information from /etc/hosts or the DHCP leases
 file dnsmasq by default sets the time-to-live field to zero, meaning
-that the requestor should not itself cache the information. This is
+that the requester should not itself cache the information. This is
 the correct thing to do in almost all situations. This option allows a
 time-to-live (in seconds) to be given for these replies. This will
 reduce the load on the server at the expense of clients using stale
@@ -276,7 +276,7 @@ server strictly in the order they appear in /etc/resolv.conf
 By default, when dnsmasq has more than one upstream server available,
 it will send queries to just one server. Setting this flag forces
 dnsmasq to send all queries to all available servers. The reply from
-the server which answers first will be returned to the original requestor.
+the server which answers first will be returned to the original requester.
 .TP
 .B --stop-dns-rebind
 Reject (and log) addresses from upstream nameservers which are in the
@@ -545,7 +545,7 @@ Specify per host parameters for the DHCP server. This allows a machine
 with a particular hardware address to be always allocated the same
 hostname, IP address and lease time. A hostname specified like this
 overrides any supplied by the DHCP client on the machine. It is also
-allowable to ommit the hardware address and include the hostname, in
+allowable to omit the hardware address and include the hostname, in
 which case the IP address and lease times will apply to any machine
 claiming that name. For example 
 .B --dhcp-host=00:20:e0:3b:13:af,wap,infinite 
@@ -1133,6 +1133,14 @@ names have a domain part, there must be at least
 without an address specified when 
 .B --dhcp-fqdn 
 is set.
+.TP
+.B --dhcp-client-update
+Normally, when giving a DHCP lease, dnsmasq sets flags in the FQDN
+option to tell the client not to attempt a DDNS update with its name
+and IP address. This is because the name-IP pair is automatically
+added into dnsmasq's DNS view. This flag suppresses that behaviour,
+this is useful, for instance, to allow Windows clients to update
+Active Directory servers. See RFC 4702 for details. 
 .TP
 .B --enable-tftp[=<interface>]
 Enable the TFTP server function. This is deliberately limited to that

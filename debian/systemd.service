@@ -1,0 +1,31 @@
+[Unit]
+Description=A lightweight DHCP and caching DNS server
+
+[Service]
+Type=dbus
+BusName=uk.org.thekelleys.dnsmasq
+
+# Test the config file and refuse starting if it is not valid.
+ExecStartPre=/usr/sbin/dnsmasq --test
+
+# Enable DBus by default because we use DBus activation.
+#
+# Drop privileges and become the 'dnsmasq' user. It is recommended by dnsmasq
+# upstream to run dnsmasq as an isolated user that does not run any other
+# processes, owns no files and has no shell. The default 'nobody' user has a
+# shell and might be used for other processes.
+#
+# Debian-specific: add /etc/dnsmasq.d to config search path (with the exception
+# of .dpkg-*). Packages such as libvirt leave config files there.
+#
+# --pid-file without argument disables writing a PIDfile, we don't need one.
+ExecStart=/usr/sbin/dnsmasq -k \
+          --enable-dbus \
+          --user=dnsmasq \
+          -7 /etc/dnsmasq.d,.dpkg-dist,.dpkg-old,.dpkg-new \
+          --pid-file
+
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

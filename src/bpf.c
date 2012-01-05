@@ -182,7 +182,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		  addr->s6_addr[2] = 0;
 		  addr->s6_addr[3] = 0;
 		}
-	      if (!((*callback)(addr,
+	       /* We have no way to determine the prefix, so we assume it's 64 for now....... */
+	      if (!((*callback)(addr, 64,
 				(int)((struct sockaddr_in6 *)&ifr->ifr_addr)->sin6_scope_id,
 				(int)if_nametoindex(ifr->ifr_name), 0, 
 				parm)))

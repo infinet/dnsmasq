@@ -57,7 +57,6 @@ void tftp_request(struct listener *listen, time_t now)
   int mtuflag = IP_PMTUDISC_DONT;
 #endif
   char namebuff[IF_NAMESIZE];
-  char pretty_addr[ADDRSTRLEN];
   char *name;
   char *prefix = daemon->tftp_prefix;
   struct tftp_prefix *pref;
@@ -114,7 +113,7 @@ void tftp_request(struct listener *listen, time_t now)
 #if defined(HAVE_LINUX_NETWORK)
       if (listen->family == AF_INET)
 	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	  if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+	  if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
 	    {
 	      union {
 		unsigned char *c;
@@ -163,7 +162,7 @@ void tftp_request(struct listener *listen, time_t now)
       if (listen->family == AF_INET6)
         {
           for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-            if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == daemon->v6pktinfo)
+            if (cmptr->cmsg_level == IPPROTO_IPV6 && cmptr->cmsg_type == daemon->v6pktinfo)
               {
                 union {
                   unsigned char *c;
@@ -184,10 +183,10 @@ void tftp_request(struct listener *listen, time_t now)
 
 #ifdef HAVE_IPV6
       if (listen->family == AF_INET6)
-	check = iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name, &if_index);
+	check = iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name);
       else
 #endif
-        check = iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name, &if_index);
+        check = iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name);
 
       /* wierd TFTP service override */
       for (ir = daemon->tftp_interfaces; ir; ir = ir->next)
@@ -260,14 +259,14 @@ void tftp_request(struct listener *listen, time_t now)
   transfer->opt_blocksize = transfer->opt_transize = 0;
   transfer->netascii = transfer->carrylf = 0;
  
-  prettyprint_addr(&peer, pretty_addr);
+  prettyprint_addr(&peer, daemon->addrbuff);
   
   /* if we have a nailed-down range, iterate until we find a free one. */
   while (1)
     {
       if (bind(transfer->sockfd, &addr.sa, sa_len(&addr)) == -1 ||
 #if defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DONT)
-	  setsockopt(transfer->sockfd, SOL_IP, IP_MTU_DISCOVER, &mtuflag, sizeof(mtuflag)) == -1 ||
+	  setsockopt(transfer->sockfd, IPPROTO_IP, IP_MTU_DISCOVER, &mtuflag, sizeof(mtuflag)) == -1 ||
 #endif
 	  !fix_fd(transfer->sockfd))
 	{
@@ -298,7 +297,7 @@ void tftp_request(struct listener *listen, time_t now)
       !(filename = next(&p, end)) ||
       !(mode = next(&p, end)) ||
       (strcasecmp(mode, "octet") != 0 && strcasecmp(mode, "netascii") != 0))
-    len = tftp_err(ERR_ILL, packet, _("unsupported request from %s"), pretty_addr);
+    len = tftp_err(ERR_ILL, packet, _("unsupported request from %s"), daemon->addrbuff);
   else
     {
       if (strcasecmp(mode, "netascii") == 0)
@@ -348,7 +347,7 @@ void tftp_request(struct listener *listen, time_t now)
 	      size_t oldlen = strlen(daemon->namebuff);
 	      struct stat statbuf;
 	      
-	      strncat(daemon->namebuff, pretty_addr, (MAXDNAME-1) - strlen(daemon->namebuff));
+	      strncat(daemon->namebuff, daemon->addrbuff, (MAXDNAME-1) - strlen(daemon->namebuff));
 	      strncat(daemon->namebuff, "/", (MAXDNAME-1) - strlen(daemon->namebuff));
 	      
 	      /* remove unique-directory if it doesn't exist */
@@ -478,7 +477,6 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 {
   struct tftp_transfer *transfer, *tmp, **up;
   ssize_t len;
-  char pretty_addr[ADDRSTRLEN];
   
   struct ack {
     unsigned short op, block;
@@ -494,7 +492,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	  /* we overwrote the buffer... */
 	  daemon->srv_save = NULL;
 	   
-	  prettyprint_addr(&transfer->peer, pretty_addr);
+	  prettyprint_addr(&transfer->peer, daemon->addrbuff);
 	  
 	  if ((len = recv(transfer->sockfd, daemon->packet, daemon->packet_buff_sz, 0)) >= (ssize_t)sizeof(struct ack))
 	    {
@@ -526,7 +524,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 
 		  my_syslog(MS_TFTP | LOG_ERR, _("error %d %s received from %s"),
 			    (int)ntohs(mess->block), err, 
-			    pretty_addr);	
+			    daemon->addrbuff);	
 		  
 		  /* Got err, ensure we take abort */
 		  transfer->timeout = now;
@@ -557,7 +555,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	      if (len != 0)
 		{
 		  my_syslog(MS_TFTP | LOG_ERR, _("failed sending %s to %s"), 
-			    transfer->file->filename, pretty_addr);
+			    transfer->file->filename, daemon->addrbuff);
 		  len = 0;
 		  endcon = 1;
 		}
@@ -570,7 +568,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	  if (endcon || len == 0)
 	    {
 	      if (!endcon)
-		my_syslog(MS_TFTP | LOG_INFO, _("sent %s to %s"), transfer->file->filename, pretty_addr);
+		my_syslog(MS_TFTP | LOG_INFO, _("sent %s to %s"), transfer->file->filename, daemon->addrbuff);
 	      /* unlink */
 	      *up = tmp;
 	      free_transfer(transfer);

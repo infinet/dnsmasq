@@ -84,7 +84,7 @@ int log_start(struct passwd *ent_pw, int errfd)
 
   if (!log_reopen(daemon->log_file))
     {
-      send_event(errfd, EVENT_LOG_ERR, errno);
+      send_event(errfd, EVENT_LOG_ERR, errno, daemon->log_file ? daemon->log_file : "");
       _exit(0);
     }
 
@@ -196,7 +196,7 @@ static void log_write(void)
       if (errno == EINTR)
 	continue;
 
-      if (errno == EAGAIN)
+      if (errno == EAGAIN || errno == EWOULDBLOCK)
 	return; /* syslogd busy, go again when select() or poll() says so */
       
       if (errno == ENOBUFS)
@@ -244,7 +244,8 @@ static void log_write(void)
 		  errno == ECONNREFUSED ||
 		  errno == EISCONN || 
 		  errno == EINTR ||
-		  errno == EAGAIN)
+		  errno == EAGAIN || 
+		  errno == EWOULDBLOCK)
 		{
 		  /* try again on next syslog() call */
 		  connection_good = 0;

@@ -1,0 +1,49 @@
+#!/bin/sh
+set -e
+
+# create a user to run as (code stolen from dovecot-common)
+if [ "$1" = "configure" ]; then
+  if [ -z "`id -u dnsmasq 2> /dev/null`" ]; then
+    adduser --system  --home /var/lib/misc --gecos "dnsmasq" \
+            --no-create-home --disabled-password \
+            --quiet dnsmasq || true
+  fi
+
+  # Make the directory where we keep the pid file - this
+  # has to be owned by "dnsmasq" do that the file can be unlinked.
+  if [ ! -d /var/run/dnsmasq ]; then
+    mkdir /var/run/dnsmasq
+    chown dnsmasq:nogroup /var/run/dnsmasq
+  fi
+
+  # handle new location of pidfile during an upgrade
+  if [ -e /var/run/dnsmasq.pid ]; then
+      mv /var/run/dnsmasq.pid /var/run/dnsmasq
+  fi
+fi
+
+if [ -x /etc/init.d/dnsmasq ]; then
+   update-rc.d dnsmasq defaults 15 85 >/dev/null
+
+   if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
+      if [ -e /var/run/dnsmasq/dnsmasq.pid ]; then
+          ACTION=restart
+      else
+          ACTION=start
+      fi
+
+      if [ -x /usr/sbin/invoke-rc.d ] ; then
+         invoke-rc.d dnsmasq $ACTION || true
+      else
+         /etc/init.d/dnsmasq $ACTION || true
+      fi
+   fi
+fi
+
+# dpkg can botch the change of /usr/share/doc/dnsmasq from
+# directory to symlink. Fix up here.
+if [ ! -h /usr/share/doc/dnsmasq ] && { rmdir /usr/share/doc/dnsmasq; }; then
+   cd /usr/share/doc/
+   ln -s /usr/share/doc/dnsmasq-base dnsmasq
+fi
+

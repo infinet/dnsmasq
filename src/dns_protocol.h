@@ -14,6 +14,9 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#define NAMESERVER_PORT 53
+#define TFTP_PORT       69
+
 #define IN6ADDRSZ       16
 #define INADDRSZ        4
 

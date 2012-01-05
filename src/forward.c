@@ -26,9 +26,9 @@ static struct randfd *allocate_rfd(int family);
 
 /* Send a UDP packet with its source address set as "source" 
    unless nowild is true, when we just send it with the kernel default */
-static void send_from(int fd, int nowild, char *packet, size_t len, 
-		      union mysockaddr *to, struct all_addr *source,
-		      unsigned int iface)
+void send_from(int fd, int nowild, char *packet, size_t len, 
+	       union mysockaddr *to, struct all_addr *source,
+	       unsigned int iface)
 {
   struct msghdr msg;
   struct iovec iov[1]; 
@@ -70,7 +70,7 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
 	  p.ipi_spec_dst = source->addr.addr4;
 	  memcpy(CMSG_DATA(cmptr), &p, sizeof(p));
 	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
-	  cmptr->cmsg_level = SOL_IP;
+	  cmptr->cmsg_level = IPPROTO_IP;
 	  cmptr->cmsg_type = IP_PKTINFO;
 #elif defined(IP_SENDSRCADDR)
 	  memcpy(CMSG_DATA(cmptr), &(source->addr.addr4), sizeof(source->addr.addr4));
@@ -88,10 +88,10 @@ static void send_from(int fd, int nowild, char *packet, size_t len,
 	  memcpy(CMSG_DATA(cmptr), &p, sizeof(p));
 	  msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
 	  cmptr->cmsg_type = daemon->v6pktinfo;
-	  cmptr->cmsg_level = IPV6_LEVEL;
+	  cmptr->cmsg_level = IPPROTO_IPV6;
 	}
 #else
-      iface = 0; /* eliminate warning */
+      (void)iface; /* eliminate warning */
 #endif
     }
   
@@ -703,7 +703,7 @@ void receive_query(struct listener *listen, time_t now)
 #if defined(HAVE_LINUX_NETWORK)
       if (listen->family == AF_INET)
 	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	  if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+	  if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
 	    {
 	      union {
 		unsigned char *c;
@@ -743,7 +743,7 @@ void receive_query(struct listener *listen, time_t now)
       if (listen->family == AF_INET6)
 	{
 	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	    if (cmptr->cmsg_level == IPV6_LEVEL && cmptr->cmsg_type == daemon->v6pktinfo)
+	    if (cmptr->cmsg_level == IPPROTO_IPV6 && cmptr->cmsg_type == daemon->v6pktinfo)
 	      {
 		union {
 		  unsigned char *c;
@@ -760,7 +760,7 @@ void receive_query(struct listener *listen, time_t now)
       /* enforce available interface configuration */
       
       if (!indextoname(listen->fd, if_index, ifr.ifr_name) ||
-	  !iface_check(listen->family, &dst_addr, ifr.ifr_name, &if_index))
+	  !iface_check(listen->family, &dst_addr, ifr.ifr_name))
 	return;
       
       if (listen->family == AF_INET &&

@@ -34,6 +34,7 @@
 #  define NDA_RTA(r) ((struct rtattr*)(((char*)(r)) + NLMSG_ALIGN(sizeof(struct ndmsg)))) 
 #endif 
 
+
 static struct iovec iov;
 static u32 netlink_pid;
 
@@ -127,7 +128,8 @@ static ssize_t netlink_recv(void)
 }
   
 
-/* family = AF_UNSPEC finds ARP table entries. */
+/* family = AF_UNSPEC finds ARP table entries.
+   family = AF_LOCAL finds MAC addresses. */
 int iface_enumerate(int family, void *parm, int (*callback)())
 {
   struct sockaddr_nl addr;
@@ -144,10 +146,16 @@ int iface_enumerate(int family, void *parm, int (*callback)())
   addr.nl_pad = 0;
   addr.nl_groups = 0;
   addr.nl_pid = 0; /* address to kernel */
+ 
+ again: 
+  if (family == AF_UNSPEC)
+    req.nlh.nlmsg_type = RTM_GETNEIGH;
+  else if (family == AF_LOCAL)
+    req.nlh.nlmsg_type = RTM_GETLINK;
+  else
+    req.nlh.nlmsg_type = RTM_GETADDR;
 
- again:
   req.nlh.nlmsg_len = sizeof(req);
-  req.nlh.nlmsg_type = family == AF_UNSPEC ? RTM_GETNEIGH : RTM_GETADDR;
   req.nlh.nlmsg_flags = NLM_F_ROOT | NLM_F_MATCH | NLM_F_REQUEST | NLM_F_ACK; 
   req.nlh.nlmsg_pid = 0;
   req.nlh.nlmsg_seq = ++seq;
@@ -179,7 +187,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	  nl_err(h);
 	else if (h->nlmsg_type == NLMSG_DONE)
 	  return 1;
-	else if (h->nlmsg_type == RTM_NEWADDR && family != AF_UNSPEC)
+	else if (h->nlmsg_type == RTM_NEWADDR && family != AF_UNSPEC && family != AF_LOCAL)
 	  {
 	    struct ifaddrmsg *ifa = NLMSG_DATA(h);  
 	    struct rtattr *rta = IFA_RTA(ifa);
@@ -222,7 +230,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		      }
 		    
 		    if (addrp)
-		      if (!((*callback)(addrp, ifa->ifa_index, 
+		      if (!((*callback)(addrp, ifa->ifa_prefixlen, ifa->ifa_index, 
 					ifa->ifa_index, ifa->ifa_flags & IFA_F_TENTATIVE, parm)))
 			return 0;
 		  }
@@ -253,7 +261,31 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	    if (inaddr && mac)
 	      if (!((*callback)(neigh->ndm_family, inaddr, mac, maclen, parm)))
 		return 0;
-	  }	
+	  }
+#ifdef HAVE_DHCP6
+	else if (h->nlmsg_type == RTM_NEWLINK && family == AF_LOCAL)
+	  {
+	    struct ifinfomsg *link =  NLMSG_DATA(h);
+	    struct rtattr *rta = IFLA_RTA(link);
+	    unsigned int len1 = h->nlmsg_len - NLMSG_LENGTH(sizeof(*link));
+	    char *mac = NULL;
+	    size_t maclen = 0;
+
+	    while (RTA_OK(rta, len1))
+	      {
+		if (rta->rta_type == IFLA_ADDRESS)
+		  {
+		    maclen = rta->rta_len - sizeof(struct rtattr);
+		    mac = (char *)(rta+1);
+		  }
+		
+		rta = RTA_NEXT(rta, len1);
+	      }
+
+	    if (mac && !((*callback)(link->ifi_type, link->ifi_flags, mac, maclen, parm)))
+	      return 0;
+	  }
+#endif
     }
 }
 

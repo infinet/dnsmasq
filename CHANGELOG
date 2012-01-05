@@ -1,18 +1,47 @@
-version 2.59
-	    Fix regression in 2.58 which caused failure to start up
-	    with some combinations of dnsmasq config and IPv6 kernel
-	    network config. Thanks to Brielle Bruns for the bug
-	    report.
+version 2.60
+            Fix compilation problem in Mac OS X Lion. Thanks to Olaf
+            Flebbe for the patch.
 
-	    Improve dnsmasq's behaviour when network interfaces are
-	    still doing duplicate address detection (DAD). Previously,
-	    dnsmasq would wait up to 20 seconds at start-up for the
-	    DAD state to terminate. This is broken for bridge
-	    interfaces on recent Linux kernels, which don't start DAD
-	    until the bridge comes up, and so can take arbitrary
-	    time. The new behaviour lets dnsmasq poll for an arbitrary
-	    time whilst providing service on other interfaces. Thanks
-	    to Stephen Hemminger for pointing out the problem.
+	    Fix DHCP when using --listen-address with an IP address
+	    which is not the primary address of an interface.
+
+	    Add --dhcp-client-update option.
+
+	    Add Lua integration. Dnsmasq can now execute a DHCP
+	    lease-change script written in Lua. This needs to be
+	    enabled at compile time by setting HAVE_LUASCRIPT in 
+	    src/config.h or running "make COPTS=-DHAVE_LUASCRIPT"
+	    Thanks to Jan-Piet Mens for the idea and proof-of-concept 
+	    implementation.
+	    
+	    Tidied src/config.h to distinguish between
+	    platform-dependent compile-time options which are selected
+	    automatically, and builder-selectable compile time
+	    options. Document the latter better, and describe how to
+	    set them from the make command line.
+
+	    Tidied up IPPROTO_IP/SOL_IP (and IPv6 equivalent)
+	    confusion. IPPROTO_IP works everywhere now.
+	    
+	    Set TOS on DHCP sockets, this improves things on busy
+	    wireless networks. Thanks to Dave Taht for the patch.
+
+
+version 2.59
+            Fix regression in 2.58 which caused failure to start up
+            with some combinations of dnsmasq config and IPv6 kernel
+            network config. Thanks to Brielle Bruns for the bug
+            report.
+
+            Improve dnsmasq's behaviour when network interfaces are
+            still doing duplicate address detection (DAD). Previously,
+            dnsmasq would wait up to 20 seconds at start-up for the
+            DAD state to terminate. This is broken for bridge
+            interfaces on recent Linux kernels, which don't start DAD
+            until the bridge comes up, and so can take arbitrary
+            time. The new behaviour lets dnsmasq poll for an arbitrary
+            time whilst providing service on other interfaces. Thanks
+            to Stephen Hemminger for pointing out the problem.
 
 
 version 2.58

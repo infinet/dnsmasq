@@ -23,8 +23,15 @@ struct iface_param {
   int ind;
 };
 
+struct match_param {
+  int ind, matched;
+  struct in_addr netmask, broadcast, addr;
+};
+
 static int complete_context(struct in_addr local, int if_index, 
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam);
+static int check_listen_addrs(struct in_addr local, int if_index, 
+			      struct in_addr netmask, struct in_addr broadcast, void *vparam);
 
 static int make_fd(int port)
 {
@@ -34,16 +41,22 @@ static int make_fd(int port)
 #if defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DONT)
   int mtu = IP_PMTUDISC_DONT;
 #endif
+#if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
+  int tos = IPTOS_CLASS_CS6;
+#endif
 
   if (fd == -1)
     die (_("cannot create DHCP socket: %s"), NULL, EC_BADNET);
   
   if (!fix_fd(fd) ||
 #if defined(IP_MTU_DISCOVER) && defined(IP_PMTUDISC_DONT)
-      setsockopt(fd, SOL_IP, IP_MTU_DISCOVER, &mtu, sizeof(mtu)) == -1 ||
+      setsockopt(fd, IPPROTO_IP, IP_MTU_DISCOVER, &mtu, sizeof(mtu)) == -1 ||
+#endif
+#if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
+      setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) == -1 ||
 #endif
 #if defined(HAVE_LINUX_NETWORK)
-      setsockopt(fd, SOL_IP, IP_PKTINFO, &oneopt, sizeof(oneopt)) == -1 ||
+      setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &oneopt, sizeof(oneopt)) == -1 ||
 #else
       setsockopt(fd, IPPROTO_IP, IP_RECVIF, &oneopt, sizeof(oneopt)) == -1 ||
 #endif
@@ -110,7 +123,41 @@ void dhcp_init(void)
   daemon->dhcp_packet.iov_len = sizeof(struct dhcp_packet); 
   daemon->dhcp_packet.iov_base = safe_malloc(daemon->dhcp_packet.iov_len);
 }
+
+ssize_t recv_dhcp_packet(int fd, struct msghdr *msg)
+{  
+  ssize_t sz;
+ 
+  while (1)
+    {
+      msg->msg_flags = 0;
+      while ((sz = recvmsg(fd, msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
+      
+      if (sz == -1)
+	return -1;
+      
+      if (!(msg->msg_flags & MSG_TRUNC))
+	break;
+
+      /* Very new Linux kernels return the actual size needed, 
+	 older ones always return truncated size */
+      if ((size_t)sz == daemon->dhcp_packet.iov_len)
+	{
+	  if (!expand_buf(&daemon->dhcp_packet, sz + 100))
+	    return -1;
+	}
+      else
+	{
+	  expand_buf(&daemon->dhcp_packet, sz);
+	  break;
+	}
+    }
   
+  while ((sz = recvmsg(fd, msg, 0)) == -1 && errno == EINTR);
+  
+  return (msg->msg_flags & MSG_TRUNC) ? -1 : sz;
+}
+
 void dhcp_packet(time_t now, int pxe_fd)
 {
   int fd = pxe_fd ? daemon->pxefd : daemon->dhcpfd;
@@ -124,7 +171,7 @@ void dhcp_packet(time_t now, int pxe_fd)
   struct iovec iov;
   ssize_t sz; 
   int iface_index = 0, unicast_dest = 0, is_inform = 0;
-  struct in_addr iface_addr, *addrp = NULL;
+  struct in_addr iface_addr;
   struct iface_param parm;
 #ifdef HAVE_LINUX_NETWORK
   struct arpreq arp_req;
@@ -140,56 +187,23 @@ void dhcp_packet(time_t now, int pxe_fd)
     char control[CMSG_SPACE(sizeof(struct sockaddr_dl))];
 #endif
   } control_u;
-  
-  msg.msg_control = NULL;
-  msg.msg_controllen = 0;
-  msg.msg_name = NULL;
-  msg.msg_namelen = 0;
+  struct dhcp_bridge *bridge, *alias;
+
+  msg.msg_controllen = sizeof(control_u);
+  msg.msg_control = control_u.control;
+  msg.msg_name = &dest;
+  msg.msg_namelen = sizeof(dest);
   msg.msg_iov = &daemon->dhcp_packet;
   msg.msg_iovlen = 1;
   
-  while (1)
-    {
-      msg.msg_flags = 0;
-      while ((sz = recvmsg(fd, &msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
-      
-      if (sz == -1)
-	return;
-      
-      if (!(msg.msg_flags & MSG_TRUNC))
-	break;
-
-      /* Very new Linux kernels return the actual size needed, 
-	 older ones always return truncated size */
-      if ((size_t)sz == daemon->dhcp_packet.iov_len)
-	{
-	  if (!expand_buf(&daemon->dhcp_packet, sz + 100))
-	    return;
-	}
-      else
-	{
-	  expand_buf(&daemon->dhcp_packet, sz);
-	  break;
-	}
-    }
-  
-  /* expand_buf may have moved buffer */
-  mess = (struct dhcp_packet *)daemon->dhcp_packet.iov_base;
-  msg.msg_controllen = sizeof(control_u);
-  msg.msg_control = control_u.control;
-  msg.msg_flags = 0;
-  msg.msg_name = &dest;
-  msg.msg_namelen = sizeof(dest);
-
-  while ((sz = recvmsg(fd, &msg, 0)) == -1 && errno == EINTR);
- 
-  if ((msg.msg_flags & MSG_TRUNC) || sz < (ssize_t)(sizeof(*mess) - sizeof(mess->options)))
+  if ((sz = recv_dhcp_packet(fd, &msg)) == -1 || 
+      (sz < (ssize_t)(sizeof(*mess) - sizeof(mess->options)))) 
     return;
-  
-#if defined (HAVE_LINUX_NETWORK)
+    
+  #if defined (HAVE_LINUX_NETWORK)
   if (msg.msg_controllen >= sizeof(struct cmsghdr))
     for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-      if (cmptr->cmsg_level == SOL_IP && cmptr->cmsg_type == IP_PKTINFO)
+      if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
 	{
 	  union {
 	    unsigned char *c;
@@ -236,26 +250,50 @@ void dhcp_packet(time_t now, int pxe_fd)
   strncpy(arp_req.arp_dev, ifr.ifr_name, 16);
 #endif 
 
+   /* One form of bridging on BSD has the property that packets
+      can be recieved on bridge interfaces which do not have an IP address.
+      We allow these to be treated as aliases of another interface which does have
+      an IP address with --dhcp-bridge=interface,alias,alias */
+  for (bridge = daemon->bridges; bridge; bridge = bridge->next)
+    {
+      for (alias = bridge->alias; alias; alias = alias->next)
+	if (strncmp(ifr.ifr_name, alias->iface, IF_NAMESIZE) == 0)
+	  {
+	    if (!(iface_index = if_nametoindex(bridge->iface)))
+	      {
+		my_syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), ifr.ifr_name);
+		return;
+	      }
+	    else 
+	      {
+		strncpy(ifr.ifr_name,  bridge->iface, IF_NAMESIZE);
+		break;
+	      }
+	  }
+      
+      if (alias)
+	break;
+    }
+
 #ifdef MSG_BCAST
   /* OpenBSD tells us when a packet was broadcast */
   if (!(msg.msg_flags & MSG_BCAST))
     unicast_dest = 1;
 #endif
-
+  
   ifr.ifr_addr.sa_family = AF_INET;
   if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) != -1 )
+    iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+  else
     {
-      addrp = &iface_addr;
-      iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+      my_syslog(MS_DHCP | LOG_WARNING, _("DHCP packet received on %s which has no address"), ifr.ifr_name);
+      return;
     }
-
-  if (!iface_check(AF_INET, (struct all_addr *)addrp, ifr.ifr_name, &iface_index))
-    return;
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
     if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
       return;
-
+  
   /* weird libvirt-inspired access control */
   for (context = daemon->dhcp; context; context = context->next)
     if (!context->interface || strcmp(context->interface, ifr.ifr_name) == 0)
@@ -263,7 +301,7 @@ void dhcp_packet(time_t now, int pxe_fd)
 
   if (!context)
     return;
-  
+
   /* unlinked contexts are marked by context->current == context */
   for (context = daemon->dhcp; context; context = context->next)
     context->current = context;
@@ -271,29 +309,29 @@ void dhcp_packet(time_t now, int pxe_fd)
   parm.current = NULL;
   parm.ind = iface_index;
 
-    /* interface may have been changed by alias in iface_check, make sure it gets priority in case
-       there is more than one address on the interface in the same subnet */
-  if (ioctl(daemon->dhcpfd, SIOCGIFADDR, &ifr) == -1)
+  if (!iface_check(AF_INET, (struct all_addr *)&iface_addr, ifr.ifr_name))
     {
-      my_syslog(MS_DHCP | LOG_WARNING, _("DHCP packet received on %s which has no address"), ifr.ifr_name);
-      return;
-    }
-  else
-    {
-      iface_addr = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-      if (ioctl(daemon->dhcpfd, SIOCGIFNETMASK, &ifr) != -1)
-	{
-	  struct in_addr netmask =  ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-	  if (ioctl(daemon->dhcpfd, SIOCGIFBRDADDR, &ifr) != -1)
-	    {
-	      struct in_addr broadcast =  ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
-	      complete_context(iface_addr, iface_index, netmask, broadcast, &parm);
-	    }
-	}
-    } 
+      /* If we failed to match the primary address of the interface, see if we've got a --listen-address
+	 for a secondary */
+      struct match_param match;
 
+      match.matched = 0;
+      match.ind = iface_index;
+      
+      if (!daemon->if_addrs ||
+	  !iface_enumerate(AF_INET, &match, check_listen_addrs) ||
+	  !match.matched)
+	return;
+
+      iface_addr = match.addr;
+      /* make sure secondary address gets priority in case
+	 there is more than one address on the interface in the same subnet */
+      complete_context(match.addr, iface_index, match.netmask, match.broadcast, &parm);
+    }    
+      
   if (!iface_enumerate(AF_INET, &parm, complete_context))
     return;
+  
   lease_prune(NULL, now); /* lose any expired leases */
   iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, 
 			   now, unicast_dest, &is_inform, pxe_fd, iface_addr);
@@ -316,7 +354,7 @@ void dhcp_packet(time_t now, int pxe_fd)
 #ifdef HAVE_SOCKADDR_SA_LEN
   dest.sin_len = sizeof(struct sockaddr_in);
 #endif
-     
+  
   if (pxe_fd)
     { 
       if (mess->ciaddr.s_addr != 0)
@@ -354,7 +392,7 @@ void dhcp_packet(time_t now, int pxe_fd)
       pkt->ipi_ifindex = iface_index;
       pkt->ipi_spec_dst.s_addr = 0;
       msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
-      cmptr->cmsg_level = SOL_IP;
+      cmptr->cmsg_level = IPPROTO_IP;
       cmptr->cmsg_type = IP_PKTINFO;  
       dest.sin_addr.s_addr = INADDR_BROADCAST;
       dest.sin_port = htons(daemon->dhcp_client_port);
@@ -411,6 +449,30 @@ void dhcp_packet(time_t now, int pxe_fd)
   while(sendmsg(fd, &msg, 0) == -1 && retry_send());
 }
  
+/* check against secondary interface addresses */
+static int check_listen_addrs(struct in_addr local, int if_index, 
+			      struct in_addr netmask, struct in_addr broadcast, void *vparam)
+{
+  struct match_param *param = vparam;
+  struct iname *tmp;
+
+  if (if_index == param->ind)
+    {
+      for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
+	if ( tmp->addr.sa.sa_family == AF_INET &&
+	     tmp->addr.in.sin_addr.s_addr == local.s_addr)
+	  {
+	    param->matched = 1;
+	    param->addr = local;
+	    param->netmask = netmask;
+	    param->broadcast = broadcast;
+	    break;
+	  }
+    }
+  
+  return 1;
+}
+
 /* This is a complex routine: it gets called with each (address,netmask,broadcast) triple 
    of each interface (and any relay address) and does the  following things:
 
