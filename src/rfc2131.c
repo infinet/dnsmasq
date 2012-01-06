@@ -1249,8 +1249,16 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		add_extradata_opt(lease, NULL);
 	      else
 		for (n = tagif_netid; n; n = n->next)
-		  add_extradata_data(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
-	      
+		  {
+		    struct dhcp_netid *n1;
+		    /* kill dupes */
+		    for (n1 = n->next; n1; n1 = n1->next)
+		      if (strcmp(n->net, n1->net) == 0)
+			break;
+		    if (!n1)
+		      add_extradata_data(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
+		  }
+
 	      if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
 		{
 		  int len = option_len(opt);
