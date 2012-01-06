@@ -26,7 +26,10 @@ version 2.60
 	    Set TOS on DHCP sockets, this improves things on busy
 	    wireless networks. Thanks to Dave Taht for the patch.
 
+	    Determine VERSION automatically based on git magic:
+	    release tags or hash values.
 
+	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up
             with some combinations of dnsmasq config and IPv6 kernel
