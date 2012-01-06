@@ -219,7 +219,7 @@
 # any machine with Ethernet address starting 11:22:33:
 #dhcp-host=11:22:33:*:*:*,set:red
 
-# Ignore any clients which are specified in dhcp-host lines
+# Ignore any clients which are not specified in dhcp-host lines
 # or /etc/ethers. Equivalent to ISC "deny unknown-clients".
 # This relies on the special "known" tag which is set when
 # a host is matched.

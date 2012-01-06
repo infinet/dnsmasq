@@ -2,6 +2,7 @@ dnsmasq (2.60-1) unstable; urgency=low
 
    * New upstream.
    * Bump standards-version to 3.9.2
+   * Fix typo in example config file. (closes: #654897)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 1 Dec 2011 15:49:33 +0000
 
