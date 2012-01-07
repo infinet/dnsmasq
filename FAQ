@@ -467,8 +467,18 @@ A: The DHCP client on windows Vista (and possibly later versions)
    work).
 
   
+Q: DHCP doesn't work with windows 7 but everything else is fine.
 
+A: There seems to be a problem if Windows 7 doesn't get a value for
+   DHCP option 252 in DHCP packets it gets from the server. The
+   symtoms have beeen variously reported as continual DHCPINFORM
+   requests in an attempt to get an option-252, or even ignoring DHCP
+   offers completely (and failing to get an IP address) if there is no
+   option-252 supplied. DHCP option 252 is for WPAD, WWW Proxy 
+   Auto Detection and if you don't want or need to use that, then 
+   simplest fix seems to be to supply an empty option with:
 
+   dhcp-option=252,"\n"
 
 
 

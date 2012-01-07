@@ -304,6 +304,9 @@
 #dhcp-option=45,0.0.0.0     # netbios datagram distribution server
 #dhcp-option=46,8           # netbios node type
 
+# Send an empty WPAD option. This may be REQUIRED to get windows 7 to behave.
+#dhcp-option=252,"\n"
+
 # Send RFC-3397 DNS domain search DHCP option. WARNING: Your DHCP client
 # probably doesn't support this......
 #dhcp-option=option:domain-search,eng.apple.com,marketing.apple.com
