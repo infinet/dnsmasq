@@ -15,6 +15,7 @@
 */
 
 #define FTABSIZ 150 /* max number of outstanding requests (default) */
+#define RHASHSIZE 1024 /* hash buckets for address lookup during hostfile read */
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
 #define EDNS_PKTSZ 4096 /* default max EDNS.0 UDP packet from RFC5625 */

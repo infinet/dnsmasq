@@ -635,11 +635,12 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
 }
 
 static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, 
-			    unsigned short flags, int index, int addr_dup)
+			    unsigned short flags, int index, struct crec **rhash)
 {
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
   int i, nameexists = 0;
   struct cname *a;
+  unsigned int j; 
 
   /* Remove duplicates in hosts files. */
   if (lookup && (lookup->flags & F_HOSTS))
@@ -653,33 +654,41 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
     }
   
   /* Ensure there is only one address -> name mapping (first one trumps) 
-     We do this by steam here, first we see if the address is the same as
-     the last one we saw, which eliminates most in the case of an ad-block 
-     file with thousands of entries for the same address.
-     Then we search and bail at the first matching address that came from
+     We do this by steam here, The entries are kept in hash chains, linked
+     by ->next (which is unused at this point) held in hash buckets in
+     the array rhash. Note that rhash and the values in ->next are only valid
+     whilst reading hosts files: the buckets are then freed, and the 
+     ->next pointer used for other things. 
+
+     We search and bail at the first matching address that came from
      a HOSTS file. Since the first host entry gets reverse, we know 
-     then that it must exist without searching exhaustively for it. */
+     then that it must exist without searching exhaustively for it.
+
+     This complexity avoids O(n^2) divergent CPU use whilst reading
+     large (10000 entry) hosts files. */
   
-  if (addr_dup)
-    flags &= ~F_REVERSE;
-  else
-    for (i=0; i<hash_size; i++)
+  /* hash address */
+  for (j = 0, i = 0; i < addrlen; i++)
+    j += ((unsigned char *)addr)[i] + (j << 6) + (j << 16) - j;
+  
+  for (lookup = rhash[j % RHASHSIZE]; lookup; lookup = lookup->next)
+    if ((lookup->flags & F_HOSTS) && 
+	(lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+	memcmp(&lookup->addr.addr, addr, addrlen) == 0)
       {
-	for (lookup = hash_table[i]; lookup; lookup = lookup->hash_next)
-	  if ((lookup->flags & F_HOSTS) && 
-	      (lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
-	      memcmp(&lookup->addr.addr, addr, addrlen) == 0)
-	    {
-	      flags &= ~F_REVERSE;
-	      break;
-	    }
-	if (lookup)
-	  break;
+	flags &= ~F_REVERSE;
+	break;
       }
   
   cache->flags = flags;
   cache->uid = index;
+  
+  /* maintain address has chain */
+  cache->next = rhash[j % RHASHSIZE];
+  rhash[j % RHASHSIZE] = cache;
+  
   memcpy(&cache->addr.addr, addr, addrlen);
+  
   cache_hash(cache);
   
   /* don't need to do alias stuff for second and subsequent addresses. */
@@ -743,14 +752,14 @@ static int gettok(FILE *f, char *token)
     }
 }
 
-static int read_hostsfile(char *filename, int index, int cache_size)
+static int read_hostsfile(char *filename, int index, int cache_size, struct crec **rhash)
 {  
   FILE *f = fopen(filename, "r");
   char *token = daemon->namebuff, *domain_suffix = NULL;
   int addr_count = 0, name_count = cache_size, lineno = 0;
-  unsigned short flags = 0, saved_flags = 0;
-  struct all_addr addr, saved_addr;
-  int atnl, addrlen = 0, addr_dup;
+  unsigned short flags = 0;
+  struct all_addr addr;
+  int atnl, addrlen = 0;
 
   if (!f)
     {
@@ -762,7 +771,6 @@ static int read_hostsfile(char *filename, int index, int cache_size)
   
   while ((atnl = gettok(f, token)) != EOF)
     {
-      addr_dup = 0;
       lineno++;
       
 #ifdef HAVE_IPV6      
@@ -792,14 +800,6 @@ static int read_hostsfile(char *filename, int index, int cache_size)
 	  while (atnl == 0)
 	    atnl = gettok(f, token);
 	  continue;
-	}
-      
-      if (saved_flags == flags && memcmp(&addr, &saved_addr, addrlen) == 0)
-	addr_dup = 1;
-      else
-	{
-	  saved_flags = flags;
-	  saved_addr = addr;
 	}
       
       addr_count++;
@@ -832,14 +832,13 @@ static int read_hostsfile(char *filename, int index, int cache_size)
 		  strcpy(cache->name.sname, canon);
 		  strcat(cache->name.sname, ".");
 		  strcat(cache->name.sname, domain_suffix);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
-		  addr_dup = 1;
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash);
 		  name_count++;
 		}
 	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(canon)+1-SMALLDNAME)))
 		{
 		  strcpy(cache->name.sname, canon);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, addr_dup);
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash);
 		  name_count++;
 		}
 	      free(canon);
@@ -863,6 +862,7 @@ void cache_reload(void)
   struct crec *cache, **up, *tmp;
   int i, total_size = daemon->cachesize;
   struct hostsfile *ah;
+  struct crec **reverse_hash;
 
   cache_inserted = cache_live_freed = 0;
   
@@ -895,14 +895,22 @@ void cache_reload(void)
 	my_syslog(LOG_INFO, _("cleared cache"));
       return;
     }
-
+  
+  if (!(reverse_hash = whine_malloc(sizeof(struct crec *) * RHASHSIZE)))
+    return;
+  
+  for (i = 0; i < RHASHSIZE; i++)
+    reverse_hash[i] = NULL;
+      
   if (!option_bool(OPT_NO_HOSTS))
-    total_size = read_hostsfile(HOSTSFILE, 0, total_size);
+    total_size = read_hostsfile(HOSTSFILE, 0, total_size, reverse_hash);
   	   
   daemon->addn_hosts = expand_filelist(daemon->addn_hosts);
   for (ah = daemon->addn_hosts; ah; ah = ah->next)
     if (!(ah->flags & AH_INACTIVE))
-      total_size = read_hostsfile(ah->fname, ah->index, total_size);
+      total_size = read_hostsfile(ah->fname, ah->index, total_size, reverse_hash);
+
+  free(reverse_hash);
 } 
 
 char *get_domain(struct in_addr addr)
