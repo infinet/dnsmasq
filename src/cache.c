@@ -660,9 +660,7 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
      whilst reading hosts files: the buckets are then freed, and the 
      ->next pointer used for other things. 
 
-     We search and bail at the first matching address that came from
-     a HOSTS file. Since the first host entry gets reverse, we know 
-     then that it must exist without searching exhaustively for it.
+     Only insert each unique address one into this hashing structure.
 
      This complexity avoids O(n^2) divergent CPU use whilst reading
      large (10000 entry) hosts files. */
@@ -671,7 +669,9 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
   for (j = 0, i = 0; i < addrlen; i++)
     j += ((unsigned char *)addr)[i] + (j << 6) + (j << 16) - j;
   
-  for (lookup = rhash[j % RHASHSIZE]; lookup; lookup = lookup->next)
+  j = j % RHASHSIZE;
+  
+  for (lookup = rhash[j]; lookup; lookup = lookup->next)
     if ((lookup->flags & F_HOSTS) && 
 	(lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
 	memcmp(&lookup->addr.addr, addr, addrlen) == 0)
@@ -680,15 +680,16 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
 	break;
       }
   
+  /* maintain address hash chain, insert new unique address */
+  if (!lookup)
+    {
+      cache->next = rhash[j];
+      rhash[j] = cache;
+    }
+  
   cache->flags = flags;
   cache->uid = index;
-  
-  /* maintain address has chain */
-  cache->next = rhash[j % RHASHSIZE];
-  rhash[j % RHASHSIZE] = cache;
-  
-  memcpy(&cache->addr.addr, addr, addrlen);
-  
+  memcpy(&cache->addr.addr, addr, addrlen);  
   cache_hash(cache);
   
   /* don't need to do alias stuff for second and subsequent addresses. */
