@@ -635,7 +635,7 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
 }
 
 static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, 
-			    unsigned short flags, int index, struct crec **rhash)
+			    unsigned short flags, int index, struct crec **rhash, int hashsz)
 {
   struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
   int i, nameexists = 0;
@@ -656,20 +656,18 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
   /* Ensure there is only one address -> name mapping (first one trumps) 
      We do this by steam here, The entries are kept in hash chains, linked
      by ->next (which is unused at this point) held in hash buckets in
-     the array rhash. Note that rhash and the values in ->next are only valid
-     whilst reading hosts files: the buckets are then freed, and the 
-     ->next pointer used for other things. 
+     the array rhash, hashed on address. Note that rhash and the values
+     in ->next are only valid  whilst reading hosts files: the buckets are
+     then freed, and the ->next pointer used for other things. 
 
-     Only insert each unique address one into this hashing structure.
+     Only insert each unique address once into this hashing structure.
 
      This complexity avoids O(n^2) divergent CPU use whilst reading
      large (10000 entry) hosts files. */
   
   /* hash address */
   for (j = 0, i = 0; i < addrlen; i++)
-    j += ((unsigned char *)addr)[i] + (j << 6) + (j << 16) - j;
-  
-  j = j % RHASHSIZE;
+    j = (j*2 +((unsigned char *)addr)[i]) % hashsz;
   
   for (lookup = rhash[j]; lookup; lookup = lookup->next)
     if ((lookup->flags & F_HOSTS) && 
@@ -753,7 +751,7 @@ static int gettok(FILE *f, char *token)
     }
 }
 
-static int read_hostsfile(char *filename, int index, int cache_size, struct crec **rhash)
+static int read_hostsfile(char *filename, int index, int cache_size, struct crec **rhash, int hashsz)
 {  
   FILE *f = fopen(filename, "r");
   char *token = daemon->namebuff, *domain_suffix = NULL;
@@ -833,13 +831,13 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
 		  strcpy(cache->name.sname, canon);
 		  strcat(cache->name.sname, ".");
 		  strcat(cache->name.sname, domain_suffix);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash);
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash, hashsz);
 		  name_count++;
 		}
 	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(canon)+1-SMALLDNAME)))
 		{
 		  strcpy(cache->name.sname, canon);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash);
+		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash, hashsz);
 		  name_count++;
 		}
 	      free(canon);
@@ -861,9 +859,8 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
 void cache_reload(void)
 {
   struct crec *cache, **up, *tmp;
-  int i, total_size = daemon->cachesize;
+  int revhashsz, i, total_size = daemon->cachesize;
   struct hostsfile *ah;
-  struct crec **reverse_hash;
 
   cache_inserted = cache_live_freed = 0;
   
@@ -896,22 +893,20 @@ void cache_reload(void)
 	my_syslog(LOG_INFO, _("cleared cache"));
       return;
     }
-  
-  if (!(reverse_hash = whine_malloc(sizeof(struct crec *) * RHASHSIZE)))
-    return;
-  
-  for (i = 0; i < RHASHSIZE; i++)
-    reverse_hash[i] = NULL;
-      
+    
+  /* borrow the packet buffer for a temporary by-address hash */
+  memset(daemon->packet, 0, daemon->packet_buff_sz);
+  revhashsz = daemon->packet_buff_sz / sizeof(struct crec *);
+  /* we overwrote the buffer... */
+  daemon->srv_save = NULL;
+
   if (!option_bool(OPT_NO_HOSTS))
-    total_size = read_hostsfile(HOSTSFILE, 0, total_size, reverse_hash);
+    total_size = read_hostsfile(HOSTSFILE, 0, total_size, (struct crec **)daemon->packet, revhashsz);
   	   
   daemon->addn_hosts = expand_filelist(daemon->addn_hosts);
   for (ah = daemon->addn_hosts; ah; ah = ah->next)
     if (!(ah->flags & AH_INACTIVE))
-      total_size = read_hostsfile(ah->fname, ah->index, total_size, reverse_hash);
-
-  free(reverse_hash);
+      total_size = read_hostsfile(ah->fname, ah->index, total_size, (struct crec **)daemon->packet, revhashsz);
 } 
 
 char *get_domain(struct in_addr addr)
