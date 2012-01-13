@@ -670,8 +670,7 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
     j = (j*2 +((unsigned char *)addr)[i]) % hashsz;
   
   for (lookup = rhash[j]; lookup; lookup = lookup->next)
-    if ((lookup->flags & F_HOSTS) && 
-	(lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+    if ((lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
 	memcmp(&lookup->addr.addr, addr, addrlen) == 0)
       {
 	flags &= ~F_REVERSE;
