@@ -29,6 +29,14 @@ version 2.60
 	    Determine VERSION automatically based on git magic:
 	    release tags or hash values.
 
+	    Improve start-up speed when reading large hosts files 
+	    containing many distinct addresses.
+
+	    Fix problem if dnsmasq is started without the stdin,
+	    stdout and stderr file descriptors open. This can manifest
+	    itself as 100% CPU use. Thanks to Chris Moore for finding
+	    this.
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up

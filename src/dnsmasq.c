@@ -92,10 +92,19 @@ int main (int argc, char **argv)
     }
 #endif
   
-  /* Close any file descriptors we inherited apart from std{in|out|err} */
+  /* Close any file descriptors we inherited apart from std{in|out|err} 
+     
+     Ensure that at least stdin, stdout and stderr (fd 0, 1, 2) exist,
+     otherwise file descriptors we create can end up being 0, 1, or 2 
+     and then get accidentally closed later when we make 0, 1, and 2 
+     open to /dev/null. Normally we'll be started with 0, 1 and 2 open, 
+     but it's not guaranteed. By opening /dev/null three times, we 
+     ensure that we're not using those fds for real stuff. */
   for (i = 0; i < max_fd; i++)
     if (i != STDOUT_FILENO && i != STDERR_FILENO && i != STDIN_FILENO)
       close(i);
+    else
+      open("/dev/null", O_RDWR); 
 
 #ifdef HAVE_LINUX_NETWORK
   netlink_init();
