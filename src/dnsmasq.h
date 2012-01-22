@@ -54,6 +54,7 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+typedef unsigned long long u64;
 
 #include "dns_protocol.h"
 #include "dhcp_protocol.h"
@@ -448,8 +449,8 @@ struct dhcp_lease {
 #ifdef HAVE_BROKEN_RTC
   unsigned int length;
 #endif
-  int hwaddr_len, hwaddr_type;
-  unsigned char hwaddr[DHCP_CHADDR_MAX]; 
+  int hwaddr_len, hwaddr_type; /* hw_type used for iaid in v6 */
+  unsigned char hwaddr[DHCP_CHADDR_MAX]; /* also IPv6 address */
   struct in_addr addr, override, giaddr;
   unsigned char *extradata;
   unsigned int extradata_len, extradata_size;
@@ -489,6 +490,9 @@ struct dhcp_config {
   unsigned char *clid;   /* clientid */
   char *hostname, *domain;
   struct dhcp_netid_list *netid;
+#ifdef HAVE_DHCP6
+  struct in6_addr addr6;
+#endif
   struct in_addr addr;
   time_t decline_time;
   unsigned int lease_time;
@@ -506,6 +510,7 @@ struct dhcp_config {
 #define CONFIG_ADDR_HOSTS      512    /* address added by from /etc/hosts */
 #define CONFIG_DECLINED       1024    /* address declined by client */
 #define CONFIG_BANK           2048    /* from dhcp hosts file */
+#define CONFIG_ADDR6          4096
 
 struct dhcp_opt {
   int opt, len, flags;
@@ -588,6 +593,7 @@ struct dhcp_context {
   struct in_addr start, end; /* range of available addresses */
 #ifdef HAVE_DHCP6
   struct in6_addr start6, end6; /* range of available addresses */
+  struct in6_addr local6, router6;
   int prefix;
 #endif
   int flags;
@@ -600,7 +606,6 @@ struct dhcp_context {
 #define CONTEXT_NETMASK   2
 #define CONTEXT_BRDCAST   4
 #define CONTEXT_PROXY     8
-#define CONTEXT_IPV6     16
 
 struct ping_result {
   struct in_addr addr;
@@ -681,7 +686,7 @@ extern struct daemon {
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp, *dhcp6;
   struct dhcp_config *dhcp_conf;
-  struct dhcp_opt *dhcp_opts, *dhcp_match;
+  struct dhcp_opt *dhcp_opts, *dhcp_match, *dhcp_opts6;
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;
@@ -814,6 +819,8 @@ time_t dnsmasq_time(void);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 #ifdef HAVE_IPV6
 int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen);
+u64 addr6part(struct in6_addr *addr);
+void setaddr6part(struct in6_addr *addr, u64 host);
 #endif
 int retry_send(void);
 void prettyprint_time(char *buf, unsigned int t);
@@ -908,9 +915,11 @@ char *get_domain(struct in_addr addr);
 void lease_update_file(time_t now);
 void lease_update_dns();
 void lease_init(time_t now);
-struct dhcp_lease *lease_allocate4(struct in_addr addr);
+struct dhcp_lease *lease4_allocate(struct in_addr addr);
 #ifdef HAVE_DHCP6
-struct dhcp_lease *lease_allocate6(struct in6_addr *addrp);
+struct dhcp_lease *lease6_allocate(struct in6_addr *addrp);
+struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr);
+struct dhcp_lease *lease6_find_by_client(unsigned char *clid, int clid_len, int iaid);
 #endif
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int hw_len, int hw_type, int clid_len);
@@ -991,8 +1000,22 @@ int get_incoming_mark(union mysockaddr *peer_addr, struct all_addr *local_addr,
 		      int istcp, unsigned int *markp);
 #endif
 
+/* dhcp6.c */
+#ifdef HAVE_DHCP6
+void dhcp6_init(void);
+void dhcp6_packet(time_t now);
+int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
+		      struct dhcp_netid *netids, struct in6_addr *ans);
+struct dhcp_context *address6_available(struct dhcp_context *context, 
+					struct in6_addr *taddr,
+					struct dhcp_netid *netids);
+struct dhcp_context *narrow_context6(struct dhcp_context *context, 
+				     struct in6_addr *taddr,
+				     struct dhcp_netid *netids);
+#endif
+
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
 void make_duid(time_t now);
-size_t dhcp6_reply(struct dhcp_context *context, size_t sz);
+size_t dhcp6_reply(struct dhcp_context *context, size_t sz, time_t now);
 #endif

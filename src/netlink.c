@@ -230,8 +230,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		      }
 		    
 		    if (addrp)
-		      if (!((*callback)(addrp, ifa->ifa_prefixlen, ifa->ifa_index, 
-					ifa->ifa_index, ifa->ifa_flags & IFA_F_TENTATIVE, parm)))
+		      if (!((*callback)(addrp, (int)(ifa->ifa_prefixlen), (int)(ifa->ifa_scope), 
+					(int)(ifa->ifa_index), (int)(ifa->ifa_flags & IFA_F_TENTATIVE), parm)))
 			return 0;
 		  }
 #endif

@@ -1870,18 +1870,9 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	char *cp, *a[5] = { NULL, NULL, NULL, NULL, NULL };
 	struct dhcp_context *new = opt_malloc(sizeof(struct dhcp_context));
 	
-	new->next = daemon->dhcp;
+	memset (new, 0, sizeof(*new));
 	new->lease_time = DEFLEASE;
-	new->addr_epoch = 0;
-	new->netmask.s_addr = 0;
-	new->broadcast.s_addr = 0;
-	new->router.s_addr = 0;
-	new->local.s_addr = 0;
-	new->netid.net = NULL;
-	new->filter = NULL;
-	new->flags = 0;
-	new->interface = NULL;
-
+	
 	gen_prob = _("bad dhcp-range");
 	
 	if (!arg)
@@ -1893,7 +1884,9 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	while(1)
 	  {
 	    for (cp = arg; *cp; cp++)
-	      if (!(*cp == ' ' || *cp == '.' ||  (*cp >='0' && *cp <= '9')))
+	      if (!(*cp == ' ' || *cp == '.' || *cp == ':' || 
+		    (*cp >= 'a' && *cp <= 'f') || (*cp >= 'A' && *cp <= 'F') ||
+		    (*cp >='0' && *cp <= '9')))
 		break;
 	    
 	    if (*cp != ',' && (comma = split(arg)))
@@ -1929,44 +1922,86 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	  if (!(a[k] = split(a[k-1])))
 	    break;
 	
-	if ((k < 2) || ((new->start.s_addr = inet_addr(a[0])) == (in_addr_t)-1))
+	if (k < 2)
 	  option = '?';
-	else if (strcmp(a[1], "static") == 0)
+	else if (inet_pton(AF_INET, a[0], &new->start))
 	  {
-	    new->end = new->start;
-	    new->flags |= CONTEXT_STATIC;
+	    new->next = daemon->dhcp;
+	    daemon->dhcp = new;
+	    if (strcmp(a[1], "static") == 0)
+	      {
+		new->end = new->start;
+		new->flags |= CONTEXT_STATIC;
+	      }
+	    else if (strcmp(a[1], "proxy") == 0)
+	      {
+		new->end = new->start;
+		new->flags |= CONTEXT_PROXY;
+	      }
+	    else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
+	      option = '?';
+	    
+	    if (ntohl(new->start.s_addr) > ntohl(new->end.s_addr))
+	      {
+		struct in_addr tmp = new->start;
+		new->start = new->end;
+		new->end = tmp;
+	      }
+	    
+	    if (option != '?' && k >= 3 && strchr(a[2], '.') &&  
+		((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
+	      {
+		new->flags |= CONTEXT_NETMASK;
+		leasepos = 3;
+		if (!is_same_net(new->start, new->end, new->netmask))
+		  problem = _("inconsistent DHCP range");
+	      }
+	    
+	    if (k >= 4 && strchr(a[3], '.') &&  
+		((new->broadcast.s_addr = inet_addr(a[3])) != (in_addr_t)-1))
+	      {
+		new->flags |= CONTEXT_BRDCAST;
+		leasepos = 4;
+	      }
 	  }
-	else if (strcmp(a[1], "proxy") == 0)
+#ifdef HAVE_DHCP6
+	else if (inet_pton(AF_INET6, a[0], &new->start6))
 	  {
-	    new->end = new->start;
-	    new->flags |= CONTEXT_PROXY;
-	  }
-	else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
-	  option = '?';
-	
-	if (ntohl(new->start.s_addr) > ntohl(new->end.s_addr))
-	  {
-	    struct in_addr tmp = new->start;
-	    new->start = new->end;
-	    new->end = tmp;
-	  }
-	
-	if (option != '?' && k >= 3 && strchr(a[2], '.') &&  
-	    ((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
-	  {
-	    new->flags |= CONTEXT_NETMASK;
-	    leasepos = 3;
-	    if (!is_same_net(new->start, new->end, new->netmask))
+	    new->next = daemon->dhcp6;
+	    new->prefix = 64; /* default */
+	    daemon->dhcp6 = new;
+	    if (strcmp(a[1], "static") == 0)
+	      {
+		new->end = new->start;
+		new->flags |= CONTEXT_STATIC;
+	      }
+	    else if (!inet_pton(AF_INET6, a[1], &new->end6))
+	      option = '?';
+	    
+	    /* bare integer < 128 is prefix value */
+	    if (option != '?' && k >= 3)
+	      {
+		int pref;
+		for (cp = a[2]; *cp; cp++)
+		  if (!(*cp >= '0' && *cp <= '9'))
+		    break;
+		if (!*cp && (pref = atoi(a[2])) <= 128)
+		  {
+		    new->prefix = pref;
+		    leasepos = 3;
+		  }
+	      }
+	    if (!is_same_net6(&new->start6, &new->end6, new->prefix))
 	      problem = _("inconsistent DHCP range");
+
+	    if (addr6part(&new->start6) > addr6part(&new->end6))
+	      {
+		struct in6_addr tmp = new->start6;
+		new->start6 = new->end6;
+		new->end6 = tmp;
+	      }
 	  }
-	daemon->dhcp = new;
-	
-	if (k >= 4 && strchr(a[3], '.') &&  
-	    ((new->broadcast.s_addr = inet_addr(a[3])) != (in_addr_t)-1))
-	  {
-	    new->flags |= CONTEXT_BRDCAST;
-	    leasepos = 4;
-	  }
+#endif
 	
 	if (k >= leasepos+1)
 	  {

@@ -85,7 +85,9 @@ void lease_init(time_t now)
 		  daemon->dhcp_buff, daemon->packet) == 5)
       {
 #ifdef HAVE_DHCP6
-	if (!v6pass)
+	if (v6pass)
+	    hw_type = atoi(daemon->dhcp_buff2);
+	else
 #endif
 	  {
 	    hw_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, DHCP_CHADDR_MAX, NULL, &hw_type);
@@ -107,10 +109,10 @@ void lease_init(time_t now)
 	
 #ifdef HAVE_DHCP6
 	if (v6pass)
-	  lease = lease_allocate6(&addr.addr.addr6);
+	  lease = lease6_allocate(&addr.addr.addr6);
 	else
 #endif
-	  lease = lease_allocate4(addr.addr.addr4);
+	  lease = lease4_allocate(addr.addr.addr4);
 	
 	if (!lease)
 	  die (_("too many stored leases"), NULL, EC_MISC);
@@ -288,7 +290,7 @@ void lease_update_file(time_t now)
     
 	      inet_ntop(AF_INET6, lease->hwaddr, daemon->addrbuff, ADDRSTRLEN);
 	 
-	      ourprintf(&err, "* %s ", daemon->addrbuff);
+	      ourprintf(&err, "%u %s ", lease->hwaddr_type, daemon->addrbuff);
 	      ourprintf(&err, "%s ", lease->hostname ? lease->hostname : "*");
 	      
 	      if (lease->clid && lease->clid_len != 0)
@@ -431,6 +433,44 @@ struct dhcp_lease *lease_find_by_addr(struct in_addr addr)
   return NULL;
 }
 
+#ifdef HAVE_DHCP6
+struct dhcp_lease *lease6_find_by_client(unsigned char *clid, int clid_len, int iaid)
+{
+  struct dhcp_lease *lease;
+  
+  for (lease = leases; lease; lease = lease->next)
+    {
+      if (!lease->is_ipv6)
+	  continue;
+
+      if (lease->hwaddr_type == iaid &&
+	  lease->clid && clid_len == lease->clid_len &&
+	  memcmp(clid, lease->clid, clid_len) == 0)
+	return lease;
+    }
+  
+  return NULL;
+}
+
+struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr)
+{
+  struct dhcp_lease *lease;
+  
+  for (lease = leases; lease; lease = lease->next)
+    {
+      if (!lease->is_ipv6)
+	continue;
+
+      if (is_same_net6((struct in6_addr *)lease->hwaddr, net, prefix) &&
+	  (prefix == 128 || addr6part((struct in6_addr *)lease->hwaddr) == addr))
+	return lease;
+    }
+  
+  return NULL;
+}  
+
+#endif
+
 /* Find largest assigned address in context */
 struct in_addr lease_find_max_addr(struct dhcp_context *context)
 {
@@ -474,7 +514,7 @@ static struct dhcp_lease *lease_allocate(void)
   return lease;
 }
 
-struct dhcp_lease *lease_allocate4(struct in_addr addr)
+struct dhcp_lease *lease4_allocate(struct in_addr addr)
 {
   struct dhcp_lease *lease = lease_allocate();
   lease->addr = addr;
@@ -484,7 +524,7 @@ struct dhcp_lease *lease_allocate4(struct in_addr addr)
 }
 
 #ifdef HAVE_DHCP6
-struct dhcp_lease *lease_allocate6(struct in6_addr *addrp)
+struct dhcp_lease *lease6_allocate(struct in6_addr *addrp)
 {
   struct dhcp_lease *lease = lease_allocate();
   memcpy(lease->hwaddr, addrp, sizeof(*addrp)) ;

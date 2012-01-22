@@ -87,7 +87,7 @@ int main (int argc, char **argv)
 #ifdef HAVE_DHCP
   if (!daemon->lease_file)
     {
-      if (daemon->dhcp)
+      if (daemon->dhcp || daemon->dhcp6)
 	daemon->lease_file = LEASEFILE;
     }
 #endif
@@ -137,13 +137,18 @@ int main (int argc, char **argv)
   now = dnsmasq_time();
   
 #ifdef HAVE_DHCP
-  if (daemon->dhcp)
+  if (daemon->dhcp || daemon->dhcp6)
     {
       /* Note that order matters here, we must call lease_init before
 	 creating any file descriptors which shouldn't be leaked
 	 to the lease-script init process. */
       lease_init(now);
-      dhcp_init();
+      if (daemon->dhcp)
+	dhcp_init();
+#ifdef HAVE_DHCP6
+      if (daemon->dhcp6)
+	dhcp6_init();
+#endif
     }
 #endif
 
@@ -189,7 +194,7 @@ int main (int argc, char **argv)
 
 #if defined(HAVE_SCRIPT)
   /* Note getpwnam returns static storage */
-  if (daemon->dhcp && daemon->scriptuser && 
+  if ((daemon->dhcp || daemon->dhcp6) && daemon->scriptuser && 
       (daemon->lease_change_command || daemon->luascript))
     {
       if ((ent_pw = getpwnam(daemon->scriptuser)))
@@ -341,7 +346,7 @@ int main (int argc, char **argv)
    /* if we are to run scripts, we need to fork a helper before dropping root. */
   daemon->helperfd = -1;
 #ifdef HAVE_SCRIPT 
-  if (daemon->dhcp && (daemon->lease_change_command || daemon->luascript))
+  if ((daemon->dhcp || daemon->dhcp6) && (daemon->lease_change_command || daemon->luascript))
     daemon->helperfd = create_helper(pipewrite, err_pipe[1], script_uid, script_gid, max_fd);
 #endif
 
@@ -481,24 +486,50 @@ int main (int argc, char **argv)
     my_syslog(LOG_INFO, _("asynchronous logging enabled, queue limit is %d messages"), daemon->max_logs);
 
 #ifdef HAVE_DHCP
-  if (daemon->dhcp)
+  if (daemon->dhcp || daemon->dhcp6)
     {
       struct dhcp_context *dhcp_tmp;
-      
-      for (dhcp_tmp = daemon->dhcp; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
+      int family = AF_INET;
+      dhcp_tmp = daemon->dhcp;
+     
+    again:
+      for (; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
 	{
+	  void *start = &dhcp_tmp->start;
+	  void *end = &dhcp_tmp->end;
+	  
+#ifdef HAVE_DHCP6
+	  if (family == AF_INET6)
+	    {
+	      start = &dhcp_tmp->start6;
+	      end = &dhcp_tmp->end6;
+	    }
+#endif
+	  
 	  prettyprint_time(daemon->dhcp_buff2, dhcp_tmp->lease_time);
-	  strcpy(daemon->dhcp_buff, inet_ntoa(dhcp_tmp->start));
+	  inet_ntop(family, start, daemon->dhcp_buff, 256);
+	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
 	  my_syslog(MS_DHCP | LOG_INFO, 
 		    (dhcp_tmp->flags & CONTEXT_STATIC) ? 
 		    _("DHCP, static leases only on %.0s%s, lease time %s") :
 		    (dhcp_tmp->flags & CONTEXT_PROXY) ?
 		    _("DHCP, proxy on subnet %.0s%s%.0s") :
 		    _("DHCP, IP range %s -- %s, lease time %s"),
-		    daemon->dhcp_buff, inet_ntoa(dhcp_tmp->end), daemon->dhcp_buff2);
+		    daemon->dhcp_buff, daemon->dhcp_buff3, daemon->dhcp_buff2);
 	}
+      
+#ifdef HAVE_DHCP6
+      if (family == AF_INET)
+	{
+	  family = AF_INET6;
+	  dhcp_tmp = daemon->dhcp6;
+	  goto again;
+	}
+#endif
+
     }
 #endif
+
 
 #ifdef HAVE_TFTP
   if (daemon->tftp_unlimited || daemon->tftp_interfaces)
@@ -604,6 +635,14 @@ int main (int argc, char **argv)
 	}
 #endif
 
+#ifdef HAVE_DHCP6
+      if (daemon->dhcp6)
+	{
+	  FD_SET(daemon->dhcp6fd, &rset);
+	   bump_maxfd(daemon->dhcp6fd, &maxfd);
+	}
+#endif
+
 #ifdef HAVE_LINUX_NETWORK
       FD_SET(daemon->netlinkfd, &rset);
       bump_maxfd(daemon->netlinkfd, &maxfd);
@@ -698,6 +737,14 @@ int main (int argc, char **argv)
 	  if (daemon->pxefd != -1 && FD_ISSET(daemon->pxefd, &rset))
 	    dhcp_packet(now, 1);
 	}
+
+#ifdef HAVE_DHCP6
+      if (daemon->dhcp6)
+	{
+	  if (FD_ISSET(daemon->dhcp6fd, &rset))
+	    dhcp6_packet(now);
+	}
+#endif
 
 #  ifdef HAVE_SCRIPT
       if (daemon->helperfd != -1 && FD_ISSET(daemon->helperfd, &wset))
@@ -860,7 +907,7 @@ static void async_event(int pipe, time_t now)
 	
       case EVENT_ALARM:
 #ifdef HAVE_DHCP
-	if (daemon->dhcp)
+	if (daemon->dhcp || daemon->dhcp6)
 	  {
 	    lease_prune(NULL, now);
 	    lease_update_file(now);
@@ -1018,7 +1065,7 @@ void clear_cache_and_reload(time_t now)
     cache_reload();
   
 #ifdef HAVE_DHCP
-  if (daemon->dhcp)
+  if (daemon->dhcp || daemon->dhcp6)
     {
       if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
