@@ -501,7 +501,9 @@ int main (int argc, char **argv)
       int family = AF_INET;
       dhcp_tmp = daemon->dhcp;
      
+#ifdef HAVE_DHCP6
     again:
+#endif
       for (; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
 	{
 	  void *start = &dhcp_tmp->start;
