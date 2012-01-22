@@ -120,8 +120,7 @@ void dhcp_init(void)
   
   check_dhcp_hosts(1);
     
-  daemon->dhcp_packet.iov_len = sizeof(struct dhcp_packet); 
-  daemon->dhcp_packet.iov_base = safe_malloc(daemon->dhcp_packet.iov_len);
+  expand_buf(&daemon->dhcp_packet, sizeof(struct dhcp_packet)); 
 }
 
 ssize_t recv_dhcp_packet(int fd, struct msghdr *msg)

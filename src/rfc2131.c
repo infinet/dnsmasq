@@ -481,7 +481,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 
 	  if (!message && 
 	      !lease && 
-	      (!(lease = lease_allocate4(mess->yiaddr))))
+	      (!(lease = lease4_allocate(mess->yiaddr))))
 	    message = _("no leases left");
 	  
 	  if (!message)
@@ -1189,7 +1189,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      else if (!lease)
 		{	     
-		  if ((lease = lease_allocate4(mess->yiaddr)))
+		  if ((lease = lease4_allocate(mess->yiaddr)))
 		    do_classes = 1;
 		  else
 		    message = _("no leases left");

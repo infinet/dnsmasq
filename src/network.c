@@ -274,9 +274,10 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
 {
   union mysockaddr addr;
   struct in_addr netmask; /* dummy */
-  
-  (void)prefix; /* warning */
   netmask.s_addr = 0;
+
+  (void)prefix; /* warning */
+  (void)scope; /* warning */
   
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -285,7 +286,7 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_family = AF_INET6;
   addr.in6.sin6_addr = *local;
   addr.in6.sin6_port = htons(daemon->port);
-  addr.in6.sin6_scope_id = scope;
+  addr.in6.sin6_scope_id = if_index;
   
   return iface_allowed((struct irec **)vparam, if_index, &addr, netmask, dad);
 }

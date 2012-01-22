@@ -336,6 +336,29 @@ int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen)
   return 0;
 }
 
+/* return least signigicant 64 bits if IPv6 address */
+u64 addr6part(struct in6_addr *addr)
+{
+  int i;
+  u64 ret = 0;
+
+  for (i = 8; i < 16; i++)
+    ret = (ret << 8) + addr->s6_addr[i];
+
+  return ret;
+}
+
+void setaddr6part(struct in6_addr *addr, u64 host)
+{
+  int i;
+
+  for (i = 15; i >= 8; i--)
+    {
+      addr->s6_addr[i] = host;
+      host = host >> 8;
+    }
+}
+
 #endif
  
 

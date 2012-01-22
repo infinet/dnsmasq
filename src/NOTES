@@ -1,2 +1,15 @@
 Worry about IPv6 leases and DUID in script-storage.
 
+dhcpv6-range
+dhcpv6-option
+dhcpv6-option-force
+dhcpv6-script ?
+dhcpv6-optsfile
+dhcpv6-hostsfile
+
+dhcp-host =
+[<hwaddr>][,id:<client_id>|*][,net:<netid>][,<ipv4addr>][\[ipv6addr\]][,<hostname>][,<lease_time>][,ignore]
+
+IPv6 address like [2001:db8:do::2]
+
+
