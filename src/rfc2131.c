@@ -46,7 +46,7 @@ static void do_options(struct dhcp_context *context,
 		       unsigned char *real_end, 
 		       unsigned char *req_options,
 		       char *hostname, 
-		       char *domain, char *config_domain,
+		       char *config_domain,
 		       struct dhcp_netid *netid,
 		       struct in_addr subnet_addr, 
 		       unsigned char fqdn_flags,
@@ -487,7 +487,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		
 	      lease_set_hwaddr(lease, mess->chaddr, NULL, mess->hlen, mess->htype, 0);
 	      if (hostname)
-		lease_set_hostname(lease, hostname, 1, get_domain(lease->addr)); 
+		lease_set_hostname(lease, hostname, 1, get_domain(lease->addr), domain); 
 	      /* infinite lease unless nailed in dhcp-host line. */
 	      lease_set_expires(lease,  
 				have_config(config, CONFIG_TIME) ? config->lease_time : 0xffffffff, 
@@ -496,7 +496,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      clear_packet(mess, end);
 	      do_options(context, mess, end, NULL, hostname, get_domain(mess->yiaddr), 
-			 domain, netid, subnet_addr, 0, 0, 0, NULL, 0, now);
+			 netid, subnet_addr, 0, 0, 0, NULL, 0, now);
 	    }
 	}
       
@@ -1022,7 +1022,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  option_put(mess, end, OPTION_T2, 4, (time*7)/8);
 	}
       do_options(context, mess, end, req_options, offer_hostname, get_domain(mess->yiaddr), 
-		 domain, netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
+		 netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
       
       return dhcp_packet_size(mess, agent_id, real_end);
       
@@ -1307,7 +1307,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    }
 
 	  if (hostname)
-	    lease_set_hostname(lease, hostname, hostname_auth, get_domain(lease->addr));
+	    lease_set_hostname(lease, hostname, hostname_auth, get_domain(lease->addr), domain);
 	  
 	  lease_set_expires(lease, time, now);
 	  lease_set_interface(lease, int_index);
@@ -1331,7 +1331,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      option_put(mess, end, OPTION_T2, 4, ((time/8)*7) - fuzz);
 	    }
 	  do_options(context, mess, end, req_options, hostname, get_domain(mess->yiaddr), 
-		     domain, netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
+		     netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
 	}
 
       return dhcp_packet_size(mess, agent_id, real_end); 
@@ -1391,7 +1391,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	}
 
       do_options(context, mess, end, req_options, hostname, get_domain(mess->ciaddr),
-		 domain, netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
+		 netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
       
       *is_inform = 1; /* handle reply differently */
       return dhcp_packet_size(mess, agent_id, real_end); 
@@ -2144,7 +2144,7 @@ static void do_options(struct dhcp_context *context,
 		       unsigned char *end, 
 		       unsigned char *req_options,
 		       char *hostname, 
-		       char *domain, char *config_domain,
+		       char *domain,
 		       struct dhcp_netid *netid,
 		       struct in_addr subnet_addr,
 		       unsigned char fqdn_flags,
@@ -2166,9 +2166,6 @@ static void do_options(struct dhcp_context *context,
   /* filter options based on tags, those we want get DHOPT_TAGOK bit set */
   tagif = option_filter(netid, &context->netid, config_opts);
 	
-  if (config_domain && (!domain || !hostname_isequal(domain, config_domain)))
-    my_syslog(MS_DHCP | LOG_WARNING, _("Ignoring domain %s for DHCP host name %s"), config_domain, hostname);
-  
   /* logging */
   if (option_bool(OPT_LOG_OPTS) && req_options)
     {

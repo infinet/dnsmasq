@@ -146,10 +146,10 @@ void lease_init(time_t now)
 	  {
 #ifdef HAVE_DHCP6
 	   if (v6pass)
-	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain6((struct in6_addr *)lease->hwaddr));
+	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain6((struct in6_addr *)lease->hwaddr), NULL);
 	   else
 #endif
-	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain(lease->addr));
+	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain(lease->addr), NULL);
 	  }
 	/* set these correctly: the "old" events are generated later from
 	   the startup synthesised SIGHUP. */
@@ -216,9 +216,9 @@ void lease_update_from_configs(void)
 			      lease->hwaddr, lease->hwaddr_len, lease->hwaddr_type, NULL)) && 
 	(config->flags & CONFIG_NAME) &&
 	(!(config->flags & CONFIG_ADDR) || config->addr.s_addr == lease->addr.s_addr))
-      lease_set_hostname(lease, config->hostname, 1, get_domain(lease->addr));
+      lease_set_hostname(lease, config->hostname, 1, get_domain(lease->addr), NULL);
     else if ((name = host_from_dns(lease->addr)))
-      lease_set_hostname(lease, name, 1, get_domain(lease->addr)); /* updates auth flag only */
+      lease_set_hostname(lease, name, 1, get_domain(lease->addr), NULL); /* updates auth flag only */
 }
  
 static void ourprintf(int *errp, char *format, ...)
@@ -669,10 +669,13 @@ static void kill_name(struct dhcp_lease *lease)
   lease->hostname = lease->fqdn = NULL;
 }
 
-void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *domain)
+void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *domain, char *config_domain)
 {
   struct dhcp_lease *lease_tmp;
   char *new_name = NULL, *new_fqdn = NULL;
+
+  if (config_domain && (!domain || !hostname_isequal(domain, config_domain)))
+    my_syslog(MS_DHCP | LOG_WARNING, _("Ignoring domain %s for DHCP host name %s"), config_domain, name);
   
   if (lease->hostname && name && hostname_isequal(lease->hostname, name))
     {

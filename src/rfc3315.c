@@ -20,6 +20,7 @@
 #ifdef HAVE_DHCP6
 
 static size_t outpacket_counter;
+
 static void end_opt6(int container);
 static int save_counter(int newval);
 static void *expand(size_t headroom);
@@ -179,7 +180,8 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
   unsigned char *clid = NULL;
   int clid_len = 0, start_opts;
   struct dhcp_netid *tagif, *context_tags = NULL;
-  char *client_hostname= NULL, *hostname = NULL, *domain= NULL;
+  char *client_hostname= NULL, *hostname = NULL;
+  char *domain = NULL, *send_domain = NULL;
   struct dhcp_config *config = NULL;
   struct dhcp_netid known_id;
   int done_dns = 0, hostname_auth = 0, do_encap = 0;
@@ -326,8 +328,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
       else if (client_hostname)
 	{
 	  domain = strip_hostname(client_hostname);
-	  /* TODO verify legal domain */
-
+	  
 	  if (strlen(client_hostname) != 0)
 	    {
 	      hostname = client_hostname;
@@ -364,6 +365,9 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 
   switch (msg_type)
     {
+    default:
+      return 0;
+
     case DHCP6SOLICIT:
     case DHCP6REQUEST:
       {
@@ -463,14 +467,32 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 		    /* Don't used configured addresses for temporary leases. */
 		    if (have_config(config, CONFIG_ADDR6) && !used_config && ia_type == OPTION6_IA_NA)
 		      {
+			struct dhcp_lease *ltmp = lease6_find_by_addr(&config->addr6, 128, 0);
+			 
 			used_config = 1;
-			addrp = &config->addr6;
+			inet_ntop(AF_INET6, &config->addr6, daemon->addrbuff, ADDRSTRLEN);
+			
+			if (ltmp && ltmp->clid && 
+			    (ltmp->clid_len != clid_len || memcmp(ltmp->clid, clid, clid_len) != 0))
+			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it is leased to %s"),
+				    daemon->addrbuff, print_mac(daemon->namebuff, ltmp->clid, ltmp->clid_len));
+			else if (have_config(config, CONFIG_DECLINED) &&
+				 difftime(now, config->decline_time) < (float)DECLINE_BACKOFF)
+			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it was previously declined"), 
+				    daemon->addrbuff);
+			else
+			  addrp = &config->addr6;			 
 		      }
+		    
 		    /* existing lease */
-		    else if ((lease = lease6_find(clid, clid_len, 
-						  ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL)))
+		    if (!addrp &&
+			(lease = lease6_find(clid, clid_len, 
+					     ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL)) &&
+			address6_available(context, (struct in6_addr *)&lease->hwaddr, tags) &&
+			!config_find_by_address6(daemon->dhcp_conf, (struct in6_addr *)&lease->hwaddr))
 		      addrp = (struct in6_addr *)&lease->hwaddr;
-		    else if (address6_allocate(context, clid, clid_len, serial++, tags, &alloced_addr))
+		    
+		    if (!addrp && address6_allocate(context, clid, clid_len, serial++, tags, &alloced_addr))
 		      addrp = &alloced_addr;		    
 		  }
 		
@@ -518,8 +540,16 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 			    lease_set_expires(lease, lease_time, now);
 			    lease_set_hwaddr(lease, NULL, clid, 0, iaid, clid_len);
 			    if (hostname && ia_type == OPTION6_IA_NA)
-			      lease_set_hostname(lease, hostname, hostname_auth, domain);
+			      {
+				char *addr_domain = get_domain6(addrp);
+				if (!send_domain)
+				  send_domain = addr_domain;
+				lease_set_hostname(lease, hostname, hostname_auth, addr_domain, domain);
+			      }
 			  }
+			else if (!send_domain)
+			  send_domain = get_domain6(addrp);
+			  
 			
 			if (lease || !make_lease)
 			  {
@@ -672,7 +702,12 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 		    
 		    lease_set_expires(lease, lease_time, now);
 		    if (ia_type == OPTION6_IA_NA && hostname)
-		      lease_set_hostname(lease, hostname, hostname_auth, domain);
+		      {
+			char *addr_domain = get_domain6(req_addr);
+			if (!send_domain)
+			  send_domain = addr_domain;
+			lease_set_hostname(lease, hostname, hostname_auth, addr_domain, domain);
+		      }
 		    
 		    if (lease_time < min_time)
 		      min_time = lease_time;
@@ -839,6 +874,97 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 	
 	return 1;
       }
+
+    case DHCP6DECLINE:
+      {
+	/* set reply message type */
+	*outmsgtypep = DHCP6REPLY;
+	
+	log6_packet("DHCPDECLINE", clid, clid_len, NULL, xid, iface_name, NULL);
+
+	for (opt = packet_options; opt; opt = opt6_next(opt, end))
+	  {
+	    int iaid, ia_type = opt6_type(opt);
+	    void *ia_option, *ia_end;
+	    int made_ia = 0;
+	    	    
+	    if (ia_type != OPTION6_IA_NA && ia_type != OPTION6_IA_TA)
+	      continue;
+
+	    if (ia_type == OPTION6_IA_NA && opt6_len(opt) < 12)
+	      continue;
+	    
+	    if (ia_type == OPTION6_IA_TA && opt6_len(opt) < 4)
+	      continue;
+	    
+	    iaid = opt6_uint(opt, 0, 4);
+	    ia_end = opt6_ptr(opt, opt6_len(opt));
+	    ia_option = opt6_ptr(opt, ia_type == OPTION6_IA_NA ? 12 : 4);
+	    
+	    /* reset "USED" flags on leases */
+	    lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL);
+		
+	    for (ia_option = opt6_find(ia_option, ia_end, OPTION6_IAADDR, 24);
+		 ia_option;
+		 ia_option = opt6_find(opt6_next(ia_option, ia_end), ia_end, OPTION6_IAADDR, 24))
+	      {
+		struct dhcp_lease *lease;
+		struct in6_addr *addrp = opt6_ptr(ia_option, 0);
+
+		if (have_config(config, CONFIG_ADDR6) && 
+		    memcmp(&config->addr6, addrp, IN6ADDRSZ) == 0)
+		  {
+		    prettyprint_time(daemon->dhcp_buff, DECLINE_BACKOFF);
+		    inet_ntop(AF_INET6, addrp, daemon->addrbuff, ADDRSTRLEN);
+		    my_syslog(MS_DHCP | LOG_WARNING, _("disabling DHCP static address %s for %s"), 
+			      daemon->addrbuff, daemon->dhcp_buff);
+		    config->flags |= CONFIG_DECLINED;
+		    config->decline_time = now;
+		  }
+		else
+		  /* make sure this host gets a different address next time. */
+		  for (; context; context = context->current)
+		    context->addr_epoch++;
+		
+		if ((lease = lease6_find(clid, clid_len, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA,
+					 iaid, opt6_ptr(ia_option, 0))))
+		  lease_prune(lease, now);
+		else
+		  {
+		    if (!made_ia)
+		      {
+			o = new_opt6(ia_type);
+			put_opt6_long(iaid);
+			if (ia_type == OPTION6_IA_NA)
+			  {
+			    put_opt6_long(0);
+			    put_opt6_long(0); 
+			  }
+			made_ia = 1;
+		      }
+		    
+		    o1 = new_opt6(OPTION6_IAADDR);
+		    put_opt6(opt6_ptr(ia_option, 0), IN6ADDRSZ);
+		    put_opt6_long(0);
+		    put_opt6_long(0);
+		    end_opt6(o1);
+		  }
+	      }
+	    
+	    if (made_ia)
+	      {
+		o1 = new_opt6(OPTION6_STATUS_CODE);
+		put_opt6_short(DHCP6NOBINDING);
+		put_opt6_string("No binding found");
+		end_opt6(o1);
+		
+		end_opt6(o);
+	      }
+	    
+	  }
+	return 1;
+      }
+
     }
   
   
@@ -948,15 +1074,15 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
       unsigned char *p;
       size_t len = strlen(hostname);
       
-      if (domain)
-	len += strlen(domain) + 1;
+      if (send_domain)
+	len += strlen(send_domain) + 1;
 
       o = new_opt6(OPTION6_FQDN);
       p = expand(len + 3);
       *(p++) = fqdn_flags;
       p = do_rfc1035_name(p, hostname);
-      if (domain)
-	p = do_rfc1035_name(p, domain);
+      if (send_domain)
+	p = do_rfc1035_name(p, send_domain);
       *p = 0;
       end_opt6(o);
     }
