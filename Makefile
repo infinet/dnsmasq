@@ -45,7 +45,7 @@ VERSION=    -DVERSION='\"`../bld/get-version`\"'
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
-       helper.o tftp.o log.o conntrack.o dhcp6.o rfc3315.o
+       helper.o tftp.o log.o conntrack.o dhcp6.o rfc3315.o dhcp-common.o 
 
 all :
 	@cd $(SRC) && $(MAKE) \
@@ -88,10 +88,10 @@ merge :
 
 # rules below are targets in recusive makes with cwd=$(SRC)
 
-.c.o:
+.c.o:	
 	$(CC) $(CFLAGS) $(COPTS) $(I18N) $(BUILD_CFLAGS) $(RPM_OPT_FLAGS) -c $<
 
-dnsmasq : $(OBJS)
+dnsmasq : $(OBJS) 
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(BUILD_LIBS) $(LIBS) 
 
 dnsmasq.pot : $(OBJS:.o=.c) dnsmasq.h config.h

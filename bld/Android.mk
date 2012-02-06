@@ -6,7 +6,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES :=  bpf.c cache.c dbus.c dhcp.c dnsmasq.c \
                     forward.c helper.c lease.c log.c \
                     netlink.c network.c option.c rfc1035.c \
-		    rfc2131.c tftp.c util.c conntrack.c
+		    rfc2131.c tftp.c util.c conntrack.c \
+		    dhcp6.c rfc3315.c dhcp-common.c 
 
 LOCAL_MODULE := dnsmasq
 

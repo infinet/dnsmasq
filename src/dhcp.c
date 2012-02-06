@@ -119,42 +119,6 @@ void dhcp_init(void)
 #endif
   
   check_dhcp_hosts(1);
-    
-  expand_buf(&daemon->dhcp_packet, sizeof(struct dhcp_packet)); 
-}
-
-ssize_t recv_dhcp_packet(int fd, struct msghdr *msg)
-{  
-  ssize_t sz;
- 
-  while (1)
-    {
-      msg->msg_flags = 0;
-      while ((sz = recvmsg(fd, msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
-      
-      if (sz == -1)
-	return -1;
-      
-      if (!(msg->msg_flags & MSG_TRUNC))
-	break;
-
-      /* Very new Linux kernels return the actual size needed, 
-	 older ones always return truncated size */
-      if ((size_t)sz == daemon->dhcp_packet.iov_len)
-	{
-	  if (!expand_buf(&daemon->dhcp_packet, sz + 100))
-	    return -1;
-	}
-      else
-	{
-	  expand_buf(&daemon->dhcp_packet, sz);
-	  break;
-	}
-    }
-  
-  while ((sz = recvmsg(fd, msg, 0)) == -1 && errno == EINTR);
-  
-  return (msg->msg_flags & MSG_TRUNC) ? -1 : sz;
 }
 
 void dhcp_packet(time_t now, int pxe_fd)
@@ -610,50 +574,6 @@ struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct i
   return NULL;
 }
 
-/* Is every member of check matched by a member of pool? 
-   If tagnotneeded, untagged is OK */
-int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int tagnotneeded)
-{
-  struct dhcp_netid *tmp1;
-  
-  if (!check && !tagnotneeded)
-    return 0;
-
-  for (; check; check = check->next)
-    {
-      /* '#' for not is for backwards compat. */
-      if (check->net[0] != '!' && check->net[0] != '#')
-	{
-	  for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	    if (strcmp(check->net, tmp1->net) == 0)
-	      break;
-	  if (!tmp1)
-	    return 0;
-	}
-      else
-	for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	  if (strcmp((check->net)+1, tmp1->net) == 0)
-	    return 0;
-    }
-  return 1;
-}
-
-struct dhcp_netid *run_tag_if(struct dhcp_netid *tags)
-{
-  struct tag_if *exprs;
-  struct dhcp_netid_list *list;
-
-  for (exprs = daemon->tag_if; exprs; exprs = exprs->next)
-    if (match_netid(exprs->tag, tags, 1))
-      for (list = exprs->set; list; list = list->next)
-	{
-	  list->list->next = tags;
-	  tags = list->list;
-	}
-
-  return tags;
-}
-
 int address_allocate(struct dhcp_context *context,
 		     struct in_addr *addrp, unsigned char *hwaddr, int hw_len, 
 		     struct dhcp_netid *netids, time_t now)   
@@ -849,7 +769,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	  is_addr_in_context(context, config))
 	return config;
 
-  /* use match with fewest wildcast octets */
+  /* use match with fewest wildcard octets */
   for (candidate = NULL, count = 0, config = configs; config; config = config->next)
     if (is_addr_in_context(context, config))
       for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
@@ -1141,21 +1061,6 @@ char *host_from_dns(struct in_addr addr)
 
       return daemon->dhcp_buff;
     }
-  
-  return NULL;
-}
-
-/* return domain or NULL if none. */
-char *strip_hostname(char *hostname)
-{
-  char *dot = strchr(hostname, '.');
- 
-  if (!dot)
-    return NULL;
-  
-  *dot = 0; /* truncate */
-  if (strlen(dot+1) != 0)
-    return dot+1;
   
   return NULL;
 }
