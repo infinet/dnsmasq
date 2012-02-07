@@ -588,13 +588,11 @@ struct dhcp_bridge {
 struct cond_domain {
   char *domain;
   struct in_addr start, end;
+#ifdef HAVE_IPV6
+  struct in6_addr start6, end6;
+#endif
+  int is6;
   struct cond_domain *next;
-};
-
-struct cond_domain6 {
-  char *domain;
-  struct in6_addr start, end;
-  struct cond_domain6 *next;
 };
 
 struct dhcp_context {
@@ -683,7 +681,6 @@ extern struct daemon {
   int group_set, osport;
   char *domain_suffix;
   struct cond_domain *cond_domain;
-  struct cond_domain6 *cond_domain6;
   char *runfile; 
   char *lease_change_command;
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except;

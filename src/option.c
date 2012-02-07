@@ -543,6 +543,30 @@ char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len,
 		      buf[j++] = '.';
 		  }
 	      }
+	    else if ((ot[o].size & OT_CSTRING))
+	      {
+		int k, len;
+		unsigned char *p;
+
+		i = 0, j = 0;
+		while (1)
+		  {
+		    p = &val[i];
+		    GETSHORT(len, p);
+		    for (k = 0; k < len && j < buf_len; k++)
+		      {
+		       char c = *p++;
+		       if (isprint((int)c))
+			 buf[j++] = c;
+		     }
+		    i += len +2;
+		    if (i >= opt_len)
+		      break;
+
+		    if (j < buf_len)
+		      buf[j++] = ',';
+		  }
+	      }	      
 #endif
 	    else 
 	      nodecode = 1;
@@ -1628,14 +1652,15 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		  unhide_metas(comma);
 		  if ((netpart = split_chr(comma, '/')))
 		    {
-		      int msize, mask;
+		      int msize;
+
 		      arg = split(netpart);
-		      if ((new->start.s_addr = inet_addr(comma)) == (in_addr_t)-1 ||
-			  !atoi_check(netpart, &msize))
+		      if (!atoi_check(netpart, &msize))
 			option = '?';
-		      else
+		      else if (inet_pton(AF_INET, comma, &new->start))
 			{
-			  mask = (1 << (32 - msize)) - 1;
+			  int mask = (1 << (32 - msize)) - 1;
+			  new->is6 = 0; 			  
 			  new->start.s_addr = ntohl(htonl(new->start.s_addr) & ~mask);
 			  new->end.s_addr = new->start.s_addr | htonl(mask);
 			  if (arg)
@@ -1677,19 +1702,93 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 				}
 			    }
 			}
-		    }
-		  else if ((arg = split(comma)))
-		    {
-		      if ((new->start.s_addr = inet_addr(comma)) == (in_addr_t)-1 ||
-			  (new->end.s_addr = inet_addr(arg)) == (in_addr_t)-1)
+#ifdef HAVE_IPV6
+		      else if (inet_pton(AF_INET6, comma, &new->start6))
+			{
+			  u64 mask = (1LLU << (128 - msize)) - 1LLU;
+			  u64 addrpart = addr6part(&new->start6);
+			  new->is6 = 1;
+
+			  /* prefix==64 overflows the mask calculation above */
+			  if (msize == 64)
+			    mask = (u64)-1LL;
+
+			  new->end6 = new->start6;
+			  setaddr6part(&new->start6, addrpart & ~mask);
+			  setaddr6part(&new->end6, addrpart | mask);
+			  
+			  if (msize < 64)
+			    option = '?';
+			  else if (arg)
+			    {
+			      /* generate the equivalent of
+				 local=/<domain>/
+				 local=/xxx.yyy.zzz.ip6.arpa/ */
+
+			      if (strcmp(arg, "local") != 0 || (msize & 4 != 0))
+				option = '?';
+			      else 
+				{
+				  struct server *serv = opt_malloc(sizeof(struct server));
+				  in_addr_t a = ntohl(new->start.s_addr) >> 8;
+				  char *p;
+
+				  memset(serv, 0, sizeof(struct server));
+				  serv->domain = d;
+				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
+				  serv->next = daemon->servers;
+				  daemon->servers = serv;
+
+				  serv = opt_malloc(sizeof(struct server));
+				  memset(serv, 0, sizeof(struct server));
+				  p = serv->domain = opt_malloc(73); /* strlen("32*<n.>ip6.arpa")+1 */
+				  
+				  for (i = msize-1; i >= 0; i -= 4)
+				    { 
+				      int dig = ((unsigned char *)&new->start6)[i>>3];
+				      p += sprintf(p, "%.1x.", (i>>2) & 1 ? dig & 15 : dig >> 4);
+				    }
+				  p += sprintf(p, "ip6.arpa");
+				  
+				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
+				  serv->next = daemon->servers;
+				  daemon->servers = serv;
+				}
+			    }
+			}
+#endif
+		      else
 			option = '?';
 		    }
-		  else if ((new->start.s_addr = new->end.s_addr = inet_addr(comma)) == (in_addr_t)-1)
-		    option = '?';
+		  else 
+		    {
+		      arg = split(comma);
+		      if (inet_pton(AF_INET, comma, &new->start))
+			{
+			  new->is6 = 0;
+			  if (!arg)
+			    new->end.s_addr = new->start.s_addr;
+			  else if (!inet_pton(AF_INET, arg, &new->end))
+			    option = '?';
+			}
+#ifdef HAVE_IPV6
+		      else if (inet_pton(AF_INET6, comma, &new->start6))
+			{
+			  new->is6 = 1;
+			  if (!arg)
+			    memcpy(&new->end6, &new->start6, IN6ADDRSZ);
+			  else if (!inet_pton(AF_INET6, arg, &new->end6))
+			    option = '?';
+			}
+#endif
+		      else 
+			option = '?';
 
-		  new->domain = d;
-		  new->next = daemon->cond_domain;
-		  daemon->cond_domain = new;
+		      new->domain = d;
+		      new->next = daemon->cond_domain;
+		      daemon->cond_domain = new;
+		      
+		    }
 		}
 	      else
 		daemon->domain_suffix = d;

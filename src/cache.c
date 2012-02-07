@@ -913,7 +913,8 @@ char *get_domain(struct in_addr addr)
   struct cond_domain *c;
 
   for (c = daemon->cond_domain; c; c = c->next)
-    if (ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
+    if (!c->is6 &&
+	ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
         ntohl(addr.s_addr) <= ntohl(c->end.s_addr))
       return c->domain;
 
@@ -924,14 +925,15 @@ char *get_domain(struct in_addr addr)
 #ifdef HAVE_IPV6
 char *get_domain6(struct in6_addr *addr)
 {
-  struct cond_domain6 *c;
+  struct cond_domain *c;
 
   u64 addrpart = addr6part(addr);
   
-  for (c = daemon->cond_domain6; c; c = c->next)
-    if (is_same_net6(addr, &c->start, 64) &&
-	addrpart >= addr6part(&c->start) &&
-        addrpart <= addr6part(&c->end))
+  for (c = daemon->cond_domain; c; c = c->next)
+    if (c->is6 &&
+	is_same_net6(addr, &c->start6, 64) &&
+	addrpart >= addr6part(&c->start6) &&
+        addrpart <= addr6part(&c->end6))
       return c->domain;
   
   return daemon->domain_suffix;
