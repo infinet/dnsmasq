@@ -26,7 +26,6 @@ static void add_extradata_data(struct dhcp_lease *lease, unsigned char *data, si
 static void add_extradata_opt(struct dhcp_lease *lease, unsigned char *opt);
 #endif
 
-static int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 static int sanitise(unsigned char *opt, char *buf);
 static struct in_addr server_id(struct dhcp_context *context, struct in_addr override, struct in_addr fallback);
 static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *config, unsigned char *opt);
@@ -1399,37 +1398,6 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   
   return 0;
 }
-
-static int match_bytes(struct dhcp_opt *o, unsigned char *p, int len)
-{
-  int i;
-  
-  if (o->len > len)
-    return 0;
-  
-  if (o->len == 0)
-    return 1;
-     
-  if (o->flags & DHOPT_HEX)
-    { 
-      if (memcmp_masked(o->val, p, o->len, o->u.wildcard_mask))
-	return 1;
-    }
-  else 
-    for (i = 0; i <= (len - o->len); ) 
-      {
-	if (memcmp(o->val, p + i, o->len) == 0)
-	  return 1;
-	    
-	if (o->flags & DHOPT_STRING)
-	  i++;
-	else
-	  i += o->len;
-      }
-  
-  return 0;
-}
-      
 
 /* find a good value to use as MAC address for logging and address-allocation hashing.
    This is normally just the chaddr field from the DHCP packet,

@@ -695,7 +695,7 @@ extern struct daemon {
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp, *dhcp6;
   struct dhcp_config *dhcp_conf;
-  struct dhcp_opt *dhcp_opts, *dhcp_match, *dhcp_opts6;
+  struct dhcp_opt *dhcp_opts, *dhcp_match, *dhcp_opts6, *dhcp_match6;
   struct dhcp_vendor *dhcp_vendors;
   struct dhcp_mac *dhcp_macs;
   struct dhcp_boot *boot_config;
@@ -1043,3 +1043,4 @@ struct dhcp_netid *option_filter(struct dhcp_netid *tags, struct dhcp_netid *con
 int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int negonly);
 char *strip_hostname(char *hostname);
 void log_tags(struct dhcp_netid *netid, u32 xid);
+int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);

@@ -1333,6 +1333,11 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      !new->netid ||
 	      new->netid->next)
 	    problem = _("illegal dhcp-match");
+	  else if (is6)
+	    {
+	      new->next = daemon->dhcp_match6;
+	      daemon->dhcp_match6 = new;
+	    }
 	  else
 	    {
 	      new->next = daemon->dhcp_match;

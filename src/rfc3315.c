@@ -189,7 +189,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
   struct dhcp_opt *opt_cfg;
   struct dhcp_vendor *vendor;
   struct dhcp_context *context_tmp;
-  unsigned int xid;
+  unsigned int xid, ignore = 0;
   unsigned int fqdn_flags = 0x01; /* default to send if we recieve no FQDN option */
 
   /* copy over transaction-id, and save pointer to message type */
@@ -272,6 +272,48 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 		  tags = &vendor->netid;
 		  break;
 		}
+	}
+    }
+
+  /* dhcp-match. If we have hex-and-wildcards, look for a left-anchored match.
+     Otherwise assume the option is an array, and look for a matching element. 
+     If no data given, existance of the option is enough. This code handles 
+     V-I opts too. */
+  for (opt_cfg = daemon->dhcp_match6; opt_cfg; opt_cfg = opt_cfg->next)
+    {
+      unsigned int len, elen, match = 0;
+      size_t offset, o2;
+
+      if (opt_cfg->flags & DHOPT_RFC3925)
+	{
+	  for (opt = opt6_find(packet_options, end, OPTION6_VENDOR_OPTS, 4);
+	       opt;
+	       opt = opt6_find(opt6_next(opt, end), end, OPTION6_VENDOR_OPTS, 4))
+	    {
+	      void *vopt;
+	      void *vend = opt6_ptr(opt, opt6_len(opt));
+	      
+	      for (vopt = opt6_find(opt6_ptr(opt, 4), vend, opt_cfg->opt, 0);
+		   vopt;
+		   vopt = opt6_find(opt6_next(vopt, vend), vend, opt_cfg->opt, 0))
+		if (match = match_bytes(opt_cfg, opt6_ptr(vopt, 0), opt6_len(vopt)))
+		  break;
+	    }
+	  if (match)
+	    break;
+	}
+      else
+	{
+	  if (!(opt = opt6_find(packet_options, end, opt_cfg->opt, 1)))
+	    continue;
+	  
+	  match = match_bytes(opt_cfg, opt6_ptr(opt, 0), opt6_len(opt));
+	} 
+  
+      if (match)
+	{
+	  opt_cfg->netid->next = tags;
+	  tags = opt_cfg->netid;
 	}
     }
   
@@ -359,9 +401,22 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
       known_id.net = "known";
       known_id.next = tags;
       tags = &known_id;
+
+      if (have_config(config, CONFIG_DISABLE))
+	ignore = 1;
     }
   
-
+  /* if all the netids in the ignore list are present, ignore this client */
+  if (daemon->dhcp_ignore)
+    {
+      struct dhcp_netid_list *id_list;
+     
+      tagif = run_tag_if(tags);
+      
+      for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
+	if (match_netid(id_list->list, tagif, 0))
+	  ignore = 1;
+    }
 
   switch (msg_type)
     {
@@ -385,7 +440,10 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 	*outmsgtypep = make_lease ? DHCP6REPLY : DHCP6ADVERTISE;
 	
 	log6_packet(msg_type == DHCP6SOLICIT ? "DHCPSOLICIT" : "DHCPREQUEST",
-		    clid, clid_len, NULL, xid, iface_name, NULL);
+		    clid, clid_len, NULL, xid, iface_name, ignore ? "ignored" : NULL);
+	
+	if (ignore)
+	  return 0;
 	
 	for (opt = packet_options; opt; opt = opt6_next(opt, end))
 	  {   
@@ -791,6 +849,8 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
       
     case DHCP6IREQ:
       {
+	if (ignore)
+	  return 0;
 	*outmsgtypep = DHCP6REPLY;
 	break;
       }

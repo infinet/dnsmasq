@@ -209,5 +209,35 @@ void log_tags(struct dhcp_netid *netid, u32 xid)
     } 
 }   
   
+int match_bytes(struct dhcp_opt *o, unsigned char *p, int len)
+{
+  int i;
+  
+  if (o->len > len)
+    return 0;
+  
+  if (o->len == 0)
+    return 1;
+     
+  if (o->flags & DHOPT_HEX)
+    { 
+      if (memcmp_masked(o->val, p, o->len, o->u.wildcard_mask))
+	return 1;
+    }
+  else 
+    for (i = 0; i <= (len - o->len); ) 
+      {
+	if (memcmp(o->val, p + i, o->len) == 0)
+	  return 1;
+	    
+	if (o->flags & DHOPT_STRING)
+	  i++;
+	else
+	  i += o->len;
+      }
+  
+  return 0;
+}
+      
 
 #endif
