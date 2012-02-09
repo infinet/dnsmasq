@@ -37,6 +37,9 @@ version 2.60
 	    itself as 100% CPU use. Thanks to Chris Moore for finding
 	    this.
 
+	    Fix shell-scripting bug in bld/pkg-wrapper. Thanks to 
+	    Mark Mitchell for the patch.
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up
