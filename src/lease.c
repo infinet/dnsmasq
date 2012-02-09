@@ -28,13 +28,9 @@ void lease_init(time_t now)
   struct dhcp_lease *lease;
   int clid_len, hw_len, hw_type;
   FILE *leasestream;
-#ifdef HAVE_DHCP6
-  int v6pass = 0;
-  int lease_type = 0;
-#endif
   
   leases_left = daemon->dhcp_max;
-
+  
   if (option_bool(OPT_LEASE_RO))
     {
       /* run "<lease_change_script> init" once to get the
@@ -68,58 +64,68 @@ void lease_init(time_t now)
       rewind(leasestream);
     }
   
-#ifdef HAVE_DHCP6
- again:
-#endif
-
   /* client-id max length is 255 which is 255*2 digits + 254 colons 
      borrow DNS packet buffer which is always larger than 1000 bytes */
   if (leasestream)
-    while (fscanf(leasestream, "%lu %255s %64s %255s %764s",
-		  &ei, daemon->dhcp_buff2, daemon->namebuff, 
-		  daemon->dhcp_buff, daemon->packet) == 5)
+    while (fscanf(leasestream, "%255s %255s", daemon->dhcp_buff3, daemon->dhcp_buff2) == 2)
       {
+	if (strcmp(daemon->dhcp_buff3, "duid") == 0)
+	  {
+	    daemon->duid_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, 130, NULL, NULL);
+	    daemon->duid = safe_malloc(daemon->duid_len);
+	    memcpy(daemon->duid, daemon->dhcp_buff2, daemon->duid_len);
+	    continue;
+	  }
+	
+	ei = atol(daemon->dhcp_buff3);
+	
+	if (fscanf(leasestream, " %64s %255s %764s",
+		   daemon->namebuff, daemon->dhcp_buff, daemon->packet) != 3)
+	  break;
+	
+	clid_len = 0;
+	if (strcmp(daemon->packet, "*") != 0)
+	  clid_len = parse_hex(daemon->packet, (unsigned char *)daemon->packet, 255, NULL, NULL);
+	
+	if (inet_pton(AF_INET, daemon->namebuff, &addr.addr.addr4) &&
+	    (lease = lease4_allocate(addr.addr.addr4)))
+	  {
+	    hw_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, DHCP_CHADDR_MAX, NULL, &hw_type);
+	    /* For backwards compatibility, no explict MAC address type means ether. */
+	    if (hw_type == 0 && hw_len != 0)
+	      hw_type = ARPHRD_ETHER; 
+
+	    lease_set_hwaddr(lease, (unsigned char *)daemon->dhcp_buff2, (unsigned char *)daemon->packet, hw_len, hw_type, clid_len);
+	    
+	    if (strcmp(daemon->dhcp_buff, "*") !=  0)
+	      lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain(lease->addr), NULL);
+	  }
 #ifdef HAVE_DHCP6
-	if (v6pass)
+	else if (inet_pton(AF_INET6, daemon->namebuff, &addr.addr.addr6))
 	  {
 	    char *s = daemon->dhcp_buff2;
+	    int lease_type = LEASE_NA;
+
 	    if (s[0] == 'T')
 	      {
 		lease_type = LEASE_TA;
 		s++;
 	      }
-	    else
-	      lease_type = LEASE_NA;
 	    
 	    hw_type = atoi(s);
+	    
+	    if ((lease = lease6_allocate(&addr.addr.addr6, lease_type)))
+	      {
+		lease_set_hwaddr(lease, NULL, (unsigned char *)daemon->packet, 0, hw_type, clid_len);
+		
+		if (strcmp(daemon->dhcp_buff, "*") !=  0)
+		  lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain6((struct in6_addr *)lease->hwaddr), NULL);
+	      }
 	  }
-	else
 #endif
-	  {
-	    hw_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, DHCP_CHADDR_MAX, NULL, &hw_type);
-	    /* For backwards compatibility, no explict MAC address type means ether. */
-	    if (hw_type == 0 && hw_len != 0)
-	      hw_type = ARPHRD_ETHER;
-	  }
-
-#ifdef HAVE_DHCP6
-	if (v6pass)
-	  inet_pton(AF_INET6, daemon->namebuff,	&addr.addr.addr6);
 	else
-#endif	
-	  inet_pton(AF_INET, daemon->namebuff, &addr.addr.addr4);	
+	  break;
 
-	clid_len = 0;
-	if (strcmp(daemon->packet, "*") != 0)
-	  clid_len = parse_hex(daemon->packet, (unsigned char *)daemon->packet, 255, NULL, NULL);
-	
-#ifdef HAVE_DHCP6
-	if (v6pass)
-	  lease = lease6_allocate(&addr.addr.addr6, lease_type);
-	else
-#endif
-	  lease = lease4_allocate(addr.addr.addr4);
-	
 	if (!lease)
 	  die (_("too many stored leases"), NULL, EC_MISC);
        	
@@ -134,44 +140,17 @@ void lease_init(time_t now)
 	   even when sizeof(time_t) == 8 */
 	lease->expires = (time_t)ei;
 #endif
-
-#ifdef HAVE_DHCP6
-	if (v6pass)
-	  lease_set_hwaddr(lease, NULL, (unsigned char *)daemon->packet, 0, hw_type, clid_len);
-	else
-#endif
-	  lease_set_hwaddr(lease, (unsigned char *)daemon->dhcp_buff2, (unsigned char *)daemon->packet, hw_len, hw_type, clid_len);
 	
-	if (strcmp(daemon->dhcp_buff, "*") !=  0)
-	  {
-#ifdef HAVE_DHCP6
-	   if (v6pass)
-	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain6((struct in6_addr *)lease->hwaddr), NULL);
-	   else
-#endif
-	     lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain(lease->addr), NULL);
-	  }
 	/* set these correctly: the "old" events are generated later from
 	   the startup synthesised SIGHUP. */
-	lease->flags |= ~(LEASE_NEW | LEASE_CHANGED);
+	lease->flags &= ~(LEASE_NEW | LEASE_CHANGED);
       }
 
 #ifdef HAVE_DHCP6  
-  if (!v6pass)
-    {
-      if (fscanf(leasestream, "duid %255s", daemon->dhcp_buff) == 1)
-	{
-	  daemon->duid_len = parse_hex(daemon->dhcp_buff, (unsigned char *)daemon->dhcp_buff, 130, NULL, NULL);
-	  daemon->duid = safe_malloc(daemon->duid_len);
-	  memcpy(daemon->duid, daemon->dhcp_buff, daemon->duid_len );
-	  v6pass = 1;
-	  goto again;
-	}
-      
-      /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
-      if (daemon->dhcp6)
-      	make_duid(now);
-    }
+  /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
+  if (!daemon->duid && daemon->dhcp6)
+    make_duid(now);
+
 #endif
   
 #ifdef HAVE_SCRIPT
@@ -727,7 +706,7 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *do
 	      if (!(lease_tmp->flags & (LEASE_TA | LEASE_NA)))
 		continue;
 
-	      /* another lease for the saem DUID is OK for IPv6 */
+	      /* another lease for the same DUID is OK for IPv6 */
 	      if (lease->clid_len == lease_tmp->clid_len &&
 		  lease->clid && lease_tmp->clid &&
 		  memcmp(lease->clid, lease_tmp->clid, lease->clid_len) == 0)
@@ -864,6 +843,44 @@ int do_script_run(time_t now)
 
   return 0; /* nothing to do */
 }
+
+#ifdef HAVE_SCRIPT
+void lease_add_extradata(struct dhcp_lease *lease, unsigned char *data, unsigned int len, int delim)
+{
+  unsigned int i;
+  
+  /* check for embeded NULLs */
+  for (i = 0; i < len; i++)
+    if (data[i] == 0)
+      {
+	len = i;
+	break;
+      }
+
+  if ((lease->extradata_size - lease->extradata_len) < (len + 1))
+    {
+      size_t newsz = lease->extradata_len + len + 100;
+      unsigned char *new = whine_malloc(newsz);
+  
+      if (!new)
+	return;
+      
+      if (lease->extradata)
+	{
+	  memcpy(new, lease->extradata, lease->extradata_len);
+	  free(lease->extradata);
+	}
+
+      lease->extradata = new;
+      lease->extradata_size = newsz;
+    }
+
+  if (len != 0)
+    memcpy(lease->extradata + lease->extradata_len, data, len);
+  lease->extradata[lease->extradata_len + len] = delim;
+  lease->extradata_len += len + 1; 
+}
+#endif
 
 #endif
 	  

@@ -911,12 +911,9 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				unsigned char *clid, int clid_len,
 				unsigned char *hwaddr, int hw_len, 
 				int hw_type, char *hostname);
-void dhcp_update_configs(struct dhcp_config *configs);
 void dhcp_read_ethers(void);
-void check_dhcp_hosts(int fatal);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 char *host_from_dns(struct in_addr addr);
-char *get_domain(struct in_addr addr);
 #endif
 
 /* lease.c */
@@ -944,6 +941,10 @@ void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(void);
 int do_script_run(time_t now);
 void rerun_scripts(void);
+#ifdef HAVE_SCRIPT
+void lease_add_extradata(struct dhcp_lease *lease, unsigned char *data, 
+			 unsigned int len, int delim);
+#endif
 #endif
 
 /* rfc2131.c */
@@ -1026,15 +1027,18 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
 				 struct dhcp_context *context,
 				 unsigned char *duid, int duid_len,
 				 char *hostname);
+struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct in6_addr *net, 
+					    int prefix, u64 addr);
 void make_duid(time_t now);
 #endif
 
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
-size_t dhcp6_reply(struct dhcp_context *context, char *iface_name, size_t sz, int is_multicast, time_t now);
+size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name, size_t sz, int is_multicast, time_t now);
 #endif
 
 /* dhcp-common.c */
+#ifdef HAVE_DHCP
 void dhcp_common_init(void);
 ssize_t recv_dhcp_packet(int fd, struct msghdr *msg);
 struct dhcp_netid *run_tag_if(struct dhcp_netid *input);
@@ -1044,3 +1048,6 @@ int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int negonly);
 char *strip_hostname(char *hostname);
 void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
+void dhcp_update_configs(struct dhcp_config *configs);
+void check_dhcp_hosts(int fatal);
+#endif

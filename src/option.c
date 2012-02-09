@@ -1730,14 +1730,13 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 				 local=/<domain>/
 				 local=/xxx.yyy.zzz.ip6.arpa/ */
 
-			      if (strcmp(arg, "local") != 0 || (msize & 4 != 0))
+			      if (strcmp(arg, "local") != 0 || ((msize & 4) != 0))
 				option = '?';
 			      else 
 				{
 				  struct server *serv = opt_malloc(sizeof(struct server));
-				  in_addr_t a = ntohl(new->start.s_addr) >> 8;
 				  char *p;
-
+				  
 				  memset(serv, 0, sizeof(struct server));
 				  serv->domain = d;
 				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;

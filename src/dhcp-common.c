@@ -238,6 +238,124 @@ int match_bytes(struct dhcp_opt *o, unsigned char *p, int len)
   
   return 0;
 }
-      
+
+void check_dhcp_hosts(int fatal)
+{
+  /* If the same IP appears in more than one host config, then DISCOVER
+     for one of the hosts will get the address, but REQUEST will be NAKed,
+     since the address is reserved by the other one -> protocol loop. 
+     Also check that FQDNs match the domain we are using. */
+  
+  struct dhcp_config *configs, *cp;
+ 
+  for (configs = daemon->dhcp_conf; configs; configs = configs->next)
+    {
+      char *domain;
+
+      if ((configs->flags & DHOPT_BANK) || fatal)
+       {
+	 for (cp = configs->next; cp; cp = cp->next)
+	   if ((configs->flags & cp->flags & CONFIG_ADDR) && configs->addr.s_addr == cp->addr.s_addr)
+	     {
+	       if (fatal)
+		 die(_("duplicate IP address %s in dhcp-config directive."), 
+		     inet_ntoa(cp->addr), EC_BADCONF);
+	       else
+		 my_syslog(MS_DHCP | LOG_ERR, _("duplicate IP address %s in %s."), 
+			   inet_ntoa(cp->addr), daemon->dhcp_hosts_file);
+	       configs->flags &= ~CONFIG_ADDR;
+	     }
+	 
+	 /* split off domain part */
+	 if ((configs->flags & CONFIG_NAME) && (domain = strip_hostname(configs->hostname)))
+	   configs->domain = domain;
+       }
+    }
+}
+
+void dhcp_update_configs(struct dhcp_config *configs)
+{
+  /* Some people like to keep all static IP addresses in /etc/hosts.
+     This goes through /etc/hosts and sets static addresses for any DHCP config
+     records which don't have an address and whose name matches. 
+     We take care to maintain the invariant that any IP address can appear
+     in at most one dhcp-host. Since /etc/hosts can be re-read by SIGHUP, 
+     restore the status-quo ante first. */
+  
+  struct dhcp_config *config;
+  struct crec *crec;
+  int prot = AF_INET;
+
+  for (config = configs; config; config = config->next)
+    if (config->flags & CONFIG_ADDR_HOSTS)
+      config->flags &= ~(CONFIG_ADDR | CONFIG_ADDR6 | CONFIG_ADDR_HOSTS);
+
+#ifdef HAVE_DHCP6 
+ again:  
+#endif
+
+  if (daemon->port != 0)
+    for (config = configs; config; config = config->next)
+      {
+	int conflags = CONFIG_ADDR;
+	int cacheflags = F_IPV4;
+
+#ifdef HAVE_DHCP6
+	if (prot == AF_INET6)
+	  {
+	    conflags = CONFIG_ADDR6;
+	    cacheflags = F_IPV6;
+	  }
+#endif
+	if (!(config->flags & conflags) &&
+	    (config->flags & CONFIG_NAME) && 
+	    (crec = cache_find_by_name(NULL, config->hostname, 0, cacheflags)) &&
+	    (crec->flags & F_HOSTS))
+	  {
+	    if (cache_find_by_name(crec, config->hostname, 0, cacheflags))
+	      {
+		/* use primary (first) address */
+	      while (crec && !(crec->flags & F_REVERSE))
+		crec = cache_find_by_name(crec, config->hostname, 0, cacheflags);
+	      if (!crec)
+		continue; /* should be never */
+	      inet_ntop(prot, &crec->addr.addr, daemon->addrbuff, ADDRSTRLEN);
+	      my_syslog(MS_DHCP | LOG_WARNING, _("%s has more than one address in hostsfile, using %s for DHCP"), 
+			config->hostname, daemon->addrbuff);
+	      }
+	    
+	    if (prot == AF_INET && !config_find_by_address(configs, crec->addr.addr.addr.addr4))
+	      {
+		config->addr = crec->addr.addr.addr.addr4;
+		config->flags |= CONFIG_ADDR | CONFIG_ADDR_HOSTS;
+		continue;
+	      }
+
+#ifdef HAVE_DHCP6
+	    if (prot == AF_INET6 && !config_find_by_address6(configs, &crec->addr.addr.addr.addr6, 129, 0))
+	      {
+		memcpy(config->hwaddr, &crec->addr.addr.addr.addr6, IN6ADDRSZ);
+		config->flags |= CONFIG_ADDR6 | CONFIG_ADDR_HOSTS;
+		continue;
+	      }
+#endif
+
+	    inet_ntop(prot, &crec->addr.addr, daemon->addrbuff, ADDRSTRLEN);
+	    my_syslog(MS_DHCP | LOG_WARNING, _("duplicate IP address %s (%s) in dhcp-config directive"), 
+		      daemon->addrbuff, config->hostname);
+	    
+	    
+	  }
+      }
+
+#ifdef HAVE_DHCP6
+  if (prot == AF_INET)
+    {
+      prot = AF_INET6;
+      goto again;
+    }
+#endif
+
+}
 
 #endif

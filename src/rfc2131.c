@@ -22,7 +22,6 @@
 #define option_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[2u+(unsigned int)(i)]))
 
 #ifdef HAVE_SCRIPT
-static void add_extradata_data(struct dhcp_lease *lease, unsigned char *data, size_t len, int delim);
 static void add_extradata_opt(struct dhcp_lease *lease, unsigned char *opt);
 #endif
 
@@ -1252,7 +1251,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		      if (strcmp(n->net, n1->net) == 0)
 			break;
 		    if (!n1)
-		      add_extradata_data(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
+		      lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
 		  }
 
 	      if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
@@ -1262,7 +1261,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  /* If the user-class option started as counted strings, the first byte will be zero. */
 		  if (len != 0 && ucp[0] == 0)
 		    ucp++, len--;
-		  add_extradata_data(lease, ucp, len, 0);
+		  lease_add_extradata(lease, ucp, len, 0);
 		}
 	    }
 #endif
@@ -1484,51 +1483,12 @@ static int sanitise(unsigned char *opt, char *buf)
 }
 
 #ifdef HAVE_SCRIPT
-static void add_extradata_data(struct dhcp_lease *lease, unsigned char *data, size_t len, int delim)
-{
-  if ((lease->extradata_size - lease->extradata_len) < (len + 1))
-    {
-      size_t newsz = lease->extradata_len + len + 100;
-      unsigned char *new = whine_malloc(newsz);
-  
-      if (!new)
-	return;
-      
-      if (lease->extradata)
-	{
-	  memcpy(new, lease->extradata, lease->extradata_len);
-	  free(lease->extradata);
-	}
-
-      lease->extradata = new;
-      lease->extradata_size = newsz;
-    }
-
-  if (len != 0)
-    memcpy(lease->extradata + lease->extradata_len, data, len);
-  lease->extradata[lease->extradata_len + len] = delim;
-  lease->extradata_len += len + 1; 
-}
-
 static void add_extradata_opt(struct dhcp_lease *lease, unsigned char *opt)
 {
   if (!opt)
-    add_extradata_data(lease, NULL, 0, 0);
+    lease_add_extradata(lease, NULL, 0, 0);
   else
-    {
-      size_t i, len = option_len(opt);
-      unsigned char *ucp = option_ptr(opt, 0);
-      
-      /* check for embeded NULLs */
-      for (i = 0; i < len; i++)
-	if (ucp[i] == 0)
-	  {
-	    len = i;
-	    break;
-	  }
-
-      add_extradata_data(lease, ucp, len, 0);
-    }
+    lease_add_extradata(lease, option_ptr(opt, 0), option_len(opt), 0); 
 }
 #endif
 

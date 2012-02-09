@@ -30,10 +30,10 @@ static void put_opt6_short(unsigned int val);
 static void put_opt6_long(unsigned int val);
 static void put_opt6_string(char *s);
 
-static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp,
-			     struct dhcp_context *context, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
-static int dhcp6_no_relay(int msg_type,  struct dhcp_netid *tags, 
-			  struct dhcp_context *context, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
+static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context, 
+			     int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
+static int dhcp6_no_relay(int msg_type,  struct dhcp_netid *tags, struct dhcp_context *context, 
+			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string);
 
 static void *opt6_find (void *opts, void *end, unsigned int search, unsigned int minsize);
@@ -45,7 +45,7 @@ static unsigned int opt6_uint(unsigned char *opt, int offset, int size);
 
 
 
-size_t dhcp6_reply(struct dhcp_context *context, char *iface_name, size_t sz, int is_unicast, time_t now)
+size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name, size_t sz, int is_unicast, time_t now)
 {
   struct dhcp_netid *relay_tags = NULL;
   struct dhcp_vendor *vendor;
@@ -56,15 +56,15 @@ size_t dhcp6_reply(struct dhcp_context *context, char *iface_name, size_t sz, in
   
   outpacket_counter = 0;
   
-  if (dhcp6_maybe_relay(NULL, &relay_tags, context, iface_name, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
+  if (dhcp6_maybe_relay(NULL, &relay_tags, context, interface, iface_name, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
     return outpacket_counter;
 
   return 0;
 }
 
 /* This cost me blood to write, it will probably cost you blood to understand - srk. */
-static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp,
-			     struct dhcp_context *context, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
+static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context,
+			     int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
 {
   void *end = inbuff + sz;
   void *opts = inbuff + 34;
@@ -114,7 +114,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	  return 0;
 	}
 
-      return dhcp6_no_relay(msg_type, *relay_tagsp, context, iface_name, inbuff, sz, is_unicast, now);
+      return dhcp6_no_relay(msg_type, *relay_tagsp, context, interface, iface_name, inbuff, sz, is_unicast, now);
     }
 
   /* must have at least msg_type+hopcount+link_address+peer_address+minimal size option
@@ -159,7 +159,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	  memcpy(&link_address, inbuff + 2, IN6ADDRSZ); 
 	  /* Not, zero is_unicast since that is now known to refer to the 
 	     relayed packet, not the original sent by the client */
-	  if (!dhcp6_maybe_relay(&link_address, relay_tagsp, context, iface_name, opt6_ptr(opt, 0), opt6_len(opt), 0, now))
+	  if (!dhcp6_maybe_relay(&link_address, relay_tagsp, context, interface, iface_name, opt6_ptr(opt, 0), opt6_len(opt), 0, now))
 	    return 0;
 	}
       else
@@ -170,8 +170,8 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
   return 1;
 }
 
-static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, 
-			  struct dhcp_context *context, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
+static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_context *context, 
+			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
 {
   void *packet_options = inbuff + 4;
   void *end = inbuff + sz;
@@ -183,7 +183,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
   char *client_hostname= NULL, *hostname = NULL;
   char *domain = NULL, *send_domain = NULL;
   struct dhcp_config *config = NULL;
-  struct dhcp_netid known_id;
+  struct dhcp_netid known_id, iface_id;
   int done_dns = 0, hostname_auth = 0, do_encap = 0;
   unsigned char *outmsgtypep;
   struct dhcp_opt *opt_cfg;
@@ -191,6 +191,11 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
   struct dhcp_context *context_tmp;
   unsigned int xid, ignore = 0;
   unsigned int fqdn_flags = 0x01; /* default to send if we recieve no FQDN option */
+
+  /* set tag with name == interface */
+  iface_id.net = iface_name;
+  iface_id.next = tags;
+  tags = &iface_id; 
 
   /* copy over transaction-id, and save pointer to message type */
   outmsgtypep = put_opt6(inbuff, 4);
@@ -281,9 +286,8 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
      V-I opts too. */
   for (opt_cfg = daemon->dhcp_match6; opt_cfg; opt_cfg = opt_cfg->next)
     {
-      unsigned int len, elen, match = 0;
-      size_t offset, o2;
-
+      int match = 0;
+      
       if (opt_cfg->flags & DHOPT_RFC3925)
 	{
 	  for (opt = opt6_find(packet_options, end, OPTION6_VENDOR_OPTS, 4);
@@ -296,7 +300,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 	      for (vopt = opt6_find(opt6_ptr(opt, 4), vend, opt_cfg->opt, 0);
 		   vopt;
 		   vopt = opt6_find(opt6_next(vopt, vend), vend, opt_cfg->opt, 0))
-		if (match = match_bytes(opt_cfg, opt6_ptr(vopt, 0), opt6_len(vopt)))
+		if ((match = match_bytes(opt_cfg, opt6_ptr(vopt, 0), opt6_len(vopt))))
 		  break;
 	    }
 	  if (match)
@@ -547,7 +551,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 			(lease = lease6_find(clid, clid_len, 
 					     ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL)) &&
 			address6_available(context, (struct in6_addr *)&lease->hwaddr, tags) &&
-			!config_find_by_address6(daemon->dhcp_conf, (struct in6_addr *)&lease->hwaddr))
+			!config_find_by_address6(daemon->dhcp_conf, (struct in6_addr *)&lease->hwaddr, 128, 0))
 		      addrp = (struct in6_addr *)&lease->hwaddr;
 		    
 		    if (!addrp && address6_allocate(context, clid, clid_len, serial++, tags, &alloced_addr))
@@ -597,6 +601,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 			  {
 			    lease_set_expires(lease, lease_time, now);
 			    lease_set_hwaddr(lease, NULL, clid, 0, iaid, clid_len);
+			    lease_set_interface(lease, interface);
 			    if (hostname && ia_type == OPTION6_IA_NA)
 			      {
 				char *addr_domain = get_domain6(addrp);
@@ -604,6 +609,58 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 				  send_domain = addr_domain;
 				lease_set_hostname(lease, hostname, hostname_auth, addr_domain, domain);
 			      }
+
+#ifdef HAVE_SCRIPT
+			    if (daemon->lease_change_command)
+			      {
+				void *class_opt;
+				lease->flags |= LEASE_CHANGED;
+				free(lease->extradata);
+				lease->extradata = NULL;
+				lease->extradata_size = lease->extradata_len = 0;
+				lease->hwaddr_len = 0; /* surrogate for no of vendor classes */
+
+				if ((class_opt = opt6_find(packet_options, end, OPTION6_VENDOR_CLASS, 2)))
+				  {
+				    void *enc_opt, *enc_end = opt6_ptr(class_opt, opt6_len(class_opt));
+				    for (enc_opt = opt6_ptr(class_opt, 0); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
+				      {
+					lease->hwaddr_len++;
+					lease_add_extradata(lease, opt6_ptr(enc_opt, 0), opt6_len(enc_opt), 0);
+				      }
+				  }
+				
+				lease_add_extradata(lease, (unsigned char *)client_hostname, 
+						    client_hostname ? strlen(client_hostname) : 0, 0);				
+				
+				/* space-concat tag set */
+				if (!tags)
+				  lease_add_extradata(lease, NULL, 0, 0);
+				else
+				  {
+				    struct dhcp_netid *n;
+				    
+				    for (n = run_tag_if(tags); n; n = n->next)
+				      {
+					struct dhcp_netid *n1;
+					/* kill dupes */
+					for (n1 = n->next; n1; n1 = n1->next)
+					  if (strcmp(n->net, n1->net) == 0)
+					    break;
+					if (!n1)
+					  lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
+				      }
+				  }
+				  
+				if ((class_opt = opt6_find(packet_options, end, OPTION6_USER_CLASS, 2)))
+				  {
+				    void *enc_opt, *enc_end = opt6_ptr(class_opt, opt6_len(class_opt));
+				    for (enc_opt = opt6_ptr(class_opt, 0); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
+				      lease_add_extradata(lease, opt6_ptr(enc_opt, 0), opt6_len(enc_opt), 0);
+				  }
+			      }
+#endif	
+			    
 			  }
 			else if (!send_domain)
 			  send_domain = get_domain6(addrp);
@@ -739,8 +796,9 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 		    break;
 		  }
 		
-		if (!address6_available(context, req_addr, tags) || 
-		    !(this_context = narrow_context6(context, req_addr, tags)))
+		tagif = run_tag_if(tags);
+		if (!address6_available(context, req_addr, tagif) || 
+		    !(this_context = narrow_context6(context, req_addr, tagif)))
 		  lease_time = 0;
 		else
 		  {
@@ -827,7 +885,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 	      {
 		struct in6_addr *req_addr = opt6_ptr(ia_option, 0);
 		
-		if (!address6_available(context, req_addr, tags))
+		if (!address6_available(context, req_addr, run_tag_if(tags)))
 		  {
 		    o1 = new_opt6(OPTION6_STATUS_CODE);
 		    put_opt6_short(DHCP6NOTONLINK);
@@ -974,10 +1032,10 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags,
 		if (have_config(config, CONFIG_ADDR6) && 
 		    memcmp(&config->addr6, addrp, IN6ADDRSZ) == 0)
 		  {
-		    prettyprint_time(daemon->dhcp_buff, DECLINE_BACKOFF);
+		    prettyprint_time(daemon->dhcp_buff3, DECLINE_BACKOFF);
 		    inet_ntop(AF_INET6, addrp, daemon->addrbuff, ADDRSTRLEN);
 		    my_syslog(MS_DHCP | LOG_WARNING, _("disabling DHCP static address %s for %s"), 
-			      daemon->addrbuff, daemon->dhcp_buff);
+			      daemon->addrbuff, daemon->dhcp_buff3);
 		    config->flags |= CONFIG_DECLINED;
 		    config->decline_time = now;
 		  }
