@@ -150,7 +150,9 @@ int main (int argc, char **argv)
     {
       /* Note that order matters here, we must call lease_init before
 	 creating any file descriptors which shouldn't be leaked
-	 to the lease-script init process. */
+	 to the lease-script init process. We need to call common_init
+	 before lease_init to allocate buffers it uses.*/
+      dhcp_common_init();
       lease_init(now);
       if (daemon->dhcp)
 	dhcp_init();

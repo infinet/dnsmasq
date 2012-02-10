@@ -782,7 +782,7 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6;
 	  addrlen = IN6ADDRSZ;
-	  domain_suffix = daemon->domain_suffix;
+	  domain_suffix = get_domain6(&addr.addr.addr6);
 	}
 #else 
       if ((addr.addr.addr4.s_addr = inet_addr(token)) != (in_addr_t) -1)
@@ -913,12 +913,32 @@ char *get_domain(struct in_addr addr)
   struct cond_domain *c;
 
   for (c = daemon->cond_domain; c; c = c->next)
-    if (ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
+    if (!c->is6 &&
+	ntohl(addr.s_addr) >= ntohl(c->start.s_addr) &&
         ntohl(addr.s_addr) <= ntohl(c->end.s_addr))
       return c->domain;
 
   return daemon->domain_suffix;
 }
+
+
+#ifdef HAVE_IPV6
+char *get_domain6(struct in6_addr *addr)
+{
+  struct cond_domain *c;
+
+  u64 addrpart = addr6part(addr);
+  
+  for (c = daemon->cond_domain; c; c = c->next)
+    if (c->is6 &&
+	is_same_net6(addr, &c->start6, 64) &&
+	addrpart >= addr6part(&c->start6) &&
+        addrpart <= addr6part(&c->end6))
+      return c->domain;
+  
+  return daemon->domain_suffix;
+}
+#endif
 
 #ifdef HAVE_DHCP
 struct in_addr a_record_from_hosts(char *name, time_t now)
@@ -953,15 +973,24 @@ void cache_unhash_dhcp(void)
 	up = &cache->hash_next;
 }
 
-void cache_add_dhcp_entry(char *host_name, 
-			  struct in_addr *host_address, time_t ttd) 
+void cache_add_dhcp_entry(char *host_name, int prot,
+			  struct all_addr *host_address, time_t ttd) 
 {
   struct crec *crec = NULL, *aliasc;
-  unsigned short flags =  F_NAMEP | F_DHCP | F_FORWARD | F_IPV4 | F_REVERSE;
+  unsigned short flags = F_IPV4;
   int in_hosts = 0;
   struct cname *a;
+  size_t addrlen = sizeof(struct in_addr);
+
+#ifdef HAVE_IPV6
+  if (prot == AF_INET6)
+    {
+      flags = F_IPV6;
+      addrlen = sizeof(struct in6_addr);
+    }
+#endif
   
-  while ((crec = cache_find_by_name(crec, host_name, 0, F_IPV4 | F_CNAME)))
+  while ((crec = cache_find_by_name(crec, host_name, 0, flags | F_CNAME)))
     {
       /* check all addresses associated with name */
       if (crec->flags & F_HOSTS)
@@ -969,23 +998,25 @@ void cache_add_dhcp_entry(char *host_name,
 	  /* if in hosts, don't need DHCP record */
 	  in_hosts = 1;
 	  
+	  inet_ntop(prot, host_address, daemon->addrbuff, ADDRSTRLEN);
 	  if (crec->flags & F_CNAME)
+	    
 	    my_syslog(MS_DHCP | LOG_WARNING, 
 		      _("%s is a CNAME, not giving it to the DHCP lease of %s"),
-		      host_name, inet_ntoa(*host_address));
-	  else if (crec->addr.addr.addr.addr4.s_addr != host_address->s_addr)
+		      host_name, daemon->addrbuff);
+	  else if (memcmp(&crec->addr.addr, host_address, addrlen) != 0)
 	    {
-	      strcpy(daemon->namebuff, inet_ntoa(crec->addr.addr.addr.addr4));
+	      inet_ntop(prot, &crec->addr.addr, daemon->namebuff, MAXDNAME);
 	      my_syslog(MS_DHCP | LOG_WARNING, 
 			_("not giving name %s to the DHCP lease of %s because "
 			  "the name exists in %s with address %s"), 
-			host_name, inet_ntoa(*host_address),
+			host_name, daemon->addrbuff,
 			record_source(crec->uid), daemon->namebuff);
 	    }	  
 	}
       else if (!(crec->flags & F_DHCP))
 	{
-	  cache_scan_free(host_name, NULL, 0, crec->flags & (F_IPV4 | F_CNAME | F_FORWARD));
+	  cache_scan_free(host_name, NULL, 0, crec->flags & (flags | F_CNAME | F_FORWARD));
 	  /* scan_free deletes all addresses associated with name */
 	  break;
 	}
@@ -994,14 +1025,16 @@ void cache_add_dhcp_entry(char *host_name,
    if (in_hosts)
     return;
 
-   if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, F_IPV4)))
+   if ((crec = cache_find_by_addr(NULL, (struct all_addr *)host_address, 0, flags)))
      {
        if (crec->flags & F_NEG)
-	 cache_scan_free(NULL, (struct all_addr *)host_address, 0, F_IPV4 | F_REVERSE);
-       else
-	 /* avoid multiple reverse mappings */
-	 flags &= ~F_REVERSE;
+	 {
+	   flags |= F_REVERSE;
+	   cache_scan_free(NULL, (struct all_addr *)host_address, 0, flags);
+	 }
      }
+   else
+      flags |= F_REVERSE;
    
    if ((crec = dhcp_spare))
     dhcp_spare = dhcp_spare->next;
@@ -1010,12 +1043,12 @@ void cache_add_dhcp_entry(char *host_name,
   
   if (crec) /* malloc may fail */
     {
-      crec->flags = flags;
+      crec->flags = flags | F_NAMEP | F_DHCP | F_FORWARD;
       if (ttd == 0)
 	crec->flags |= F_IMMORTAL;
       else
 	crec->ttd = ttd;
-      crec->addr.addr.addr.addr4 = *host_address;
+      crec->addr.addr = *host_address;
       crec->name.namep = host_name;
       crec->uid = uid++;
       cache_hash(crec);

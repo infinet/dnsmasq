@@ -53,7 +53,10 @@
 #define OPTION6_INTERFACE_ID    18
 #define OPTION6_RECONFIGURE_MSG 19
 #define OPTION6_RECONF_ACCEPT   20
-
+#define OPTION6_DNS_SERVER      23
+#define OPTION6_REMOTE_ID       37
+#define OPTION6_SUBSCRIBER_ID   38
+#define OPTION6_FQDN            39
 
 #define DHCP6SUCCESS     0
 #define DHCP6UNSPEC      1

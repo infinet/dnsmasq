@@ -153,7 +153,25 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 
       ifr = (struct ifreq *)ifreq.iov_base;
       memcpy(ifr, ptr, len);
-           
+      
+#ifdef HAVE_DHCP6      
+      if (family == AF_LOCAL)
+	{ 
+	  unsigned int flags;
+	  if (ioctl(fd, SIOCGIFFLAGS, ifr) != -1)
+	    {
+	      flags = ifr.ifr_flags;
+	      ifr->ifr_addr.sa_family = AF_LINK;
+	      if (ioctl(fd, SIOCGIFADDR, ifr) != -1 &&
+		  !((*callback)((unsigned int) htons(ETHERTYPE_IP), 
+				(unsigned int)link->ifi_flags,
+				LLADDR((struct sockaddr_dl *)&ifr->ifr_addr), ETHER_ADDR_LEN, parm)))
+		goto err;
+	    }
+	  continue;
+	}
+#endif 
+
       if (ifr->ifr_addr.sa_family == family)
 	{
 	  if (family == AF_INET)

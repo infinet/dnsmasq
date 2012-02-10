@@ -119,42 +119,6 @@ void dhcp_init(void)
 #endif
   
   check_dhcp_hosts(1);
-    
-  expand_buf(&daemon->dhcp_packet, sizeof(struct dhcp_packet)); 
-}
-
-ssize_t recv_dhcp_packet(int fd, struct msghdr *msg)
-{  
-  ssize_t sz;
- 
-  while (1)
-    {
-      msg->msg_flags = 0;
-      while ((sz = recvmsg(fd, msg, MSG_PEEK | MSG_TRUNC)) == -1 && errno == EINTR);
-      
-      if (sz == -1)
-	return -1;
-      
-      if (!(msg->msg_flags & MSG_TRUNC))
-	break;
-
-      /* Very new Linux kernels return the actual size needed, 
-	 older ones always return truncated size */
-      if ((size_t)sz == daemon->dhcp_packet.iov_len)
-	{
-	  if (!expand_buf(&daemon->dhcp_packet, sz + 100))
-	    return -1;
-	}
-      else
-	{
-	  expand_buf(&daemon->dhcp_packet, sz);
-	  break;
-	}
-    }
-  
-  while ((sz = recvmsg(fd, msg, 0)) == -1 && errno == EINTR);
-  
-  return (msg->msg_flags & MSG_TRUNC) ? -1 : sz;
 }
 
 void dhcp_packet(time_t now, int pxe_fd)
@@ -610,50 +574,6 @@ struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct i
   return NULL;
 }
 
-/* Is every member of check matched by a member of pool? 
-   If tagnotneeded, untagged is OK */
-int match_netid(struct dhcp_netid *check, struct dhcp_netid *pool, int tagnotneeded)
-{
-  struct dhcp_netid *tmp1;
-  
-  if (!check && !tagnotneeded)
-    return 0;
-
-  for (; check; check = check->next)
-    {
-      /* '#' for not is for backwards compat. */
-      if (check->net[0] != '!' && check->net[0] != '#')
-	{
-	  for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	    if (strcmp(check->net, tmp1->net) == 0)
-	      break;
-	  if (!tmp1)
-	    return 0;
-	}
-      else
-	for (tmp1 = pool; tmp1; tmp1 = tmp1->next)
-	  if (strcmp((check->net)+1, tmp1->net) == 0)
-	    return 0;
-    }
-  return 1;
-}
-
-struct dhcp_netid *run_tag_if(struct dhcp_netid *tags)
-{
-  struct tag_if *exprs;
-  struct dhcp_netid_list *list;
-
-  for (exprs = daemon->tag_if; exprs; exprs = exprs->next)
-    if (match_netid(exprs->tag, tags, 1))
-      for (list = exprs->set; list; list = list->next)
-	{
-	  list->list->next = tags;
-	  tags = list->list;
-	}
-
-  return tags;
-}
-
 int address_allocate(struct dhcp_context *context,
 		     struct in_addr *addrp, unsigned char *hwaddr, int hw_len, 
 		     struct dhcp_netid *netids, time_t now)   
@@ -849,7 +769,7 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	  is_addr_in_context(context, config))
 	return config;
 
-  /* use match with fewest wildcast octets */
+  /* use match with fewest wildcard octets */
   for (candidate = NULL, count = 0, config = configs; config; config = config->next)
     if (is_addr_in_context(context, config))
       for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
@@ -1026,85 +946,6 @@ void dhcp_read_ethers(void)
   my_syslog(MS_DHCP | LOG_INFO, _("read %s - %d addresses"), ETHERSFILE, count);
 }
 
-void check_dhcp_hosts(int fatal)
-{
-  /* If the same IP appears in more than one host config, then DISCOVER
-     for one of the hosts will get the address, but REQUEST will be NAKed,
-     since the address is reserved by the other one -> protocol loop. 
-     Also check that FQDNs match the domain we are using. */
-  
-  struct dhcp_config *configs, *cp;
- 
-  for (configs = daemon->dhcp_conf; configs; configs = configs->next)
-    {
-      char *domain;
-
-      if ((configs->flags & DHOPT_BANK) || fatal)
-       {
-	 for (cp = configs->next; cp; cp = cp->next)
-	   if ((configs->flags & cp->flags & CONFIG_ADDR) && configs->addr.s_addr == cp->addr.s_addr)
-	     {
-	       if (fatal)
-		 die(_("duplicate IP address %s in dhcp-config directive."), 
-		     inet_ntoa(cp->addr), EC_BADCONF);
-	       else
-		 my_syslog(MS_DHCP | LOG_ERR, _("duplicate IP address %s in %s."), 
-			   inet_ntoa(cp->addr), daemon->dhcp_hosts_file);
-	       configs->flags &= ~CONFIG_ADDR;
-	     }
-	 
-	 /* split off domain part */
-	 if ((configs->flags & CONFIG_NAME) && (domain = strip_hostname(configs->hostname)))
-	   configs->domain = domain;
-       }
-    }
-}
-
-void dhcp_update_configs(struct dhcp_config *configs)
-{
-  /* Some people like to keep all static IP addresses in /etc/hosts.
-     This goes through /etc/hosts and sets static addresses for any DHCP config
-     records which don't have an address and whose name matches. 
-     We take care to maintain the invariant that any IP address can appear
-     in at most one dhcp-host. Since /etc/hosts can be re-read by SIGHUP, 
-     restore the status-quo ante first. */
-  
-  struct dhcp_config *config;
-  struct crec *crec;
-
-  for (config = configs; config; config = config->next)
-    if (config->flags & CONFIG_ADDR_HOSTS)
-      config->flags &= ~(CONFIG_ADDR | CONFIG_ADDR_HOSTS);
-  
-  
-  if (daemon->port != 0)
-    for (config = configs; config; config = config->next)
-      if (!(config->flags & CONFIG_ADDR) &&
-	  (config->flags & CONFIG_NAME) && 
-	  (crec = cache_find_by_name(NULL, config->hostname, 0, F_IPV4)) &&
-	  (crec->flags & F_HOSTS))
-	{
-	  if (cache_find_by_name(crec, config->hostname, 0, F_IPV4))
-	    {
-	      /* use primary (first) address */
-	      while (crec && !(crec->flags & F_REVERSE))
-		crec = cache_find_by_name(crec, config->hostname, 0, F_IPV4);
-	      if (!crec)
-		continue; /* should be never */
-	      my_syslog(MS_DHCP | LOG_WARNING, _("%s has more than one address in hostsfile, using %s for DHCP"), 
-			config->hostname, inet_ntoa(crec->addr.addr.addr.addr4));
-	    }
-
-	  if (config_find_by_address(configs, crec->addr.addr.addr.addr4))
-	    my_syslog(MS_DHCP | LOG_WARNING, _("duplicate IP address %s (%s) in dhcp-config directive"), 
-		      inet_ntoa(crec->addr.addr.addr.addr4), config->hostname);
-	  else 
-	    {
-	      config->addr = crec->addr.addr.addr.addr4;
-	      config->flags |= CONFIG_ADDR | CONFIG_ADDR_HOSTS;
-	    }
-	}
-}
 
 /* If we've not found a hostname any other way, try and see if there's one in /etc/hosts
    for this address. If it has a domain part, that must match the set domain and
@@ -1141,21 +982,6 @@ char *host_from_dns(struct in_addr addr)
 
       return daemon->dhcp_buff;
     }
-  
-  return NULL;
-}
-
-/* return domain or NULL if none. */
-char *strip_hostname(char *hostname)
-{
-  char *dot = strchr(hostname, '.');
- 
-  if (!dot)
-    return NULL;
-  
-  *dot = 0; /* truncate */
-  if (strlen(dot+1) != 0)
-    return dot+1;
   
   return NULL;
 }

@@ -363,15 +363,16 @@ static struct {
 }; 
 
 #ifdef HAVE_DHCP
-#define OT_ADDR_LIST 0x80
-#define OT_RFC1035_NAME 0x40
-#define OT_INTERNAL 0x20
-#define OT_NAME 0x10
 
+#define OT_ADDR_LIST    0x8000
+#define OT_RFC1035_NAME 0x4000
+#define OT_INTERNAL     0x2000
+#define OT_NAME         0x1000
+#define OT_CSTRING      0x0800
 
-static const struct {
+static const struct opttab_t {
   char *name;
-  unsigned char val, size;
+  u16 val, size;
 } opttab[] = {
   { "netmask", 1, OT_ADDR_LIST },
   { "time-offset", 2, 4 },
@@ -422,7 +423,7 @@ static const struct {
   { "T1", 58, OT_INTERNAL },
   { "T2", 59, OT_INTERNAL },
   { "vendor-class", 60, 0 },
-  { "client-id", 61,OT_INTERNAL },
+  { "client-id", 61, OT_INTERNAL },
   { "nis+-domain", 64, OT_NAME },
   { "nis+-server", 65, OT_ADDR_LIST },
   { "tftp-server", 66, OT_NAME },
@@ -447,21 +448,149 @@ static const struct {
   { NULL, 0, 0 }
 };
 
-char *option_string(unsigned char opt, int *is_ip, int *is_name)
-{
-  int i;
+#ifdef HAVE_DHCP6
+static const struct opttab_t opttab6[] = {
+  { "client-id", 1, OT_INTERNAL },
+  { "server-id", 2, OT_INTERNAL },
+  { "ia-na", 3, OT_INTERNAL },
+  { "ia-ta", 4, OT_INTERNAL },
+  { "iaaddr", 5, OT_INTERNAL },
+  { "oro", 6, OT_INTERNAL },
+  { "preference", 7, OT_INTERNAL },
+  { "unicast", 12, OT_INTERNAL },
+  { "status-code", 13, OT_INTERNAL },
+  { "rapid-commit", 14, OT_INTERNAL },
+  { "user-class", 15, OT_INTERNAL | OT_CSTRING },
+  { "vendor-class", 16, OT_INTERNAL | OT_CSTRING },
+  { "vendor-opts", 17, OT_INTERNAL },
+  { "sip-server-domain", 21,  OT_RFC1035_NAME },
+  { "sip-server", 22, OT_ADDR_LIST },
+  { "dns-server", 23, OT_ADDR_LIST },
+  { "domain-search", 24, OT_RFC1035_NAME },
+  { "nis-server", 27, OT_ADDR_LIST },
+  { "nis+-server", 28, OT_ADDR_LIST },
+  { "nis-domain", 29,  OT_RFC1035_NAME },
+  { "nis+-domain", 30, OT_RFC1035_NAME },
+  { "sntp-server", 31,  OT_ADDR_LIST },
+  { "FQDN", 39, OT_INTERNAL | OT_RFC1035_NAME },
+  { "ntp-server", 56,  OT_ADDR_LIST },
+  { "bootfile-url", 59, OT_NAME },
+  { "bootfile-param", 60, OT_CSTRING },
+  { NULL, 0, 0 }
+};
+#endif
 
-  for (i = 0; opttab[i].name; i++)
-    if (opttab[i].val == opt)
+
+char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len, char *buf, int buf_len)
+{
+  int o, i, j, nodecode = 0;
+  const struct opttab_t *ot = opttab;
+
+#ifdef HAVE_DHCP6
+  if (prot == AF_INET6)
+    ot = opttab6;
+#endif
+
+  for (o = 0; ot[o].name; o++)
+    if (ot[o].val == opt)
       {
-	if (is_ip)
-	  *is_ip = !!(opttab[i].size & OT_ADDR_LIST);
-	if (is_name)
-	  *is_name = !!(opttab[i].size & OT_NAME);
-	return opttab[i].name;
+	if (buf)
+	  {
+	    memset(buf, 0, buf_len);
+	    
+	    if (ot[o].size & OT_ADDR_LIST) 
+	      {
+		struct all_addr addr;
+		int addr_len = INADDRSZ;
+
+#ifdef HAVE_DHCP6
+		if (prot == AF_INET6)
+		  addr_len = IN6ADDRSZ;
+#endif
+		for (buf[0]= 0, i = 0; i <= opt_len - addr_len; i += addr_len) 
+		  {
+		    if (i != 0)
+		      strncat(buf, ", ", buf_len - strlen(buf));
+		    /* align */
+		    memcpy(&addr, &val[i], addr_len); 
+		    inet_ntop(prot, &val[i], daemon->addrbuff, ADDRSTRLEN);
+		    strncat(buf, daemon->addrbuff, buf_len - strlen(buf));
+		  }
+	      }
+	    else if (ot[o].size & OT_NAME)
+		for (i = 0, j = 0; i < opt_len && j < buf_len ; i++)
+		  {
+		    char c = val[i];
+		    if (isprint((int)c))
+		      buf[j++] = c;
+		  }
+#ifdef HAVE_DHCP6
+	    /* We don't handle compressed rfc1035 names, so no good in IPv4 land */
+	    else if ((ot[o].size & OT_RFC1035_NAME) && prot == AF_INET6)
+	      {
+		i = 0, j = 0;
+		while (i < opt_len && val[i] != 0)
+		  {
+		    int k, l = i + val[i] + 1;
+		    for (k = i + 1; k < opt_len && k < l && j < buf_len ; k++)
+		     {
+		       char c = val[k];
+		       if (isprint((int)c))
+			 buf[j++] = c;
+		     }
+		    i = l;
+		    if (val[i] != 0 && j < buf_len)
+		      buf[j++] = '.';
+		  }
+	      }
+	    else if ((ot[o].size & OT_CSTRING))
+	      {
+		int k, len;
+		unsigned char *p;
+
+		i = 0, j = 0;
+		while (1)
+		  {
+		    p = &val[i];
+		    GETSHORT(len, p);
+		    for (k = 0; k < len && j < buf_len; k++)
+		      {
+		       char c = *p++;
+		       if (isprint((int)c))
+			 buf[j++] = c;
+		     }
+		    i += len +2;
+		    if (i >= opt_len)
+		      break;
+
+		    if (j < buf_len)
+		      buf[j++] = ',';
+		  }
+	      }	      
+#endif
+	    else 
+	      nodecode = 1;
+	  }
+	break;
       }
 
-  return NULL;
+  if (buf && (!ot[o].name || nodecode))
+    {
+      int trunc  = 0;
+      if (opt_len > 13)
+	{
+	  trunc = 1;
+	  opt_len = 13;
+	}
+      print_mac(buf, val, opt_len);
+      if (trunc)
+	strncat(buf, "...", buf_len - strlen(buf));
+    
+
+    }
+
+  return ot[o].name ? ot[o].name : "";
+
 }
 
 #endif
@@ -699,6 +828,19 @@ static void display_opts(void)
       printf("%3d %s\n", opttab[i].val, opttab[i].name);
 }
 
+#ifdef HAVE_DHCP6
+static void display_opts6(void)
+{
+  int i;
+  printf(_("Known DHCPv6 options:\n"));
+  
+  for (i = 0; opttab6[i].name; i++)
+    if (!(opttab6[i].size & OT_INTERNAL))
+      printf("%3d %s\n", opttab6[i].val, opttab6[i].name);
+}
+#endif
+
+
 static int is_tag_prefix(char *arg)
 {
   if (arg && (strstr(arg, "net:") == arg || strstr(arg, "tag:") == arg))
@@ -720,10 +862,11 @@ static char *parse_dhcp_opt(char *arg, int flags)
 {
   struct dhcp_opt *new = opt_malloc(sizeof(struct dhcp_opt));
   char lenchar = 0, *cp;
-  int i, addrs, digs, is_addr, is_hex, is_dec, is_string, dots;
+  int i, addrs, digs, is_addr, is_addr6, is_hex, is_dec, is_string, dots;
   char *comma = NULL, *problem = NULL;
   struct dhcp_netid *np = NULL;
-  unsigned char opt_len = 0;
+  u16 opt_len = 0;
+  int is6 = 0;
 
   new->len = 0;
   new->flags = flags;
@@ -759,6 +902,32 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	  /* option:<optname> must follow tag and vendor string. */
 	  break;
 	}
+#ifdef HAVE_DHCP6
+      else if (strstr(arg, "option6:") == arg)
+	{
+	  for (cp = arg+8; *cp; cp++)
+	    if (*cp < '0' || *cp > '9')
+	      break;
+	 
+	  if (!*cp)
+	    {
+	      new->opt = atoi(arg+8);
+	      opt_len = 0;
+	    }
+	  else
+	    for (i = 0; opttab6[i].name; i++)
+	      if (!(opttab6[i].size & OT_INTERNAL) &&
+		  strcasecmp(opttab6[i].name, arg+8) == 0)
+		{
+		  new->opt = opttab6[i].val;
+		  opt_len = opttab6[i].size;
+		  break;
+		}
+	  /* option6:<opt>|<optname> must follow tag and vendor string. */
+	  is6 = 1;
+	  break;
+	}
+#endif
       else if (strstr(arg, "vendor:") == arg)
 	{
 	  new->u.vendor_class = (unsigned char *)opt_string_alloc(arg+7);
@@ -793,17 +962,36 @@ static char *parse_dhcp_opt(char *arg, int flags)
       
       arg = comma; 
     }
-  
-  if (opt_len == 0 &&
-      !(new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE | DHOPT_RFC3925)))
-    for (i = 0; opttab[i].name; i++)
-      if (new->opt == opttab[i].val)
-	{
-	  opt_len = opttab[i].size;
-	  if (opt_len & OT_INTERNAL)
-	    opt_len = 0;
-	  break;
-	}
+
+#ifdef HAVE_DHCP6
+  if (is6)
+    {
+      if (new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE))
+	problem = _("unsupported encapsulation for IPv6 option");
+      
+      if (opt_len == 0 &&
+	  !(new->flags & DHOPT_RFC3925))
+	for (i = 0; opttab6[i].name; i++)
+	  if (new->opt == opttab6[i].val)
+	    {
+	      opt_len = opttab6[i].size;
+	      if (opt_len & OT_INTERNAL)
+		opt_len = 0;
+	      break;
+	    }
+    }
+  else
+#endif
+    if (opt_len == 0 &&
+	!(new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE | DHOPT_RFC3925)))
+      for (i = 0; opttab[i].name; i++)
+	if (new->opt == opttab[i].val)
+	  {
+	    opt_len = opttab[i].size;
+	    if (opt_len & OT_INTERNAL)
+	      opt_len = 0;
+	    break;
+	  }
 
   /* option may be missing with rfc3925 match */
   if (new->opt == 0)
@@ -813,7 +1001,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
       /* characterise the value */
       char c;
       int found_dig = 0;
-      is_addr = is_hex = is_dec = is_string = 1;
+      is_addr = is_addr6 = is_hex = is_dec = is_string = 1;
       addrs = digs = 1;
       dots = 0;
       for (cp = comma; (c = *cp); cp++)
@@ -829,17 +1017,17 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	  }
 	else if (c == '/') 
 	  {
-	    is_dec = is_hex = 0;
+	    is_addr6 = is_dec = is_hex = 0;
 	    if (cp == comma) /* leading / means a pathname */
 	      is_addr = 0;
 	  } 
 	else if (c == '.')	
 	  {
-	    is_dec = is_hex = 0;
+	    is_addr6 =is_dec = is_hex = 0;
 	    dots++;
 	  }
 	else if (c == '-')
-	  is_hex = is_addr = 0;
+	  is_hex = is_addr = is_addr6 = 0;
 	else if (c == ' ')
 	  is_dec = is_hex = 0;
 	else if (!(c >='0' && c <= '9'))
@@ -856,25 +1044,33 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	    if (!((c >='A' && c <= 'F') ||
 		  (c >='a' && c <= 'f') || 
 		  (c == '*' && (flags & DHOPT_MATCH))))
-	      is_hex = 0;
+	      {
+		is_hex = 0;
+		if (c != '[' && c != ']')
+		  is_addr6 = 0;
+	      }
 	  }
 	else
 	  found_dig = 1;
      
       if (!found_dig)
 	is_dec = is_addr = 0;
-      
+     
       /* We know that some options take addresses */
       if (opt_len & OT_ADDR_LIST)
 	{
 	  is_string = is_dec = is_hex = 0;
-	  if (!is_addr || dots == 0)
+	  
+	  if (!is6 && (!is_addr || dots == 0))
 	    problem = _("bad IP address");
+
+	   if (is6 && !is_addr6)
+	     problem = _("bad IPv6 address");
 	}
       /* or names */
-      else if (opt_len & (OT_NAME | OT_RFC1035_NAME))
-	is_addr = is_dec = is_hex = 0;
-	  
+      else if (opt_len & (OT_NAME | OT_RFC1035_NAME | OT_CSTRING))
+	is_addr6 = is_addr = is_dec = is_hex = 0;
+            
       if (is_hex && digs > 1)
 	{
 	  new->len = digs;
@@ -908,7 +1104,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	  for (i=0; i<new->len; i++)
 	    new->val[i] = val>>((new->len - i - 1)*8);
 	}
-      else if (is_addr)	
+      else if (is_addr && !is6)	
 	{
 	  struct in_addr in;
 	  unsigned char *op;
@@ -953,11 +1149,37 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	    }
 	  new->len = op - new->val;
 	}
+      else if (is_addr6 && is6)
+	{
+	  unsigned char *op;
+	  new->val = op = opt_malloc(16 * addrs);
+	  new->flags |= DHOPT_ADDR6;
+	  while (addrs--) 
+	    {
+	      cp = comma;
+	      comma = split(cp);
+	      
+	      /* check for [1234::7] */
+	      if (*cp == '[')
+		cp++;
+	      if (strlen(cp) > 1 && cp[strlen(cp)-1] == ']')
+		cp[strlen(cp)-1] = 0;
+	      
+	      if (inet_pton(AF_INET6, cp, op))
+		{
+		  op += IN6ADDRSZ;
+		  continue;
+		}
+	  
+	      problem = _("bad IPv6 address");
+	    } 
+	  new->len = op - new->val;
+	}
       else if (is_string)
 	{
-	  /* text arg */
+ 	  /* text arg */
 	  if ((new->opt == OPTION_DOMAIN_SEARCH || new->opt == OPTION_SIP_SERVER) &&
-	      !(new->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925)))
+	      !is6 && !(new->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925)))
 	    {
 	      /* dns search, RFC 3397, or SIP, RFC 3361 */
 	      unsigned char *q, *r, *tail;
@@ -1030,6 +1252,63 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      new->len = (int) len + header_size;
 	      new->val = m;
 	    }
+#ifdef HAVE_DHCP6
+	  else if (comma && (opt_len & OT_CSTRING))
+	    {
+	      /* length fields are two bytes so need 16 bits for each string */
+	      int commas = 1;
+	      unsigned char *p, *newp;
+
+	      for(i = 0; comma[i]; i++)
+		if (comma[i] == ',')
+		  commas++;
+	      
+	      newp = opt_malloc(strlen(comma)+(2*commas));	  
+	      p = newp;
+	      arg = comma;
+	      comma = split(arg);
+	      
+	      while (arg && *arg)
+		{
+		  u16 len = strlen(arg);
+		  PUTSHORT(len, p);
+		  memcpy(p, arg, len);
+		  p += len; 
+
+		  arg = comma;
+		  comma = split(arg);
+		}
+
+	      new->val = newp;
+	      new->len = p - newp;
+	    }
+	  else if (comma && (opt_len & OT_RFC1035_NAME))
+	    {
+	      int commas = 1;
+	      unsigned char *p, *newp;
+	      
+	      for(i = 0; comma[i]; i++)
+		if (comma[i] == ',')
+		  commas++;
+	      
+	      newp = opt_malloc(strlen(comma)+(2*commas));
+	      p = newp;
+	      arg = comma;
+	      comma = split(arg);
+	      
+	      while (arg && *arg)
+		{
+		  p = do_rfc1035_name(p, arg);
+		  *p++ = 0;
+		  
+		  arg = comma;
+		  comma = split(arg);
+		}
+	      
+	      new->val = newp;
+	      new->len = p - newp;
+	    }
+#endif
 	  else
 	    {
 	      new->len = strlen(comma);
@@ -1040,9 +1319,10 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	}
     }
 
-  if ((new->len > 255) || 
+  if (!is6 && 
+      ((new->len > 255) || 
       (new->len > 253 && (new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE))) ||
-      (new->len > 250 && (new->flags & DHOPT_RFC3925)))
+       (new->len > 250 && (new->flags & DHOPT_RFC3925))))
     problem = _("dhcp-option too long");
   
   if (!problem)
@@ -1053,13 +1333,23 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      !new->netid ||
 	      new->netid->next)
 	    problem = _("illegal dhcp-match");
+	  else if (is6)
+	    {
+	      new->next = daemon->dhcp_match6;
+	      daemon->dhcp_match6 = new;
+	    }
 	  else
 	    {
 	      new->next = daemon->dhcp_match;
 	      daemon->dhcp_match = new;
 	    }
 	}
-      else     
+      else if (is6)
+	{
+	  new->next = daemon->dhcp_opts6;
+	  daemon->dhcp_opts6 = new;
+	}
+      else
 	{
 	  new->next = daemon->dhcp_opts;
 	  daemon->dhcp_opts = new;
@@ -1367,14 +1657,15 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		  unhide_metas(comma);
 		  if ((netpart = split_chr(comma, '/')))
 		    {
-		      int msize, mask;
+		      int msize;
+
 		      arg = split(netpart);
-		      if ((new->start.s_addr = inet_addr(comma)) == (in_addr_t)-1 ||
-			  !atoi_check(netpart, &msize))
+		      if (!atoi_check(netpart, &msize))
 			option = '?';
-		      else
+		      else if (inet_pton(AF_INET, comma, &new->start))
 			{
-			  mask = (1 << (32 - msize)) - 1;
+			  int mask = (1 << (32 - msize)) - 1;
+			  new->is6 = 0; 			  
 			  new->start.s_addr = ntohl(htonl(new->start.s_addr) & ~mask);
 			  new->end.s_addr = new->start.s_addr | htonl(mask);
 			  if (arg)
@@ -1416,19 +1707,92 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 				}
 			    }
 			}
-		    }
-		  else if ((arg = split(comma)))
-		    {
-		      if ((new->start.s_addr = inet_addr(comma)) == (in_addr_t)-1 ||
-			  (new->end.s_addr = inet_addr(arg)) == (in_addr_t)-1)
+#ifdef HAVE_IPV6
+		      else if (inet_pton(AF_INET6, comma, &new->start6))
+			{
+			  u64 mask = (1LLU << (128 - msize)) - 1LLU;
+			  u64 addrpart = addr6part(&new->start6);
+			  new->is6 = 1;
+
+			  /* prefix==64 overflows the mask calculation above */
+			  if (msize == 64)
+			    mask = (u64)-1LL;
+
+			  new->end6 = new->start6;
+			  setaddr6part(&new->start6, addrpart & ~mask);
+			  setaddr6part(&new->end6, addrpart | mask);
+			  
+			  if (msize < 64)
+			    option = '?';
+			  else if (arg)
+			    {
+			      /* generate the equivalent of
+				 local=/<domain>/
+				 local=/xxx.yyy.zzz.ip6.arpa/ */
+
+			      if (strcmp(arg, "local") != 0 || ((msize & 4) != 0))
+				option = '?';
+			      else 
+				{
+				  struct server *serv = opt_malloc(sizeof(struct server));
+				  char *p;
+				  
+				  memset(serv, 0, sizeof(struct server));
+				  serv->domain = d;
+				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
+				  serv->next = daemon->servers;
+				  daemon->servers = serv;
+
+				  serv = opt_malloc(sizeof(struct server));
+				  memset(serv, 0, sizeof(struct server));
+				  p = serv->domain = opt_malloc(73); /* strlen("32*<n.>ip6.arpa")+1 */
+				  
+				  for (i = msize-1; i >= 0; i -= 4)
+				    { 
+				      int dig = ((unsigned char *)&new->start6)[i>>3];
+				      p += sprintf(p, "%.1x.", (i>>2) & 1 ? dig & 15 : dig >> 4);
+				    }
+				  p += sprintf(p, "ip6.arpa");
+				  
+				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
+				  serv->next = daemon->servers;
+				  daemon->servers = serv;
+				}
+			    }
+			}
+#endif
+		      else
 			option = '?';
 		    }
-		  else if ((new->start.s_addr = new->end.s_addr = inet_addr(comma)) == (in_addr_t)-1)
-		    option = '?';
+		  else 
+		    {
+		      arg = split(comma);
+		      if (inet_pton(AF_INET, comma, &new->start))
+			{
+			  new->is6 = 0;
+			  if (!arg)
+			    new->end.s_addr = new->start.s_addr;
+			  else if (!inet_pton(AF_INET, arg, &new->end))
+			    option = '?';
+			}
+#ifdef HAVE_IPV6
+		      else if (inet_pton(AF_INET6, comma, &new->start6))
+			{
+			  new->is6 = 1;
+			  if (!arg)
+			    memcpy(&new->end6, &new->start6, IN6ADDRSZ);
+			  else if (!inet_pton(AF_INET6, arg, &new->end6))
+			    option = '?';
+			}
+#endif
+		      else 
+			option = '?';
 
-		  new->domain = d;
-		  new->next = daemon->cond_domain;
-		  daemon->cond_domain = new;
+		      new->domain = d;
+		      new->next = daemon->cond_domain;
+		      daemon->cond_domain = new;
+		      
+		    }
 		}
 	      else
 		daemon->domain_suffix = d;
@@ -1989,6 +2353,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		  {
 		    new->prefix = pref;
 		    leasepos = 3;
+		    if (new->prefix < 64)
+		      problem = _("prefix must be at least 64");
 		  }
 	      }
 	    if (!is_same_net6(&new->start6, &new->end6, new->prefix))
@@ -2109,6 +2475,18 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		}
 	      else if (strstr(arg, "tag:") == arg)
 		problem = _("cannot match tags in --dhcp-host");
+#ifdef HAVE_DHCP6
+	      else if (arg[0] == '[' && arg[strlen(arg)-1] == ']')
+		{
+		  arg[strlen(arg)-1] = 0;
+		  arg++;
+		  
+		  if (!inet_pton(AF_INET6, arg, &new->addr6))
+		    problem = _("bad IPv6 address");
+		  
+		  new->flags |= CONFIG_ADDR6;
+		}
+#endif
 	      else
 		{
 		  struct hwaddr_config *newhw = opt_malloc(sizeof(struct hwaddr_config));
@@ -2500,6 +2878,18 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	    new->netid.net = opt_string_alloc(set_prefix(arg));
 	    /* check for hex string - must digits may include : must not have nothing else, 
 	       only allowed for agent-options. */
+
+	    arg = comma;
+	    if ((comma = split(arg)))
+	      {
+		if (option  != 'U' || strstr(arg, "enterprise:") != arg)
+		  option = '?';
+		else
+		  new->enterprise = atoi(arg+11);
+	      }
+	    else
+	      comma = arg;
+
 	    for (p = (unsigned char *)comma; *p; p++)
 	      if (isxdigit(*p))
 		dig = 1;
@@ -3346,12 +3736,17 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	testmode = 1;
       else if (option == 'w')
 	{
-	  if (argc != 3 ||  strcmp(argv[2], "dhcp") != 0)
-	    do_usage();
 #ifdef HAVE_DHCP
-	  else
+	  if (argc == 3 && strcmp(argv[2], "dhcp") == 0)
 	    display_opts();
+#ifdef HAVE_DHCP6
+	  else if (argc == 3 && strcmp(argv[2], "dhcp6") == 0)
+	    display_opts6();
 #endif
+	  else
+#endif
+	    do_usage();
+
 	  exit(0);
 	}
       else if (option == 'v')
