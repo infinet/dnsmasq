@@ -269,7 +269,20 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
       if ((opt = opt6_find(packet_options, end, mopt, 2)))
 	{
 	  void *enc_opt, *enc_end = opt6_ptr(opt, opt6_len(opt));
-	  for (enc_opt = opt6_ptr(opt, 0); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
+	  int offset = 0;
+	  
+	  if (mopt == OPTION6_VENDOR_CLASS)
+	    {
+	      if (opt6_len(opt) < 4)
+		continue;
+	      
+	      if (vendor->enterprise != opt6_uint(opt, 0, 4))
+		continue;
+	    
+	      offset = 4;
+	    }
+ 
+	  for (enc_opt = opt6_ptr(opt, offset); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
 	    for (i = 0; i <= (opt6_len(enc_opt) - vendor->len); i++)
 	      if (memcmp(vendor->data, opt6_ptr(enc_opt, i), vendor->len) == 0)
 		{
@@ -620,14 +633,20 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
 				lease->extradata_size = lease->extradata_len = 0;
 				lease->hwaddr_len = 0; /* surrogate for no of vendor classes */
 
-				if ((class_opt = opt6_find(packet_options, end, OPTION6_VENDOR_CLASS, 2)))
+				if ((class_opt = opt6_find(packet_options, end, OPTION6_VENDOR_CLASS, 4)))
 				  {
 				    void *enc_opt, *enc_end = opt6_ptr(class_opt, opt6_len(class_opt));
-				    for (enc_opt = opt6_ptr(class_opt, 0); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
-				      {
-					lease->hwaddr_len++;
-					lease_add_extradata(lease, opt6_ptr(enc_opt, 0), opt6_len(enc_opt), 0);
-				      }
+				    lease->hwaddr_len++;
+				    /* send enterprise number first  */
+				    sprintf(daemon->dhcp_buff2, "%u", opt6_uint(class_opt, 0, 4));
+				    lease_add_extradata(lease, (unsigned char *)daemon->dhcp_buff2, strlen(daemon->dhcp_buff2), 0);
+				    
+				    if (opt6_len(class_opt) >= 6) 
+				      for (enc_opt = opt6_ptr(class_opt, 4); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
+					{
+					  lease->hwaddr_len++;
+					  lease_add_extradata(lease, opt6_ptr(enc_opt, 0), opt6_len(enc_opt), 0);
+					}
 				  }
 				
 				lease_add_extradata(lease, (unsigned char *)client_hostname, 

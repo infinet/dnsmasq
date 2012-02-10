@@ -467,11 +467,17 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	buf = grab_extradata(buf, end, "DNSMASQ_VENDOR_CLASS", &err);
 #ifdef HAVE_DHCP6
       else
-	for (i = 0; i < data.hwaddr_len; i++)
-	  {
-	    sprintf(daemon->dhcp_buff2, "DNSMASQ_VENDOR_CLASS%i", i);
-	    buf = grab_extradata(buf, end, daemon->dhcp_buff2, &err);
-	  }
+	{
+	  if (data.hwaddr_len != 0)
+	    {
+	      buf = grab_extradata(buf, end, "DNSMASQ_VENDOR_CLASS_ID", &err);
+	      for (i = 0; i < data.hwaddr_len - 1; i++)
+		{
+		  sprintf(daemon->dhcp_buff2, "DNSMASQ_VENDOR_CLASS%i", i);
+		  buf = grab_extradata(buf, end, daemon->dhcp_buff2, &err);
+		}
+	    }
+	}
 #endif
 
       buf = grab_extradata(buf, end, "DNSMASQ_SUPPLIED_HOSTNAME", &err);

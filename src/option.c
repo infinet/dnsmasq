@@ -2870,6 +2870,18 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	    new->netid.net = opt_string_alloc(set_prefix(arg));
 	    /* check for hex string - must digits may include : must not have nothing else, 
 	       only allowed for agent-options. */
+
+	    arg = comma;
+	    if ((comma = split(arg)))
+	      {
+		if (option  != 'U' || strstr(arg, "enterprise:") != arg)
+		  option = '?';
+		else
+		  new->enterprise = atoi(arg+11);
+	      }
+	    else
+	      comma = arg;
+
 	    for (p = (unsigned char *)comma; *p; p++)
 	      if (isxdigit(*p))
 		dig = 1;

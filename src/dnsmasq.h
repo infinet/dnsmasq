@@ -566,7 +566,8 @@ struct pxe_service {
 
 /* vendorclass, userclass, remote-id or cicuit-id */
 struct dhcp_vendor {
-  int len, match_type, option;
+  int len, match_type;
+  unsigned int enterprise;
   char *data;
   struct dhcp_netid netid;
   struct dhcp_vendor *next;
