@@ -2336,7 +2336,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	    daemon->dhcp6 = new;
 	    if (strcmp(a[1], "static") == 0)
 	      {
-		new->end = new->start;
+		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
 		new->flags |= CONTEXT_STATIC;
 	      }
 	    else if (!inet_pton(AF_INET6, a[1], &new->end6))
@@ -2357,10 +2357,9 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		      problem = _("prefix must be at least 64");
 		  }
 	      }
-	    if (!is_same_net6(&new->start6, &new->end6, new->prefix))
-	      problem = _("inconsistent DHCP range");
-
-	    if (addr6part(&new->start6) > addr6part(&new->end6))
+	    if (!problem && !is_same_net6(&new->start6, &new->end6, new->prefix))
+	      problem = _("inconsistent DHCPv6 range");
+	    else if (addr6part(&new->start6) > addr6part(&new->end6))
 	      {
 		struct in6_addr tmp = new->start6;
 		new->start6 = new->end6;

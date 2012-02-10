@@ -12,7 +12,7 @@
 package=dnsmasq-base
 
 # policy manual, section 10.1
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
      CFLAGS = -g -O0 -Wall -W
 else
      CFLAGS = -g -O2 -Wall -W
@@ -23,41 +23,49 @@ TARGET = install-i18n
 
 DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 
-ifeq (,$(findstring nodbus,$(DEB_BUILD_OPTIONS)))
+ifeq (,$(filter nodbus,$(DEB_BUILD_OPTIONS)))
      COPTS += -DHAVE_DBUS
 endif
 
-ifeq (,$(findstring noconntrack,$(DEB_BUILD_OPTIONS)))
+ifeq (,$(filter noconntrack,$(DEB_BUILD_OPTIONS)))
 ifeq ($(DEB_BUILD_ARCH_OS),linux)
      COPTS += -DHAVE_CONNTRACK
 endif
 endif
 
-ifneq (,$(findstring noipv6,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter noipv6,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_IPV6
 endif
 
-ifneq (,$(findstring notftp,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter notftp,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_TFTP
 endif
 
-ifneq (,$(findstring nodhcp,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter nodhcp,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_DHCP
 endif
 
-ifneq (,$(findstring noscript,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter nodhcp6,$(DEB_BUILD_OPTIONS)))
+     COPTS += -DNO_DHCP6
+endif
+
+ifneq (,$(filter noscript,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_SCRIPT
 endif
 
-ifneq (,$(findstring nortc,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter nortc,$(DEB_BUILD_OPTIONS)))
      COPTS += -DHAVE_BROKEN_RTC
 endif
 
-ifneq (,$(findstring noi18n,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter noi18n,$(DEB_BUILD_OPTIONS)))
      TARGET = install
-     ifeq (,$(findstring noidn, $(DEB_BUILD_OPTIONS)))
+     ifeq (,$(filter noidn, $(DEB_BUILD_OPTIONS)))
 	COPTS += -DHAVE_IDN
      endif	
+endif
+
+ifneq (,$(filter uselua,$(DEB_BUILD_OPTIONS)))
+     COPTS += -DHAVE_LUASCRIPT
 endif
 
 clean:

@@ -140,8 +140,6 @@ static int join_multicast(struct in6_addr *local, int prefix,
 }
 
 
-
-
 void dhcp6_packet(time_t now)
 {
   struct dhcp_context *context;
@@ -215,8 +213,7 @@ void dhcp6_packet(time_t now)
 
   msg.msg_iov =  &daemon->dhcp_packet;
   sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, sz, IN6_IS_ADDR_MULTICAST(&from), now);
-  /* ifr.ifr_name, if_index, (size_t)sz, 
-     now, unicast_dest, &is_inform, pxe_fd, iface_addr); */
+  
   lease_update_file(now);
   lease_update_dns();
   

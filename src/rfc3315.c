@@ -39,10 +39,10 @@ static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in
 static void *opt6_find (void *opts, void *end, unsigned int search, unsigned int minsize);
 static void *opt6_next(void *opts, void *end);
 static unsigned int opt6_uint(unsigned char *opt, int offset, int size);
+
 #define opt6_len(opt) ((int)(opt6_uint(opt, -2, 2)))
 #define opt6_type(opt) (opt6_uint(opt, -4, 2))
 #define opt6_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[4+(i)]))
-
 
 
 size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name, size_t sz, int is_unicast, time_t now)
@@ -929,6 +929,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
 	if (ignore)
 	  return 0;
 	*outmsgtypep = DHCP6REPLY;
+	log6_packet("DHCPINFORMATION-REQUEST", clid, clid_len, NULL, xid, iface_name, hostname);
 	break;
       }
       
