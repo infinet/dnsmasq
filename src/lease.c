@@ -69,6 +69,7 @@ void lease_init(time_t now)
   if (leasestream)
     while (fscanf(leasestream, "%255s %255s", daemon->dhcp_buff3, daemon->dhcp_buff2) == 2)
       {
+#ifdef HAVE_DHCP6
 	if (strcmp(daemon->dhcp_buff3, "duid") == 0)
 	  {
 	    daemon->duid_len = parse_hex(daemon->dhcp_buff2, (unsigned char *)daemon->dhcp_buff2, 130, NULL, NULL);
@@ -76,7 +77,8 @@ void lease_init(time_t now)
 	    memcpy(daemon->duid, daemon->dhcp_buff2, daemon->duid_len);
 	    continue;
 	  }
-	
+#endif
+
 	ei = atol(daemon->dhcp_buff3);
 	
 	if (fscanf(leasestream, " %64s %255s %764s",
@@ -150,7 +152,6 @@ void lease_init(time_t now)
   /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
   if (!daemon->duid && daemon->dhcp6)
     make_duid(now);
-
 #endif
   
 #ifdef HAVE_SCRIPT
