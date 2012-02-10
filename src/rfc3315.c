@@ -467,7 +467,7 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
 	    int iaid, ia_type = opt6_type(opt);
 	    void *ia_option, *ia_end;
 	    unsigned int min_time = 0xffffffff;
-	    int t1cntr;
+	    int t1cntr = 0;
 	    int address_assigned = 0;
 	    
 	    if (ia_type != OPTION6_IA_NA && ia_type != OPTION6_IA_TA)

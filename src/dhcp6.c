@@ -212,7 +212,7 @@ void dhcp6_packet(time_t now)
   lease_prune(NULL, now); /* lose any expired leases */
 
   msg.msg_iov =  &daemon->dhcp_packet;
-  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, sz, IN6_IS_ADDR_MULTICAST(&from), now);
+  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, sz, IN6_IS_ADDR_MULTICAST(&from.in6.sin6_addr), now);
   
   lease_update_file(now);
   lease_update_dns();

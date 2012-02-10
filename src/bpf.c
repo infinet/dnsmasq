@@ -160,11 +160,11 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	  unsigned int flags;
 	  if (ioctl(fd, SIOCGIFFLAGS, ifr) != -1)
 	    {
-	      flags = ifr.ifr_flags;
+	      flags = ifr->ifr_flags;
 	      ifr->ifr_addr.sa_family = AF_LINK;
 	      if (ioctl(fd, SIOCGIFADDR, ifr) != -1 &&
-		  !((*callback)((unsigned int) htons(ETHERTYPE_IP), 
-				(unsigned int)link->ifi_flags,
+		  !((*callback)((unsigned int)htons(ETHERTYPE_IP), 
+				flags,
 				LLADDR((struct sockaddr_dl *)&ifr->ifr_addr), ETHER_ADDR_LEN, parm)))
 		goto err;
 	    }
