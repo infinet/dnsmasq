@@ -547,7 +547,7 @@ struct dhcp_boot {
 
 struct pxe_service {
   unsigned short CSA, type; 
-  char *menu, *basename;
+  char *menu, *basename, *sname;
   struct in_addr server;
   struct dhcp_netid *netid;
   struct pxe_service *next;

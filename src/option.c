@@ -2384,6 +2384,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	 static int boottype = 32768;
 	 
 	 new->netid = NULL;
+	 new->sname = NULL;
 	 new->server.s_addr = 0;
 
 	 while (is_tag_prefix(arg))
@@ -2430,10 +2431,17 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 			 new->basename = opt_string_alloc(arg);
 		       }
 		     
-		     if (comma && (new->server.s_addr = inet_addr(comma)) == (in_addr_t)-1)
-		       option = '?';
+		     if (comma)
+		       {
+			 if (!inet_pton(AF_INET, comma, &new->server))
+			   {
+			     new->server.s_addr = 0;
+			     new->sname = opt_string_alloc(comma);
+			   }
+		       
+		       }
 		   }
-
+		 
 		 /* Order matters */
 		 new->next = NULL;
 		 if (!daemon->pxe_services)

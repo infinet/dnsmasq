@@ -40,6 +40,11 @@ version 2.60
 	    Fix shell-scripting bug in bld/pkg-wrapper. Thanks to 
 	    Mark Mitchell for the patch.
 
+	    Allow the TFP server or boot server in --pxe-service, to
+	    be a domain name instead of an IP address. This allows for
+	    round-robin	to multiple servers, in the same way as
+	    --dhcp-boot. A good suggestion from Cristiano Cumer.
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up

@@ -888,7 +888,7 @@ address, and setting this flag enables this mode. Note that in the
 sequential mode, clients which allow a lease to expire are much more
 likely to move IP address; for this reason it should not be generally used.
 .TP
-.B --pxe-service=[tag:<tag>,]<CSA>,<menu text>[,<basename>|<bootservicetype>][,<server address>]
+.B --pxe-service=[tag:<tag>,]<CSA>,<menu text>[,<basename>|<bootservicetype>][,<server address>|<server_name>]
 Most uses of PXE boot-ROMS simply allow the PXE
 system to obtain an IP address and then download the file specified by
 .B dhcp-boot
@@ -904,17 +904,19 @@ parameter after the menu text may be a file name, in which case dnsmasq acts as 
 boot server and directs the PXE client to download the file by TFTP,
 either from itself (
 .B enable-tftp 
-must be set for this to work) or another TFTP server if the final IP
-address is given.
+must be set for this to work) or another TFTP server if the final server
+address/name is given.
 Note that the "layer"
 suffix (normally ".0") is supplied by PXE, and should not be added to
 the basename. If an integer boot service type, rather than a basename
 is given, then the PXE client will search for a
 suitable boot service for that type on the network. This search may be done
-by broadcast, or direct to a server if its IP address is provided.  
+by broadcast, or direct to a server if its IP address/name is provided.  
 If no boot service type or filename is provided (or a boot service type of 0 is specified)
 then the menu entry will abort the net boot procedure and
-continue booting from local media.
+continue booting from local media. The server address can be given as a domain
+name which is looked up in /etc/hosts. This name can be associated in
+/etc/hosts with multiple IP addresses, which are used round-robin.
 .TP
 .B --pxe-prompt=[tag:<tag>,]<prompt>[,<timeout>]
 Setting this provides a prompt to be displayed after PXE boot. If the

@@ -63,7 +63,7 @@ static void match_vendor_opts(unsigned char *opt, struct dhcp_opt *dopt);
 static int do_encap_opts(struct dhcp_opt *opts, int encap, int flag, struct dhcp_packet *mess, unsigned char *end, int null_term);
 static void pxe_misc(struct dhcp_packet *mess, unsigned char *end, unsigned char *uuid);
 static int prune_vendor_opts(struct dhcp_netid *netid);
-static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local);
+static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local, time_t now);
 struct dhcp_boot *find_boot(struct dhcp_netid *netid);
 
   
@@ -799,7 +799,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  
 	  mess->yiaddr = mess->ciaddr;
 	  mess->ciaddr.s_addr = 0;
-	  if (service->server.s_addr != 0)
+	  if (service->sname)
+	    mess->siaddr = a_record_from_hosts(service->sname, now);
+	  else if (service->server.s_addr != 0)
 	    mess->siaddr = service->server; 
 	  else
 	    mess->siaddr = context->local; 
@@ -868,7 +870,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, htonl(context->local.s_addr));
 		  pxe_misc(mess, end, uuid);
 		  prune_vendor_opts(tagif_netid);
-		  do_encap_opts(pxe_opts(pxearch, tagif_netid, context->local), OPTION_VENDOR_CLASS_OPT, DHOPT_VENDOR_MATCH, mess, end, 0);
+		  do_encap_opts(pxe_opts(pxearch, tagif_netid, context->local, now), OPTION_VENDOR_CLASS_OPT, DHOPT_VENDOR_MATCH, mess, end, 0);
 		  
 		  log_packet("PXE", NULL, emac, emac_len, iface_name, ignore ? "proxy-ignored" : "proxy", mess->xid);
 		  log_tags(tagif_netid, mess);
@@ -2048,7 +2050,7 @@ static int prune_vendor_opts(struct dhcp_netid *netid)
   return force;
 }
 
-static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local)
+static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local, time_t now)
 {
 #define NUM_OPTS 4  
 
@@ -2105,8 +2107,9 @@ static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct 
 	    return daemon->dhcp_opts;
 	  }
 	
-	boot_server = service->basename ? local : service->server;
-
+	boot_server = service->basename ? local : 
+	  (service->sname ? a_record_from_hosts(service->sname, now) : service->server);
+	
 	if (boot_server.s_addr != 0)
 	  {
 	    if (q - (unsigned char *)daemon->dhcp_buff3 + 3 + INADDRSZ >= 253)
@@ -2579,7 +2582,7 @@ static void do_options(struct dhcp_context *context,
   if (context && pxe_arch != -1)
     {
       pxe_misc(mess, end, uuid);
-      config_opts = pxe_opts(pxe_arch, tagif, context->local);
+      config_opts = pxe_opts(pxe_arch, tagif, context->local, now);
     }
 
   if ((force_encap || in_list(req_options, OPTION_VENDOR_CLASS_OPT)) &&
