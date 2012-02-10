@@ -52,7 +52,10 @@ Notes on configuring dnsmasq as packaged for Debian.
       nodocs      : omit documentation.
       notftp      : omit TFTP support.
       nodhcp      : omit DHCP support.
+      nodhcp6     : omit DHCPv6 support.
       noscript    : omit lease-change script support.
+      use_lua     : provide support for lease-change scripts written
+                    in Lua.
       noipv6      : omit IPv6 support.
       nodbus      : omit DBus support.
       noconntrack : omit connection tracking support. 
@@ -60,11 +63,14 @@ Notes on configuring dnsmasq as packaged for Debian.
       noi18n      : omit translations and internationalisation support.
       noidn       : omit international domain name support, must be
                     combined with noi18n to be effective.
+      
 
-(9) Dnsmasq comes as two packages - dnsmasq-base and
-    dnsmasq. dnsmasq-base provides the dnsmasq executable and
+(9) Dnsmasq comes as three packages - dnsmasq-utils, dnsmasq-base and
+    dnsmasq. Dnsmasq-base provides the dnsmasq executable and
     documentation (including this file). Dnsmasq, which depends on
     dnsmasq-base, provides the init script and configuration
     infrastructure. This file assumes that both are installed. It is
     possible to install only dnsmasq-base and use dnsmasq as a
     non-"system" daemon. Libvirt, for instance, does this.
+    Dnsmasq-utils provides the utilities dhcp_release and 
+    dhcp_lease_time.
