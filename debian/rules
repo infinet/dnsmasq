@@ -33,6 +33,10 @@ ifeq ($(DEB_BUILD_ARCH_OS),linux)
 endif
 endif
 
+ifeq (,$(filter nodhcp6,$(DEB_BUILD_OPTIONS)))
+     COPTS += -DHAVE_DHCP6
+endif
+
 ifneq (,$(filter noipv6,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_IPV6
 endif
@@ -43,10 +47,6 @@ endif
 
 ifneq (,$(filter nodhcp,$(DEB_BUILD_OPTIONS)))
      COPTS += -DNO_DHCP
-endif
-
-ifneq (,$(filter nodhcp6,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_DHCP6
 endif
 
 ifneq (,$(filter noscript,$(DEB_BUILD_OPTIONS)))
