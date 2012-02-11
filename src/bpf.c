@@ -108,6 +108,10 @@ int iface_enumerate(int family, void *parm, int (*callback)())
   return 0; /* need code for Solaris and MacOS*/
 #endif
 
+  /* AF_LINK doesn't exist in Linux, so we can't use it in our API */
+  if (family == AF_LOCAL)
+    family = AF_LINK;
+
   if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
     return 0;
   
@@ -154,24 +158,6 @@ int iface_enumerate(int family, void *parm, int (*callback)())
       ifr = (struct ifreq *)ifreq.iov_base;
       memcpy(ifr, ptr, len);
       
-#ifdef HAVE_DHCP6      
-      if (family == AF_LOCAL)
-	{ 
-	  unsigned int flags;
-	  if (ioctl(fd, SIOCGIFFLAGS, ifr) != -1)
-	    {
-	      flags = ifr->ifr_flags;
-	      ifr->ifr_addr.sa_family = AF_LINK;
-	      if (ioctl(fd, SIOCGIFADDR, ifr) != -1 &&
-		  !((*callback)((unsigned int)htons(ETHERTYPE_IP), 
-				flags,
-				LLADDR((struct sockaddr_dl *)&ifr->ifr_addr), ETHER_ADDR_LEN, parm)))
-		goto err;
-	    }
-	  continue;
-	}
-#endif 
-
       if (ifr->ifr_addr.sa_family == family)
 	{
 	  if (family == AF_INET)
@@ -208,6 +194,15 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		goto err;
 	    }
 #endif
+#ifdef HAVE_DHCP6      
+	  else if (family == AF_LINK)
+	    { 
+	      /* Assume ethernet again here */
+	      struct sockaddr_dl *sdl = (struct sockaddr_dl *)&ifr->ifr_addr;
+	      if (sdl->sdl_alen != 0 && !((*callback)(ARPHRD_ETHER, LLADDR(sdl), sdl->sdl_alen, parm)))
+		goto err;
+	    }
+#endif 
 	}
     }
   

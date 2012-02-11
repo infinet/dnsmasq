@@ -282,9 +282,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		rta = RTA_NEXT(rta, len1);
 	      }
 
-	    if (mac && !((*callback)((unsigned int)link->ifi_type, 
-				     (unsigned int)link->ifi_flags,
-				     mac, maclen, parm)))
+	    if (mac && !((link->ifi_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))) && 
+		!((*callback)((unsigned int)link->ifi_type, mac, maclen, parm)))
 	      return 0;
 	  }
 #endif

@@ -34,8 +34,7 @@ static int join_multicast(struct in6_addr *local, int prefix,
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int dad, void *vparam);
 
-static int make_duid1(unsigned int type, unsigned int flags, char *mac, 
-		      size_t maclen, void *parm); 
+static int make_duid1(unsigned int type, char *mac, size_t maclen, void *parm); 
 
 void dhcp6_init(void)
 {
@@ -477,26 +476,23 @@ void make_duid(time_t now)
 {
   /* rebase epoch to 1/1/2000 */
   time_t newnow = now - 946684800;
+  
   iface_enumerate(AF_LOCAL, &newnow, make_duid1);
-
-  if (!daemon->duid)
-    die("Cannot create DHCPv6 server DUID", NULL, EC_MISC);
+  
+  if(!daemon->duid)
+    die("Cannot create DHCPv6 server DUID: %s", NULL, EC_MISC);
 }
 
-static int make_duid1(unsigned int type, unsigned int flags, char *mac, 
-		      size_t maclen, void *parm)
+static int make_duid1(unsigned int type, char *mac, size_t maclen, void *parm)
 {
   /* create DUID as specified in RFC3315. We use the MAC of the
      first interface we find that isn't loopback or P-to-P */
   
   unsigned char *p;
 
-  if (flags & (IFF_LOOPBACK | IFF_POINTOPOINT))
-    return 1;
-  
   daemon->duid = p = safe_malloc(maclen + 8);
   daemon->duid_len = maclen + 8;
-
+  
 #ifdef HAVE_BROKEN_RTC
   PUTSHORT(3, p); /* DUID_LL */
 #else

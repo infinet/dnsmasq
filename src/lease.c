@@ -147,12 +147,6 @@ void lease_init(time_t now)
 	   the startup synthesised SIGHUP. */
 	lease->flags &= ~(LEASE_NEW | LEASE_CHANGED);
       }
-
-#ifdef HAVE_DHCP6  
-  /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
-  if (!daemon->duid && daemon->dhcp6)
-    make_duid(now);
-#endif
   
 #ifdef HAVE_SCRIPT
   if (!daemon->lease_stream)
@@ -181,6 +175,16 @@ void lease_init(time_t now)
   file_dirty = 0;
   lease_prune(NULL, now);
   dns_dirty = 1;
+
+#ifdef HAVE_DHCP6  
+  /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
+  if (!daemon->duid && daemon->dhcp6)
+    {
+      file_dirty = 1;
+      make_duid(now);
+    }
+#endif
+
 }
 
 void lease_update_from_configs(void)
