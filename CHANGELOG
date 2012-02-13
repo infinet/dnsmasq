@@ -51,6 +51,13 @@ version 2.60
 	    If BUILDDIR is not set, compilation happens in the src
 	    directory, as before. Suggestion from Mark Mitchell.
 
+	    First cut at supporting DHCPv6. Support is pretty much
+	    there for the sort of things the existing v4 server does,
+	    including tags, options, static addresses and relay
+	    support. Missing is prefix delegation. This is lightly
+	    tested alpha code, it is NOT YET PRODUCTION READY. Test
+	    reports would be greatly valued.
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up

@@ -99,10 +99,10 @@ $(BUILDDIR):
 $(OBJS:.o=.c) $(HDRS):
 	ln -s ../$(SRC)/$@ .
 
-%.o:	%.c $(HDRS)
-	$(CC) $(CFLAGS) $(COPTS) $(I18N) $(BUILD_CFLAGS) $(RPM_OPT_FLAGS) -c $*.c	
+.c.o:
+	$(CC) $(CFLAGS) $(COPTS) $(I18N) $(BUILD_CFLAGS) $(RPM_OPT_FLAGS) -c $<	
 
-dnsmasq : $(OBJS) 
+dnsmasq : $(HDRS) $(OBJS) 
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(BUILD_LIBS) $(LIBS) 
 
 dnsmasq.pot : $(OBJS:.o=.c) $(HDRS)
@@ -110,7 +110,6 @@ dnsmasq.pot : $(OBJS:.o=.c) $(HDRS)
 
 %.mo : ../po/%.po dnsmasq.pot
 	$(MSGMERGE) -o - ../po/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -
-
 
 
 .PHONY : all clean install install-common all-i18n install-i18n merge 
