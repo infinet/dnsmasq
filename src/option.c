@@ -1787,12 +1787,11 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 #endif
 		      else 
 			option = '?';
-
-		      new->domain = d;
-		      new->next = daemon->cond_domain;
-		      daemon->cond_domain = new;
-		      
 		    }
+
+		  new->domain = d;
+		  new->next = daemon->cond_domain;
+		  daemon->cond_domain = new;		     
 		}
 	      else
 		daemon->domain_suffix = d;
