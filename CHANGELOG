@@ -45,10 +45,10 @@ version 2.60
 	    round-robin	to multiple servers, in the same way as
 	    --dhcp-boot. A good suggestion from Cristiano Cumer.
 
-	    Support BUILD_DIR variable in the Makefile. Allows 
+	    Support BUILDDIR variable in the Makefile. Allows 
 	    builds from multiple architectures in the same tree with eg
-	    make BUILD_DIR=linux
-	    If BUILD_DIR is not set, compilation happens in the src
+	    make BUILDDIR=linux
+	    If BUILDDIR is not set, compilation happens in the src
 	    directory, as before. Suggestion from Mark Mitchell.
 
 	    

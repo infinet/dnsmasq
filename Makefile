@@ -18,17 +18,17 @@ BINDIR = ${PREFIX}/sbin
 MANDIR = ${PREFIX}/share/man
 LOCALEDIR = ${PREFIX}/share/locale
 
-BUILD_DIR = $(SRC)
+BUILDDIR = $(SRC)
 
 CFLAGS = -Wall -W -O2
+
+#################################################################
 
 PKG_CONFIG = pkg-config
 INSTALL = install
 MSGMERGE = msgmerge
 MSGFMT = msgfmt
 XGETTEXT = xgettext
-
-#################################################################
 
 SRC = src
 PO = po
@@ -52,46 +52,46 @@ OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
 HDRS = dnsmasq.h config.h dhcp_protocol.h dhcp6_protocol.h dns_protocol.h
 
 
-all : $(BUILD_DIR)
-	@cd $(BUILD_DIR) && $(MAKE) \
+all : $(BUILDDIR)
+	@cd $(BUILDDIR) && $(MAKE) \
  BUILD_CFLAGS="$(VERSION) $(DBUS_CFLAGS) $(IDN_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS)" \
  BUILD_LIBS="$(DBUS_LIBS) $(IDN_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS)" \
  -f ../Makefile dnsmasq 
 
 clean :
-	rm -f *~ $(BUILD_DIR)/*.mo contrib/*/*~ */*~ $(BUILD_DIR)/*.pot 
-	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/dnsmasq.a $(BUILD_DIR)/dnsmasq core */core
+	rm -f *~ $(BUILDDIR)/*.mo contrib/*/*~ */*~ $(BUILDDIR)/*.pot 
+	rm -f $(BUILDDIR)/*.o $(BUILDDIR)/dnsmasq.a $(BUILDDIR)/dnsmasq core */core
 
 install : all install-common
 
 install-common :
 	$(INSTALL) -d $(DESTDIR)$(BINDIR) -d $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL) -m 644 $(MAN)/dnsmasq.8 $(DESTDIR)$(MANDIR)/man8 
-	$(INSTALL) -m 755 $(BUILD_DIR)/dnsmasq $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 755 $(BUILDDIR)/dnsmasq $(DESTDIR)$(BINDIR)
 
-all-i18n : $(BUILD_DIR)
-	@cd $(BUILD_DIR) && $(MAKE) \
+all-i18n : $(BUILDDIR)
+	@cd $(BUILDDIR) && $(MAKE) \
  I18N=-DLOCALEDIR=\'\"$(LOCALEDIR)\"\' \
  BUILD_CFLAGS="$(VERSION) $(DBUS_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS) `$(PKG_CONFIG) --cflags libidn`" \
  BUILD_LIBS="$(DBUS_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS) `$(PKG_CONFIG) --libs libidn`"  \
  -f ../Makefile dnsmasq
 	@cd $(PO); for f in *.po; do \
-		cd ../$(BUILD_DIR) && $(MAKE) \
+		cd ../$(BUILDDIR) && $(MAKE) \
  -f ../Makefile $${f%.po}.mo; \
 	done
 
 install-i18n : all-i18n install-common
-	cd $(BUILD_DIR); ../bld/install-mo $(DESTDIR)$(LOCALEDIR) $(INSTALL)
+	cd $(BUILDDIR); ../bld/install-mo $(DESTDIR)$(LOCALEDIR) $(INSTALL)
 	cd $(MAN); ../bld/install-man $(DESTDIR)$(MANDIR) $(INSTALL)
 
-merge : $(BUILD_DIR)
-	@cd $(BUILD_DIR) && $(MAKE) -f ../Makefile dnsmasq.pot
+merge : $(BUILDDIR)
+	@cd $(BUILDDIR) && $(MAKE) -f ../Makefile dnsmasq.pot
 	@cd $(PO); for f in *.po; do \
-		echo -n msgmerge $$f && $(MSGMERGE) --no-wrap -U $$f ../$(BUILD_DIR)/dnsmasq.pot; \
+		echo -n msgmerge $$f && $(MSGMERGE) --no-wrap -U $$f ../$(BUILDDIR)/dnsmasq.pot; \
 	done
 
-$(BUILD_DIR):
-	mkdir $(BUILD_DIR)
+$(BUILDDIR):
+	mkdir $(BUILDDIR)
 
 
 # rules below are targets in recusive makes with cwd=$(SRC)
