@@ -490,6 +490,9 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	}
       
       buf = grab_extradata(buf, end, "DNSMASQ_TAGS", &err);
+
+      if (is6)
+	buf = grab_extradata(buf, end, "DNSMASQ_RELAY_ADDRESS", &err);
       
       for (i = 0; buf; i++)
 	{

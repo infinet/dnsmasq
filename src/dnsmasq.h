@@ -928,6 +928,7 @@ struct dhcp_lease *lease6_allocate(struct in6_addr *addrp, int lease_type);
 struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len, 
 			       int lease_type, int iaid, struct in6_addr *addr);
 struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr);
+u64 lease_find_max_addr6(struct dhcp_context *context);
 #endif
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int hw_len, int hw_type, int clid_len);

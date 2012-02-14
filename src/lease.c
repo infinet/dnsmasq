@@ -493,7 +493,31 @@ struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 add
     }
   
   return NULL;
-}  
+} 
+
+/* Find largest assigned address in context */
+u64 lease_find_max_addr6(struct dhcp_context *context)
+{
+  struct dhcp_lease *lease;
+  u64 addr = addr6part(&context->start6);
+  
+  if (!(context->flags & (CONTEXT_STATIC | CONTEXT_PROXY)))
+    for (lease = leases; lease; lease = lease->next)
+      {
+#ifdef HAVE_DHCP6
+	if (!(lease->flags & (LEASE_TA | LEASE_NA)))
+	  continue;
+#endif
+	if (is_same_net6((struct in6_addr *)lease->hwaddr, &context->start6, 64) &&
+	    addr6part((struct in6_addr *)lease->hwaddr) > addr6part(&context->start6) &&
+	    addr6part((struct in6_addr *)lease->hwaddr) <= addr6part(&context->end6) &&
+	    addr6part((struct in6_addr *)lease->hwaddr) > addr)
+	  addr = addr6part((struct in6_addr *)lease->hwaddr);
+      }
+  
+  return addr;
+}
+
 #endif
 
 /* Find largest assigned address in context */

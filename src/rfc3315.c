@@ -32,7 +32,7 @@ static void put_opt6_string(char *s);
 
 static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context, 
 			     int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
-static int dhcp6_no_relay(int msg_type,  struct dhcp_netid *tags, struct dhcp_context *context, 
+static int dhcp6_no_relay(int msg_type,  struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
 			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string);
 
@@ -114,7 +114,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	  return 0;
 	}
 
-      return dhcp6_no_relay(msg_type, *relay_tagsp, context, interface, iface_name, inbuff, sz, is_unicast, now);
+      return dhcp6_no_relay(msg_type, link_address, *relay_tagsp, context, interface, iface_name, inbuff, sz, is_unicast, now);
     }
 
   /* must have at least msg_type+hopcount+link_address+peer_address+minimal size option
@@ -170,7 +170,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
   return 1;
 }
 
-static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_context *context, 
+static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
 			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
 {
   void *packet_options = inbuff + 4;
@@ -670,6 +670,11 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
 					  lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
 				      }
 				  }
+
+				if (link_address)
+				  inet_ntop(AF_INET6, link_address, daemon->addrbuff, ADDRSTRLEN);
+				
+				lease_add_extradata(lease, (unsigned char *)daemon->addrbuff, link_address ? strlen(daemon->addrbuff) : 0, 0);
 				  
 				if ((class_opt = opt6_find(packet_options, end, OPTION6_USER_CLASS, 2)))
 				  {
@@ -1206,6 +1211,19 @@ static int dhcp6_no_relay(int msg_type, struct dhcp_netid *tags, struct dhcp_con
 	    }
 	}
     }      
+
+
+  /* if all the netids in the ignore_name list are present, ignore client-supplied name */
+  if (!hostname_auth)
+    {
+       struct dhcp_netid_list *id_list;
+       
+       for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
+	 if ((!id_list->list) || match_netid(id_list->list, tagif, 0))
+	   break;
+       if (id_list)
+	 hostname = NULL;
+    }
   
   if (hostname)
     {

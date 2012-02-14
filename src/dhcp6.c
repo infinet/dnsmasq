@@ -292,8 +292,12 @@ int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int cl
       else if (!match_netid(c->filter, netids, pass))
 	continue;
       else
-	{
-	  start = addr6part(&c->start6) + ((j + c->addr_epoch + serial) % (1 + addr6part(&c->end6) - addr6part(&c->start6)));
+	{ 
+	  if (option_bool(OPT_CONSEC_ADDR))
+	    /* seed is largest extant lease addr in this context */
+	    start = lease_find_max_addr6(c) + serial;
+	  else
+	    start = addr6part(&c->start6) + ((j + c->addr_epoch + serial) % (1 + addr6part(&c->end6) - addr6part(&c->start6)));
 
 	  /* iterate until we find a free address. */
 	  addr = start;
