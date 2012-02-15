@@ -102,7 +102,7 @@ struct dhcp_netid *option_filter(struct dhcp_netid *tags, struct dhcp_netid *con
     }
 
   /* now flag options which are valid, including the context tags,
-     otherwise valid options are inhibited if we found a higher priotity one above */
+     otherwise valid options are inhibited if we found a higher priority one above */
   if (context_tags)
     {
       struct dhcp_netid *last_tag;

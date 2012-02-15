@@ -504,10 +504,9 @@ u64 lease_find_max_addr6(struct dhcp_context *context)
   if (!(context->flags & (CONTEXT_STATIC | CONTEXT_PROXY)))
     for (lease = leases; lease; lease = lease->next)
       {
-#ifdef HAVE_DHCP6
 	if (!(lease->flags & (LEASE_TA | LEASE_NA)))
 	  continue;
-#endif
+
 	if (is_same_net6((struct in6_addr *)lease->hwaddr, &context->start6, 64) &&
 	    addr6part((struct in6_addr *)lease->hwaddr) > addr6part(&context->start6) &&
 	    addr6part((struct in6_addr *)lease->hwaddr) <= addr6part(&context->end6) &&
