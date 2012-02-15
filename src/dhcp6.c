@@ -408,44 +408,18 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
 				 unsigned char *duid, int duid_len,
 				 char *hostname)
 {
-  int count, new;
   struct dhcp_config *config; 
-  struct hwaddr_config *conf_addr;
-  unsigned char *hwaddr = NULL; 
-  int duid_type, hw_len = 0, hw_type = 0;
-  
-  if (duid)
-    {  
-      for (config = configs; config; config = config->next)
-	if (config->flags & CONFIG_CLID)
-	  {
-	    if (config->clid_len == duid_len && 
-		memcmp(config->clid, duid, duid_len) == 0 &&
-		is_addr_in_context6(context, config))
-	      return config;
-	  }
       
-      /* DHCPv6 doesn't deal in MAC addresses per-se, but some DUIDs do include
-	 MAC addresses, so we try and parse them out here. Not that there is only one
-	 DUID per host and it's created using any one of the MACs, so this is no
-	 good no good for multihomed hosts. */
-      hwaddr = duid;
-      GETSHORT(duid_type, hwaddr);
-      if (duid_type == 1 || duid_type == 3)
+  if (duid)
+    for (config = configs; config; config = config->next)
+      if (config->flags & CONFIG_CLID)
 	{
-	  GETSHORT(hw_type, hwaddr);
-	  if (duid_type == 1)
-	    hwaddr += 4; /* skip time */
-	  hw_len = duid_len - 8;
-	}
-
-      if (hwaddr)
-	for (config = configs; config; config = config->next)
-	  if (config_has_mac(config, hwaddr, hw_len, hw_type) &&
+	  if (config->clid_len == duid_len && 
+	      memcmp(config->clid, duid, duid_len) == 0 &&
 	      is_addr_in_context6(context, config))
 	    return config;
-    }
-  
+	}
+    
   if (hostname && context)
     for (config = configs; config; config = config->next)
       if ((config->flags & CONFIG_NAME) && 
@@ -453,26 +427,6 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
           is_addr_in_context6(context, config))
         return config;
 
-  /* use match with fewest wildcard octets */
-  if (hwaddr)
-    {
-       struct dhcp_config *candidate; 
-       
-       for (candidate = NULL, count = 0, config = configs; config; config = config->next)
-	if (is_addr_in_context6(context, config))
-	  for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
-	    if (conf_addr->wildcard_mask != 0 &&
-		conf_addr->hwaddr_len == hw_len &&  
-		(conf_addr->hwaddr_type == hw_type || conf_addr->hwaddr_type == 0) &&
-		(new = memcmp_masked(conf_addr->hwaddr, hwaddr, hw_len, conf_addr->wildcard_mask)) > count)
-	      {
-		count = new;
-		candidate = config;
-	      }
-      
-      return candidate;
-    }
-  
   return NULL;
 }
 
