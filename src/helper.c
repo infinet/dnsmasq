@@ -217,18 +217,6 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 		p += sprintf(p, ":");
 	    }
 	}
-#ifdef HAVE_DHCP6
-      else
-	{
-	  /* duid not MAC for IPv6 */
-	  for (p = daemon->dhcp_buff, i = 0; i < data.clid_len; i++)
-	    {
-	      p += sprintf(p, "%.2x", buf[i]);
-	      if (i != data.clid_len - 1) 
-		p += sprintf(p, ":");
-	    } 
-	}
-#endif
        
       /* expiry or length into dhcp_buff2 */
 #ifdef HAVE_BROKEN_RTC
@@ -265,6 +253,14 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	      if (i != daemon->duid_len - 1) 
 		p += sprintf(p, ":");
 	    }
+
+	  /* duid not MAC for IPv6 */
+	  for (p = daemon->dhcp_buff, i = 0; i < data.clid_len; i++)
+	    {
+	      p += sprintf(p, "%.2x", buf[i]);
+	      if (i != data.clid_len - 1) 
+		p += sprintf(p, ":");
+	    } 
 	}
 #endif
 
@@ -364,19 +360,21 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	    }
 	  
 	  buf = grab_extradata_lua(buf, end, "tags");
-	  
+
+	  if (is6)
+	    buf = grab_extradata_lua(buf, end, "relay_address");
+	  else if (data.giaddr.s_addr != 0)
+	    {
+	      lua_pushstring(lua, inet_ntoa(data.giaddr));
+	      lua_setfield(lua, -2, "relay_address");
+	    }
+
 	  for (i = 0; buf; i++)
 	    {
 	      sprintf(daemon->dhcp_buff2, "user_class%i", i);
 	      buf = grab_extradata_lua(buf, end, daemon->dhcp_buff2);
 	    }
  
-	  if (!is6 && data.giaddr.s_addr != 0)
-	    {
-	      lua_pushstring(lua, inet_ntoa(data.giaddr));
-	      lua_setfield(lua, -2, "relay_address");
-	    }
-
 	  if (data.action != ACTION_DEL && data.remaining_time != 0)
 	    {
 	      lua_pushnumber(lua, data.remaining_time);
@@ -493,16 +491,15 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 
       if (is6)
 	buf = grab_extradata(buf, end, "DNSMASQ_RELAY_ADDRESS", &err);
-      
+      else if (data.giaddr.s_addr != 0)
+	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
+
       for (i = 0; buf; i++)
 	{
 	  sprintf(daemon->dhcp_buff2, "DNSMASQ_USER_CLASS%i", i);
 	  buf = grab_extradata(buf, end, daemon->dhcp_buff2, &err);
 	}
       
-      if (!is6 && data.giaddr.s_addr != 0)
-	my_setenv("DNSMASQ_RELAY_ADDRESS", inet_ntoa(data.giaddr), &err); 
-
       if (data.action != ACTION_DEL && data.remaining_time != 0)
 	{
 	  sprintf(daemon->dhcp_buff2, "%u", data.remaining_time);
