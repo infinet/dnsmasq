@@ -1082,7 +1082,7 @@ If the client provides vendor-class, DNSMASQ_VENDOR_CLASS_ID,
 containing the IANA enterprise id for the class, and
 DNSMASQ_VENDOR_CLASS0..DNSMASQ_VENDOR_CLASSn for the data.
 
-DNSMASQ_DUID containing the DUID of the server: this is the same for
+DNSMASQ_SERVER_DUID containing the DUID of the server: this is the same for
 every call to the script.
 
 DNSMASQ_IAID containing the IAID for the lease. If the lease is a
@@ -1115,8 +1115,43 @@ leases will be called with "del" and others with "old". When dnsmasq
 receives a HUP signal, the script will be invoked for existing leases
 with an "old " event.
 .TP
+.B --dhcp-luascript=<path>
+Specify a script written in Lua, to be run when leases are created,
+destroyed or changed. To use this option, dnsmasq must be compiled
+with the correct support. The Lua interpreter is intialised once, when
+dnsmasq starts, so that global variables persist between lease
+events. The Lua code must define a
+.B lease
+function, and may provide
+.B init
+and
+.B shutdown
+functions, which are called, without arguments when dnsmasq starts up
+and terminates.
+
+The 
+.B lease
+method receives the information detailed in 
+.B --dhcp-script. 
+It gets two arguments, firstly the action, which is a string
+containing, "add", "old" or "del", and secondly a table of tag value
+pairs. The tags mostly correspond to the environment variables
+detailed above, for instance the tag "domain" holds the same data as
+the environment variable DNSMASQ_DOMAIN. There are a few extra tags
+which hold the data supplied as arguments to
+.B --dhcp-script. 
+These are 
+.B mac_address, ip_address
+and 
+.B hostname
+for IPv4, and 
+.B client_duid, ip_address
+and 
+.B hostname
+for IPv6. 
+.TP
 .B --dhcp-scriptuser
-Specify the user as which to run the lease-change script. This defaults to root, but can be changed to another user using this flag. 
+Specify the user as which to run the lease-change script or Lua script. This defaults to root, but can be changed to another user using this flag. 
 .TP 
 .B \-9, --leasefile-ro
 Completely suppress use of the lease database file. The file will not

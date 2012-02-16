@@ -298,8 +298,10 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 
 	  if (is6)
 	    {
+	      lua_pushstring(lua, daemon->dhcp_buff);
+	      lua_setfield(lua, -2, "client_duid");
 	      lua_pushstring(lua, daemon->packet);
-	      lua_setfield(lua, -2, "duid");
+	      lua_setfield(lua, -2, "server_duid");
 	      lua_pushstring(lua, daemon->dhcp_buff3);
 	      lua_setfield(lua, -2, "iaid");
 	    }
@@ -440,7 +442,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
       if (is6)
 	{
 	  my_setenv("DNSMASQ_IAID", daemon->dhcp_buff3, &err);
-	  my_setenv("DNSMASQ_DUID", daemon->packet, &err);
+	  my_setenv("DNSMASQ_SERVER_DUID", daemon->packet, &err);
 	}
 
       if (!is6 && data.clid_len != 0)
