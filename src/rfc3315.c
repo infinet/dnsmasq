@@ -394,7 +394,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	      if (!config)
 		{
 		  /* Search again now we have a hostname. 
-		     Only accept configs without CLID and HWADDR here, (they won't match)
+		     Only accept configs without CLID here, (it won't match)
 		     to avoid impersonation by name. */
 		  struct dhcp_config *new = find_config6(daemon->dhcp_conf, context, NULL, 0, hostname);
 		  if (new && !have_config(new, CONFIG_CLID) && !new->hwaddr)
@@ -422,18 +422,31 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
       if (have_config(config, CONFIG_DISABLE))
 	ignore = 1;
     }
+   
+  tagif = run_tag_if(tags);
   
   /* if all the netids in the ignore list are present, ignore this client */
   if (daemon->dhcp_ignore)
     {
       struct dhcp_netid_list *id_list;
      
-      tagif = run_tag_if(tags);
-      
       for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
 	if (match_netid(id_list->list, tagif, 0))
 	  ignore = 1;
     }
+  
+  /* if all the netids in the ignore_name list are present, ignore client-supplied name */
+  if (!hostname_auth)
+    {
+       struct dhcp_netid_list *id_list;
+       
+       for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
+	 if ((!id_list->list) || match_netid(id_list->list, tagif, 0))
+	   break;
+       if (id_list)
+	 hostname = NULL;
+    }
+  
 
   switch (msg_type)
     {
@@ -508,7 +521,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    struct in6_addr *req_addr = opt6_ptr(ia_option, 0);
 		    preferred_time = opt6_uint(ia_option, 16, 4);
 		    
-		    if (!address6_available(context, req_addr, tags))
+		    if (!address6_available(context, req_addr, tags) &&
+			(!have_config(config, CONFIG_ADDR6) || memcmp(&config->addr6, req_addr, IN6ADDRSZ) != 0))
 		      {
 			if (msg_type == DHCP6REQUEST)
 			  {
@@ -584,13 +598,23 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    address_assigned = 1;
 		    
 		    /* shouldn't ever fail */
-		    if ((this_context = narrow_context6(context, addrp, tags)))
+		    if ((this_context = narrow_context6(context, addrp, tagif)))
 		      {
 			/* get tags from context if we've not used it before */
-			if (this_context->netid.next != &this_context->netid && this_context->netid.net)
+			if (this_context->netid.next == &this_context->netid && this_context->netid.net)
 			  {
 			    this_context->netid.next = context_tags;
 			    context_tags = &this_context->netid;
+			    if (!hostname_auth)
+			      {
+				struct dhcp_netid_list *id_list;
+				
+				for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
+				  if ((!id_list->list) || match_netid(id_list->list, &this_context->netid, 0))
+				    break;
+				if (id_list)
+				  hostname = NULL;
+			      }
 			  }
 			
 			lease_time = have_config(valid_config, CONFIG_TIME) ? valid_config->lease_time : this_context->lease_time;
@@ -653,13 +677,18 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 						    client_hostname ? strlen(client_hostname) : 0, 0);				
 				
 				/* space-concat tag set */
-				if (!tags)
+				if (!tagif && !context_tags)
 				  lease_add_extradata(lease, NULL, 0, 0);
 				else
 				  {
-				    struct dhcp_netid *n;
+				    struct dhcp_netid *n, *l;
 				    
-				    for (n = run_tag_if(tags); n; n = n->next)
+				    /* link temporarily */
+				    for (n = context_tags; n && n->next; n = n->next);
+				    if (l = n)
+				      l->next = tags;
+				    
+				    for (n = run_tag_if(context_tags); n; n = n->next)
 				      {
 					struct dhcp_netid *n1;
 					/* kill dupes */
@@ -669,6 +698,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 					if (!n1)
 					  lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
 				      }
+
+				    /* unlink again */
+				    if (l)
+				      l->next = NULL;
 				  }
 
 				if (link_address)
@@ -820,17 +853,27 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    break;
 		  }
 		
-		tagif = run_tag_if(tags);
+		
 		if (!address6_available(context, req_addr, tagif) || 
 		    !(this_context = narrow_context6(context, req_addr, tagif)))
 		  lease_time = 0;
 		else
 		  {
 		    /* get tags from context if we've not used it before */
-		    if (this_context->netid.next != &this_context->netid && this_context->netid.net)
+		    if (this_context->netid.next == &this_context->netid && this_context->netid.net)
 		      {
 			this_context->netid.next = context_tags;
 			context_tags = &this_context->netid;
+			if (!hostname_auth)
+			  {
+			    struct dhcp_netid_list *id_list;
+			    
+			    for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
+			      if ((!id_list->list) || match_netid(id_list->list, &this_context->netid, 0))
+				break;
+			    if (id_list)
+			      hostname = NULL;
+			  }
 		      }
 		    
 		    lease_time = have_config(valid_config, CONFIG_TIME) ? valid_config->lease_time : this_context->lease_time;
@@ -1213,18 +1256,6 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
     }      
 
 
-  /* if all the netids in the ignore_name list are present, ignore client-supplied name */
-  if (!hostname_auth)
-    {
-       struct dhcp_netid_list *id_list;
-       
-       for (id_list = daemon->dhcp_ignore_names; id_list; id_list = id_list->next)
-	 if ((!id_list->list) || match_netid(id_list->list, tagif, 0))
-	   break;
-       if (id_list)
-	 hostname = NULL;
-    }
-  
   if (hostname)
     {
       unsigned char *p;
