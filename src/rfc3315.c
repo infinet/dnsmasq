@@ -682,14 +682,17 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 				  lease_add_extradata(lease, NULL, 0, 0);
 				else
 				  {
-				    struct dhcp_netid *n, *l;
+				    struct dhcp_netid *n, *l, *tmp = tags;
 				    
 				    /* link temporarily */
 				    for (n = context_tags; n && n->next; n = n->next);
 				    if ((l = n))
-				      l->next = tags;
+				      {
+					l->next = tags;
+					tmp = context_tags;
+				      }
 				    
-				    for (n = run_tag_if(context_tags); n; n = n->next)
+				    for (n = run_tag_if(tmp); n; n = n->next)
 				      {
 					struct dhcp_netid *n1;
 					/* kill dupes */

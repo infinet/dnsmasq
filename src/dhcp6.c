@@ -222,7 +222,7 @@ void dhcp6_packet(time_t now)
   lease_update_dns();
   
   if (sz != 0)
-    while (sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, sz, 0, (struct sockaddr *)&from, sizeof(from)) &&
+    while (sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, sz, 0, (struct sockaddr *)&from, sizeof(from)) == -1 &&
 	   retry_send());
 }
 
