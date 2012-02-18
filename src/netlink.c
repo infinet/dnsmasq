@@ -136,6 +136,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
   struct nlmsghdr *h;
   ssize_t len;
   static unsigned int seq = 0;
+  int callback_ok = 1;
 
   struct {
     struct nlmsghdr nlh;
@@ -186,7 +187,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	else if (h->nlmsg_type == NLMSG_ERROR)
 	  nl_err(h);
 	else if (h->nlmsg_type == NLMSG_DONE)
-	  return 1;
+	  return callback_ok;
 	else if (h->nlmsg_type == RTM_NEWADDR && family != AF_UNSPEC && family != AF_LOCAL)
 	  {
 	    struct ifaddrmsg *ifa = NLMSG_DATA(h);  
@@ -213,9 +214,9 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 			rta = RTA_NEXT(rta, len1);
 		      }
 		    
-		    if (addr.s_addr)
+		    if (addr.s_addr && callback_ok)
 		      if (!((*callback)(addr, ifa->ifa_index, netmask, broadcast, parm)))
-			return 0;
+			callback_ok = 0;
 		  }
 #ifdef HAVE_IPV6
 		else if (ifa->ifa_family == AF_INET6)
@@ -229,10 +230,10 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 			rta = RTA_NEXT(rta, len1);
 		      }
 		    
-		    if (addrp)
+		    if (addrp && callback_ok)
 		      if (!((*callback)(addrp, (int)(ifa->ifa_prefixlen), (int)(ifa->ifa_scope), 
 					(int)(ifa->ifa_index), (int)(ifa->ifa_flags & IFA_F_TENTATIVE), parm)))
-			return 0;
+			callback_ok = 0;
 		  }
 #endif
 	      }
@@ -258,9 +259,9 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		rta = RTA_NEXT(rta, len1);
 	      }
 
-	    if (inaddr && mac)
+	    if (inaddr && mac && callback_ok)
 	      if (!((*callback)(neigh->ndm_family, inaddr, mac, maclen, parm)))
-		return 0;
+		callback_ok = 0;
 	  }
 #ifdef HAVE_DHCP6
 	else if (h->nlmsg_type == RTM_NEWLINK && family == AF_LOCAL)
@@ -282,9 +283,9 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		rta = RTA_NEXT(rta, len1);
 	      }
 
-	    if (mac && !((link->ifi_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))) && 
+	    if (mac && callback_ok && !((link->ifi_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))) && 
 		!((*callback)((unsigned int)link->ifi_type, mac, maclen, parm)))
-	      return 0;
+	      callback_ok = 0;
 	  }
 #endif
     }

@@ -20,6 +20,7 @@
 
 struct iface_param {
   struct dhcp_context *current;
+  struct in6_addr fallback;
   int ind;
 };
 
@@ -200,10 +201,14 @@ void dhcp6_packet(time_t now)
 
   /* unlinked contexts are marked by context->current == context */
   for (context = daemon->dhcp6; context; context = context->next)
-    context->current = context;
-  
+    {
+      context->current = context;
+      memset(&context->local6, 0, IN6ADDRSZ);
+    }
+
   parm.current = NULL;
   parm.ind = if_index;
+  memset(&parm.fallback, 0, IN6ADDRSZ);
   
   if (!iface_enumerate(AF_INET6, &parm, complete_context6))
     return;
@@ -211,7 +216,7 @@ void dhcp6_packet(time_t now)
   lease_prune(NULL, now); /* lose any expired leases */
 
   msg.msg_iov =  &daemon->dhcp_packet;
-  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, sz, IN6_IS_ADDR_MULTICAST(&from.in6.sin6_addr), now);
+  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, sz, IN6_IS_ADDR_MULTICAST(&from.in6.sin6_addr), now);
   
   lease_update_file(now);
   lease_update_dns();
@@ -229,23 +234,32 @@ static int complete_context6(struct in6_addr *local,  int prefix,
 
   (void)scope; /* warning */
   (void)dad;
-
-  for (context = daemon->dhcp6; context; context = context->next)
+  
+  if (if_index == param->ind &&
+      !IN6_IS_ADDR_LOOPBACK(local) &&
+      !IN6_IS_ADDR_LINKLOCAL(local) &&
+      !IN6_IS_ADDR_MULTICAST(local))
     {
-      if (prefix == context->prefix &&
-	  !IN6_IS_ADDR_LOOPBACK(local) &&
-	  !IN6_IS_ADDR_LINKLOCAL(local) &&
-	  !IN6_IS_ADDR_MULTICAST(local) &&
-	  is_same_net6(local, &context->start6, prefix) &&
-          is_same_net6(local, &context->end6, prefix))
-        {
-          /* link it onto the current chain if we've not seen it before */
-          if (if_index == param->ind && context->current == context)
-            {
-              context->current = param->current;
-              param->current = context;
-	      context->local6 = *local;
-            }
+      /* Determine a globally address on the arrival interface, even
+	 if we have no matching dhcp-context, because we're only
+	 allocating on remote subnets via relays. This
+	 is used as a default for the DNS server option. */
+      memcpy(&param->fallback, &local, IN6ADDRSZ);
+      
+      for (context = daemon->dhcp6; context; context = context->next)
+	{
+	  if (prefix == context->prefix &&
+	      is_same_net6(local, &context->start6, prefix) &&
+	      is_same_net6(local, &context->end6, prefix))
+	    {
+	      /* link it onto the current chain if we've not seen it before */
+	      if (context->current == context)
+		{
+		  context->current = param->current;
+		  param->current = context;
+		  context->local6 = *local;
+		}
+	    }
 	}
     }          
   return 1;
@@ -305,7 +319,7 @@ int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int cl
 	  do {
 	    /* eliminate addresses in use by the server. */
 	    for (d = context; d; d = d->current)
-	      if (addr == addr6part(&d->router6))
+	      if (addr == addr6part(&d->local6))
 		break;
 
 	    if (!d &&

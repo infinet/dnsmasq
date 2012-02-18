@@ -603,7 +603,7 @@ struct dhcp_context {
   struct in_addr start, end; /* range of available addresses */
 #ifdef HAVE_DHCP6
   struct in6_addr start6, end6; /* range of available addresses */
-  struct in6_addr local6, router6;
+  struct in6_addr local6;
   int prefix;
 #endif
   int flags;
@@ -1036,7 +1036,8 @@ void make_duid(time_t now);
 
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
-size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name, size_t sz, int is_multicast, time_t now);
+size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
+		   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now);
 #endif
 
 /* dhcp-common.c */

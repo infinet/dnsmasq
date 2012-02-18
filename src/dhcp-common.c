@@ -332,9 +332,9 @@ void dhcp_update_configs(struct dhcp_config *configs)
 	      }
 
 #ifdef HAVE_DHCP6
-	    if (prot == AF_INET6 && !config_find_by_address6(configs, &crec->addr.addr.addr.addr6, 129, 0))
+	    if (prot == AF_INET6 && !config_find_by_address6(configs, &crec->addr.addr.addr.addr6, 128, 0))
 	      {
-		memcpy(config->hwaddr, &crec->addr.addr.addr.addr6, IN6ADDRSZ);
+		memcpy(&config->addr6, &crec->addr.addr.addr.addr6, IN6ADDRSZ);
 		config->flags |= CONFIG_ADDR6 | CONFIG_ADDR_HOSTS;
 		continue;
 	      }

@@ -31,9 +31,9 @@ static void put_opt6_long(unsigned int val);
 static void put_opt6_string(char *s);
 
 static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context, 
-			     int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
+			     int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now);
 static int dhcp6_no_relay(int msg_type,  struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
-			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now);
+			  int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now);
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string);
 
 static void *opt6_find (void *opts, void *end, unsigned int search, unsigned int minsize);
@@ -45,7 +45,8 @@ static unsigned int opt6_uint(unsigned char *opt, int offset, int size);
 #define opt6_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[4+(i)]))
 
 
-size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name, size_t sz, int is_unicast, time_t now)
+size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,
+		   struct in6_addr *fallback, size_t sz, int is_unicast, time_t now)
 {
   struct dhcp_netid *relay_tags = NULL;
   struct dhcp_vendor *vendor;
@@ -56,7 +57,7 @@ size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name
   
   outpacket_counter = 0;
   
-  if (dhcp6_maybe_relay(NULL, &relay_tags, context, interface, iface_name, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
+  if (dhcp6_maybe_relay(NULL, &relay_tags, context, interface, iface_name, fallback, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
     return outpacket_counter;
 
   return 0;
@@ -64,7 +65,7 @@ size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name
 
 /* This cost me blood to write, it will probably cost you blood to understand - srk. */
 static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context,
-			     int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
+			     int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now)
 {
   void *end = inbuff + sz;
   void *opts = inbuff + 34;
@@ -114,7 +115,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	  return 0;
 	}
 
-      return dhcp6_no_relay(msg_type, link_address, *relay_tagsp, context, interface, iface_name, inbuff, sz, is_unicast, now);
+      return dhcp6_no_relay(msg_type, link_address, *relay_tagsp, context, interface, iface_name, fallback, inbuff, sz, is_unicast, now);
     }
 
   /* must have at least msg_type+hopcount+link_address+peer_address+minimal size option
@@ -159,7 +160,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	  memcpy(&link_address, inbuff + 2, IN6ADDRSZ); 
 	  /* Not, zero is_unicast since that is now known to refer to the 
 	     relayed packet, not the original sent by the client */
-	  if (!dhcp6_maybe_relay(&link_address, relay_tagsp, context, interface, iface_name, opt6_ptr(opt, 0), opt6_len(opt), 0, now))
+	  if (!dhcp6_maybe_relay(&link_address, relay_tagsp, context, interface, iface_name, fallback, opt6_ptr(opt, 0), opt6_len(opt), 0, now))
 	    return 0;
 	}
       else
@@ -171,7 +172,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 }
 
 static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
-			  int interface, char *iface_name, void *inbuff, size_t sz, int is_unicast, time_t now)
+			  int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now)
 {
   void *packet_options = inbuff + 4;
   void *end = inbuff + sz;
@@ -685,7 +686,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 				    
 				    /* link temporarily */
 				    for (n = context_tags; n && n->next; n = n->next);
-				    if (l = n)
+				    if ((l = n))
 				      l->next = tags;
 				    
 				    for (n = run_tag_if(context_tags); n; n = n->next)
@@ -1191,10 +1192,15 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
       
     }
   
-  if (!done_dns)
+  if (!done_dns && 
+      (!IN6_IS_ADDR_UNSPECIFIED(&context->local6) ||
+       !IN6_IS_ADDR_UNSPECIFIED(fallback)))
     {
       o = new_opt6(OPTION6_DNS_SERVER);
-      put_opt6(&context->local6, IN6ADDRSZ);
+      if (IN6_IS_ADDR_UNSPECIFIED(&context->local6))
+	put_opt6(fallback, IN6ADDRSZ);
+      else
+	put_opt6(&context->local6, IN6ADDRSZ);
       end_opt6(o); 
     }
    
