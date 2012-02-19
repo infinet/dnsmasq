@@ -244,7 +244,7 @@ static int complete_context6(struct in6_addr *local,  int prefix,
 	 if we have no matching dhcp-context, because we're only
 	 allocating on remote subnets via relays. This
 	 is used as a default for the DNS server option. */
-      memcpy(&param->fallback, &local, IN6ADDRSZ);
+      param->fallback = *local;
       
       for (context = daemon->dhcp6; context; context = context->next)
 	{
