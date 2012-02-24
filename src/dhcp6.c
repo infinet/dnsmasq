@@ -101,13 +101,6 @@ static int join_multicast(struct in6_addr *local, int prefix,
     if (if_index == listenp->fd_or_iface)
       return 1;
   
-  mreq.ipv6mr_interface = if_index;
-  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
-  
-  if (daemon->icmp6fd != -1 &&
-      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-
   if (!indextoname(fd, if_index, ifrn_name))
     return 0;
 
@@ -126,7 +119,9 @@ static int join_multicast(struct in6_addr *local, int prefix,
 
   if (!context)
     return 1;
-
+  
+  mreq.ipv6mr_interface = if_index;
+  
   inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
   
   if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
@@ -135,6 +130,12 @@ static int join_multicast(struct in6_addr *local, int prefix,
   inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
   
   if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+  
+  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->icmp6fd != -1 &&
+      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
     return 0;
   
   listenp = whine_malloc(sizeof(struct listen_param));
