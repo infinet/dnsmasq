@@ -60,6 +60,7 @@ typedef unsigned long long u64;
 #include "dhcp_protocol.h"
 #ifdef HAVE_DHCP6
 #include "dhcp6_protocol.h"
+#include "radv_protocol.h"
 #endif
 
 #define gettext_noop(S) (S)
@@ -215,7 +216,8 @@ struct event_desc {
 #define OPT_CONSEC_ADDR    34
 #define OPT_CONNTRACK      35
 #define OPT_FQDN_UPDATE    36
-#define OPT_LAST           37
+#define OPT_RA             37
+#define OPT_LAST           38
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -605,6 +607,7 @@ struct dhcp_context {
   struct in6_addr start6, end6; /* range of available addresses */
   struct in6_addr local6;
   int prefix;
+  time_t ra_time;
 #endif
   int flags;
   char *interface;
@@ -616,6 +619,8 @@ struct dhcp_context {
 #define CONTEXT_NETMASK   2
 #define CONTEXT_BRDCAST   4
 #define CONTEXT_PROXY     8
+#define CONTEXT_RA_ONLY  16
+#define CONTEXT_RA_DONE  32
 
 struct ping_result {
   struct in_addr addr;
@@ -694,7 +699,7 @@ extern struct daemon {
   int port, query_port, min_port;
   unsigned long local_ttl, neg_ttl, max_ttl;
   struct hostsfile *addn_hosts;
-  struct dhcp_context *dhcp, *dhcp6;
+  struct dhcp_context *dhcp, *dhcp6, *ra_contexts;
   struct dhcp_config *dhcp_conf;
   struct dhcp_opt *dhcp_opts, *dhcp_match, *dhcp_opts6, *dhcp_match6;
   struct dhcp_vendor *dhcp_vendors;
@@ -754,7 +759,7 @@ extern struct daemon {
   int duid_len;
   unsigned char *duid;
   struct iovec outpacket;
-  int dhcp6fd;
+  int dhcp6fd, icmp6fd;
 #endif
   /* DBus stuff */
   /* void * here to avoid depending on dbus headers outside dbus.c */
@@ -1053,4 +1058,25 @@ void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 void dhcp_update_configs(struct dhcp_config *configs);
 void check_dhcp_hosts(int fatal);
+#endif
+
+/* outpacket.c */
+#ifdef HAVE_DHCP6
+void end_opt6(int container);
+int save_counter(int newval);
+void *expand(size_t headroom);
+int new_opt6(int opt);
+void *put_opt6(void *data, size_t len);
+void put_opt6_long(unsigned int val);
+void put_opt6_short(unsigned int val);
+void put_opt6_char(unsigned int val);
+void put_opt6_string(char *s);
+#endif
+
+/* radv.c */
+#ifdef HAVE_DHCP6
+void ra_init(time_t now);
+void icmp6_packet(void);
+time_t periodic_ra(time_t now);
+void ra_start_unsolicted(time_t now);
 #endif

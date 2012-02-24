@@ -53,14 +53,14 @@ ssize_t recv_dhcp_packet(int fd, struct msghdr *msg)
 
       /* Very new Linux kernels return the actual size needed, 
 	 older ones always return truncated size */
-      if ((size_t)sz == daemon->dhcp_packet.iov_len)
+      if ((size_t)sz == msg->msg_iov->iov_len)
 	{
-	  if (!expand_buf(&daemon->dhcp_packet, sz + 100))
+	  if (!expand_buf(msg->msg_iov, sz + 100))
 	    return -1;
 	}
       else
 	{
-	  expand_buf(&daemon->dhcp_packet, sz);
+	  expand_buf(msg->msg_iov, sz);
 	  break;
 	}
     }

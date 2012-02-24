@@ -157,8 +157,14 @@ int main (int argc, char **argv)
       if (daemon->dhcp)
 	dhcp_init();
 #ifdef HAVE_DHCP6
+      daemon->icmp6fd = -1;
       if (daemon->dhcp6)
-	dhcp6_init();
+	{
+	  /* ra_init before dhcp6_init, so dhcp6_init can setup multicast listening */
+	  if (option_bool(OPT_RA))
+	    ra_init(now); 
+	  dhcp6_init();
+	}
 #endif
     }
 #endif
@@ -495,6 +501,9 @@ int main (int argc, char **argv)
 
   if (daemon->max_logs != 0)
     my_syslog(LOG_INFO, _("asynchronous logging enabled, queue limit is %d messages"), daemon->max_logs);
+ 
+  if (option_bool(OPT_RA))
+    my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
 
 #ifdef HAVE_DHCP
   if (daemon->dhcp || daemon->dhcp6)
@@ -525,6 +534,8 @@ int main (int argc, char **argv)
 	  my_syslog(MS_DHCP | LOG_INFO, 
 		    (dhcp_tmp->flags & CONTEXT_STATIC) ? 
 		    _("DHCP, static leases only on %.0s%s, lease time %s") :
+		    (dhcp_tmp->flags & CONTEXT_RA_ONLY) ? 
+		    _("router advertisement only on %.0s%s, lifetime %s") :
 		    (dhcp_tmp->flags & CONTEXT_PROXY) ?
 		    _("DHCP, proxy on subnet %.0s%s%.0s") :
 		    _("DHCP, IP range %s -- %s, lease time %s"),
@@ -535,7 +546,10 @@ int main (int argc, char **argv)
       if (family == AF_INET)
 	{
 	  family = AF_INET6;
-	  dhcp_tmp = daemon->dhcp6;
+	  if (daemon->ra_contexts)
+	    dhcp_tmp = daemon->ra_contexts;
+	  else
+	    dhcp_tmp = daemon->dhcp6;
 	  goto again;
 	}
 #endif
@@ -652,7 +666,13 @@ int main (int argc, char **argv)
       if (daemon->dhcp6)
 	{
 	  FD_SET(daemon->dhcp6fd, &rset);
-	   bump_maxfd(daemon->dhcp6fd, &maxfd);
+	  bump_maxfd(daemon->dhcp6fd, &maxfd);
+	  
+	  if (daemon->icmp6fd != -1)
+	    {
+	      FD_SET(daemon->icmp6fd, &rset);
+	      bump_maxfd(daemon->icmp6fd, &maxfd); 
+	    }
 	}
 #endif
 
@@ -756,6 +776,9 @@ int main (int argc, char **argv)
 	{
 	  if (FD_ISSET(daemon->dhcp6fd, &rset))
 	    dhcp6_packet(now);
+
+	  if (daemon->icmp6fd != -1 && FD_ISSET(daemon->icmp6fd, &rset))
+	    icmp6_packet();
 	}
 #endif
 
@@ -1372,7 +1395,15 @@ int icmp_ping(struct in_addr addr)
       FD_SET(fd, &rset);
       set_dns_listeners(now, &rset, &maxfd);
       set_log_writer(&wset, &maxfd);
-
+      
+#ifdef HAVE_DHCP6
+      if (daemon->icmp6fd != -1)
+	{
+	  FD_SET(daemon->icmp6fd, &rset);
+	  bump_maxfd(daemon->icmp6fd, &maxfd); 
+	}
+#endif
+      
       if (select(maxfd+1, &rset, &wset, NULL, &tv) < 0)
 	{
 	  FD_ZERO(&rset);
@@ -1384,6 +1415,11 @@ int icmp_ping(struct in_addr addr)
       check_log_writer(&wset);
       check_dns_listeners(&rset, now);
 
+#ifdef HAVE_DHCP6
+      if (daemon->icmp6fd != -1 && FD_ISSET(daemon->icmp6fd, &rset))
+	icmp6_packet();
+#endif
+      
 #ifdef HAVE_TFTP
       check_tftp_listeners(&rset, now);
 #endif

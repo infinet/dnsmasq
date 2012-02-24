@@ -199,7 +199,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	    { 
 	      /* Assume ethernet again here */
 	      struct sockaddr_dl *sdl = (struct sockaddr_dl *)&ifr->ifr_addr;
-	      if (sdl->sdl_alen != 0 && !((*callback)(ARPHRD_ETHER, LLADDR(sdl), sdl->sdl_alen, parm)))
+	      if (sdl->sdl_alen != 0 && !((*callback)((int)if_nametoindex(ifr->ifr_name),
+						      ARPHRD_ETHER, LLADDR(sdl), sdl->sdl_alen, parm)))
 		goto err;
 	    }
 #endif 

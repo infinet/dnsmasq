@@ -35,7 +35,7 @@ static int join_multicast(struct in6_addr *local, int prefix,
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int dad, void *vparam);
 
-static int make_duid1(unsigned int type, char *mac, size_t maclen, void *parm); 
+static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
 
 void dhcp6_init(void)
 {
@@ -101,6 +101,13 @@ static int join_multicast(struct in6_addr *local, int prefix,
     if (if_index == listenp->fd_or_iface)
       return 1;
   
+  mreq.ipv6mr_interface = if_index;
+  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->icmp6fd != -1 &&
+      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+
   if (!indextoname(fd, if_index, ifrn_name))
     return 0;
 
@@ -120,7 +127,6 @@ static int join_multicast(struct in6_addr *local, int prefix,
   if (!context)
     return 1;
 
-  mreq.ipv6mr_interface = if_index;
   inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
   
   if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
@@ -151,7 +157,7 @@ void dhcp6_packet(time_t now)
     struct cmsghdr align; /* this ensures alignment */
     char control6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
   } control_u;
-  union mysockaddr from;
+  struct sockaddr_in6 from;
   struct all_addr dest;
   ssize_t sz; 
   struct ifreq ifr;
@@ -215,8 +221,8 @@ void dhcp6_packet(time_t now)
   
   lease_prune(NULL, now); /* lose any expired leases */
 
-  msg.msg_iov =  &daemon->dhcp_packet;
-  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, sz, IN6_IS_ADDR_MULTICAST(&from.in6.sin6_addr), now);
+  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, 
+		   sz, IN6_IS_ADDR_MULTICAST(&from.sin6_addr), now);
   
   lease_update_file(now);
   lease_update_dns();
@@ -455,12 +461,14 @@ void make_duid(time_t now)
     die("Cannot create DHCPv6 server DUID: %s", NULL, EC_MISC);
 }
 
-static int make_duid1(unsigned int type, char *mac, size_t maclen, void *parm)
+static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm)
 {
   /* create DUID as specified in RFC3315. We use the MAC of the
      first interface we find that isn't loopback or P-to-P */
   
   unsigned char *p;
+
+  (void)index;
 
   daemon->duid = p = safe_malloc(maclen + 8);
   daemon->duid_len = maclen + 8;

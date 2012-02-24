@@ -529,14 +529,18 @@ The optional
 sets an alphanumeric label which marks this network so that
 dhcp options may be specified on a per-network basis. 
 When it is prefixed with 'tag:' instead, then its meaning changes from setting
-a tag to matching it. Only one tag may be set, but more than one tag may be matched.
+a tag to matching it. Only one tag may be set, but more than one tag
+may be matched.
+
 The end address may be replaced by the keyword 
 .B static
 which tells dnsmasq to enable DHCP for the network specified, but not
 to dynamically allocate IP addresses: only hosts which have static
 addresses given via 
 .B dhcp-host
-or from /etc/ethers will be served. The end address may be replaced by
+or from /etc/ethers will be served. 
+
+The end address may be replaced by
 the keyword
 .B proxy
 in which case dnsmasq will provide proxy-DHCP on the specified
@@ -545,6 +549,14 @@ subnet. (See
 and 
 .B pxe-service
 for details, applies to IPv4 only.)
+
+The end address may be replaced by
+the keyword
+.B ra-only
+which tells dnsmasq to offer Router Advertisement only on this subnet,
+and not DHCP. This applies to IPv6 only, see
+.B enable-ra
+for details.
 
 The interface:<interface name> section is not normally used. See the
 NOTES section for details of this.
@@ -1233,6 +1245,20 @@ and IP address. This is because the name-IP pair is automatically
 added into dnsmasq's DNS view. This flag suppresses that behaviour,
 this is useful, for instance, to allow Windows clients to update
 Active Directory servers. See RFC 4702 for details. 
+.TP
+.B --enable-ra
+Enable dnsmasq's IPv6 Router Advertisement feature. DHCPv6 doesn't
+handle complete network configuration in the same way as DHCPv4. Router
+discovery and (possibly) prefix discovery for autonomous address
+creation are handled by a different protocol. When DHCP is in use,
+only a subset of this is needed, and dnsmasq can handle it, using
+existing DHCP configuration to provide most data. When RA is enabled,
+dnsmasq will advertise a prefix for each dhcp-range, with default
+router and recursive DNS server as the relevant link-local address on 
+the machine running dnsmasq. The "managed address" bits are set,
+except for a dhcp-range which is marked as "ra-only". In which case RA
+is provided by no DHCPv6 service and the managed address bits are
+cleared.
 .TP
 .B --enable-tftp[=<interface>]
 Enable the TFTP server function. This is deliberately limited to that

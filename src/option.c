@@ -114,6 +114,7 @@ struct myoption {
 #define LOPT_CONNTRACK 303
 #define LOPT_FQDN      304
 #define LOPT_LUASCRIPT 305
+#define LOPT_RA        306
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -233,6 +234,7 @@ static const struct myoption opts[] =
     { "conntrack", 0, 0, LOPT_CONNTRACK },
     { "dhcp-client-update", 0, 0, LOPT_FQDN },
     { "dhcp-luascript", 1, 0, LOPT_LUASCRIPT },
+    { "enable-ra", 0, 0, LOPT_RA },
     { NULL, 0, 0, 0 }
   };
 
@@ -359,6 +361,7 @@ static struct {
   { LOPT_INCR_ADDR, OPT_CONSEC_ADDR, NULL, gettext_noop("Attempt to allocate sequential IP addresses to DHCP clients."), NULL },
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
+  { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -2330,17 +2333,32 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 #ifdef HAVE_DHCP6
 	else if (inet_pton(AF_INET6, a[0], &new->start6))
 	  {
-	    new->next = daemon->dhcp6;
 	    new->prefix = 64; /* default */
-	    daemon->dhcp6 = new;
+	    
 	    if (strcmp(a[1], "static") == 0)
 	      {
 		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
 		new->flags |= CONTEXT_STATIC;
 	      }
+	    else if (strcmp(a[1], "ra-only") == 0)
+	      {
+		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
+		new->flags |= CONTEXT_RA_ONLY;
+	      }
 	    else if (!inet_pton(AF_INET6, a[1], &new->end6))
 	      option = '?';
 	    
+	    if (new->flags & CONTEXT_RA_ONLY)
+	      {
+		new->next = daemon->ra_contexts;
+		daemon->ra_contexts = new;
+	      }
+	    else
+	      {
+		new->next = daemon->dhcp6;
+		daemon->dhcp6 = new;
+	      }
+
 	    /* bare integer < 128 is prefix value */
 	    if (option != '?' && k >= 3)
 	      {

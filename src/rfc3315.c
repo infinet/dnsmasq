@@ -19,17 +19,6 @@
 
 #ifdef HAVE_DHCP6
 
-static size_t outpacket_counter;
-
-static void end_opt6(int container);
-static int save_counter(int newval);
-static void *expand(size_t headroom);
-static int new_opt6(int opt);
-static void *put_opt6(void *data, size_t len);
-static void put_opt6_short(unsigned int val);
-static void put_opt6_long(unsigned int val);
-static void put_opt6_string(char *s);
-
 static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **relay_tagsp, struct dhcp_context *context, 
 			     int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now);
 static int dhcp6_no_relay(int msg_type,  struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
@@ -55,10 +44,10 @@ size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
     vendor->netid.next = &vendor->netid;
   
-  outpacket_counter = 0;
+  save_counter(0);
   
   if (dhcp6_maybe_relay(NULL, &relay_tags, context, interface, iface_name, fallback, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
-    return outpacket_counter;
+    return save_counter(0);
 
   return 0;
 }
@@ -1274,12 +1263,14 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	len += strlen(send_domain) + 1;
 
       o = new_opt6(OPTION6_FQDN);
-      p = expand(len + 3);
-      *(p++) = fqdn_flags;
-      p = do_rfc1035_name(p, hostname);
-      if (send_domain)
-	p = do_rfc1035_name(p, send_domain);
-      *p = 0;
+      if ((p = expand(len + 3)))
+	{
+	  *(p++) = fqdn_flags;
+	  p = do_rfc1035_name(p, hostname);
+	  if (send_domain)
+	    p = do_rfc1035_name(p, send_domain);
+	  *p = 0;
+	}
       end_opt6(o);
     }
 
@@ -1421,81 +1412,5 @@ static unsigned int opt6_uint(unsigned char *opt, int offset, int size)
   
   return ret;
 } 
-
-static void end_opt6(int container)
-{
-   void *p = daemon->outpacket.iov_base + container + 2;
-   u16 len = outpacket_counter - container - 4 ;
-   
-   PUTSHORT(len, p);
-}
-
-static int save_counter(int newval)
-{
-  int ret = outpacket_counter;
-  if (newval != -1)
-    outpacket_counter = newval;
-
-  return ret;
-}
-
-static void *expand(size_t headroom)
-{
-  void *ret;
-
-  if (expand_buf(&daemon->outpacket, outpacket_counter + headroom))
-    {
-      ret = daemon->outpacket.iov_base + outpacket_counter;
-      outpacket_counter += headroom;
-      return ret;
-    }
-  
-  return NULL;
-}
-    
-static int new_opt6(int opt)
-{
-  int ret = outpacket_counter;
-  void *p;
-
-  if ((p = expand(4)))
-    {
-      PUTSHORT(opt, p);
-      PUTSHORT(0, p);
-    }
-
-  return ret;
-}
-
-static void *put_opt6(void *data, size_t len)
-{
-  void *p;
-
-  if ((p = expand(len)))
-    memcpy(p, data, len);   
-
-  return p;
-}
-  
-static void put_opt6_long(unsigned int val)
-{
-  void *p;
-  
-  if ((p = expand(4)))  
-    PUTLONG(val, p);
-}
-
-static void put_opt6_short(unsigned int val)
-{
-  void *p;
-
-  if ((p = expand(2)))
-    PUTSHORT(val, p);   
-}
-
-static void put_opt6_string(char *s)
-{
-  put_opt6(s, strlen(s));
-}
 
 #endif

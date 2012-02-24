@@ -47,9 +47,11 @@ VERSION=    -DVERSION='\"`../bld/get-version`\"'
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
-       helper.o tftp.o log.o conntrack.o dhcp6.o rfc3315.o dhcp-common.o 
+       helper.o tftp.o log.o conntrack.o dhcp6.o rfc3315.o \
+       dhcp-common.o outpacket.o radv.o
 
-HDRS = dnsmasq.h config.h dhcp_protocol.h dhcp6_protocol.h dns_protocol.h
+HDRS = dnsmasq.h config.h dhcp_protocol.h dhcp6_protocol.h \
+       dns_protocol.h radv_protocol.h
 
 
 all : $(BUILDDIR)

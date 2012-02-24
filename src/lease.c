@@ -313,7 +313,15 @@ void lease_update_file(time_t now)
     }
   
   /* Set alarm for when the first lease expires + slop. */
-  for (next_event = 0, lease = leases; lease; lease = lease->next)
+  next_event = 0;
+
+#ifdef HAVE_DHCP6
+  /* do timed RAs and determine when the next is */
+  if (option_bool(OPT_RA))
+    next_event = periodic_ra(now);
+#endif
+
+  for (lease = leases; lease; lease = lease->next)
     if (lease->expires != 0 &&
 	(next_event == 0 || difftime(next_event, lease->expires + 10) > 0.0))
       next_event = lease->expires + 10;

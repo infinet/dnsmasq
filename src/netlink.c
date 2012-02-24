@@ -284,7 +284,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	      }
 
 	    if (mac && callback_ok && !((link->ifi_flags & (IFF_LOOPBACK | IFF_POINTOPOINT))) && 
-		!((*callback)((unsigned int)link->ifi_type, mac, maclen, parm)))
+		!((*callback)((int)link->ifi_index, (unsigned int)link->ifi_type, mac, maclen, parm)))
 	      callback_ok = 0;
 	  }
 #endif
@@ -341,6 +341,17 @@ static void nl_routechange(struct nlmsghdr *h)
       /* Force re-reading resolv file right now, for luck. */
       daemon->last_resolv = 0;
       
+#ifdef HAVE_DHCP6
+      /* force RAs to sync new network and pick up new interfaces.  */
+      if (option_bool(OPT_RA))
+	{
+	  ra_start_unsolicted(dnsmasq_time());
+	  /* cause lease_update_file to run after we return, in case we were called from
+	     iface_enumerate and can't re-enter it now */
+	  alarm(1);
+	}
+#endif
+
       if (daemon->srv_save)
 	{
 	  if (daemon->srv_save->sfd)
