@@ -41,7 +41,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int dad, void *vparam);
 static int add_lla(int index, unsigned int type, char *mac, size_t maclen, void *parm);
 
-static int unicast_hop_limit, multicast_hop_limit;
+static int hop_limit;
 static time_t ra_short_period_start;
 
 void ra_init(time_t now)
@@ -53,16 +53,14 @@ void ra_init(time_t now)
   int class = IPTOS_CLASS_CS6;
 #endif
   int val = 255; /* radvd uses this value */
-  size_t len1 = sizeof(int);
-  size_t len2 = sizeof(int);
+  size_t len = sizeof(int);
 
   ICMP6_FILTER_SETBLOCKALL(&filter);
   ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
   ICMP6_FILTER_SETPASS(ND_ROUTER_ADVERT, &filter);
   
   if ((fd = socket(PF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1 ||
-      getsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &unicast_hop_limit, &len1) ||
-      getsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &multicast_hop_limit, &len2) ||
+      getsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &hop_limit, &len) ||
 #if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
       setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &class, sizeof(class)) == -1 ||
 #endif
@@ -198,7 +196,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   
   ra->type = ICMP6_ROUTER_ADVERT;
   ra->code = 0;
-  ra->hop_limit = dest ? unicast_hop_limit : multicast_hop_limit;
+  ra->hop_limit = hop_limit;
   ra->flags = 0;
   ra->lifetime = htons(1800); /* AdvDefaultLifetime*/
   ra->reachable_time = 0;
