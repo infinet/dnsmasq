@@ -967,6 +967,7 @@ unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr,
 int make_icmp_sock(void);
 int icmp_ping(struct in_addr addr);
 #endif
+void send_alarm(void);
 void send_event(int fd, int event, int data, char *msg);
 void clear_cache_and_reload(time_t now);
 void poll_resolv(int force, int do_reload, time_t now);

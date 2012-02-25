@@ -831,6 +831,11 @@ static void sig_handler(int sig)
     }
 }
 
+void send_alarm(void)
+{
+  send_event(pipewrite, EVENT_ALARM, 0, NULL);
+}
+
 void send_event(int fd, int event, int data, char *msg)
 {
   struct event_desc ev;

@@ -348,7 +348,7 @@ static void nl_routechange(struct nlmsghdr *h)
 	  ra_start_unsolicted(dnsmasq_time());
 	  /* cause lease_update_file to run after we return, in case we were called from
 	     iface_enumerate and can't re-enter it now */
-	  alarm(1);
+	  send_alarm();
 	}
 #endif
 

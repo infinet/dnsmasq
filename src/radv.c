@@ -399,7 +399,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int dad, void *vparam)
 {
   struct search_param *param = vparam;
-  struct dhcp_context *context, *tmp;
+  struct dhcp_context *context;
 
   (void)scope;
   (void)dad;
