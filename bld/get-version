@@ -18,10 +18,10 @@ elif grep '\$Format:%d\$' VERSION >/dev/null 2>&1; then
 # unsubstituted VERSION, but no git available.
     echo UNKNOWN
 else
-     vers=`cat VERSION | sed 's/[(), ]/\n/ g' | grep $v[0-9] | head -n 1`
+     vers=`cat VERSION | sed 's/[(), ]/,/ g' | tr ',' '\n' | grep $v[0-9]`
 
      if [ $? -eq 0 ]; then
-         echo ${vers#v}
+         echo "${vers}" | head -n 1 | tail -c +2
      else
          cat VERSION
      fi
