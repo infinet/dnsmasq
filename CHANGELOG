@@ -58,6 +58,12 @@ version 2.60
 	    tested alpha code, it is NOT YET PRODUCTION READY. Test
 	    reports would be greatly valued.
 
+	    Support IPv6 router advertisements. This is a
+	    simple-minded implementation, aimed at providing the
+	    vestigial RA needed to go alongside IPv6. Is picks up
+	    configuration from the DHCPv6 conf, and should just need
+	    enabling with --enable-ra.   
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up
