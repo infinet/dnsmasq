@@ -20,9 +20,10 @@
    not used by DHCPv4 code. */
 
 #include "dnsmasq.h"
-#include <netinet/icmp6.h>
 
 #ifdef HAVE_DHCP6
+
+#include <netinet/icmp6.h>
 
 struct ra_param {
   int ind, managed, found_context, first;
@@ -102,8 +103,7 @@ void ra_start_unsolicted(time_t now)
    for (context = daemon->ra_contexts; context; context = context->next)
      context->ra_time = now + (rand16()/13000);
 
-   /* re-do ras after a short time, in case the first gets lost.
-      This is reset once that's done. */
+   /* re-do frequently for a minute or so, in case the first gets lost. */
    ra_short_period_start = now;
 }
 
@@ -241,6 +241,9 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 
   /* decide where we're sending */
   memset(&addr, 0, sizeof(addr));
+#ifdef HAVE_SOCKADDR_SA_LEN
+  addr.sin6_len = sizeof(struct sockaddr_in6);
+#endif
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(IPPROTO_ICMPV6);
   if (dest)
@@ -251,8 +254,8 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 	addr.sin6_scope_id = iface;
     }
   else
-    inet_pton(AF_INET6, ALL_HOSTS, &addr.sin6_addr);
-
+    inet_pton(AF_INET6, ALL_HOSTS, &addr.sin6_addr); 
+  
   send_from(daemon->icmp6fd, 0, daemon->outpacket.iov_base, save_counter(0),
 	    (union mysockaddr *)&addr, (struct all_addr *)&parm.link_local, iface); 
   

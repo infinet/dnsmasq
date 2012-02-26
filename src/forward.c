@@ -106,8 +106,11 @@ void send_from(int fd, int nowild, char *packet, size_t len,
 	  msg.msg_controllen = 0;
 	  goto retry;
 	}
+      
       if (retry_send())
 	goto retry;
+      
+      my_syslog(LOG_ERR, _("failed to send packet: %s"), strerror(errno));
     }
 }
           
