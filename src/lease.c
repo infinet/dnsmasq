@@ -317,7 +317,7 @@ void lease_update_file(time_t now)
 
 #ifdef HAVE_DHCP6
   /* do timed RAs and determine when the next is */
-  if (option_bool(OPT_RA))
+  if (daemon->ra_contexts)
     next_event = periodic_ra(now);
 #endif
 

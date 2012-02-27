@@ -24,14 +24,6 @@ struct iface_param {
   int ind;
 };
 
-struct listen_param {
-  int fd_or_iface;
-  struct listen_param *next;
-};
-
-static int join_multicast(struct in6_addr *local, int prefix, 
-			  int scope, int if_index, int dad, void *vparam);
-
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int dad, void *vparam);
 
@@ -41,7 +33,6 @@ void dhcp6_init(void)
 {
   int fd;
   struct sockaddr_in6 saddr;
-  struct listen_param *listenp, listen; 
 #if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
   int class = IPTOS_CLASS_CS6;
 #endif
@@ -65,87 +56,8 @@ void dhcp6_init(void)
   if (bind(fd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in6)))
     die(_("failed to bind DHCPv6 server socket: %s"), NULL, EC_BADNET);
   
-  /* join multicast groups on each interface we're interested in */
-  listen.fd_or_iface = fd;
-  listen.next = NULL;
-  if (!iface_enumerate(AF_INET6, &listen, join_multicast))
-     die(_("failed to join DHCPv6 multicast group: %s"), NULL, EC_BADNET);
-  for (listenp = listen.next; listenp; )
-    {
-      struct listen_param *tmp = listenp->next;
-      free(listenp);
-      listenp = tmp;
-    }
-  
   daemon->dhcp6fd = fd;
 }
-
-static int join_multicast(struct in6_addr *local, int prefix, 
-			  int scope, int if_index, int dad, void *vparam)
-{
-  char ifrn_name[IFNAMSIZ];
-  struct ipv6_mreq mreq;
-  struct listen_param *listenp, *param = vparam;
-  int fd = param->fd_or_iface;
-  struct dhcp_context *context;
-  struct iname *tmp;
-
-  (void)prefix;
-  (void)scope;
-  (void)dad;
-  
-  /* record which interfaces we join on, so
-     that we do it at most one per interface, even when they
-     have multiple addresses */
-  for (listenp = param->next; listenp; listenp = listenp->next)
-    if (if_index == listenp->fd_or_iface)
-      return 1;
-  
-  if (!indextoname(fd, if_index, ifrn_name))
-    return 0;
-
-  /* Are we doing DHCP on this interface? */
-  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name))
-    return 1;
- 
-  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifrn_name) == 0))
-      return 1;
-
-  /* weird libvirt-inspired access control */
-  for (context = daemon->dhcp6; context; context = context->next)
-    if (!context->interface || strcmp(context->interface, ifrn_name) == 0)
-      break;
-
-  if (!context)
-    return 1;
-  
-  mreq.ipv6mr_interface = if_index;
-  
-  inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
-  
-  if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-
-  inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
-  
-  if (setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-  
-  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
-  
-  if (daemon->icmp6fd != -1 &&
-      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-  
-  listenp = whine_malloc(sizeof(struct listen_param));
-  listenp->fd_or_iface = if_index;
-  listenp->next = param->next;
-  param->next = listenp;
-  
-  return 1;
-}
-
 
 void dhcp6_packet(time_t now)
 {

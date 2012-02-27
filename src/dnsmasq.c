@@ -154,24 +154,41 @@ int main (int argc, char **argv)
 	 before lease_init to allocate buffers it uses.*/
       dhcp_common_init();
       lease_init(now);
+  
       if (daemon->dhcp)
 	dhcp_init();
-#ifdef HAVE_DHCP6
-      daemon->icmp6fd = -1;
-      if (daemon->dhcp6)
-	{
-	  /* ra_init before dhcp6_init, so dhcp6_init can setup multicast listening */
-	  if (option_bool(OPT_RA))
-	    ra_init(now); 
-	  dhcp6_init();
-	}
-#endif
     }
+  
+#  ifdef HAVE_DHCP6
+  /* Start RA subsystem if --enable-ra OR dhcp-range=<subnet>, ra-only */
+  if (daemon->ra_contexts || option_bool(OPT_RA))
+    {
+      /* link the DHCP6 contexts to the ra-only ones so we can traverse them all 
+	 from ->ra_contexts, but only the non-ra-onlies from ->dhcp6 */
+      struct dhcp_context *context;
+      
+      if (!daemon->ra_contexts)
+	daemon->ra_contexts = daemon->dhcp6;
+      else
+	{
+	  for (context = daemon->ra_contexts; context->next; context = context->next);
+	  context->next = daemon->dhcp6;
+	}
+      ra_init(now);
+    }
+
+  if (daemon->dhcp6)
+    dhcp6_init();
+
+  if (daemon->ra_contexts || daemon->dhcp6)
+    join_multicast();
+#  endif
+
 #endif
 
   if (!enumerate_interfaces())
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
-    
+  
   if (option_bool(OPT_NOWILD)) 
     {
       create_bound_listeners(1);
@@ -211,7 +228,8 @@ int main (int argc, char **argv)
 
 #if defined(HAVE_SCRIPT)
   /* Note getpwnam returns static storage */
-  if ((daemon->dhcp || daemon->dhcp6) && daemon->scriptuser && 
+  if ((daemon->dhcp || daemon->dhcp6) && 
+      daemon->scriptuser && 
       (daemon->lease_change_command || daemon->luascript))
     {
       if ((ent_pw = getpwnam(daemon->scriptuser)))
@@ -502,7 +520,7 @@ int main (int argc, char **argv)
   if (daemon->max_logs != 0)
     my_syslog(LOG_INFO, _("asynchronous logging enabled, queue limit is %d messages"), daemon->max_logs);
  
-  if (option_bool(OPT_RA))
+  if (daemon->ra_contexts)
     my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
 
 #ifdef HAVE_DHCP
@@ -668,7 +686,7 @@ int main (int argc, char **argv)
 	  FD_SET(daemon->dhcp6fd, &rset);
 	  bump_maxfd(daemon->dhcp6fd, &maxfd);
 	  
-	  if (daemon->icmp6fd != -1)
+	  if (daemon->ra_contexts)
 	    {
 	      FD_SET(daemon->icmp6fd, &rset);
 	      bump_maxfd(daemon->icmp6fd, &maxfd); 
@@ -777,7 +795,7 @@ int main (int argc, char **argv)
 	  if (FD_ISSET(daemon->dhcp6fd, &rset))
 	    dhcp6_packet(now);
 
-	  if (daemon->icmp6fd != -1 && FD_ISSET(daemon->icmp6fd, &rset))
+	  if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
 	    icmp6_packet();
 	}
 #endif
@@ -953,6 +971,16 @@ static void async_event(int pipe, time_t now)
 	    lease_prune(NULL, now);
 	    lease_update_file(now);
 	  }
+#ifdef HAVE_DHCP6
+	else if (daemon->ra_contexts)
+	  {
+	    /* Not doing DHCP, so no lease system, manage 
+	       alarms for ra only */
+	    time_t next_event = periodic_ra(now);
+	    if (next_event != 0)
+	      alarm((unsigned)difftime(next_event, now)); 
+	  }
+#endif
 #endif
 	break;
 		
@@ -1117,6 +1145,16 @@ void clear_cache_and_reload(time_t now)
       lease_update_file(now); 
       lease_update_dns();
     }
+#ifdef HAVE_DHCP6
+  else if (daemon->ra_contexts)
+    {
+      /* Not doing DHCP, so no lease system, manage 
+	 alarms for ra only */
+      time_t next_event = periodic_ra(now);
+      if (next_event != 0)
+	alarm((unsigned)difftime(next_event, now)); 
+    }
+#endif
 #endif
 }
 
@@ -1402,7 +1440,7 @@ int icmp_ping(struct in_addr addr)
       set_log_writer(&wset, &maxfd);
       
 #ifdef HAVE_DHCP6
-      if (daemon->icmp6fd != -1)
+      if (daemon->ra_contexts)
 	{
 	  FD_SET(daemon->icmp6fd, &rset);
 	  bump_maxfd(daemon->icmp6fd, &maxfd); 
@@ -1421,7 +1459,7 @@ int icmp_ping(struct in_addr addr)
       check_dns_listeners(&rset, now);
 
 #ifdef HAVE_DHCP6
-      if (daemon->icmp6fd != -1 && FD_ISSET(daemon->icmp6fd, &rset))
+      if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
 	icmp6_packet();
 #endif
       

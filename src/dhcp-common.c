@@ -358,4 +358,90 @@ void dhcp_update_configs(struct dhcp_config *configs)
 
 }
 
+#ifdef HAVE_DHCP6
+static int join_multicast_worker(struct in6_addr *local, int prefix, 
+				 int scope, int if_index, int dad, void *vparam)
+{
+  char ifrn_name[IFNAMSIZ];
+  struct ipv6_mreq mreq;
+  int fd, i, max = *((int *)vparam);
+  struct dhcp_context *context;
+  struct iname *tmp;
+
+  (void)prefix;
+  (void)scope;
+  (void)dad;
+  
+  /* record which interfaces we join on, so that we do it at most one per 
+     interface, even when they have multiple addresses. Use outpacket
+     as an array of int, since it's always allocated here and easy
+     to expand for theoretical vast numbers of interfaces. */
+  for (i = 0; i < max; i++)
+    if (if_index == ((int *)daemon->outpacket.iov_base)[i])
+      return 1;
+  
+  if ((fd = socket(PF_INET6, SOCK_DGRAM, 0)) == -1)
+    return 0;
+  
+  if (!indextoname(fd, if_index, ifrn_name))
+    {
+      close(fd);
+      return 0;
+    }
+  
+  close(fd);
+
+  /* Are we doing DHCP on this interface? */
+  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name))
+    return 1;
+ 
+  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+    if (tmp->name && (strcmp(tmp->name, ifrn_name) == 0))
+      return 1;
+
+  /* weird libvirt-inspired access control */
+  for (context = daemon->dhcp6; context; context = context->next)
+    if (!context->interface || strcmp(context->interface, ifrn_name) == 0)
+      break;
+
+  if (!context)
+    return 1;
+  
+  mreq.ipv6mr_interface = if_index;
+  
+  inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->dhcp6 &&
+      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+
+  inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->dhcp6 && 
+      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+  
+  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->ra_contexts &&
+      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+  
+  expand_buf(&daemon->outpacket, (max+1) * sizeof(int));
+  ((int *)daemon->outpacket.iov_base)[max++] = if_index;
+  
+  *((int *)vparam) = max;
+  
+  return 1;
+}
+
+void join_multicast(void)
+{
+  int count = 0;
+
+   if (!iface_enumerate(AF_INET6, &count, join_multicast_worker))
+     die(_("failed to join DHCPv6 multicast group: %s"), NULL, EC_BADNET);
+}
+#endif
+
 #endif

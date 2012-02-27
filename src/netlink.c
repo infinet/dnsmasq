@@ -343,7 +343,7 @@ static void nl_routechange(struct nlmsghdr *h)
       
 #ifdef HAVE_DHCP6
       /* force RAs to sync new network and pick up new interfaces.  */
-      if (option_bool(OPT_RA))
+      if (daemon->ra_contexts)
 	{
 	  ra_start_unsolicted(dnsmasq_time());
 	  /* cause lease_update_file to run after we return, in case we were called from

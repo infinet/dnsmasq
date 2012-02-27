@@ -1059,6 +1059,9 @@ void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 void dhcp_update_configs(struct dhcp_config *configs);
 void check_dhcp_hosts(int fatal);
+#  ifdef HAVE_DHCP6
+void join_multicast(void);
+#  endif
 #endif
 
 /* outpacket.c */

@@ -15,9 +15,10 @@
 */
 
 
-/* NB. This code may be called during a DHCPv4 transaction which is in ping-wait
+/* NB. This code may be called during a DHCPv4 or transaction which is in ping-wait
    It therefore cannot use any DHCP buffer resources except outpacket, which is
-   not used by DHCPv4 code. */
+   not used by DHCPv4 code. This code may also be called when DHCP 4 or 6 isn't
+   active, so we ensure that outpacket is allocated here too */
 
 #include "dnsmasq.h"
 
@@ -47,7 +48,6 @@ static time_t ra_short_period_start;
 
 void ra_init(time_t now)
 {
-  struct dhcp_context *context;
   struct icmp6_filter filter;
   int fd;
 #if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
@@ -55,6 +55,9 @@ void ra_init(time_t now)
 #endif
   int val = 255; /* radvd uses this value */
   size_t len = sizeof(int);
+
+  /* ensure this is around even if we're not doing DHCPv6 */
+  expand_buf(&daemon->outpacket, sizeof(struct dhcp_packet));
 
   ICMP6_FILTER_SETBLOCKALL(&filter);
   ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
@@ -74,19 +77,6 @@ void ra_init(time_t now)
   
    daemon->icmp6fd = fd;
    
-   /* link the DHCP6 contexts to the ra-only ones so we can traverse them all 
-      from ->ra_contexts, but only the non-ra-onlies from ->dhcp6 */
-   if (!daemon->ra_contexts)
-     daemon->ra_contexts = daemon->dhcp6;
-   else
-     {
-       for (context = daemon->ra_contexts; context->next; context = context->next);
-       context->next = daemon->dhcp6;
-     }
-
-   if (!daemon->dhcp6)
-     die(_("cannot do router advertisement unless DHCPv6 is enabled"), NULL, EC_BADCONF);
-
    ra_start_unsolicted(now);
 }
 
