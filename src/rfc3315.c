@@ -1341,19 +1341,19 @@ static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in
     daemon->dhcp_buff2[0] = 0;
 
   if(option_bool(OPT_LOG_OPTS))
-    my_syslog(MS_DHCP | LOG_INFO, "%u %s(%s) %s %s%s",
+    my_syslog(MS_DHCP | LOG_INFO, "%u %s(%s) %s%s %s",
 	      xid, 
 	      type,
 	      iface, 
-	      daemon->namebuff,
 	      daemon->dhcp_buff2,
+	      daemon->namebuff,
 	      string ? string : "");
   else
-    my_syslog(MS_DHCP | LOG_INFO, "%s(%s) %s %s%s",
+    my_syslog(MS_DHCP | LOG_INFO, "%s(%s) %s%s %s",
 	      type,
 	      iface, 
-	      daemon->namebuff,
 	      daemon->dhcp_buff2,
+	      daemon->namebuff,
 	      string ? string : "");
 }
 
