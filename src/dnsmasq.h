@@ -56,11 +56,11 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-#include "dns_protocol.h"
-#include "dhcp_protocol.h"
+#include "dns-protocol.h"
+#include "dhcp-protocol.h"
 #ifdef HAVE_DHCP6
-#include "dhcp6_protocol.h"
-#include "radv_protocol.h"
+#include "dhcp6-protocol.h"
+#include "radv-protocol.h"
 #endif
 
 #define gettext_noop(S) (S)
