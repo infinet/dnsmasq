@@ -34,16 +34,21 @@ SRC = src
 PO = po
 MAN = man
 
-DBUS_CFLAGS=`echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --cflags dbus-1` 
-DBUS_LIBS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --libs dbus-1` 
-IDN_CFLAGS= `echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --cflags libidn` 
-IDN_LIBS=   `echo $(COPTS) | ../bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --libs libidn` 
-CT_CFLAGS=  `echo $(COPTS) | ../bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --cflags libnetfilter_conntrack`
-CT_LIBS=    `echo $(COPTS) | ../bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --libs libnetfilter_conntrack`
-LUA_CFLAGS= `echo $(COPTS) | ../bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --cflags lua5.1` 
-LUA_LIBS=   `echo $(COPTS) | ../bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --libs lua5.1` 
+# pmake way to learn path of Makefile
+TOP != echo `pwd`/
+# GNU make way to learn path of Makefile
+TOP ?= $(shell pwd)
+
+DBUS_CFLAGS=`echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --cflags dbus-1` 
+DBUS_LIBS=  `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --libs dbus-1` 
+IDN_CFLAGS= `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --cflags libidn` 
+IDN_LIBS=   `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_IDN $(PKG_CONFIG) --libs libidn` 
+CT_CFLAGS=  `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --cflags libnetfilter_conntrack`
+CT_LIBS=    `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --libs libnetfilter_conntrack`
+LUA_CFLAGS= `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --cflags lua5.1` 
+LUA_LIBS=   `echo $(COPTS) | $(TOP)/bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --libs lua5.1` 
 SUNOS_LIBS= `if uname | grep SunOS 2>&1 >/dev/null; then echo -lsocket -lnsl -lposix4; fi`
-VERSION=    -DVERSION='\"`../bld/get-version`\"'
+VERSION=    -DVERSION='\"`$(TOP)/bld/get-version $(TOP)`\"'
 
 OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
        dnsmasq.o dhcp.o lease.o rfc2131.o netlink.o dbus.o bpf.o \
@@ -53,12 +58,12 @@ OBJS = cache.o rfc1035.o util.o option.o forward.o network.o \
 HDRS = dnsmasq.h config.h dhcp-protocol.h dhcp6-protocol.h \
        dns-protocol.h radv-protocol.h
 
-
 all : $(BUILDDIR)
 	@cd $(BUILDDIR) && $(MAKE) \
+ TOP="$(TOP)" \
  BUILD_CFLAGS="$(VERSION) $(DBUS_CFLAGS) $(IDN_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS)" \
  BUILD_LIBS="$(DBUS_LIBS) $(IDN_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS)" \
- -f ../Makefile dnsmasq 
+ -f $(TOP)/Makefile dnsmasq 
 
 clean :
 	rm -f *~ $(BUILDDIR)/*.mo contrib/*/*~ */*~ $(BUILDDIR)/*.pot 
@@ -73,33 +78,33 @@ install-common :
 
 all-i18n : $(BUILDDIR)
 	@cd $(BUILDDIR) && $(MAKE) \
+ TOP="$(TOP)" \
  I18N=-DLOCALEDIR=\'\"$(LOCALEDIR)\"\' \
  BUILD_CFLAGS="$(VERSION) $(DBUS_CFLAGS) $(CT_CFLAGS) $(LUA_CFLAGS) `$(PKG_CONFIG) --cflags libidn`" \
  BUILD_LIBS="$(DBUS_LIBS) $(CT_LIBS) $(LUA_LIBS) $(SUNOS_LIBS) `$(PKG_CONFIG) --libs libidn`"  \
- -f ../Makefile dnsmasq
-	@cd $(PO); for f in *.po; do \
-		cd ../$(BUILDDIR) && $(MAKE) \
- -f ../Makefile $${f%.po}.mo; \
+ -f $(TOP)/Makefile dnsmasq
+	for f in `cd $(PO); echo *.po`; do \
+		cd $(TOP) && cd $(BUILDDIR) && $(MAKE) TOP="$(TOP)" -f $(TOP)/Makefile $${f%.po}.mo; \
 	done
 
 install-i18n : all-i18n install-common
-	cd $(BUILDDIR); ../bld/install-mo $(DESTDIR)$(LOCALEDIR) $(INSTALL)
+	cd $(BUILDDIR); $(TOP)/bld/install-mo $(DESTDIR)$(LOCALEDIR) $(INSTALL)
 	cd $(MAN); ../bld/install-man $(DESTDIR)$(MANDIR) $(INSTALL)
 
-merge : $(BUILDDIR)
-	@cd $(BUILDDIR) && $(MAKE) -f ../Makefile dnsmasq.pot
-	@cd $(PO); for f in *.po; do \
-		echo -n msgmerge $$f && $(MSGMERGE) --no-wrap -U $$f ../$(BUILDDIR)/dnsmasq.pot; \
+merge : 
+	@cd $(BUILDDIR) && $(MAKE) -f $(TOP)/Makefile dnsmasq.pot
+	for f in `cd $(PO); echo *.po`; do \
+		echo -n msgmerge $(PO)/$$f && $(MSGMERGE) --no-wrap -U $(PO)/$$f $(BUILDDIR)/dnsmasq.pot; \
 	done
 
 $(BUILDDIR):
-	mkdir $(BUILDDIR)
+	mkdir -p $(BUILDDIR)
 
 
 # rules below are targets in recusive makes with cwd=$(SRC)
 
 $(OBJS:.o=.c) $(HDRS):
-	ln -s ../$(SRC)/$@ .
+	ln -s $(TOP)/$(SRC)/$@ .
 
 .c.o:
 	$(CC) $(CFLAGS) $(COPTS) $(I18N) $(BUILD_CFLAGS) $(RPM_OPT_FLAGS) -c $<	
@@ -110,8 +115,8 @@ dnsmasq : $(HDRS) $(OBJS)
 dnsmasq.pot : $(OBJS:.o=.c) $(HDRS)
 	$(XGETTEXT) -d dnsmasq --foreign-user --omit-header --keyword=_ -o $@ -i $(OBJS:.o=.c)
 
-%.mo : ../po/%.po dnsmasq.pot
-	$(MSGMERGE) -o - ../po/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -
+%.mo : $(TOP)/po/%.po dnsmasq.pot
+	$(MSGMERGE) -o - $(TOP)/po/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -
 
 
 .PHONY : all clean install install-common all-i18n install-i18n merge 

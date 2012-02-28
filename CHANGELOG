@@ -45,18 +45,25 @@ version 2.60
 	    round-robin	to multiple servers, in the same way as
 	    --dhcp-boot. A good suggestion from Cristiano Cumer.
 
-	    Support BUILDDIR variable in the Makefile. Allows 
-	    builds from multiple architectures in the same tree with eg
-	    make BUILDDIR=linux
+	    Support BUILDDIR variable in the Makefile. Allows builds 
+	    for multiple archs from the same source tree with eg.
+	    make BUILDDIR=linux             (relative to dnsmasq tree)
+	    make BUILDDIR=/tmp/openbsd      (absolute path)
 	    If BUILDDIR is not set, compilation happens in the src
 	    directory, as before. Suggestion from Mark Mitchell.
 
-	    First cut at supporting DHCPv6. Support is pretty much
-	    there for the sort of things the existing v4 server does,
-	    including tags, options, static addresses and relay
-	    support. Missing is prefix delegation. This is lightly
-	    tested alpha code, it is NOT YET PRODUCTION READY. Test
-	    reports would be greatly valued.
+	    Support DHCPv6. Support is there for the sort of things
+	    the existing v4 server does, including tags, options, 
+	    static addresses and relay support. Missing is prefix 
+	    delegation, which is probably not required in the dnsmasq
+	    niche, and an easy way to accept prefix delegations from
+	    an upstream DHCPv6 server, which is. Future plans include
+	    support for DHCPv6 router option and MAC address option
+	    (to make selecting clients by MAC address work like IPv4).
+	    These will be added as the standards mature.
+	    This code has been tested, but this is the first release,
+	    so don't bet the farm on it just yet. Many thanks to all 
+	    testers who have got it this far.
 
 	    Support IPv6 router advertisements. This is a
 	    simple-minded implementation, aimed at providing the

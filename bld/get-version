@@ -9,21 +9,18 @@
 # If we can find one which matches $v[0-9].* then we assume it's
 # a version-number tag, else we just use the whole string.
 
-# we're called with pwd == TLD
-cd ..
-
-if which git >/dev/null 2>&1 && [ -d .git ]; then
-     git describe
-elif grep '\$Format:%d\$' VERSION >/dev/null 2>&1; then
+if which git >/dev/null 2>&1 && [ -d $1/.git ]; then
+     cd $1; git describe
+elif grep '\$Format:%d\$' $1/VERSION >/dev/null 2>&1; then
 # unsubstituted VERSION, but no git available.
     echo UNKNOWN
 else
-     vers=`cat VERSION | sed 's/[(), ]/,/ g' | tr ',' '\n' | grep $v[0-9]`
+     vers=`cat $1/VERSION | sed 's/[(), ]/,/ g' | tr ',' '\n' | grep $v[0-9]`
 
      if [ $? -eq 0 ]; then
          echo "${vers}" | head -n 1 | tail -c +2
      else
-         cat VERSION
+         cat $1/VERSION
      fi
 fi
 
