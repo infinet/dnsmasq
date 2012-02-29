@@ -766,12 +766,33 @@ void receive_query(struct listener *listen, time_t now)
 	  !iface_check(listen->family, &dst_addr, ifr.ifr_name))
 	return;
       
-      if (listen->family == AF_INET &&
-	  option_bool(OPT_LOCALISE) &&
-	  ioctl(listen->fd, SIOCGIFNETMASK, &ifr) == -1)
-	return;
-      
-      netmask = ((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr;
+      if (listen->family == AF_INET && option_bool(OPT_LOCALISE))
+	{
+	  struct irec *iface;
+	  
+	  /* get the netmask of the interface whch has the address we were sent to.
+	     This is no neccessarily the interface we arrived on. */
+	  
+	  for (iface = daemon->interfaces; iface; iface = iface->next)
+	    if (iface->addr.sa.sa_family == AF_INET &&
+		iface->addr.in.sin_addr.s_addr == dst_addr_4.s_addr)
+	      break;
+	  
+	  /* interface may be new */
+	  if (!iface)
+	    enumerate_interfaces(); 
+	  
+	  for (iface = daemon->interfaces; iface; iface = iface->next)
+	    if (iface->addr.sa.sa_family == AF_INET &&
+		iface->addr.in.sin_addr.s_addr == dst_addr_4.s_addr)
+	      break;
+	  
+	  /* If we failed, abandon localisation */
+	  if (iface)
+	    netmask = iface->netmask;
+	  else
+	    dst_addr_4.s_addr = 0;
+	}
     }
   
   if (extract_request(header, (size_t)n, daemon->namebuff, &type))

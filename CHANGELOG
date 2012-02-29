@@ -71,6 +71,11 @@ version 2.60
 	    configuration from the DHCPv6 conf, and should just need
 	    enabling with --enable-ra.   
 
+	    Fix long-standing wrinkle with --localise-queries that
+	    could result in wrong answers when DNS packets arrive
+	    via an interface other than the expected one. Thanks to 
+	    Lorenzo Milesi and John Hanks for spotting this one.
+
 	    
 version 2.59
             Fix regression in 2.58 which caused failure to start up
