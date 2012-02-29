@@ -128,7 +128,7 @@ dnsmasq.pot : $(objs:.o=.c) $(hdrs)
 	$(XGETTEXT) -d dnsmasq --foreign-user --omit-header --keyword=_ -o $@ -i $(objs:.o=.c)
 
 %.mo : $(top)/$(PO)/%.po dnsmasq.pot
-	$(MSGMERGE) -o - $(top)/po/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -
+	$(MSGMERGE) -o - $(top)/$(PO)/$*.po dnsmasq.pot | $(MSGFMT) -o $*.mo -
 
 
 .PHONY : all clean install install-common all-i18n install-i18n merge 
