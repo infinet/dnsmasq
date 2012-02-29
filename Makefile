@@ -46,10 +46,10 @@ MAN = man
 
 #################################################################
 
-# pmake way.
-top != pwd
+# pmake way. (NB no spaces to keep gmake 3.82 happy)
+top!=pwd
 # GNU make way.
-top ?= $(shell pwd)
+top?=$(CURDIR)
 
 dbus_cflags = `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --cflags dbus-1` 
 dbus_libs =   `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_DBUS $(PKG_CONFIG) --libs dbus-1` 
