@@ -275,8 +275,13 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		is_same_net6(local, &context->end6, prefix))
 	      {
 		if (!(context->flags & CONTEXT_RA_ONLY))
-		  param->managed = 1;
-	
+		  {
+		    /* don't do RA for non-ra-only unless --enable-ra is set */
+		    if (!option_bool(OPT_RA))
+		      continue;
+		    param->managed = 1;
+		  }
+
 		if (context->flags & CONTEXT_RA_DONE)
 		  continue;
 		

@@ -704,7 +704,7 @@ and to set the time-server address to 192.168.0.4, do
 .B --dhcp-option = 42,192.168.0.4 
 or 
 .B --dhcp-option = option:ntp-server, 192.168.0.4
-The special address 0.0.0.0 is taken to mean "the address of the
+The special address 0.0.0.0 (or [::] for DHCPv6) is taken to mean "the address of the
 machine running dnsmasq". Data types allowed are comma separated
 dotted-quad IP addresses, a decimal number, colon-separated hex digits
 and a text string. If the optional tags are given then
@@ -1256,9 +1256,15 @@ existing DHCP configuration to provide most data. When RA is enabled,
 dnsmasq will advertise a prefix for each dhcp-range, with default
 router and recursive DNS server as the relevant link-local address on 
 the machine running dnsmasq. The "managed address" bits are set,
-except for a dhcp-range which is marked as "ra-only". In which case RA
+except for a dhcp-range which is marked as "ra-only", in which case RA
 is provided by no DHCPv6 service and the managed address bits are
-cleared.
+cleared. 
+.B enable-ra
+enables router advertisement for prefixes where dnsmasq is doing
+DHCPv6. It is not needed to "ra-only" prefixes. Creating an "ra-only"
+prefix and not setting 
+.B enable-ra
+sends advertisements only to "ra-only" prefixes. 
 .TP
 .B --enable-tftp[=<interface>]
 Enable the TFTP server function. This is deliberately limited to that

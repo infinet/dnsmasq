@@ -161,8 +161,12 @@
 # and defaults to 64 if missing/
 #dhcp-range=1234::2, 1234::500, 64, 12h
 
-# Not Router Advertisements, BUT NOT DHCP for this subnet.
+# Do Router Advertisements, BUT NOT DHCP for this subnet.
 #dhcp-range=1234::, ra-only 
+
+# Do Router Advertisements, BUT NOT DHCP for this subnet.
+# Set the lifetime to 46 hours. (Note: minimum lifetime is 2 hours.)
+#dhcp-range=1234::, ra-only, 48h
 
 # Supply parameters for specified hosts using DHCP. There are lots
 # of valid alternatives, so we will give examples of each. Note that
@@ -284,7 +288,11 @@
 #dhcp-option=option:ntp-server,192.168.0.4,10.10.0.5
 
 # Send DHCPv6 option. Note [] around IPv6 addresses.
-dhcp-option=option6:dns-server,[1234::77],[1234::88]
+#dhcp-option=option6:dns-server,[1234::77],[1234::88]
+
+# Send DHCPv6 option for namservers as the machine running 
+# dnsmasq and another.
+#dhcp-option=option6:dns-server,[::],[1234::88]
 
 # Set the NTP time server address to be the same machine as
 # is running dnsmasq
