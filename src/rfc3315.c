@@ -1177,11 +1177,27 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	}
       
       o = new_opt6(opt_cfg->opt);
-      /* Maye be empty */
-      if (opt_cfg->val)
+      if (opt_cfg->flags & DHOPT_ADDR6)
+	{
+	  int j;
+	  struct in6_addr *a = (struct in6_addr *)opt_cfg->val;
+          for (j = 0; j < opt_cfg->len; j+=IN6ADDRSZ, a++)
+            {
+              /* zero means "self" (but not in vendorclass options.) */
+              if (IN6_IS_ADDR_UNSPECIFIED(a))
+                {
+		  if (IN6_IS_ADDR_UNSPECIFIED(&context->local6))
+		    put_opt6(fallback, IN6ADDRSZ);
+		  else
+		    put_opt6(&context->local6, IN6ADDRSZ);
+		}
+              else
+                put_opt6(a, IN6ADDRSZ);
+            }
+	}
+      else if (opt_cfg->val)
 	put_opt6(opt_cfg->val, opt_cfg->len);
       end_opt6(o);
-      
     }
   
   if (!done_dns && 
@@ -1200,8 +1216,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
        dhcp-option = vi-encap:13,17,....... */
   for (opt_cfg = daemon->dhcp_opts6; opt_cfg; opt_cfg = opt_cfg->next)
     opt_cfg->flags &= ~DHOPT_ENCAP_DONE;
-  
-  
+    
   if (oro)
     for (i = 0; i <  opt6_len(oro) - 1; i += 2)
       if (opt6_uint(oro, i, 2) == OPTION6_VENDOR_OPTS)
