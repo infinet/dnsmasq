@@ -614,7 +614,8 @@ void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now)
   if (len != lease->length)
     {
       lease->length = len;
-      lease->aux_changed = file_dirty = 1; 
+      lease->flags |= LEASE_AUX_CHANGED;
+      file_dirty = 1; 
     }
 #endif
 } 
