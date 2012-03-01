@@ -377,11 +377,15 @@ void make_duid(time_t now)
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm)
 {
   /* create DUID as specified in RFC3315. We use the MAC of the
-     first interface we find that isn't loopback or P-to-P */
+     first interface we find that isn't loopback or P-to-P and
+     has address-type < 256. Address types above 256 are things like 
+     tunnels which don't have usable MAC addresses. */
   
   unsigned char *p;
-
   (void)index;
+
+  if (type >= 256)
+    return 1;
 
 #ifdef HAVE_BROKEN_RTC
   daemon->duid = p = safe_malloc(maclen + 4);
