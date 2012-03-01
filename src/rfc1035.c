@@ -25,7 +25,7 @@ static int add_resource_record(struct dns_header *header, char *limit, int *trun
     ((size_t)((pp) - (unsigned char *)(header) + (len)) <= (plen))
 
 #define ADD_RDLEN(header, pp, plen, len) \
-    (!CHECK_LEN(header, pp, plen, len) ? 0 : (long)((pp) += (len)), 1)
+  (!CHECK_LEN(header, pp, plen, len) ? 0 : (((pp) += (len)), 1))
 
 static int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
 			char *name, int isExtract, int extrabytes)
