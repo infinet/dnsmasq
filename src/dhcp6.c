@@ -383,18 +383,16 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
 
   (void)index;
 
+#ifdef HAVE_BROKEN_RTC
+  daemon->duid = p = safe_malloc(maclen + 4);
+  daemon->duid_len = maclen + 4;
+  PUTSHORT(3, p); /* DUID_LL */
+  PUTSHORT(type, p); /* address type */
+#else
   daemon->duid = p = safe_malloc(maclen + 8);
   daemon->duid_len = maclen + 8;
-  
-#ifdef HAVE_BROKEN_RTC
-  PUTSHORT(3, p); /* DUID_LL */
-#else
   PUTSHORT(1, p); /* DUID_LLT */
-#endif
-
   PUTSHORT(type, p); /* address type */
-
-#ifndef HAVE_BROKEN_RTC
   PUTLONG(*((time_t *)parm), p); /* time */
 #endif
 
