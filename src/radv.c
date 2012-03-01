@@ -54,7 +54,7 @@ void ra_init(time_t now)
   int class = IPTOS_CLASS_CS6;
 #endif
   int val = 255; /* radvd uses this value */
-  size_t len = sizeof(int);
+  socklen_t len = sizeof(int);
 
   /* ensure this is around even if we're not doing DHCPv6 */
   expand_buf(&daemon->outpacket, sizeof(struct dhcp_packet));
