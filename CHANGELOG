@@ -75,6 +75,8 @@ version 2.60
 	    could result in wrong answers when DNS packets arrive
 	    via an interface other than the expected one. Thanks to 
 	    Lorenzo Milesi and John Hanks for spotting this one.
+ 
+            Update French translation. Thanks to Gildas Le Nadan.
 
 	    
 version 2.59

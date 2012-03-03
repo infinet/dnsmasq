@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: dnsmasq 2.56\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-18 12:24+0100\n"
-"PO-Revision-Date: 2011-08-16 14:17+0100\n"
+"PO-Revision-Date: 2012-03-02 16:26+0100\n"
 "Last-Translator:  Gildas Le Nadan <3ntr0p13@gmail.com>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=ISO-8859-1\n"
@@ -410,17 +410,14 @@ msgid "Disable ICMP echo address checking in the DHCP server."
 msgstr "Supprime la vérification d'adresse sur le serveur au moyen de paquets ICMP echo"
 
 #: option.c:325
-#, fuzzy
 msgid "Shell script to run on DHCP lease creation and destruction."
-msgstr "Script à exécuter lors de la création ou destruction de bail DHCP."
+msgstr "Script shell à exécuter lors de la création ou destruction de bail DHCP."
 
 #: option.c:326
-#, fuzzy
 msgid "Lua script to run on DHCP lease creation and destruction."
-msgstr "Script à exécuter lors de la création ou destruction de bail DHCP."
+msgstr "Script Lua à exécuter lors de la création ou destruction de bail DHCP."
 
 #: option.c:327
-#, fuzzy
 msgid "Run lease-change scripts as this user."
 msgstr "Lancer le script 'lease-change' avec cet utilisateur."
 
@@ -573,11 +570,11 @@ msgstr "Copie les marques de suivi de connexion pour les requêtes amont."
 
 #: option.c:363
 msgid "Allow DHCP clients to do their own DDNS updates."
-msgstr ""
+msgstr "Autoriser les clients DHCP à faire leurs propres mises à jour DDNS (Dynamic DNS)"
 
 #: option.c:364
 msgid "Send router-advertisements for interfaces doing DHCPv6"
-msgstr ""
+msgstr "envoyer des annonces de routeurs pour toutes les interfaces faisant du DHCPv6"
 
 #: option.c:782
 #, c-format
@@ -604,13 +601,13 @@ msgid "Known DHCP options:\n"
 msgstr "Options DHCP connues :\n"
 
 #: option.c:838
-#, fuzzy, c-format
+#, c-format
 msgid "Known DHCPv6 options:\n"
-msgstr "Options DHCP connues :\n"
+msgstr "Options DHCPv6 connues :\n"
 
 #: option.c:973
 msgid "unsupported encapsulation for IPv6 option"
-msgstr ""
+msgstr "encapsulation d'option non supportée pour IPv6"
 
 #: option.c:1001
 msgid "bad dhcp-option"
@@ -623,9 +620,8 @@ msgstr "mauvaise adresse IP"
 
 #
 #: option.c:1071 option.c:1177 option.c:2511
-#, fuzzy
 msgid "bad IPv6 address"
-msgstr "mauvaise adresse IP"
+msgstr "mauvaise adresse IPv6"
 
 #: option.c:1205
 msgid "bad domain in dhcp-option"
@@ -683,12 +679,11 @@ msgstr "ne peut exécuter de script sous uClinux"
 
 #: option.c:1603
 msgid "recompile with HAVE_SCRIPT defined to enable lease-change scripts"
-msgstr "pour permettre l'exécution de scripts au changement de bail (lease-change), recompiler en définissant HAVE_SCRIPT"
+msgstr "recompiler en définissant HAVE_SCRIPT pour permettre l'exécution de scripts shell au changement de bail (lease-change)"
 
 #: option.c:1607
-#, fuzzy
 msgid "recompile with HAVE_LUASCRIPT defined to enable Lua scripts"
-msgstr "pour permettre l'exécution de scripts au changement de bail (lease-change), recompiler en définissant HAVE_SCRIPT"
+msgstr "recompiler en définissant HAVE_LUASCRIPT pour permettre l'exécution de scripts LUA au changement de bail (lease-change)"
 
 #: option.c:1988 option.c:1992
 msgid "bad port"
@@ -726,12 +721,11 @@ msgstr "plage d'adresses DHCP incohérente"
 
 #: option.c:2374
 msgid "prefix must be at least 64"
-msgstr ""
+msgstr "la valeur de préfixe doit être au minimum 64"
 
 #: option.c:2378
-#, fuzzy
 msgid "inconsistent DHCPv6 range"
-msgstr "plage d'adresses DHCP incohérente"
+msgstr "plage d'adresses DHCPv6 incohérente"
 
 #: option.c:2481 option.c:2521
 msgid "bad hex constant"
@@ -851,7 +845,7 @@ msgid "Dnsmasq version %s  %s\n"
 msgstr "Version de Dnsmasq %s  %s\n"
 
 #: option.c:3781
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Compile time options: %s\n"
 "\n"
@@ -919,9 +913,9 @@ msgid "syntax check OK"
 msgstr "vérification de syntaxe OK"
 
 #: forward.c:113
-#, fuzzy, c-format
+#, c-format
 msgid "failed to send packet: %s"
-msgstr "impossible de lire sur la socket : %s"
+msgstr "impossible d'envoyer le paquet : %s"
 
 #: forward.c:474
 #, c-format
@@ -1108,7 +1102,7 @@ msgstr "mode asynchrone d'écriture de traces, la taille maximum de la queue est 
 
 #: dnsmasq.c:524
 msgid "IPv6 router advertisement enabled"
-msgstr ""
+msgstr "annonces de routeur IPv6 activées"
 
 #: dnsmasq.c:554
 #, c-format
@@ -1116,9 +1110,9 @@ msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "baux statiques DHCP seulement sur %.0s%s, durée de validité de bail %s"
 
 #: dnsmasq.c:556
-#, fuzzy, c-format
+#, c-format
 msgid "router advertisement only on %.0s%s, lifetime %s"
-msgstr "baux statiques DHCP seulement sur %.0s%s, durée de validité de bail %s"
+msgstr "annonces de routeurs seulement sur %.0s%s, durée de validité %s"
 
 #: dnsmasq.c:558
 #, c-format
@@ -1183,25 +1177,25 @@ msgid "failed to open pidfile %s: %s"
 msgstr "impossible de lire le fichier de PID %s : %s"
 
 #: dnsmasq.c:930
-#, fuzzy, c-format
+#, c-format
 msgid "cannot open log %s: %s"
-msgstr "Ne peut pas lire %s : %s"
+msgstr "Ne peut ouvrir le fichier de log %s : %s"
 
 #
 #: dnsmasq.c:933
-#, fuzzy, c-format
+#, c-format
 msgid "failed to load Lua script: %s"
-msgstr "impossible de charger %s : %m"
+msgstr "impossible de charger le script Lua : %s"
 
 #: dnsmasq.c:1002
-#, fuzzy, c-format
+#, c-format
 msgid "script process killed by signal %d"
-msgstr "Le processus fils a été terminé par le signal %d"
+msgstr "Le script a été terminé par le signal %d"
 
 #: dnsmasq.c:1006
-#, fuzzy, c-format
+#, c-format
 msgid "script process exited with status %d"
-msgstr "Le processus fils s'est terminé avec le statut %d"
+msgstr "Le script s'est terminé avec le statut %d"
 
 #: dnsmasq.c:1010
 #, c-format
@@ -1506,7 +1500,7 @@ msgstr "requête DHCP pour un type de matériel non supporté (%d) reçue sur %s"
 
 #: helper.c:140
 msgid "lease() function missing in Lua script"
-msgstr ""
+msgstr "la fonction lease() est absente du script Lua"
 
 #: tftp.c:285
 msgid "unable to get free port for TFTP"
@@ -1557,29 +1551,29 @@ msgid "Conntrack connection mark retrieval failed: %s"
 msgstr "La récupération de la marque de suivi de connexion a échoué : %s"
 
 #: dhcp6.c:46
-#, fuzzy, c-format
+#, c-format
 msgid "cannot create DHCPv6 socket: %s"
-msgstr "ne peut créer la socket DHCP: %s"
+msgstr "ne peut créer la socket DHCPv6: %s"
 
 #: dhcp6.c:57
-#, fuzzy, c-format
+#, c-format
 msgid "failed to bind DHCPv6 server socket: %s"
-msgstr "impossible de lier la socket serveur DHCP : %s"
+msgstr "impossible de lier la socket serveur DHCPv6 : %s"
 
 #: rfc3315.c:94
-#, fuzzy, c-format
+#, c-format
 msgid "no address range available for DHCPv6 request from relay at %s"
-msgstr "pas de plage d'adresse disponible pour la requête DHCP %s %s"
+msgstr "pas de plage d'adresse disponible pour la requête DHCPv6 transmise via le relai %s"
 
 #: rfc3315.c:103
-#, fuzzy, c-format
+#, c-format
 msgid "no address range available for DHCPv6 request via %s"
-msgstr "pas de plage d'adresse disponible pour la requête DHCP %s %s"
+msgstr "pas de plage d'adresse disponible pour la requête DHCPv6 via %s"
 
 #: rfc3315.c:206
-#, fuzzy, c-format
+#, c-format
 msgid "%u available DHCPv6 subnet: %s/%d"
-msgstr "%u sous-réseaux DHCP disponibles : %s/%s"
+msgstr "%u sous-réseaux DHCPv6 disponibles : %s/%d"
 
 #: dhcp-common.c:138
 #, c-format
@@ -1612,16 +1606,15 @@ msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "adresse IP %s (%s) dupliquée dans la directive dhcp-config."
 
 #: dhcp-common.c:443
-#, fuzzy, c-format
+#, c-format
 msgid "failed to join DHCPv6 multicast group: %s"
-msgstr "impossible de lier la socket serveur DHCP : %s"
+msgstr "impossible de rejoindre le groupe de multicast DHCPv6 : %s"
 
 #: radv.c:76
-#, fuzzy, c-format
+#, c-format
 msgid "cannot create ICMPv6 socket: %s"
-msgstr "ne peut créer la socket DHCP: %s"
+msgstr "ne peut créer la socket ICMPv6: %s"
 
-#, fuzzy
 #~ msgid "Specify path to Lua script (no default)."
 #~ msgstr "Spécifie un chemin pour le fichier PID (par défaut : %s)."
 
