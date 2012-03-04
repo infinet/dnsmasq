@@ -78,7 +78,9 @@ version 2.60
  
             Update French translation. Thanks to Gildas Le Nadan.
 
-	    
+	    Update Polish translation. Thanks to Jan Psota.
+
+
 version 2.59
             Fix regression in 2.58 which caused failure to start up
             with some combinations of dnsmasq config and IPv6 kernel

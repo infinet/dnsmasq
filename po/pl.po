@@ -10,14 +10,14 @@ msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-10 20:57+0100\n"
-"PO-Revision-Date: 2011-08-25 09:50+0200\n"
+"PO-Revision-Date: 2012-03-04 01:45+0100\n"
 "Last-Translator: Jan Psota <jasiupsota@gmail.com>\n"
 "Language-Team: polski <>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
-"X-Generator: Lokalize 1.1\n"
+"X-Generator: poedit-1.4.6.1\n"
 "X-Language: pl_PL\n"
 
 #: cache.c:764
@@ -25,17 +25,20 @@ msgstr ""
 msgid "failed to load names from %s: %s"
 msgstr "nie potrafię wczytać nazw z %s: %s"
 
-#: cache.c:797 dhcp.c:855
+#: cache.c:797
+#: dhcp.c:855
 #, c-format
 msgid "bad address at %s line %d"
 msgstr "błędny adres w pliku %s, w linii %d"
 
-#: cache.c:846 dhcp.c:871
+#: cache.c:846
+#: dhcp.c:871
 #, c-format
 msgid "bad name at %s line %d"
 msgstr "błędna nazwa w pliku %s, w linii %d"
 
-#: cache.c:853 dhcp.c:946
+#: cache.c:853
+#: dhcp.c:946
 #, c-format
 msgid "read %s - %d addresses"
 msgstr "wczytałem %s - %d adresów"
@@ -88,7 +91,8 @@ msgstr "brak możliwości użycia generatora liczb losowych: %s"
 msgid "failed to allocate memory"
 msgstr "nie udało się przydzielić pamięci"
 
-#: util.c:227 option.c:717
+#: util.c:227
+#: option.c:717
 msgid "could not get memory"
 msgstr "nie można dostać pamięci"
 
@@ -406,19 +410,16 @@ msgid "Disable ICMP echo address checking in the DHCP server."
 msgstr "Pominięcie sprawdzania za pomocą ICMP niezajętości adresu przed jego wydzierżawieniem."
 
 #: option.c:325
-#, fuzzy
 msgid "Shell script to run on DHCP lease creation and destruction."
-msgstr "Wskazanie skryptu uruchamianego w przypadku wydzierżawienia adresu lub wygaśnięcia dzierżawy."
+msgstr "Skrypt powłoki uruchamiany po przyznaniu lub zwolnieniu adresu."
 
 #: option.c:326
-#, fuzzy
 msgid "Lua script to run on DHCP lease creation and destruction."
-msgstr "Wskazanie skryptu uruchamianego w przypadku wydzierżawienia adresu lub wygaśnięcia dzierżawy."
+msgstr "Skrypt Lua uruchamiany po przyznaniu lub zwolnieniu adresu."
 
 #: option.c:327
-#, fuzzy
 msgid "Run lease-change scripts as this user."
-msgstr "Uruchamianie skryptu dhcp-script jako wskazany użytkownik."
+msgstr "Wskazanie użytkownika z którego uprawnieniami będą uruchamiane skrypty."
 
 #: option.c:328
 msgid "Read configuration from all the files in this directory."
@@ -565,11 +566,11 @@ msgstr "Zachowanie znacznika połączenia z odebranego zapytania DNS w ruchu zew
 
 #: option.c:363
 msgid "Allow DHCP clients to do their own DDNS updates."
-msgstr ""
+msgstr "Zezwolenie klientom DHCP na uaktualnianie DDNS-ów."
 
 #: option.c:364
 msgid "Send router-advertisements for interfaces doing DHCPv6"
-msgstr ""
+msgstr "Załączenie anonsowania (RA) na interfejsach serwujących DHCPv6"
 
 #: option.c:782
 #, c-format
@@ -596,13 +597,13 @@ msgid "Known DHCP options:\n"
 msgstr "Znane opcje DHCP:\n"
 
 #: option.c:838
-#, fuzzy, c-format
+#, c-format
 msgid "Known DHCPv6 options:\n"
-msgstr "Znane opcje DHCP:\n"
+msgstr "Rozpoznawane opcje DHCPv6:\n"
 
 #: option.c:973
 msgid "unsupported encapsulation for IPv6 option"
-msgstr ""
+msgstr "nieobsługiwany rodzaj enkapsulacji opcji IPv6"
 
 #: option.c:1001
 msgid "bad dhcp-option"
@@ -612,10 +613,11 @@ msgstr "błąd w dhcp-option"
 msgid "bad IP address"
 msgstr "zły adres IP"
 
-#: option.c:1071 option.c:1177 option.c:2511
-#, fuzzy
+#: option.c:1071
+#: option.c:1177
+#: option.c:2511
 msgid "bad IPv6 address"
-msgstr "zły adres IP"
+msgstr "zły adres IPv6"
 
 #: option.c:1205
 msgid "bad domain in dhcp-option"
@@ -637,12 +639,14 @@ msgstr "wielokrotne użycie opcji niedozwolone (pojawiła się wcześniej w lini
 msgid "illegal repeated keyword"
 msgstr "wielokrotne użycie opcji niedozwolone (pojawiła się wsześniej w pliku konfiguracyjnym)"
 
-#: option.c:1452 option.c:3536
+#: option.c:1452
+#: option.c:3536
 #, c-format
 msgid "cannot access directory %s: %s"
 msgstr "brak dostępu do katalogu %s: %s"
 
-#: option.c:1483 tftp.c:464
+#: option.c:1483
+#: tftp.c:464
 #, c-format
 msgid "cannot access %s: %s"
 msgstr "brak dostępu do %s: %s"
@@ -676,19 +680,21 @@ msgid "recompile with HAVE_SCRIPT defined to enable lease-change scripts"
 msgstr "żeby mieć możliwość używania skryptów wywoływanych przy zmianie dzierżawy, przekompiluj dnsmasq-a z włączoną flagą HAVE_SCRIPT"
 
 #: option.c:1607
-#, fuzzy
 msgid "recompile with HAVE_LUASCRIPT defined to enable Lua scripts"
-msgstr "żeby mieć możliwość używania skryptów wywoływanych przy zmianie dzierżawy, przekompiluj dnsmasq-a z włączoną flagą HAVE_SCRIPT"
+msgstr "używanie skryptów Lua, wymaga skompilowania dnsmasq-a z flagą HAVE_LUASCRIPT"
 
-#: option.c:1988 option.c:1992
+#: option.c:1988
+#: option.c:1992
 msgid "bad port"
 msgstr "nieprawidłowy numer portu"
 
-#: option.c:2015 option.c:2046
+#: option.c:2015
+#: option.c:2046
 msgid "interface binding not supported"
 msgstr "nie ma możliwości dowiązywania do interfejsu"
 
-#: option.c:2026 option.c:3088
+#: option.c:2026
+#: option.c:3088
 msgid "bad interface name"
 msgstr "nieprawidłowa nazwa interfejsu"
 
@@ -714,14 +720,14 @@ msgstr "niespójny zakres adresów DHCP"
 
 #: option.c:2374
 msgid "prefix must be at least 64"
-msgstr ""
+msgstr "prefix musi mieć wartość >=64"
 
 #: option.c:2378
-#, fuzzy
 msgid "inconsistent DHCPv6 range"
-msgstr "niespójny zakres adresów DHCP"
+msgstr "niespójny zakres adresów DHCPv6"
 
-#: option.c:2481 option.c:2521
+#: option.c:2481
+#: option.c:2521
 msgid "bad hex constant"
 msgstr "zapis niezgodny z formatem szesnastkowym"
 
@@ -737,7 +743,8 @@ msgstr "niedopuszczalna nazwa komputera w dhcp-host"
 msgid "bad tag-if"
 msgstr "nieprawidłowa składnia 'tag-if'"
 
-#: option.c:2973 option.c:3258
+#: option.c:2973
+#: option.c:3258
 msgid "invalid port number"
 msgstr "nieprawidłowy numer portu"
 
@@ -814,12 +821,14 @@ msgstr "błąd"
 msgid "%s at line %d of %%s"
 msgstr "%s w linii %d pliku %%s"
 
-#: option.c:3491 tftp.c:627
+#: option.c:3491
+#: tftp.c:627
 #, c-format
 msgid "cannot read %s: %s"
 msgstr "błąd odczytu z pliku %s: %s"
 
-#: option.c:3657 option.c:3693
+#: option.c:3657
+#: option.c:3693
 #, c-format
 msgid "read %s"
 msgstr "przeczytałem %s"
@@ -834,7 +843,7 @@ msgid "Dnsmasq version %s  %s\n"
 msgstr "Dnsmasq, wersja %s  %s\n"
 
 #: option.c:3781
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Compile time options: %s\n"
 "\n"
@@ -883,7 +892,9 @@ msgstr "w trybie no-poll można wskazać najwyżej jeden plik resolv.conf."
 msgid "must have exactly one resolv.conf to read domain from."
 msgstr "musisz mieć dokładnie jeden plik resolv.conf do odczytu domen."
 
-#: option.c:3882 network.c:822 dhcp.c:804
+#: option.c:3882
+#: network.c:822
+#: dhcp.c:804
 #, c-format
 msgid "failed to read %s: %s"
 msgstr "nie udało się odczytać %s: %s"
@@ -902,9 +913,9 @@ msgid "syntax check OK"
 msgstr "składnia sprawdzona, jest prawidłowa"
 
 #: forward.c:113
-#, fuzzy, c-format
+#, c-format
 msgid "failed to send packet: %s"
-msgstr "błąd przy włączaniu nasłuchu na gnieździe: %s"
+msgstr "wysyłanie pakietu nie powiodło się: %s"
 
 #: forward.c:474
 #, c-format
@@ -1012,7 +1023,8 @@ msgstr "nieznany interfejs %s"
 msgid "no interface with address %s"
 msgstr "brak interfejsu z adresem %s"
 
-#: dnsmasq.c:220 dnsmasq.c:770
+#: dnsmasq.c:220
+#: dnsmasq.c:770
 #, c-format
 msgid "DBus error: %s"
 msgstr "błąd DBus: %s"
@@ -1088,7 +1100,7 @@ msgstr "włączono asynchroniczny tryb zapisu do logów z kolejką na %d komunik
 
 #: dnsmasq.c:524
 msgid "IPv6 router advertisement enabled"
-msgstr ""
+msgstr "anonsowanie routera IPv4 włączone"
 
 #: dnsmasq.c:554
 #, c-format
@@ -1096,9 +1108,9 @@ msgid "DHCP, static leases only on %.0s%s, lease time %s"
 msgstr "DHCP: tylko statyczne dzierżawy na %.0s%s, czas dzierżawy %s"
 
 #: dnsmasq.c:556
-#, fuzzy, c-format
+#, c-format
 msgid "router advertisement only on %.0s%s, lifetime %s"
-msgstr "DHCP: tylko statyczne dzierżawy na %.0s%s, czas dzierżawy %s"
+msgstr "tylko anonsowanie routera na %.0s%s, czas życia %s"
 
 #: dnsmasq.c:558
 #, c-format
@@ -1162,24 +1174,24 @@ msgid "failed to open pidfile %s: %s"
 msgstr "nie udało się otworzyć pliku z PID-em %s: %s"
 
 #: dnsmasq.c:930
-#, fuzzy, c-format
+#, c-format
 msgid "cannot open log %s: %s"
-msgstr "nie można otworzyć %s: %s"
+msgstr "nie udało się otworzyć logu %s: %s"
 
 #: dnsmasq.c:933
-#, fuzzy, c-format
+#, c-format
 msgid "failed to load Lua script: %s"
-msgstr "nie udało się odczytać %s: %s"
+msgstr "nie udało się wczytać skryptu Lua: %s"
 
 #: dnsmasq.c:1002
-#, fuzzy, c-format
+#, c-format
 msgid "script process killed by signal %d"
-msgstr "proces potomny zabity sygnałem %d"
+msgstr "skrypt został zabity sygnałem %d"
 
 #: dnsmasq.c:1006
-#, fuzzy, c-format
+#, c-format
 msgid "script process exited with status %d"
-msgstr "proces potomny zakończył się z kodem powrotu %d"
+msgstr "skrypt zakończył się z kodem powrotu %d"
 
 #: dnsmasq.c:1010
 #, c-format
@@ -1302,7 +1314,8 @@ msgstr "przez"
 msgid "%u available DHCP subnet: %s/%s"
 msgstr "%u dostępna podsieć DHCP: %s/%s"
 
-#: rfc2131.c:353 rfc3315.c:209
+#: rfc2131.c:353
+#: rfc3315.c:209
 #, c-format
 msgid "%u available DHCP range: %s -- %s"
 msgstr "%u dostępny zakres adresów DHCP: %s -- %s"
@@ -1311,19 +1324,24 @@ msgstr "%u dostępny zakres adresów DHCP: %s -- %s"
 msgid "disabled"
 msgstr "wyłączony(a)"
 
-#: rfc2131.c:423 rfc2131.c:941 rfc2131.c:1341
+#: rfc2131.c:423
+#: rfc2131.c:941
+#: rfc2131.c:1341
 msgid "ignored"
 msgstr "ignoruję"
 
-#: rfc2131.c:438 rfc2131.c:1179
+#: rfc2131.c:438
+#: rfc2131.c:1179
 msgid "address in use"
 msgstr "adres jest w użyciu"
 
-#: rfc2131.c:452 rfc2131.c:995
+#: rfc2131.c:452
+#: rfc2131.c:995
 msgid "no address available"
 msgstr "brak dostępnego adresu"
 
-#: rfc2131.c:459 rfc2131.c:1142
+#: rfc2131.c:459
+#: rfc2131.c:1142
 msgid "wrong network"
 msgstr "nieprawidłowa sieć"
 
@@ -1331,11 +1349,13 @@ msgstr "nieprawidłowa sieć"
 msgid "no address configured"
 msgstr "brak skonfigurowanego adresu"
 
-#: rfc2131.c:480 rfc2131.c:1192
+#: rfc2131.c:480
+#: rfc2131.c:1192
 msgid "no leases left"
 msgstr "brak wolnych dzierżaw"
 
-#: rfc2131.c:564 rfc3315.c:362
+#: rfc2131.c:564
+#: rfc3315.c:362
 #, c-format
 msgid "%u client provides name: %s"
 msgstr "klient %u przedstawia się jako %s"
@@ -1354,7 +1374,8 @@ msgstr "%u klasa użytkownika: %s"
 msgid "PXE BIS not supported"
 msgstr "PXE BIS nie jest obsługiwane"
 
-#: rfc2131.c:911 rfc3315.c:1098
+#: rfc2131.c:911
+#: rfc3315.c:1098
 #, c-format
 msgid "disabling DHCP static address %s for %s"
 msgstr "wyłączam statyczne przypisanie adresu %s dla %s"
@@ -1363,7 +1384,8 @@ msgstr "wyłączam statyczne przypisanie adresu %s dla %s"
 msgid "unknown lease"
 msgstr "nieznana dzierżawa"
 
-#: rfc2131.c:964 rfc3315.c:556
+#: rfc2131.c:964
+#: rfc3315.c:556
 #, c-format
 msgid "not using configured address %s because it is leased to %s"
 msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo jest on już wydzierżawiony komputerowi %s"
@@ -1373,12 +1395,14 @@ msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo jest on już wy
 msgid "not using configured address %s because it is in use by the server or relay"
 msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo używa go któryś z serwerów"
 
-#: rfc2131.c:977 rfc3315.c:560
+#: rfc2131.c:977
+#: rfc3315.c:560
 #, c-format
 msgid "not using configured address %s because it was previously declined"
 msgstr "nie proponuję zakładanego w konfiguracji adresu %s, bo już poprzednio został odrzucony"
 
-#: rfc2131.c:993 rfc2131.c:1185
+#: rfc2131.c:993
+#: rfc2131.c:1185
 msgid "no unique-id"
 msgstr "brak unikalnego id"
 
@@ -1440,7 +1464,8 @@ msgstr "nie mam możliwości wysłania opcji %d DHCP/BOOTP: niedostateczna iloś
 msgid "PXE menu too large"
 msgstr "menu PXE zbyt duże"
 
-#: rfc2131.c:2117 rfc3315.c:1294
+#: rfc2131.c:2117
+#: rfc3315.c:1294
 #, c-format
 msgid "%u requested options: %s"
 msgstr "%u zażądano: %s"
@@ -1484,7 +1509,7 @@ msgstr "żądanie DHCP od urządzenia nieobsługiwanego typu (%d) odebrano na %s
 
 #: helper.c:140
 msgid "lease() function missing in Lua script"
-msgstr ""
+msgstr "w skrypcie Lua brak funkcji lease()"
 
 #: tftp.c:285
 msgid "unable to get free port for TFTP"
@@ -1535,29 +1560,29 @@ msgid "Conntrack connection mark retrieval failed: %s"
 msgstr "Nie udało się odcztać znacznika połączenia (conntrack): %s"
 
 #: dhcp6.c:46
-#, fuzzy, c-format
+#, c-format
 msgid "cannot create DHCPv6 socket: %s"
-msgstr "nie udało się utworzyć gniazda dla DHCP: %s"
+msgstr "nie udało się utworzyć gniazda dla DHCPv6: %s"
 
 #: dhcp6.c:57
-#, fuzzy, c-format
+#, c-format
 msgid "failed to bind DHCPv6 server socket: %s"
-msgstr "błąd przy przyznawaniu nazwy gniazdu serwera DHCP: %s"
+msgstr "dowiązywanie gniazda serwera DHCPv6 zakończone niepowodzeniem: %s"
 
 #: rfc3315.c:94
-#, fuzzy, c-format
+#, c-format
 msgid "no address range available for DHCPv6 request from relay at %s"
-msgstr "nie zdefiniowano zakresu adresów odpowiedniego dla żądania %s %s"
+msgstr "nie zdefiniowano zakresu adresów odpowiedniego dla żądania DHCPv6 przekazanego przez %s"
 
 #: rfc3315.c:103
-#, fuzzy, c-format
+#, c-format
 msgid "no address range available for DHCPv6 request via %s"
-msgstr "nie zdefiniowano zakresu adresów odpowiedniego dla żądania %s %s"
+msgstr "nie zdefiniowano zakresu adresów odpowiedniego dla żądania DHCPv6 od %s"
 
 #: rfc3315.c:206
-#, fuzzy, c-format
+#, c-format
 msgid "%u available DHCPv6 subnet: %s/%d"
-msgstr "%u dostępna podsieć DHCP: %s/%s"
+msgstr "%u dostępna podsieć DHCPv6: %s/%d"
 
 #: dhcp-common.c:138
 #, c-format
@@ -1590,14 +1615,14 @@ msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "powtórzenie adresu IP %s (%s) w opcji dhcp-config"
 
 #: dhcp-common.c:443
-#, fuzzy, c-format
+#, c-format
 msgid "failed to join DHCPv6 multicast group: %s"
-msgstr "błąd przy przyznawaniu nazwy gniazdu serwera DHCP: %s"
+msgstr "nie udało się przyłączyć do grupy rozgłoszeniowej DHCPv6: %s"
 
 #: radv.c:76
-#, fuzzy, c-format
+#, c-format
 msgid "cannot create ICMPv6 socket: %s"
-msgstr "nie udało się utworzyć gniazda dla DHCP: %s"
+msgstr "nie udało się utworzyć gniazda dla ICMPv6: %s"
 
 #, fuzzy
 #~ msgid "Specify path to Lua script (no default)."
