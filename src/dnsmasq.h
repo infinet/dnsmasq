@@ -621,6 +621,7 @@ struct dhcp_context {
 #define CONTEXT_PROXY     8
 #define CONTEXT_RA_ONLY  16
 #define CONTEXT_RA_DONE  32
+#define CONTEXT_RA_NAME  64
 
 struct ping_result {
   struct in_addr addr;
@@ -629,6 +630,13 @@ struct ping_result {
   struct ping_result *next;
 };
 
+struct subnet_map {
+  int iface;
+  struct in6_addr subnet;
+  struct subnet_map *next;
+};
+  
+  
 struct tftp_file {
   int refcount, fd;
   off_t size;
@@ -948,6 +956,7 @@ void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(void);
 int do_script_run(time_t now);
 void rerun_scripts(void);
+void lease_find_interfaces(void);
 #ifdef HAVE_SCRIPT
 void lease_add_extradata(struct dhcp_lease *lease, unsigned char *data, 
 			 unsigned int len, int delim);
@@ -1083,4 +1092,5 @@ void ra_init(time_t now);
 void icmp6_packet(void);
 time_t periodic_ra(time_t now);
 void ra_start_unsolicted(time_t now);
+struct subnet_map *build_subnet_map(void);
 #endif

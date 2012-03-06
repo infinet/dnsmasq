@@ -2345,6 +2345,11 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
 		new->flags |= CONTEXT_RA_ONLY;
 	      }
+	    else if (strcmp(a[1], "ra-names") == 0)
+	      {
+		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
+		new->flags |= CONTEXT_RA_NAME | CONTEXT_RA_ONLY;
+	      }
 	    else if (!inet_pton(AF_INET6, a[1], &new->end6))
 	      option = '?';
 	    
@@ -2370,7 +2375,9 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		  {
 		    new->prefix = pref;
 		    leasepos = 3;
-		    if (new->prefix < 64)
+		    if ((new->flags & CONTEXT_RA_ONLY) && new->prefix != 64)
+		      problem = _("prefix must be exactly 64 for RA subnets");
+		    else if (new->prefix < 64)
 		      problem = _("prefix must be at least 64");
 		  }
 	      }
