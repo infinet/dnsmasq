@@ -410,7 +410,7 @@ void lease_update_dns(void)
 #ifdef HAVE_DHCP6
 	  if (lease->flags & (LEASE_TA | LEASE_NA))
 	    prot = AF_INET6;
-	  else
+	  else if (lease->hostname || lease->fqdn)
 	    {
 	      struct subnet_map *map;
 	      for (map = subnets; map; map = map->next)
