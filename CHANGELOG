@@ -1,3 +1,10 @@
+version 2.61
+	    Re-write interface discovery code on *BSD to use
+	    getifaddrs. This is more portable, more straightforward,
+	    and allows us to find the prefix length for IPv6
+	    addresses.
+
+
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
             Flebbe for the patch.
