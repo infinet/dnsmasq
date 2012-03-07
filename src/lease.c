@@ -418,36 +418,30 @@ void lease_update_dns(void)
 		  {
 		    struct in6_addr addr = map->subnet;
 		    if (lease->hwaddr_len == 6 &&
-			(lease->hwaddr_type == ARPHRD_ETHER ||
-			 lease->hwaddr_type == ARPHRD_IEEE802))
+			(lease->hwaddr_type == ARPHRD_ETHER || lease->hwaddr_type == ARPHRD_IEEE802))
 		      {
 			/* convert MAC address to EUI-64 */
 			memcpy(&addr.s6_addr[8], lease->hwaddr, 3);
 			memcpy(&addr.s6_addr[13], &lease->hwaddr[3], 3);
 			addr.s6_addr[11] = 0xff;
 			addr.s6_addr[12] = 0xfe;
-			addr.s6_addr[8] ^= 0x02;
 		      }
 #if defined(ARPHRD_EUI64)
 		    else if (lease->hwaddr_len == 8 &&
 			     lease->hwaddr_type == ARPHRD_EUI64)
-		      {
-			memcpy(&addr.s6_addr[8], &lease->hwaddr, 8);
-			addr.s6_addr[8] ^= 0x02;
-		      }	
+		      memcpy(&addr.s6_addr[8], lease->hwaddr, 8);
 #endif
 #if defined(ARPHRD_IEEE1394) && defined(ARPHRD_EUI64)
 		    else if (lease->clid_len == 9 && 
 			     lease->clid[0] ==  ARPHRD_EUI64 &&
 			     lease->hwaddr_type == ARPHRD_IEEE1394)
-		      {
-			/* firewire has EUI-64 identifier as clid */
-			memcpy(&addr.s6_addr[8], &lease->clid[1], 8);
-			addr.s6_addr[8] ^= 0x02;
-		      }	
+		      /* firewire has EUI-64 identifier as clid */
+		      memcpy(&addr.s6_addr[8], &lease->clid[1], 8);
 #endif
 		    else
 		      continue;
+		    	
+		    addr.s6_addr[8] ^= 0x02;
 		    
 		    if (lease->fqdn)
 		      cache_add_dhcp_entry(lease->fqdn, AF_INET6, (struct all_addr *)&addr, lease->expires);
