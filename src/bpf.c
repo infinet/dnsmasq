@@ -17,13 +17,13 @@
 #include "dnsmasq.h"
 
 #if defined(HAVE_BSD_NETWORK) || defined(HAVE_SOLARIS_NETWORK)
+#include <ifaddrs.h>
 
 #if defined(HAVE_BSD_NETWORK) && !defined(__APPLE__)
 #include <sys/sysctl.h>
 #include <net/route.h>
 #include <net/if_dl.h>
 #include <netinet/if_ether.h>
-#include <ifaddrs.h>
 
 #ifndef SA_SIZE
 #define SA_SIZE(sa)                                             \
