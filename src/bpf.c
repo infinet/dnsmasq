@@ -44,7 +44,7 @@ int arp_enumerate(void *parm, int (*callback)())
   int rc;
 
   buff.iov_base = NULL;
-  buff.iov_len = 0
+  buff.iov_len = 0;
 
   mib[0] = CTL_NET;
   mib[1] = PF_ROUTE;
@@ -88,7 +88,8 @@ int arp_enumerate(void *parm, int (*callback)())
 int iface_enumerate(int family, void *parm, int (*callback)())
 {
   struct ifaddrs *head, *addrs;
-  
+  int errsav, ret = 0;
+
   if (family == AF_UNSPEC)
 #if defined(HAVE_BSD_NETWORK) && !defined(__APPLE__)
     return  arp_enumerate(parm, callback);
@@ -105,7 +106,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 
   for (addrs = head; addrs; addrs = addrs->ifa_next)
     {
-      if (addrs->ifa_addr.sa_family == family)
+      if (addrs->ifa_addr->sa_family == family)
 	{
 	  int iface_index = if_nametoindex(addrs->ifa_name);
 
@@ -125,15 +126,15 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	  else if (family == AF_INET6)
 	    {
 	      struct in6_addr *addr = &((struct sockaddr_in6 *) addrs->ifa_addr)->sin6_addr;
-	      unsigned char *netmask = &(unisgned char *) addrs->ifa_netmask)->sin6_addr;
-	      int scope_id = &((struct sockaddr_in6 *) addrs->ifa_addr)->sin6_scope_id;
+	      unsigned char *netmask = (unsigned char *) &((struct sockaddr_in6 *) addrs->ifa_netmask)->sin6_addr;
+	      int scope_id = ((struct sockaddr_in6 *) addrs->ifa_addr)->sin6_scope_id;
 	      int i, j, prefix = 0;
 	      
-	      for (i = 0; i < IN6_ADDRSZ; i++, prefix += 8) 
+	      for (i = 0; i < IN6ADDRSZ; i++, prefix += 8) 
                 if (netmask[i] != 0xff)
 		  break;
        
-	      if (i != IN6_ADDRSZ && netmask[i]) 
+	      if (i != IN6ADDRSZ && netmask[i]) 
                 for (j = 7; j > 0; j--, prefix++) 
 		  if ((netmask[i] & (1 << j)) == 0)
 		    break;
@@ -153,7 +154,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	  else if (family == AF_LINK)
 	    { 
 	      /* Assume ethernet again here */
-	      struct sockaddr_dl *sdl = (struct sockaddr_dl *)&ifa->ifr_addr;
+	      struct sockaddr_dl *sdl = (struct sockaddr_dl *) addrs->ifa_addr;
 	      if (sdl->sdl_alen != 0 && 
 		  !((*callback)(iface_index, ARPHRD_ETHER, LLADDR(sdl), sdl->sdl_alen, parm)))
 		goto err;
