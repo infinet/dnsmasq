@@ -396,7 +396,7 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
   DBusConnection *connection = (DBusConnection *)daemon->dbus;
   DBusMessage* message = NULL;
   DBusMessageIter args;
-  char *action_str, *addr, *mac = daemon->namebuff;
+  char *action_str, *mac = daemon->namebuff;
   unsigned char *p;
   int i;
 
@@ -406,10 +406,21 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
   if (!hostname)
     hostname = "";
   
-  p = extended_hwaddr(lease->hwaddr_type, lease->hwaddr_len,
-		      lease->hwaddr, lease->clid_len, lease->clid, &i);
-  print_mac(mac, p, i);
-  
+#ifdef HAVE_DHCP6
+   if (lease->flags & (LEASE_TA | LEASE_NA))
+     {
+       print_mac(mac, lease->clid, lease->clid_len);
+       inet_ntop(AF_INET6, lease->hwaddr, daemon->addrbuff, ADDRSTRLEN);
+     }
+   else
+#endif
+     {
+       p = extended_hwaddr(lease->hwaddr_type, lease->hwaddr_len,
+			   lease->hwaddr, lease->clid_len, lease->clid, &i);
+       print_mac(mac, p, i);
+       inet_ntop(AF_INET, &lease->addr, daemon->addrbuff, ADDRSTRLEN);
+     }
+
   if (action == ACTION_DEL)
     action_str = "DhcpLeaseDeleted";
   else if (action == ACTION_ADD)
@@ -419,14 +430,12 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
   else
     return;
 
-  addr = inet_ntoa(lease->addr);
-
   if (!(message = dbus_message_new_signal(DNSMASQ_PATH, DNSMASQ_SERVICE, action_str)))
     return;
   
   dbus_message_iter_init_append(message, &args);
-
-  if (dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &addr) &&
+  
+  if (dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &daemon->addrbuff) &&
       dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &mac) &&
       dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &hostname))
     dbus_connection_send(connection, message, NULL);
