@@ -443,10 +443,13 @@ static int add_subnet(struct in6_addr *local,  int prefix,
 	is_same_net6(local, &context->end6, prefix))
       {
 	for (map = *subnets; map; map = map->next)
-	  if (map->iface == 0)
+	  if (map->iface == 0 ||
+	      (map->iface == if_index && is_same_net6(local, &map->subnet, prefix)))
 	    break;
-	  else if (map->iface == if_index && is_same_net6(local, &map->subnet, prefix))
-	    continue;
+	
+	/* It's there already */
+	if (map && map->iface != 0)
+	  continue;
 	
 	if (!map && (map = whine_malloc(sizeof(struct subnet_map))))
 	  {
@@ -478,9 +481,10 @@ struct subnet_map *build_subnet_map(void)
     if ((context->flags & CONTEXT_RA_NAME))
       break;
 
+  /* no ra-names, no need to go further. */
   if (!context)
     return NULL;
-
+  
   /* mark unused */
   for (map = subnets; map; map = map->next)
     map->iface = 0;
