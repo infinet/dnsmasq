@@ -184,7 +184,10 @@ endef
 # Below here is fairly generic really
 
 binary:		binary-arch binary-indep
+
 build:		
+build-arch:
+build-indep:
 
 checkroot:
 	test root = "`whoami`"

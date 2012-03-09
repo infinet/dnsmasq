@@ -1,6 +1,8 @@
 dnsmasq (2.61-1) unstable; urgency=low
 
    * New upstream.
+   * Provide "dump-stats" initscript method. (closes: #654656)
+   * Add (empty) build-indep and build-arch rules targets.
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 6 Mar 2012 19:45:43 +0000
 
