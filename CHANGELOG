@@ -4,6 +4,9 @@ version 2.61
 	    and allows us to find the prefix length for IPv6
 	    addresses.
 
+	    Add ra-names DHCPv6 keyword which adds AAAA records
+	    for dual-stack hosts which get IPv6 addresses via SLAAC.
+
 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf

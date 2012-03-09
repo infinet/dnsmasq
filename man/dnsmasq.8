@@ -556,7 +556,18 @@ the keyword
 which tells dnsmasq to offer Router Advertisement only on this subnet,
 and not DHCP. This applies to IPv6 only, see
 .B enable-ra
-for details.
+for details. Instead, the keyword
+.B ra-names
+may be used. This does the same at ra-only, but also enables a mode
+which gives DNS names to dual-stack hosts which do SLAAC for
+IPv6. Dnsmasq uses the hosts IPv4 lease to derive the name, network
+segment and MAC address and assumes that the host will also have an
+IPv6 address calculated using the SLAAC alogrithm, on the same network
+segment. An AAAA record is added to the DNS for this IPv6
+address. Note that this is only happens for directly-connected
+networks, (not one doing DHCP via a relay) and it will generate an
+erroneous AAAA record if a host is using privacy extensions or does
+not support IPv6. Use with care.
 
 The interface:<interface name> section is not normally used. See the
 NOTES section for details of this.

@@ -164,6 +164,15 @@
 # Do Router Advertisements, BUT NOT DHCP for this subnet.
 #dhcp-range=1234::, ra-only 
 
+# Do Router Advertisements, BUT NOT DHCP for this subnet, also try and
+# add names to the DNS for the IPv6 address of SLAAC-configured dual-stack 
+# hosts. Use the DHCPv4 lease to derive the name, network segment and 
+# MAC address and assume that the host will also have an
+# IPv6 address calculated using the SLAAC alogrithm.
+# This will generate an erroneous AAAA record if a host is using privacy 
+# extensions or does not support IPv6. Use with care.
+#dhcp-range=1234::, ra-names
+
 # Do Router Advertisements, BUT NOT DHCP for this subnet.
 # Set the lifetime to 46 hours. (Note: minimum lifetime is 2 hours.)
 #dhcp-range=1234::, ra-only, 48h
