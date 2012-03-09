@@ -731,6 +731,8 @@ extern struct daemon {
   struct tftp_prefix *if_prefix; /* per-interface TFTP prefixes */
   struct interface_list *tftp_interfaces; /* interfaces for limited TFTP service */
   int tftp_unlimited;
+  unsigned int duid_enterprise, duid_config_len;
+  unsigned char *duid_config;
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
@@ -956,7 +958,7 @@ void lease_prune(struct dhcp_lease *target, time_t now);
 void lease_update_from_configs(void);
 int do_script_run(time_t now);
 void rerun_scripts(void);
-void lease_find_interfaces(void);
+void lease_find_interfaces(time_t now);
 #ifdef HAVE_SCRIPT
 void lease_add_extradata(struct dhcp_lease *lease, unsigned char *data, 
 			 unsigned int len, int delim);

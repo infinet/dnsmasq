@@ -196,7 +196,7 @@ int main (int argc, char **argv)
 #ifdef HAVE_DHCP
   /* after netlink_init */
   if (daemon->dhcp || daemon->dhcp6)
-    lease_find_interfaces();
+    lease_find_interfaces(now);
 #endif
 
   if (!enumerate_interfaces())

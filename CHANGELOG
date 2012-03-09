@@ -7,6 +7,8 @@ version 2.61
 	    Add ra-names DHCPv6 keyword which adds AAAA records
 	    for dual-stack hosts which get IPv6 addresses via SLAAC.
 
+	    Add --dhcp-duid to allow DUID-EN uids to be used.
+
 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf

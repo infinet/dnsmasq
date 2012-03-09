@@ -365,13 +365,26 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
 
 void make_duid(time_t now)
 {
-  /* rebase epoch to 1/1/2000 */
-  time_t newnow = now - 946684800;
-  
-  iface_enumerate(AF_LOCAL, &newnow, make_duid1);
-  
-  if(!daemon->duid)
-    die("Cannot create DHCPv6 server DUID: %s", NULL, EC_MISC);
+  if (daemon->duid_config)
+    {
+      unsigned char *p;
+      
+      daemon->duid = p = safe_malloc(daemon->duid_config_len + 6);
+      daemon->duid_len = daemon->duid_config_len + 6;
+      PUTSHORT(2, p); /* DUID_EN */
+      PUTLONG(daemon->duid_enterprise, p);
+      memcpy(p, daemon->duid_config, daemon->duid_config_len);
+    }
+  else
+    {
+      /* rebase epoch to 1/1/2000 */
+      time_t newnow = now - 946684800;
+      
+      iface_enumerate(AF_LOCAL, &newnow, make_duid1);
+      
+      if(!daemon->duid)
+	die("Cannot create DHCPv6 server DUID: %s", NULL, EC_MISC);
+    }
 }
 
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm)

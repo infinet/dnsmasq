@@ -175,16 +175,6 @@ void lease_init(time_t now)
   file_dirty = 0;
   lease_prune(NULL, now);
   dns_dirty = 1;
-
-#ifdef HAVE_DHCP6  
-  /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
-  if (!daemon->duid && daemon->dhcp6)
-    {
-      file_dirty = 1;
-      make_duid(now);
-    }
-#endif
-
 }
 
 void lease_update_from_configs(void)
@@ -381,11 +371,18 @@ static int find_interface_v6(struct in6_addr *local,  int prefix,
    we do DHCP transactions, but information about directly-connected subnets
    is useful from scrips and necessary for determining SLAAC addresses from
    start-time. */
-void lease_find_interfaces(void)
+void lease_find_interfaces(time_t now)
 {
   iface_enumerate(AF_INET, NULL, find_interface_v4);
 #ifdef HAVE_DHCP6
   iface_enumerate(AF_INET6, NULL, find_interface_v6);
+
+  /* If we're not doing DHCPv6, and there are not v6 leases, don't add the DUID to the database */
+  if (!daemon->duid && daemon->dhcp6)
+    {
+      file_dirty = 1;
+      make_duid(now);
+    }
 #endif
 }
 

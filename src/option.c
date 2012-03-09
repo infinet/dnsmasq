@@ -115,6 +115,7 @@ struct myoption {
 #define LOPT_FQDN      304
 #define LOPT_LUASCRIPT 305
 #define LOPT_RA        306
+#define LOPT_DUID      307
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -235,6 +236,7 @@ static const struct myoption opts[] =
     { "dhcp-client-update", 0, 0, LOPT_FQDN },
     { "dhcp-luascript", 1, 0, LOPT_LUASCRIPT },
     { "enable-ra", 0, 0, LOPT_RA },
+    { "dhcp-duid", 1, 0, LOPT_DUID },
     { NULL, 0, 0, 0 }
   };
 
@@ -362,6 +364,7 @@ static struct {
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
   { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
+  { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -3047,6 +3050,19 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
       break;
 #endif
       
+#ifdef HAVE_DHCP6
+    case LOPT_DUID: /* --dhcp-duid */
+      if (!(comma = split(arg)) || !atoi_check(arg, (int *)&daemon->duid_enterprise))
+	problem = _("bad DUID");
+      else
+	{
+	  daemon->duid_config_len = parse_hex(comma,(unsigned char *)comma, strlen(comma), NULL, NULL);
+	  daemon->duid_config = opt_malloc(daemon->duid_config_len);
+	  memcpy(daemon->duid_config, comma, daemon->duid_config_len);
+	}
+      break;
+#endif
+
     case 'V':  /* --alias */
       {
 	char *dash, *a[3] = { NULL, NULL, NULL };

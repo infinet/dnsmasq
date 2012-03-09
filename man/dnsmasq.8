@@ -1042,6 +1042,16 @@ the tags used to determine them.
 .B \-l, --dhcp-leasefile=<path>
 Use the specified file to store DHCP lease information.
 .TP 
+.B --dhcp-duid=<enterprise-id>,<uid>
+(IPv6 only) Specify the server persistent UID which the DHCPv6 server
+will use. This option is not normally required as dnsmasq creates a
+DUID automatically when it is first needed. When given, this option
+provides dnsmasq the data required to create a DUID-EN type DUID. Note
+that once set, the DUID is stored in the lease database, so to change between DUID-EN and
+automatically created DUIDs or vice-versa, the lease database must be
+re-intialised. The enterprise-id is assigned by IANA, and the uid is a
+string of hex octets unique to a particular device.
+.TP
 .B \-6 --dhcp-script=<path>
 Whenever a new DHCP lease is created, or an old one destroyed, the
 executable specified by this option is run.  <path>
