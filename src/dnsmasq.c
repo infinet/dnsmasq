@@ -106,16 +106,14 @@ int main (int argc, char **argv)
     else
       open("/dev/null", O_RDWR); 
 
-#ifdef HAVE_LINUX_NETWORK
-  netlink_init();
-#elif !(defined(IP_RECVDSTADDR) && \
-	defined(IP_RECVIF) && \
-	defined(IP_SENDSRCADDR))
+#ifndef HAVE_LINUX_NETWORK
+#  if !(defined(IP_RECVDSTADDR) && defined(IP_RECVIF) && defined(IP_SENDSRCADDR))
   if (!option_bool(OPT_NOWILD))
     {
       bind_fallback = 1;
       set_option_bool(OPT_NOWILD);
     }
+#  endif
 #endif
 
 #ifndef HAVE_TFTP
@@ -180,10 +178,25 @@ int main (int argc, char **argv)
   if (daemon->dhcp6)
     dhcp6_init();
 
-  if (daemon->ra_contexts || daemon->dhcp6)
-    join_multicast();
 #  endif
 
+#endif
+
+#ifdef HAVE_LINUX_NETWORK
+  /* After lease_init */
+  netlink_init();
+#endif
+
+#ifdef HAVE_DHCP6
+  /* after netlink_init */
+  if (daemon->ra_contexts || daemon->dhcp6)
+    join_multicast();
+#endif
+
+#ifdef HAVE_DHCP
+  /* after netlink_init */
+  if (daemon->dhcp || daemon->dhcp6)
+    lease_find_interfaces();
 #endif
 
   if (!enumerate_interfaces())
@@ -552,6 +565,8 @@ int main (int argc, char **argv)
 	  my_syslog(MS_DHCP | LOG_INFO, 
 		    (dhcp_tmp->flags & CONTEXT_STATIC) ? 
 		    _("DHCP, static leases only on %.0s%s, lease time %s") :
+		    (dhcp_tmp->flags & CONTEXT_RA_NAME) ? 
+		    _("router advertisement with DHCPv4-derived names on %.0s%s, lifetime %s") :
 		    (dhcp_tmp->flags & CONTEXT_RA_ONLY) ? 
 		    _("router advertisement only on %.0s%s, lifetime %s") :
 		    (dhcp_tmp->flags & CONTEXT_PROXY) ?

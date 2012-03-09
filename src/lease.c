@@ -340,20 +340,115 @@ void lease_update_file(time_t now)
     alarm((unsigned)difftime(next_event, now)); 
 }
 
-void lease_update_dns(void)
+
+static int find_interface_v4(struct in_addr local, int if_index, 
+			     struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   struct dhcp_lease *lease;
   
+  (void) broadcast;
+  (void) vparam;
+
+  for (lease = leases; lease; lease = lease->next)
+    if (!(lease->flags & (LEASE_TA | LEASE_NA)))
+      if (is_same_net(local, lease->addr, netmask))
+	lease->last_interface = if_index;
+  
+  return 1;
+}
+
+#ifdef HAVE_DHCP6
+static int find_interface_v6(struct in6_addr *local,  int prefix,
+			     int scope, int if_index, int dad, void *vparam)
+{
+  struct dhcp_lease *lease;
+  
+  (void) scope;
+  (void) vparam;
+  (void)dad;
+
+  for (lease = leases; lease; lease = lease->next)
+    if ((lease->flags & (LEASE_TA | LEASE_NA)))
+      if (is_same_net6(local, (struct in6_addr *)&lease->hwaddr, prefix))
+	lease->last_interface = if_index;
+  
+  return 1;
+}
+#endif
+
+
+/* Find interfaces associated with leases at start-up. This gets updated as
+   we do DHCP transactions, but information about directly-connected subnets
+   is useful from scrips and necessary for determining SLAAC addresses from
+   start-time. */
+void lease_find_interfaces(void)
+{
+  iface_enumerate(AF_INET, NULL, find_interface_v4);
+#ifdef HAVE_DHCP6
+  iface_enumerate(AF_INET6, NULL, find_interface_v6);
+#endif
+}
+
+
+
+void lease_update_dns(void)
+{
+  struct dhcp_lease *lease;
+
   if (daemon->port != 0 && dns_dirty)
     {
-      cache_unhash_dhcp();
+#ifdef HAVE_DHCP6     
+      struct subnet_map *subnets = build_subnet_map();
+#endif
       
+      cache_unhash_dhcp();
+
       for (lease = leases; lease; lease = lease->next)
 	{
 	  int prot = AF_INET;
+	  
 #ifdef HAVE_DHCP6
 	  if (lease->flags & (LEASE_TA | LEASE_NA))
 	    prot = AF_INET6;
+	  else if (lease->hostname || lease->fqdn)
+	    {
+	      struct subnet_map *map;
+	      for (map = subnets; map; map = map->next)
+		if (lease->last_interface == map->iface)
+		  {
+		    struct in6_addr addr = map->subnet;
+		    if (lease->hwaddr_len == 6 &&
+			(lease->hwaddr_type == ARPHRD_ETHER || lease->hwaddr_type == ARPHRD_IEEE802))
+		      {
+			/* convert MAC address to EUI-64 */
+			memcpy(&addr.s6_addr[8], lease->hwaddr, 3);
+			memcpy(&addr.s6_addr[13], &lease->hwaddr[3], 3);
+			addr.s6_addr[11] = 0xff;
+			addr.s6_addr[12] = 0xfe;
+		      }
+#if defined(ARPHRD_EUI64)
+		    else if (lease->hwaddr_len == 8 &&
+			     lease->hwaddr_type == ARPHRD_EUI64)
+		      memcpy(&addr.s6_addr[8], lease->hwaddr, 8);
+#endif
+#if defined(ARPHRD_IEEE1394) && defined(ARPHRD_EUI64)
+		    else if (lease->clid_len == 9 && 
+			     lease->clid[0] ==  ARPHRD_EUI64 &&
+			     lease->hwaddr_type == ARPHRD_IEEE1394)
+		      /* firewire has EUI-64 identifier as clid */
+		      memcpy(&addr.s6_addr[8], &lease->clid[1], 8);
+#endif
+		    else
+		      continue;
+		    	
+		    addr.s6_addr[8] ^= 0x02;
+		    
+		    if (lease->fqdn)
+		      cache_add_dhcp_entry(lease->fqdn, AF_INET6, (struct all_addr *)&addr, lease->expires);
+		    if (!option_bool(OPT_DHCP_FQDN) && lease->hostname)
+		      cache_add_dhcp_entry(lease->hostname, AF_INET6, (struct all_addr *)&addr, lease->expires);
+		  }
+	    }
 #endif
 	  
 	  if (lease->fqdn)

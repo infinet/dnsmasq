@@ -426,4 +426,73 @@ static int iface_search(struct in6_addr *local,  int prefix,
   return 1; /* keep searching */
 }
 
+static int add_subnet(struct in6_addr *local,  int prefix,
+		      int scope, int if_index, int dad, void *vparam)
+{ 
+  struct dhcp_context *context;
+  struct subnet_map **subnets = vparam;
+  struct subnet_map *map;
+
+  (void)scope;
+  (void)dad;
+
+  for (context = daemon->ra_contexts; context; context = context->next)
+    if ((context->flags & CONTEXT_RA_NAME) &&
+	prefix == context->prefix &&
+	is_same_net6(local, &context->start6, prefix) &&
+	is_same_net6(local, &context->end6, prefix))
+      {
+	for (map = *subnets; map; map = map->next)
+	  if (map->iface == 0 ||
+	      (map->iface == if_index && is_same_net6(local, &map->subnet, prefix)))
+	    break;
+	
+	/* It's there already */
+	if (map && map->iface != 0)
+	  continue;
+	
+	if (!map && (map = whine_malloc(sizeof(struct subnet_map))))
+	  {
+	    map->next = *subnets;
+	    *subnets = map;
+	  }
+	
+	if (map)
+	  {
+	    map->iface = if_index;
+	    map->subnet = *local;
+	  }
+      }
+
+  return 1;
+}
+
+/* Build a map from ra-names subnets to corresponding interfaces. This
+   is used to go from DHCPv4 leases to SLAAC addresses, 
+   interface->IPv6-subnet, IPv6-subnet + MAC address -> SLAAC.
+*/	      
+struct subnet_map *build_subnet_map(void)
+{
+  struct subnet_map *map;
+  struct dhcp_context *context;
+  static struct subnet_map *subnets = NULL;
+ 
+  for (context = daemon->ra_contexts; context; context = context->next)
+    if ((context->flags & CONTEXT_RA_NAME))
+      break;
+
+  /* no ra-names, no need to go further. */
+  if (!context)
+    return NULL;
+  
+  /* mark unused */
+  for (map = subnets; map; map = map->next)
+    map->iface = 0;
+
+  if (iface_enumerate(AF_INET6, &subnets, add_subnet))
+    return subnets;
+  
+  return NULL;
+}
+
 #endif
