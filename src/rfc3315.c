@@ -737,6 +737,11 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  {
 		    if (address_assigned) 
 		      {
+			o1 = new_opt6(OPTION6_STATUS_CODE);
+			put_opt6_short(DHCP6SUCCESS);
+			put_opt6_string("Oh hai from dnsmasq");
+			end_opt6(o1);
+			
 			if (ia_type == OPTION6_IA_NA)
 			  {
 			    /* go back an fill in fields in IA_NA option */
@@ -750,7 +755,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		      }
 		    else
 		      { 
-			/* no address, return erro */
+			/* no address, return error */
 			o1 = new_opt6(OPTION6_STATUS_CODE);
 			put_opt6_short(DHCP6NOADDRS);
 			put_opt6_string("No addresses available");
