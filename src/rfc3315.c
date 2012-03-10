@@ -763,7 +763,11 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		      }
 		    
 		    end_opt6(o);
-		    
+		    	
+		    o = new_opt6(OPTION6_PREFERENCE);
+		    put_opt6_char(0);
+		    end_opt6(o);
+
 		    break;
 		  }
 	      } 

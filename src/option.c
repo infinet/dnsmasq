@@ -580,7 +580,7 @@ char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len,
 	break;
       }
 
-  if (buf && (!ot[o].name || nodecode))
+  if (opt_len != 0 && buf && (!ot[o].name || nodecode))
     {
       int trunc  = 0;
       if (opt_len > 13)
