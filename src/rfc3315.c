@@ -1344,61 +1344,57 @@ static void log6_opts(int nest, unsigned int xid, void *start_opts, void *end_op
 {
   void *opt;
   char *desc = nest ? "nest" : "sent";
+  
+  if (start_opts == end_opts)
+    return;
+  
+  for (opt = start_opts; opt; opt = opt6_next(opt, end_opts))
+    {
+      int type = opt6_type(opt);
+      void *ia_options = NULL;
+      char *optname;
       
-  if (start_opts != end_opts)
-    for (opt = start_opts; opt; opt = opt6_next(opt, end_opts))
-      {
-	int type = opt6_type(opt);
-	
-	if (type == OPTION6_IA_NA || type == OPTION6_IA_TA)
-	  {
-	    int iaid = opt6_uint(opt, 0, 4);
-	    void *ia_end = opt6_ptr(opt, opt6_len(opt));
-	    void *ia_options =  opt6_ptr(opt, type == OPTION6_IA_NA ? 12 : 4);
-	    
-	    if (type == OPTION6_IA_NA)
-	      my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d ia-na IAID=%u T1=%u T2=%u", 
-			xid, desc, opt6_len(opt), type, iaid, opt6_uint(opt, 4, 4), opt6_uint(opt, 8, 4));
-	    else
-	      my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d ia-ta IAID=%u", 
-			xid, desc, opt6_len(opt), type, iaid);
-
-	    log6_opts(1, xid, ia_options, ia_end);
-	  }
-	else if (type == OPTION6_IAADDR)
-	  {
-	    void *ia_end = opt6_ptr(opt, opt6_len(opt));
-	    void *ia_options =  opt6_ptr(opt, 24);
-	    
-	    inet_ntop(AF_INET6, opt6_ptr(opt, 0), daemon->addrbuff, ADDRSTRLEN);
-	    
-	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d iaaddr %s PL=%u VL=%u", 
-		      xid, desc, opt6_len(opt), type, daemon->addrbuff, opt6_uint(opt, 16, 4), opt6_uint(opt, 20, 4));
-	    
-	    log6_opts(1, xid, ia_options, ia_end);
-	  }
-	else if (type == OPTION6_STATUS_CODE)
-	  {
-	    memcpy(daemon->namebuff, opt6_ptr(opt, 2), opt6_len(opt)-2);
-	    daemon->namebuff[opt6_len(opt)-2] = 0;
-	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d status %u %s",
-		      xid, desc, opt6_len(opt), type, opt6_uint(opt, 0, 2), daemon->namebuff);
-	  }
-	else
-	  {
-	    int offset = 0;
-	    char *optname;
-	    
-	    /* account for flag byte on FQDN */
-	    if (type == OPTION6_FQDN)
-	      offset = 1;
-	    
-	    optname = option_string(AF_INET6, type, opt6_ptr(opt, offset), opt6_len(opt) - offset, daemon->namebuff, MAXDNAME);
-	    
-	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d %s  %s", 
-		      xid, desc, opt6_len(opt), type, optname, daemon->namebuff);
-	  }
-      }
+      if (type == OPTION6_IA_NA)
+	{
+	  sprintf(daemon->namebuff, "IAID=%u T1=%u T2=%u",
+		  opt6_uint(opt, 0, 4), opt6_uint(opt, 4, 4), opt6_uint(opt, 8, 4));
+	  optname = "ia-na";
+	  ia_options = opt6_ptr(opt, 12);
+	}
+      else if (type == OPTION6_IA_TA)
+	{
+	  sprintf(daemon->namebuff, "IAID=%u", opt6_uint(opt, 0, 4));
+	  optname = "ia-ta";
+	  ia_options = opt6_ptr(opt, 4);
+	}
+      else if (type == OPTION6_IAADDR)
+	{
+	  inet_ntop(AF_INET6, opt6_ptr(opt, 0), daemon->addrbuff, ADDRSTRLEN);
+	  sprintf(daemon->namebuff, "%s PL=%u VL=%u", 
+		  daemon->addrbuff, opt6_uint(opt, 16, 4), opt6_uint(opt, 20, 4));
+	  optname = "iaaddr";
+	  ia_options = opt6_ptr(opt, 24);
+	}
+      else if (type == OPTION6_STATUS_CODE)
+	{
+	  int len = sprintf(daemon->namebuff, "%u ", opt6_uint(opt, 0, 2));
+	  memcpy(daemon->namebuff + len, opt6_ptr(opt, 2), opt6_len(opt)-2);
+	  daemon->namebuff[len + opt6_len(opt) - 2] = 0;
+	  optname = "status";
+	}
+      else
+	{
+	  /* account for flag byte on FQDN */
+	  int offset = type == OPTION6_FQDN ? 1 : 0;
+	  optname = option_string(AF_INET6, type, opt6_ptr(opt, offset), opt6_len(opt) - offset, daemon->namebuff, MAXDNAME);
+	}
+      
+      my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d %s  %s", 
+		xid, desc, opt6_len(opt), type, optname, daemon->namebuff);
+      
+      if (ia_options)
+	log6_opts(1, xid, ia_options, opt6_ptr(opt, opt6_len(opt)));
+    }
 }		 
  
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string)
