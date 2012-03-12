@@ -375,6 +375,7 @@ static struct {
 #define OT_INTERNAL     0x2000
 #define OT_NAME         0x1000
 #define OT_CSTRING      0x0800
+#define OT_DEC          0x0400 /* OT_INTERNAL only */
 
 static const struct opttab_t {
   char *name;
@@ -419,15 +420,15 @@ static const struct opttab_t {
   { "x-windows-fs", 48, OT_ADDR_LIST },
   { "x-windows-dm", 49, OT_ADDR_LIST },
   { "requested-address", 50, OT_INTERNAL | OT_ADDR_LIST },
-  { "lease-time", 51, OT_INTERNAL },
+  { "lease-time", 51, OT_INTERNAL | OT_DEC },
   { "option-overload", 52, OT_INTERNAL },
   { "message-type", 53, OT_INTERNAL, },
   { "server-identifier", 54, OT_INTERNAL | OT_ADDR_LIST },
   { "parameter-request", 55, OT_INTERNAL },
   { "message", 56, OT_INTERNAL },
   { "max-message-size", 57, OT_INTERNAL },
-  { "T1", 58, OT_INTERNAL },
-  { "T2", 59, OT_INTERNAL },
+  { "T1", 58, OT_INTERNAL | OT_DEC},
+  { "T2", 59, OT_INTERNAL | OT_DEC},
   { "vendor-class", 60, 0 },
   { "client-id", 61, OT_INTERNAL },
   { "nis+-domain", 64, OT_NAME },
@@ -574,7 +575,16 @@ char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len,
 		  }
 	      }	      
 #endif
-	    else 
+	    else if ((ot[o].size & OT_DEC) && opt_len != 0)
+	      {
+		unsigned int dec = 0;
+		
+		for (i = 0; i < opt_len; i++)
+		  dec = (dec << 8) | val[i]; 
+
+		sprintf(buf, "%u", dec);
+	      }
+	    else
 	      nodecode = 1;
 	  }
 	break;
