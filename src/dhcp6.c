@@ -75,6 +75,7 @@ void dhcp6_packet(time_t now)
   ssize_t sz; 
   struct ifreq ifr;
   struct iname *tmp;
+  unsigned short port;
 
   msg.msg_control = control_u.control6;
   msg.msg_controllen = sizeof(control_u);
@@ -84,7 +85,7 @@ void dhcp6_packet(time_t now)
   msg.msg_iov =  &daemon->dhcp_packet;
   msg.msg_iovlen = 1;
   
-  if ((sz = recv_dhcp_packet(daemon->dhcp6fd, &msg)) == -1 || sz <= 4)
+  if ((sz = recv_dhcp_packet(daemon->dhcp6fd, &msg)) == -1)
     return;
   
   for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
@@ -134,15 +135,23 @@ void dhcp6_packet(time_t now)
   
   lease_prune(NULL, now); /* lose any expired leases */
 
-  sz = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, 
-		   sz, IN6_IS_ADDR_MULTICAST(&from.sin6_addr), now);
+  port = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, 
+		     sz, IN6_IS_ADDR_MULTICAST(&from.sin6_addr), now);
   
   lease_update_file(now);
   lease_update_dns();
   
-  if (sz != 0)
-    while (sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, sz, 0, (struct sockaddr *)&from, sizeof(from)) == -1 &&
+  /* The port in the source address of the original request should
+     be correct, but at least once client sends from the server port,
+     so we explicitly send to the client port to a client, and the
+     server port to a relay. */
+  if (port != 0)
+    {
+      from.sin6_port = htons(port);
+      while (sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, save_counter(0), 
+		    0, (struct sockaddr *)&from, sizeof(from)) == -1 &&
 	   retry_send());
+    }
 }
 
 static int complete_context6(struct in6_addr *local,  int prefix,

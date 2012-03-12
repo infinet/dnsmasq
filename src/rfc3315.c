@@ -34,12 +34,18 @@ static unsigned int opt6_uint(unsigned char *opt, int offset, int size);
 #define opt6_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[4+(i)]))
 
 
-size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,
-		   struct in6_addr *fallback, size_t sz, int is_unicast, time_t now)
+unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,
+			   struct in6_addr *fallback, size_t sz, int is_unicast, time_t now)
 {
   struct dhcp_netid *relay_tags = NULL;
   struct dhcp_vendor *vendor;
-
+  int msg_type;
+  
+  if (sz <= 4)
+    return 0;
+  
+  msg_type = *((unsigned char *)daemon->dhcp_packet.iov_base);
+  
   /* Mark these so we only match each at most once, to avoid tangled linked lists */
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
     vendor->netid.next = &vendor->netid;
@@ -47,7 +53,7 @@ size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name
   save_counter(0);
   
   if (dhcp6_maybe_relay(NULL, &relay_tags, context, interface, iface_name, fallback, daemon->dhcp_packet.iov_base, sz, is_unicast, now))
-    return save_counter(0);
+    return msg_type == DHCP6RELAYFORW ? DHCPV6_SERVER_PORT : DHCPV6_CLIENT_PORT;
 
   return 0;
 }
@@ -764,10 +770,15 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    
 		    end_opt6(o);
 		    	
-		    o = new_opt6(OPTION6_PREFERENCE);
-		    put_opt6_char(0);
-		    end_opt6(o);
-
+		    if (address_assigned) 
+		      {
+			/* If --dhcp-authoritative is set, we can tell client not to wait for
+			   other possible servers */
+			o = new_opt6(OPTION6_PREFERENCE);
+			put_opt6_char(option_bool(OPT_AUTHORITATIVE) ? 255 : 0);
+			end_opt6(o);
+		      }
+		    
 		    break;
 		  }
 	      } 

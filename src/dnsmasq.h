@@ -1053,8 +1053,8 @@ void make_duid(time_t now);
 
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
-size_t dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
-		   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now);
+unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
+			   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now);
 #endif
 
 /* dhcp-common.c */
