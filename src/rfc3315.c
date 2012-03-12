@@ -290,6 +290,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	}
     }
 
+  if (option_bool(OPT_LOG_OPTS) && (opt = opt6_find(packet_options, end, OPTION6_VENDOR_CLASS, 4)))
+    my_syslog(MS_DHCP | LOG_INFO, _("%u vendor class: %u"), xid, opt6_uint(opt, 0, 4));
+  
   /* dhcp-match. If we have hex-and-wildcards, look for a left-anchored match.
      Otherwise assume the option is an array, and look for a matching element. 
      If no data given, existance of the option is enough. This code handles 
