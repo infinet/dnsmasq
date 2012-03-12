@@ -922,9 +922,14 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    if (t1cntr != 0)
 	      {
 		/* go back an fill in fields in IA_NA option */
-		unsigned int t1 = min_time == 0xffffffff ? 0xffffffff : min_time/2;
-		unsigned int t2 = min_time == 0xffffffff ? 0xffffffff : (min_time/8) * 7;
 		int sav = save_counter(t1cntr);
+		unsigned int t1, t2, fuzz = rand16();
+		
+		while (fuzz > (min_time/16))
+		  fuzz = fuzz/2; 
+		t1 = min_time == 0xffffffff ? 0xffffffff : min_time/2 - fuzz;
+		t2 = min_time == 0xffffffff ? 0xffffffff : ((min_time/8)*7) - fuzz;
+		
 		put_opt6_long(t1);
 		put_opt6_long(t2);
 		save_counter(sav);
