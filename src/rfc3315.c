@@ -23,6 +23,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 			     int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now);
 static int dhcp6_no_relay(int msg_type,  struct in6_addr *link_address, struct dhcp_netid *tags, struct dhcp_context *context, 
 			  int interface, char *iface_name, struct in6_addr *fallback, void *inbuff, size_t sz, int is_unicast, time_t now);
+static void log6_opts(int nest, unsigned int xid, void *start_opts, void *end_opts);
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string);
 
 static void *opt6_find (void *opts, void *end, unsigned int search, unsigned int minsize);
@@ -1334,31 +1335,72 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   log_tags(tagif, xid);
 
   if (option_bool(OPT_LOG_OPTS))
-    {
-      int end_opts = save_counter(-1);
+    log6_opts(0, xid, daemon->outpacket.iov_base + start_opts, daemon->outpacket.iov_base + save_counter(-1));
+  
+  return 1;
+}
+
+static void log6_opts(int nest, unsigned int xid, void *start_opts, void *end_opts)
+{
+  void *opt;
+  char *desc = nest ? "nest" : "sent";
       
-      /* must have created at least one option */
-      if (start_opts != end_opts)
-	for (opt = daemon->outpacket.iov_base + start_opts; opt; opt = opt6_next(opt, daemon->outpacket.iov_base + end_opts))
+  if (start_opts != end_opts)
+    for (opt = start_opts; opt; opt = opt6_next(opt, end_opts))
+      {
+	int type = opt6_type(opt);
+	
+	if (type == OPTION6_IA_NA || type == OPTION6_IA_TA)
+	  {
+	    int iaid = opt6_uint(opt, 0, 4);
+	    void *ia_end = opt6_ptr(opt, opt6_len(opt));
+	    void *ia_options =  opt6_ptr(opt, type == OPTION6_IA_NA ? 12 : 4);
+	    
+	    if (type == OPTION6_IA_NA)
+	      my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d ia-na IAID=%u T1=%u T2=%u", 
+			xid, desc, opt6_len(opt), type, iaid, opt6_uint(opt, 4, 4), opt6_uint(opt, 8, 4));
+	    else
+	      my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d ia-ta IAID=%u", 
+			xid, desc, opt6_len(opt), type, iaid);
+
+	    log6_opts(1, xid, ia_options, ia_end);
+	  }
+	else if (type == OPTION6_IAADDR)
+	  {
+	    void *ia_end = opt6_ptr(opt, opt6_len(opt));
+	    void *ia_options =  opt6_ptr(opt, 24);
+	    
+	    inet_ntop(AF_INET6, opt6_ptr(opt, 0), daemon->addrbuff, ADDRSTRLEN);
+	    
+	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d iaaddr %s PL=%u VL=%u", 
+		      xid, desc, opt6_len(opt), type, daemon->addrbuff, opt6_uint(opt, 16, 4), opt6_uint(opt, 20, 4));
+	    
+	    log6_opts(1, xid, ia_options, ia_end);
+	  }
+	else if (type == OPTION6_STATUS_CODE)
+	  {
+	    memcpy(daemon->namebuff, opt6_ptr(opt, 2), opt6_len(opt)-2);
+	    daemon->namebuff[opt6_len(opt)-2] = 0;
+	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d status %u %s",
+		      xid, desc, opt6_len(opt), type, opt6_uint(opt, 0, 2), daemon->namebuff);
+	  }
+	else
 	  {
 	    int offset = 0;
 	    char *optname;
-
+	    
 	    /* account for flag byte on FQDN */
-	    if (opt6_type(opt) == OPTION6_FQDN)
+	    if (type == OPTION6_FQDN)
 	      offset = 1;
 	    
-	    optname = option_string(AF_INET6, opt6_type(opt), opt6_ptr(opt, offset), opt6_len(opt) - offset, daemon->namebuff, MAXDNAME);
+	    optname = option_string(AF_INET6, type, opt6_ptr(opt, offset), opt6_len(opt) - offset, daemon->namebuff, MAXDNAME);
 	    
-	    my_syslog(MS_DHCP | LOG_INFO, "%u sent size:%3d option:%3d %s  %s", 
-		      xid, opt6_len(opt), opt6_type(opt), optname, daemon->namebuff);
+	    my_syslog(MS_DHCP | LOG_INFO, "%u %s size:%3d option:%3d %s  %s", 
+		      xid, desc, opt6_len(opt), type, optname, daemon->namebuff);
 	  }
-    }		 
-  
-  return 1;
-  
-}
-
+      }
+}		 
+ 
 static void log6_packet(char *type, unsigned char *clid, int clid_len, struct in6_addr *addr, int xid, char *iface, char *string)
 {
   /* avoid buffer overflow */

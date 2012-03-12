@@ -583,10 +583,10 @@ char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len,
   if (opt_len != 0 && buf && (!ot[o].name || nodecode))
     {
       int trunc  = 0;
-      if (opt_len > 13)
+      if (opt_len > 14)
 	{
 	  trunc = 1;
-	  opt_len = 13;
+	  opt_len = 14;
 	}
       print_mac(buf, val, opt_len);
       if (trunc)
