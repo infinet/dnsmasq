@@ -9,7 +9,19 @@ version 2.61
 
 	    Add --dhcp-duid to allow DUID-EN uids to be used.
 
+	    Explicity send DHCPv6 replies to the correct port, instead
+	    of relying on clients to send requests with the correct
+	    source address, since at least one client in the wild gets
+	    this wrong. Thanks to Conrda Kostecki for help tracking
+	    this down.
 
+	    Send a preference value of 255 in DHCPv6 replies when 
+	    --dhcp-authoritative is in effect. This tells clients not
+	    to wait around for other DHCP servers.
+
+	    Better logging of DHCPv6 options.
+
+ 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
             Flebbe for the patch.
