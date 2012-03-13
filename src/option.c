@@ -375,7 +375,7 @@ static struct {
 #define OT_INTERNAL     0x2000
 #define OT_NAME         0x1000
 #define OT_CSTRING      0x0800
-#define OT_DEC          0x0400 /* OT_INTERNAL only */
+#define OT_DEC          0x0400 
 
 static const struct opttab_t {
   char *name;
@@ -388,7 +388,7 @@ static const struct opttab_t {
   { "log-server", 7, OT_ADDR_LIST },
   { "lpr-server", 9, OT_ADDR_LIST },
   { "hostname", 12, OT_INTERNAL | OT_NAME },
-  { "boot-file-size", 13, 2 },
+  { "boot-file-size", 13, 2 | OT_DEC },
   { "domain-name", 15, OT_NAME },
   { "swap-server", 16, OT_ADDR_LIST },
   { "root-path", 17, OT_NAME },
@@ -396,19 +396,19 @@ static const struct opttab_t {
   { "ip-forward-enable", 19, 1 },
   { "non-local-source-routing", 20, 1 },
   { "policy-filter", 21, OT_ADDR_LIST },
-  { "max-datagram-reassembly", 22, 2 },
-  { "default-ttl", 23, 1 },
-  { "mtu", 26, 2 },
+  { "max-datagram-reassembly", 22, 2 | OT_DEC },
+  { "default-ttl", 23, 1 | OT_DEC },
+  { "mtu", 26, 2 | OT_DEC },
   { "all-subnets-local", 27, 1 },
   { "broadcast", 28, OT_INTERNAL | OT_ADDR_LIST },
   { "router-discovery", 31, 1 },
   { "router-solicitation", 32, OT_ADDR_LIST },
   { "static-route", 33, OT_ADDR_LIST },
   { "trailer-encapsulation", 34, 1 },
-  { "arp-timeout", 35, 4 },
+  { "arp-timeout", 35, 4 | OT_DEC },
   { "ethernet-encap", 36, 1 },
   { "tcp-ttl", 37, 1 },
-  { "tcp-keepalive", 38, 4 },
+  { "tcp-keepalive", 38, 4 | OT_DEC },
   { "nis-domain", 40, OT_NAME },
   { "nis-server", 41, OT_ADDR_LIST },
   { "ntp-server", 42, OT_ADDR_LIST },
@@ -422,7 +422,7 @@ static const struct opttab_t {
   { "requested-address", 50, OT_INTERNAL | OT_ADDR_LIST },
   { "lease-time", 51, OT_INTERNAL | OT_DEC },
   { "option-overload", 52, OT_INTERNAL },
-  { "message-type", 53, OT_INTERNAL, },
+  { "message-type", 53, OT_INTERNAL | OT_DEC },
   { "server-identifier", 54, OT_INTERNAL | OT_ADDR_LIST },
   { "parameter-request", 55, OT_INTERNAL },
   { "message", 56, OT_INTERNAL },
@@ -443,7 +443,7 @@ static const struct opttab_t {
   { "user-class", 77, 0 },
   { "FQDN", 81, OT_INTERNAL },
   { "agent-id", 82, OT_INTERNAL },
-  { "client-arch", 93, 2 },
+  { "client-arch", 93, 2 | OT_DEC },
   { "client-interface-id", 94, 0 },
   { "client-machine-id", 97, 0 },
   { "subnet-select", 118, OT_INTERNAL },
@@ -463,9 +463,9 @@ static const struct opttab_t opttab6[] = {
   { "ia-ta", 4, OT_INTERNAL },
   { "iaaddr", 5, OT_INTERNAL },
   { "oro", 6, OT_INTERNAL },
-  { "preference", 7, OT_INTERNAL },
+  { "preference", 7, OT_INTERNAL | OT_DEC },
   { "unicast", 12, OT_INTERNAL },
-  { "status-code", 13, OT_INTERNAL },
+  { "status", 13, OT_INTERNAL },
   { "rapid-commit", 14, OT_INTERNAL },
   { "user-class", 15, OT_INTERNAL | OT_CSTRING },
   { "vendor-class", 16, OT_INTERNAL | OT_CSTRING },
@@ -912,7 +912,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 		strcasecmp(opttab[i].name, arg+7) == 0)
 	      {
 		new->opt = opttab[i].val;
-		opt_len = opttab[i].size;
+		opt_len = opttab[i].size & ~OT_DEC;
 		break;
 	      }
 	  /* option:<optname> must follow tag and vendor string. */
@@ -936,7 +936,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 		  strcasecmp(opttab6[i].name, arg+8) == 0)
 		{
 		  new->opt = opttab6[i].val;
-		  opt_len = opttab6[i].size;
+		  opt_len = opttab6[i].size & ~OT_DEC;
 		  break;
 		}
 	  /* option6:<opt>|<optname> must follow tag and vendor string. */
@@ -990,7 +990,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	for (i = 0; opttab6[i].name; i++)
 	  if (new->opt == opttab6[i].val)
 	    {
-	      opt_len = opttab6[i].size;
+	      opt_len = opttab6[i].size & ~OT_DEC;
 	      if (opt_len & OT_INTERNAL)
 		opt_len = 0;
 	      break;
@@ -1003,7 +1003,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
       for (i = 0; opttab[i].name; i++)
 	if (new->opt == opttab[i].val)
 	  {
-	    opt_len = opttab[i].size;
+	    opt_len = opttab[i].size & ~OT_DEC;
 	    if (opt_len & OT_INTERNAL)
 	      opt_len = 0;
 	    break;
