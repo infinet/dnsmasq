@@ -432,6 +432,15 @@ struct frec {
   struct frec *next;
 };
 
+/* flags in top of length field for DHCP-option tables */
+#define OT_ADDR_LIST    0x8000
+#define OT_RFC1035_NAME 0x4000
+#define OT_INTERNAL     0x2000
+#define OT_NAME         0x1000
+#define OT_CSTRING      0x0800
+#define OT_DEC          0x0400 
+
+
 /* actions in the daemon->helper RPC */
 #define ACTION_DEL           1
 #define ACTION_OLD_HOSTNAME  2
@@ -1070,7 +1079,13 @@ void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 void dhcp_update_configs(struct dhcp_config *configs);
 void check_dhcp_hosts(int fatal);
+void display_opts(void);
+u16 lookup_dhcp_opt(int prot, char *name);
+u16 lookup_dhcp_len(int prot, u16 val);
+char *option_string(int prot, unsigned int opt, unsigned char *val, 
+		    int opt_len, char *buf, int buf_len);
 #  ifdef HAVE_DHCP6
+void display_opts6(void);
 void join_multicast(void);
 #  endif
 #endif

@@ -444,4 +444,305 @@ void join_multicast(void)
 }
 #endif
 
+
+static const struct opttab_t {
+  char *name;
+  u16 val, size;
+} opttab[] = {
+  { "netmask", 1, OT_ADDR_LIST },
+  { "time-offset", 2, 4 },
+  { "router", 3, OT_ADDR_LIST  },
+  { "dns-server", 6, OT_ADDR_LIST },
+  { "log-server", 7, OT_ADDR_LIST },
+  { "lpr-server", 9, OT_ADDR_LIST },
+  { "hostname", 12, OT_INTERNAL | OT_NAME },
+  { "boot-file-size", 13, 2 | OT_DEC },
+  { "domain-name", 15, OT_NAME },
+  { "swap-server", 16, OT_ADDR_LIST },
+  { "root-path", 17, OT_NAME },
+  { "extension-path", 18, OT_NAME },
+  { "ip-forward-enable", 19, 1 },
+  { "non-local-source-routing", 20, 1 },
+  { "policy-filter", 21, OT_ADDR_LIST },
+  { "max-datagram-reassembly", 22, 2 | OT_DEC },
+  { "default-ttl", 23, 1 | OT_DEC },
+  { "mtu", 26, 2 | OT_DEC },
+  { "all-subnets-local", 27, 1 },
+  { "broadcast", 28, OT_INTERNAL | OT_ADDR_LIST },
+  { "router-discovery", 31, 1 },
+  { "router-solicitation", 32, OT_ADDR_LIST },
+  { "static-route", 33, OT_ADDR_LIST },
+  { "trailer-encapsulation", 34, 1 },
+  { "arp-timeout", 35, 4 | OT_DEC },
+  { "ethernet-encap", 36, 1 },
+  { "tcp-ttl", 37, 1 },
+  { "tcp-keepalive", 38, 4 | OT_DEC },
+  { "nis-domain", 40, OT_NAME },
+  { "nis-server", 41, OT_ADDR_LIST },
+  { "ntp-server", 42, OT_ADDR_LIST },
+  { "vendor-encap", 43, OT_INTERNAL },
+  { "netbios-ns", 44, OT_ADDR_LIST },
+  { "netbios-dd", 45, OT_ADDR_LIST },
+  { "netbios-nodetype", 46, 1 },
+  { "netbios-scope", 47, 0 },
+  { "x-windows-fs", 48, OT_ADDR_LIST },
+  { "x-windows-dm", 49, OT_ADDR_LIST },
+  { "requested-address", 50, OT_INTERNAL | OT_ADDR_LIST },
+  { "lease-time", 51, OT_INTERNAL | OT_DEC },
+  { "option-overload", 52, OT_INTERNAL },
+  { "message-type", 53, OT_INTERNAL | OT_DEC },
+  { "server-identifier", 54, OT_INTERNAL | OT_ADDR_LIST },
+  { "parameter-request", 55, OT_INTERNAL },
+  { "message", 56, OT_INTERNAL },
+  { "max-message-size", 57, OT_INTERNAL },
+  { "T1", 58, OT_INTERNAL | OT_DEC},
+  { "T2", 59, OT_INTERNAL | OT_DEC},
+  { "vendor-class", 60, 0 },
+  { "client-id", 61, OT_INTERNAL },
+  { "nis+-domain", 64, OT_NAME },
+  { "nis+-server", 65, OT_ADDR_LIST },
+  { "tftp-server", 66, OT_NAME },
+  { "bootfile-name", 67, OT_NAME },
+  { "mobile-ip-home", 68, OT_ADDR_LIST }, 
+  { "smtp-server", 69, OT_ADDR_LIST }, 
+  { "pop3-server", 70, OT_ADDR_LIST }, 
+  { "nntp-server", 71, OT_ADDR_LIST }, 
+  { "irc-server", 74, OT_ADDR_LIST }, 
+  { "user-class", 77, 0 },
+  { "FQDN", 81, OT_INTERNAL },
+  { "agent-id", 82, OT_INTERNAL },
+  { "client-arch", 93, 2 | OT_DEC },
+  { "client-interface-id", 94, 0 },
+  { "client-machine-id", 97, 0 },
+  { "subnet-select", 118, OT_INTERNAL },
+  { "domain-search", 119, OT_RFC1035_NAME },
+  { "sip-server", 120, 0 },
+  { "classless-static-route", 121, 0 },
+  { "vendor-id-encap", 125, 0 },
+  { "server-ip-address", 255, OT_ADDR_LIST }, /* special, internal only, sets siaddr */
+  { NULL, 0, 0 }
+};
+
+#ifdef HAVE_DHCP6
+static const struct opttab_t opttab6[] = {
+  { "client-id", 1, OT_INTERNAL },
+  { "server-id", 2, OT_INTERNAL },
+  { "ia-na", 3, OT_INTERNAL },
+  { "ia-ta", 4, OT_INTERNAL },
+  { "iaaddr", 5, OT_INTERNAL },
+  { "oro", 6, OT_INTERNAL },
+  { "preference", 7, OT_INTERNAL | OT_DEC },
+  { "unicast", 12, OT_INTERNAL },
+  { "status", 13, OT_INTERNAL },
+  { "rapid-commit", 14, OT_INTERNAL },
+  { "user-class", 15, OT_INTERNAL | OT_CSTRING },
+  { "vendor-class", 16, OT_INTERNAL | OT_CSTRING },
+  { "vendor-opts", 17, OT_INTERNAL },
+  { "sip-server-domain", 21,  OT_RFC1035_NAME },
+  { "sip-server", 22, OT_ADDR_LIST },
+  { "dns-server", 23, OT_ADDR_LIST },
+  { "domain-search", 24, OT_RFC1035_NAME },
+  { "nis-server", 27, OT_ADDR_LIST },
+  { "nis+-server", 28, OT_ADDR_LIST },
+  { "nis-domain", 29,  OT_RFC1035_NAME },
+  { "nis+-domain", 30, OT_RFC1035_NAME },
+  { "sntp-server", 31,  OT_ADDR_LIST },
+  { "FQDN", 39, OT_INTERNAL | OT_RFC1035_NAME },
+  { "ntp-server", 56,  OT_ADDR_LIST },
+  { "bootfile-url", 59, OT_NAME },
+  { "bootfile-param", 60, OT_CSTRING },
+  { NULL, 0, 0 }
+};
+#endif
+
+
+
+void display_opts(void)
+{
+  int i;
+  
+  printf(_("Known DHCP options:\n"));
+  
+  for (i = 0; opttab[i].name; i++)
+    if (!(opttab[i].size & OT_INTERNAL))
+      printf("%3d %s\n", opttab[i].val, opttab[i].name);
+}
+
+#ifdef HAVE_DHCP6
+void display_opts6(void)
+{
+  int i;
+  printf(_("Known DHCPv6 options:\n"));
+  
+  for (i = 0; opttab6[i].name; i++)
+    if (!(opttab6[i].size & OT_INTERNAL))
+      printf("%3d %s\n", opttab6[i].val, opttab6[i].name);
+}
+#endif
+
+u16 lookup_dhcp_opt(int prot, char *name)
+{
+  const struct opttab_t *t;
+  int i;
+
+#ifdef HAVE_DHCP6
+  if (prot == AF_INET6)
+    t = opttab6;
+  else
+#endif
+    t = opttab;
+
+  for (i = 0; t[i].name; i++)
+    if (!(t[i].size & OT_INTERNAL) &&
+	strcasecmp(t[i].name, name) == 0)
+      return t[i].val;
+  
+  return 0;
+}
+
+u16 lookup_dhcp_len(int prot, u16 val)
+{
+  const struct opttab_t *t;
+  int i;
+
+#ifdef HAVE_DHCP6
+  if (prot == AF_INET6)
+    t = opttab6;
+  else
+#endif
+    t = opttab;
+
+  for (i = 0; t[i].name; i++)
+    if (val == t[i].val)
+      {
+	if (t[i].size & OT_INTERNAL)
+	  return 0;
+	
+	return t[i].size & ~OT_DEC;
+      }
+ 
+  return 0;
+}
+
+char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len, char *buf, int buf_len)
+{
+  int o, i, j, nodecode = 0;
+  const struct opttab_t *ot = opttab;
+
+#ifdef HAVE_DHCP6
+  if (prot == AF_INET6)
+    ot = opttab6;
+#endif
+
+  for (o = 0; ot[o].name; o++)
+    if (ot[o].val == opt)
+      {
+	if (buf)
+	  {
+	    memset(buf, 0, buf_len);
+	    
+	    if (ot[o].size & OT_ADDR_LIST) 
+	      {
+		struct all_addr addr;
+		int addr_len = INADDRSZ;
+
+#ifdef HAVE_DHCP6
+		if (prot == AF_INET6)
+		  addr_len = IN6ADDRSZ;
+#endif
+		for (buf[0]= 0, i = 0; i <= opt_len - addr_len; i += addr_len) 
+		  {
+		    if (i != 0)
+		      strncat(buf, ", ", buf_len - strlen(buf));
+		    /* align */
+		    memcpy(&addr, &val[i], addr_len); 
+		    inet_ntop(prot, &val[i], daemon->addrbuff, ADDRSTRLEN);
+		    strncat(buf, daemon->addrbuff, buf_len - strlen(buf));
+		  }
+	      }
+	    else if (ot[o].size & OT_NAME)
+		for (i = 0, j = 0; i < opt_len && j < buf_len ; i++)
+		  {
+		    char c = val[i];
+		    if (isprint((int)c))
+		      buf[j++] = c;
+		  }
+#ifdef HAVE_DHCP6
+	    /* We don't handle compressed rfc1035 names, so no good in IPv4 land */
+	    else if ((ot[o].size & OT_RFC1035_NAME) && prot == AF_INET6)
+	      {
+		i = 0, j = 0;
+		while (i < opt_len && val[i] != 0)
+		  {
+		    int k, l = i + val[i] + 1;
+		    for (k = i + 1; k < opt_len && k < l && j < buf_len ; k++)
+		     {
+		       char c = val[k];
+		       if (isprint((int)c))
+			 buf[j++] = c;
+		     }
+		    i = l;
+		    if (val[i] != 0 && j < buf_len)
+		      buf[j++] = '.';
+		  }
+	      }
+	    else if ((ot[o].size & OT_CSTRING))
+	      {
+		int k, len;
+		unsigned char *p;
+
+		i = 0, j = 0;
+		while (1)
+		  {
+		    p = &val[i];
+		    GETSHORT(len, p);
+		    for (k = 0; k < len && j < buf_len; k++)
+		      {
+		       char c = *p++;
+		       if (isprint((int)c))
+			 buf[j++] = c;
+		     }
+		    i += len +2;
+		    if (i >= opt_len)
+		      break;
+
+		    if (j < buf_len)
+		      buf[j++] = ',';
+		  }
+	      }	      
+#endif
+	    else if ((ot[o].size & OT_DEC) && opt_len != 0)
+	      {
+		unsigned int dec = 0;
+		
+		for (i = 0; i < opt_len; i++)
+		  dec = (dec << 8) | val[i]; 
+
+		sprintf(buf, "%u", dec);
+	      }
+	    else
+	      nodecode = 1;
+	  }
+	break;
+      }
+
+  if (opt_len != 0 && buf && (!ot[o].name || nodecode))
+    {
+      int trunc  = 0;
+      if (opt_len > 14)
+	{
+	  trunc = 1;
+	  opt_len = 14;
+	}
+      print_mac(buf, val, opt_len);
+      if (trunc)
+	strncat(buf, "...", buf_len - strlen(buf));
+    
+
+    }
+
+  return ot[o].name ? ot[o].name : "";
+
+}
+
 #endif
