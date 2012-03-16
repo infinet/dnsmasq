@@ -634,10 +634,11 @@ struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr,
   return NULL;
 }
 
+
 static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrlen, 
-			    unsigned short flags, int index, struct crec **rhash, int hashsz)
+			    int index, struct crec **rhash, int hashsz)
 {
-  struct crec *lookup = cache_find_by_name(NULL, cache->name.sname, 0, flags & (F_IPV4 | F_IPV6));
+  struct crec *lookup = cache_find_by_name(NULL, cache_get_name(cache), 0, cache->flags & (F_IPV4 | F_IPV6));
   int i, nameexists = 0;
   struct cname *a;
   unsigned int j; 
@@ -670,10 +671,10 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
     j = (j*2 +((unsigned char *)addr)[i]) % hashsz;
   
   for (lookup = rhash[j]; lookup; lookup = lookup->next)
-    if ((lookup->flags & flags & (F_IPV4 | F_IPV6)) &&
+    if ((lookup->flags & cache->flags & (F_IPV4 | F_IPV6)) &&
 	memcmp(&lookup->addr.addr, addr, addrlen) == 0)
       {
-	flags &= ~F_REVERSE;
+	cache->flags &= ~F_REVERSE;
 	break;
       }
   
@@ -684,7 +685,6 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
       rhash[j] = cache;
     }
   
-  cache->flags = flags;
   cache->uid = index;
   memcpy(&cache->addr.addr, addr, addrlen);  
   cache_hash(cache);
@@ -692,7 +692,7 @@ static void add_hosts_entry(struct crec *cache, struct all_addr *addr, int addrl
   /* don't need to do alias stuff for second and subsequent addresses. */
   if (!nameexists)
     for (a = daemon->cnames; a; a = a->next)
-      if (hostname_isequal(cache->name.sname, a->target) &&
+      if (hostname_isequal(cache_get_name(cache), a->target) &&
 	  (lookup = whine_malloc(sizeof(struct crec))))
 	{
 	  lookup->flags = F_FORWARD | F_IMMORTAL | F_NAMEP | F_HOSTS | F_CNAME;
@@ -771,25 +771,18 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
     {
       lineno++;
       
-#ifdef HAVE_IPV6      
       if (inet_pton(AF_INET, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
 	  addrlen = INADDRSZ;
 	  domain_suffix = get_domain(addr.addr.addr4);
 	}
+#ifdef HAVE_IPV6
       else if (inet_pton(AF_INET6, token, &addr) > 0)
 	{
 	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6;
 	  addrlen = IN6ADDRSZ;
 	  domain_suffix = get_domain6(&addr.addr.addr6);
-	}
-#else 
-      if ((addr.addr.addr4.s_addr = inet_addr(token)) != (in_addr_t) -1)
-	{
-	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
-	  addrlen = INADDRSZ;
-	  domain_suffix = get_domain(addr.addr.addr4);
 	}
 #endif
       else
@@ -830,13 +823,15 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
 		  strcpy(cache->name.sname, canon);
 		  strcat(cache->name.sname, ".");
 		  strcat(cache->name.sname, domain_suffix);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash, hashsz);
+		  cache->flags = flags;
+		  add_hosts_entry(cache, &addr, addrlen, index, rhash, hashsz);
 		  name_count++;
 		}
 	      if ((cache = whine_malloc(sizeof(struct crec) + strlen(canon)+1-SMALLDNAME)))
 		{
 		  strcpy(cache->name.sname, canon);
-		  add_hosts_entry(cache, &addr, addrlen, flags, index, rhash, hashsz);
+		  cache->flags = flags;
+		  add_hosts_entry(cache, &addr, addrlen, index, rhash, hashsz);
 		  name_count++;
 		}
 	      free(canon);
@@ -860,6 +855,8 @@ void cache_reload(void)
   struct crec *cache, **up, *tmp;
   int revhashsz, i, total_size = daemon->cachesize;
   struct hostsfile *ah;
+  struct host_record *hr;
+  struct name_list *nl;
 
   cache_inserted = cache_live_freed = 0;
   
@@ -886,6 +883,34 @@ void cache_reload(void)
 	  up = &cache->hash_next;
       }
   
+  /* borrow the packet buffer for a temporary by-address hash */
+  memset(daemon->packet, 0, daemon->packet_buff_sz);
+  revhashsz = daemon->packet_buff_sz / sizeof(struct crec *);
+  /* we overwrote the buffer... */
+  daemon->srv_save = NULL;
+
+  /* Do host_records in config. */
+  for (hr = daemon->host_records; hr; hr = hr->next)
+    for (nl = hr->names; nl; nl = nl->next)
+      {
+	if (hr->addr.s_addr != 0 &&
+	    (cache = whine_malloc(sizeof(struct crec))))
+	  {
+	    cache->name.namep = nl->name;
+	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4 | F_NAMEP | F_CONFIG;
+	    add_hosts_entry(cache, (struct all_addr *)&hr->addr, INADDRSZ, 0, (struct crec **)daemon->packet, revhashsz);
+	  }
+#ifdef HAVE_IPV6
+	if (!IN6_IS_ADDR_UNSPECIFIED(&hr->addr6) &&
+	    (cache = whine_malloc(sizeof(struct crec))))
+	  {
+	    cache->name.namep = nl->name;
+	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6 | F_NAMEP | F_CONFIG;
+	    add_hosts_entry(cache, (struct all_addr *)&hr->addr6, IN6ADDRSZ, 0, (struct crec **)daemon->packet, revhashsz);
+	  }
+#endif
+      }
+	
   if (option_bool(OPT_NO_HOSTS) && !daemon->addn_hosts)
     {
       if (daemon->cachesize > 0)
@@ -893,12 +918,6 @@ void cache_reload(void)
       return;
     }
     
-  /* borrow the packet buffer for a temporary by-address hash */
-  memset(daemon->packet, 0, daemon->packet_buff_sz);
-  revhashsz = daemon->packet_buff_sz / sizeof(struct crec *);
-  /* we overwrote the buffer... */
-  daemon->srv_save = NULL;
-
   if (!option_bool(OPT_NO_HOSTS))
     total_size = read_hostsfile(HOSTSFILE, 0, total_size, (struct crec **)daemon->packet, revhashsz);
   	   

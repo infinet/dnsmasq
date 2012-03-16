@@ -116,6 +116,7 @@ struct myoption {
 #define LOPT_LUASCRIPT 305
 #define LOPT_RA        306
 #define LOPT_DUID      307
+#define LOPT_HOST_REC  308
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -237,6 +238,7 @@ static const struct myoption opts[] =
     { "dhcp-luascript", 1, 0, LOPT_LUASCRIPT },
     { "enable-ra", 0, 0, LOPT_RA },
     { "dhcp-duid", 1, 0, LOPT_DUID },
+    { "host-record", 1, 0, LOPT_HOST_REC },
     { NULL, 0, 0, 0 }
   };
 
@@ -365,6 +367,7 @@ static struct {
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
   { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
+  { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -3030,6 +3033,59 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	break;
       }
       
+    case LOPT_HOST_REC: /* --host-record */
+      {
+	struct host_record *new = opt_malloc(sizeof(struct host_record));
+	memset(new, 0, sizeof(struct host_record));
+	
+	if (!arg || !(comma = split(arg)))
+	  problem = _("Bad host-record");
+	else
+	  while (arg)
+	    {
+	      struct all_addr addr;
+	      if (inet_pton(AF_INET, arg, &addr))
+		new->addr = addr.addr.addr4;
+#ifdef HAVE_IPV6
+	      else if (inet_pton(AF_INET6, arg, &addr))
+		new->addr6 = addr.addr.addr6;
+#endif
+	      else
+		{
+		  int nomem;
+		  char *canon = canonicalise(arg, &nomem);
+		  struct name_list *nl = opt_malloc(sizeof(struct name_list));
+		  if (!canon)
+		    {
+		      problem = _("Bad name in host-record");
+		      break;
+		    }
+		  nl->name = canon;
+		  /* keep order, so that PTR record goes to first name */
+		  nl->next = NULL;
+		  if (!new->names)
+		    new->names = nl;
+		  else
+		    { 
+		      struct name_list *tmp;
+		      for (tmp = new->names; tmp->next; tmp = tmp->next);
+		      tmp->next = nl;
+		    }
+		}
+	      arg = comma;
+	      comma = split(arg);
+	    }
+
+	/* Keep list order */
+	if (!daemon->host_records_tail)
+	  daemon->host_records = new;
+	else
+	  daemon->host_records_tail->next = new;
+	new->next = NULL;
+	daemon->host_records_tail = new;
+	break;
+      }
+
     default:
       return _("unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)");
 

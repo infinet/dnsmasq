@@ -274,6 +274,18 @@ struct cname {
   struct cname *next;
 };
 
+struct host_record {
+  struct name_list {
+    char *name;
+    struct name_list *next;
+  } *names;
+  struct in_addr addr;
+#ifdef HAVE_IPV6
+  struct in6_addr addr6;
+#endif
+  struct host_record *next;
+};
+
 struct interface_name {
   char *name; /* domain name */
   char *intr; /* interface name */
@@ -695,6 +707,7 @@ extern struct daemon {
   struct naptr *naptr;
   struct txt_record *txt;
   struct ptr_record *ptr;
+  struct host_record *host_records, *host_records_tail;
   struct cname *cnames;
   struct interface_name *int_names;
   char *mxtarget;

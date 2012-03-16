@@ -21,6 +21,9 @@ version 2.61
 
 	    Better logging of DHCPv6 options.
 
+	    Add --host-record. Thanks to Rob Zwissler for the
+	    suggestion.
+
  
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
