@@ -55,13 +55,20 @@ void ra_init(time_t now)
 #endif
   int val = 255; /* radvd uses this value */
   socklen_t len = sizeof(int);
-
+  struct dhcp_context *context;
+  
   /* ensure this is around even if we're not doing DHCPv6 */
   expand_buf(&daemon->outpacket, sizeof(struct dhcp_packet));
-
+ 
+  /* See if we're guessing SLAAC addresses, if so we need to recieve ping replies */
+  for (context = daemon->ra_contexts; context; context = context->next)
+    if ((context->flags & CONTEXT_RA_NAME))
+      break;
+  
   ICMP6_FILTER_SETBLOCKALL(&filter);
   ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
-  ICMP6_FILTER_SETPASS(ND_ROUTER_ADVERT, &filter);
+  if (context)
+    ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
   
   if ((fd = socket(PF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1 ||
       getsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &hop_limit, &len) ||
@@ -77,21 +84,21 @@ void ra_init(time_t now)
   
    daemon->icmp6fd = fd;
    
-   ra_start_unsolicted(now);
+   ra_start_unsolicted(now, NULL);
 }
 
-void ra_start_unsolicted(time_t now)
+void ra_start_unsolicted(time_t now, struct dhcp_context *context)
 {   
-   struct dhcp_context *context;
-   
-   /* init timers so that we do ra's for all soon. some ra_times will end up zeroed
+   /* init timers so that we do ra's for some/all soon. some ra_times will end up zeroed
      if it's not appropriate to advertise those contexts.
      This gets re-called on a netlink route-change to re-do the advertisement
      and pick up new interfaces */
 
-   /* range 0 - 5 */
-   for (context = daemon->ra_contexts; context; context = context->next)
-     context->ra_time = now + (rand16()/13000);
+  if (context)
+     context->ra_time = now;
+  else
+    for (context = daemon->ra_contexts; context; context = context->next)
+      context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
 
    /* re-do frequently for a minute or so, in case the first gets lost. */
    ra_short_period_start = now;
@@ -158,7 +165,19 @@ void icmp6_packet(void)
 
   p = (unsigned char *)daemon->outpacket.iov_base;
   
-  if (p[0] != ICMP6_ROUTER_SOLICIT || p[1] != 0)
+  if (p[1] != 0)
+    return;
+
+  if (p[0] == ICMP6_ECHO_REPLY)
+    {
+      /* We may be doing RA but not DHCPv4, in which case the lease
+	 database may not exist and we have nothing to do anyway */
+      if (daemon->dhcp)
+	lease_ping_reply(&from.sin6_addr, p, interface);
+      return;
+    }
+
+  if (p[0] != ND_ROUTER_SOLICIT)
     return;
   
   /* look for link-layer address option for logging */
@@ -184,7 +203,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   save_counter(0);
   ra = expand(sizeof(struct ra_packet));
   
-  ra->type = ICMP6_ROUTER_ADVERT;
+  ra->type = ND_ROUTER_ADVERT;
   ra->code = 0;
   ra->hop_limit = hop_limit;
   ra->flags = 0;
@@ -238,7 +257,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   addr.sin6_port = htons(IPPROTO_ICMPV6);
   if (dest)
     {
-      memcpy(&addr.sin6_addr, dest, sizeof(struct in6_addr));
+      addr.sin6_addr = *dest;
       if (IN6_IS_ADDR_LINKLOCAL(dest) ||
 	  IN6_IS_ADDR_MC_LINKLOCAL(dest))
 	addr.sin6_scope_id = iface;
@@ -406,7 +425,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
     if (prefix == context->prefix &&
 	is_same_net6(local, &context->start6, prefix) &&
 	is_same_net6(local, &context->end6, prefix))
-      if (context->ra_time != 0 && difftime(context->ra_time, param->now) < 0.0)
+      if (context->ra_time != 0 && difftime(context->ra_time, param->now) <= 0.0)
 	{
 	  /* found an interface that's overdue for RA determine new 
 	     timeout value and zap other contexts on the same interface 
@@ -426,73 +445,5 @@ static int iface_search(struct in6_addr *local,  int prefix,
   return 1; /* keep searching */
 }
 
-static int add_subnet(struct in6_addr *local,  int prefix,
-		      int scope, int if_index, int dad, void *vparam)
-{ 
-  struct dhcp_context *context;
-  struct subnet_map **subnets = vparam;
-  struct subnet_map *map;
-
-  (void)scope;
-  (void)dad;
-
-  for (context = daemon->ra_contexts; context; context = context->next)
-    if ((context->flags & CONTEXT_RA_NAME) &&
-	prefix == context->prefix &&
-	is_same_net6(local, &context->start6, prefix) &&
-	is_same_net6(local, &context->end6, prefix))
-      {
-	for (map = *subnets; map; map = map->next)
-	  if (map->iface == 0 ||
-	      (map->iface == if_index && is_same_net6(local, &map->subnet, prefix)))
-	    break;
-	
-	/* It's there already */
-	if (map && map->iface != 0)
-	  continue;
-	
-	if (!map && (map = whine_malloc(sizeof(struct subnet_map))))
-	  {
-	    map->next = *subnets;
-	    *subnets = map;
-	  }
-	
-	if (map)
-	  {
-	    map->iface = if_index;
-	    map->subnet = *local;
-	  }
-      }
-
-  return 1;
-}
-
-/* Build a map from ra-names subnets to corresponding interfaces. This
-   is used to go from DHCPv4 leases to SLAAC addresses, 
-   interface->IPv6-subnet, IPv6-subnet + MAC address -> SLAAC.
-*/	      
-struct subnet_map *build_subnet_map(void)
-{
-  struct subnet_map *map;
-  struct dhcp_context *context;
-  static struct subnet_map *subnets = NULL;
- 
-  for (context = daemon->ra_contexts; context; context = context->next)
-    if ((context->flags & CONTEXT_RA_NAME))
-      break;
-
-  /* no ra-names, no need to go further. */
-  if (!context)
-    return NULL;
-  
-  /* mark unused */
-  for (map = subnets; map; map = map->next)
-    map->iface = 0;
-
-  if (iface_enumerate(AF_INET6, &subnets, add_subnet))
-    return subnets;
-  
-  return NULL;
-}
 
 #endif

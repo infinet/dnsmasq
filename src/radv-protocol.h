@@ -17,6 +17,13 @@
 #define ALL_HOSTS                 "FF02::1"
 #define ALL_ROUTERS               "FF02::2"
 
+struct ping_packet {
+  u8 type, code;
+  u16 checksum;
+  u16 identifier;
+  u16 sequence_no;
+};
+
 struct ra_packet {
   u8 type, code;
   u16 checksum;
@@ -31,9 +38,6 @@ struct prefix_opt {
   u32 valid_lifetime, preferred_lifetime, reserved;
   struct in6_addr prefix;
 };
-
-#define ICMP6_ROUTER_SOLICIT 133
-#define ICMP6_ROUTER_ADVERT  134
 
 #define ICMP6_OPT_SOURCE_MAC   1
 #define ICMP6_OPT_PREFIX       3

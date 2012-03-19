@@ -637,8 +637,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			if (lease)
 			  {
 			    lease_set_expires(lease, lease_time, now);
-			    lease_set_hwaddr(lease, NULL, clid, 0, iaid, clid_len);
-			    lease_set_interface(lease, interface);
+			    lease_set_hwaddr(lease, NULL, clid, 0, iaid, clid_len, now);
+			    lease_set_interface(lease, interface, now);
 			    if (hostname && ia_type == OPTION6_IA_NA)
 			      {
 				char *addr_domain = get_domain6(addrp);

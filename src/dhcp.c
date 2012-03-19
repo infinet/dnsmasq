@@ -299,7 +299,7 @@ void dhcp_packet(time_t now, int pxe_fd)
   iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, 
 			   now, unicast_dest, &is_inform, pxe_fd, iface_addr);
   lease_update_file(now);
-  lease_update_dns();
+  lease_update_dns(0);
     
   if (iov.iov_len == 0)
     return;

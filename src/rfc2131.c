@@ -483,14 +483,14 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    {
 	      logaddr = &mess->yiaddr;
 		
-	      lease_set_hwaddr(lease, mess->chaddr, NULL, mess->hlen, mess->htype, 0);
+	      lease_set_hwaddr(lease, mess->chaddr, NULL, mess->hlen, mess->htype, 0, now);
 	      if (hostname)
 		lease_set_hostname(lease, hostname, 1, get_domain(lease->addr), domain); 
 	      /* infinite lease unless nailed in dhcp-host line. */
 	      lease_set_expires(lease,  
 				have_config(config, CONFIG_TIME) ? config->lease_time : 0xffffffff, 
 				now); 
-	      lease_set_interface(lease, int_index);
+	      lease_set_interface(lease, int_index, now);
 	      
 	      clear_packet(mess, end);
 	      do_options(context, mess, end, NULL, hostname, get_domain(mess->yiaddr), 
@@ -1276,7 +1276,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    }
 	  
 	  time = calc_time(context, config, option_find(mess, sz, OPTION_LEASE_TIME, 4));
-	  lease_set_hwaddr(lease, mess->chaddr, clid, mess->hlen, mess->htype, clid_len);
+	  lease_set_hwaddr(lease, mess->chaddr, clid, mess->hlen, mess->htype, clid_len, now);
 	  
 	  /* if all the netids in the ignore_name list are present, ignore client-supplied name */
 	  if (!hostname_auth)
@@ -1310,7 +1310,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    lease_set_hostname(lease, hostname, hostname_auth, get_domain(lease->addr), domain);
 	  
 	  lease_set_expires(lease, time, now);
-	  lease_set_interface(lease, int_index);
+	  lease_set_interface(lease, int_index, now);
 
 	  if (override.s_addr != 0)
 	    lease->override = override;
@@ -1387,7 +1387,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  else
 	    time = (unsigned int)difftime(lease->expires, now);
 	  option_put(mess, end, OPTION_LEASE_TIME, 4, time);
-	  lease_set_interface(lease, int_index);
+	  lease_set_interface(lease, int_index, now);
 	}
 
       do_options(context, mess, end, req_options, hostname, get_domain(mess->ciaddr),

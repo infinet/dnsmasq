@@ -139,7 +139,7 @@ void dhcp6_packet(time_t now)
 		     sz, IN6_IS_ADDR_MULTICAST(&from.sin6_addr), now);
   
   lease_update_file(now);
-  lease_update_dns();
+  lease_update_dns(0);
   
   /* The port in the source address of the original request should
      be correct, but at least once client sends from the server port,

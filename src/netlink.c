@@ -345,10 +345,11 @@ static void nl_routechange(struct nlmsghdr *h)
       /* force RAs to sync new network and pick up new interfaces.  */
       if (daemon->ra_contexts)
 	{
-	  ra_start_unsolicted(dnsmasq_time());
+	  schedule_subnet_map();
+	  ra_start_unsolicted(dnsmasq_time(), NULL);
 	  /* cause lease_update_file to run after we return, in case we were called from
 	     iface_enumerate and can't re-enter it now */
-	  send_alarm();
+	  send_alarm(0, 0);
 	}
 #endif
 

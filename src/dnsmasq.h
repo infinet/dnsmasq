@@ -466,6 +466,7 @@ struct frec {
 #define LEASE_USED          16  /* used this DHCPv6 transaction */
 #define LEASE_NA            32  /* IPv6 no-temporary lease */
 #define LEASE_TA            64  /* IPv6 temporary lease */
+#define LEASE_HAVE_HWADDR  128  /* Have set hwaddress */
 
 struct dhcp_lease {
   int clid_len;          /* length of client identifier */
@@ -483,6 +484,14 @@ struct dhcp_lease {
   unsigned char *extradata;
   unsigned int extradata_len, extradata_size;
   int last_interface;
+#ifdef HAVE_DHCP6
+  struct slaac_address {
+    struct in6_addr addr, local;
+    time_t ping_time;
+    int backoff; /* zero -> confirmed */
+    struct slaac_address *next;
+  } *slaac_address;
+#endif
   struct dhcp_lease *next;
 };
 
@@ -627,7 +636,7 @@ struct dhcp_context {
 #ifdef HAVE_DHCP6
   struct in6_addr start6, end6; /* range of available addresses */
   struct in6_addr local6;
-  int prefix;
+  int prefix, if_index;
   time_t ra_time;
 #endif
   int flags;
@@ -651,13 +660,6 @@ struct ping_result {
   struct ping_result *next;
 };
 
-struct subnet_map {
-  int iface;
-  struct in6_addr subnet;
-  struct subnet_map *next;
-};
-  
-  
 struct tftp_file {
   int refcount, fd;
   off_t size;
@@ -957,7 +959,7 @@ char *host_from_dns(struct in_addr addr);
 /* lease.c */
 #ifdef HAVE_DHCP
 void lease_update_file(time_t now);
-void lease_update_dns();
+void lease_update_dns(int force);
 void lease_init(time_t now);
 struct dhcp_lease *lease4_allocate(struct in_addr addr);
 #ifdef HAVE_DHCP6
@@ -966,12 +968,13 @@ struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len,
 			       int lease_type, int iaid, struct in6_addr *addr);
 struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr);
 u64 lease_find_max_addr6(struct dhcp_context *context);
+void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface);
 #endif
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
-		      unsigned char *clid, int hw_len, int hw_type, int clid_len);
+		      unsigned char *clid, int hw_len, int hw_type, int clid_len, time_t now);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *domain, char *config_domain);
 void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now);
-void lease_set_interface(struct dhcp_lease *lease, int interface);
+void lease_set_interface(struct dhcp_lease *lease, int interface, time_t now);
 struct dhcp_lease *lease_find_by_client(unsigned char *hwaddr, int hw_len, int hw_type,  
 					unsigned char *clid, int clid_len);
 struct dhcp_lease *lease_find_by_addr(struct in_addr addr);
@@ -1000,7 +1003,7 @@ unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr,
 int make_icmp_sock(void);
 int icmp_ping(struct in_addr addr);
 #endif
-void send_alarm(void);
+void send_alarm(time_t event, time_t now);
 void send_event(int fd, int event, int data, char *msg);
 void clear_cache_and_reload(time_t now);
 void poll_resolv(int force, int do_reload, time_t now);
@@ -1121,6 +1124,14 @@ void put_opt6_string(char *s);
 void ra_init(time_t now);
 void icmp6_packet(void);
 time_t periodic_ra(time_t now);
-void ra_start_unsolicted(time_t now);
-struct subnet_map *build_subnet_map(void);
+void ra_start_unsolicted(time_t now, struct dhcp_context *context);
+#endif
+
+/* slaac.c */ 
+#ifdef HAVE_DHCP6
+void build_subnet_map(void);
+void slaac_add_addrs(struct dhcp_lease *lease, time_t now);
+time_t periodic_slaac(time_t now, struct dhcp_lease *leases);
+void slaac_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface, struct dhcp_lease *leases);
+void schedule_subnet_map(void);
 #endif
