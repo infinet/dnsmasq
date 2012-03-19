@@ -1035,7 +1035,7 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname);
 #endif
 
 /* helper.c */
-#if defined(HAVE_DHCP) && !defined(NO_FORK)
+#if defined(HAVE_SCRIPT)
 int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd);
 void helper_write(void);
 void queue_script(int action, struct dhcp_lease *lease, 
