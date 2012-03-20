@@ -721,6 +721,10 @@ int main (int argc, char **argv)
 #  ifdef HAVE_SCRIPT
       while (helper_buf_empty() && do_script_run(now));
 
+#    ifdef HAVE_TFTP
+      while (helper_buf_empty() && do_tftp_script_run());
+#    endif
+
       if (!helper_buf_empty())
 	{
 	  FD_SET(daemon->helperfd, &wset);
@@ -729,6 +733,11 @@ int main (int argc, char **argv)
 #  else
       /* need this for other side-effects */
       while (do_script_run(now));
+
+#    ifdef HAVE_TFTP 
+      while (do_tftp_script_run());
+#    endif
+
 #  endif
 #endif
    

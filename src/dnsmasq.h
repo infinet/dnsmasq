@@ -458,6 +458,7 @@ struct frec {
 #define ACTION_OLD_HOSTNAME  2
 #define ACTION_OLD           3
 #define ACTION_ADD           4
+#define ACTION_TFTP          5
 
 #define LEASE_NEW            1  /* newly created */
 #define LEASE_CHANGED        2  /* modified */
@@ -803,7 +804,7 @@ extern struct daemon {
 #endif
 
   /* TFTP stuff */
-  struct tftp_transfer *tftp_trans;
+  struct tftp_transfer *tftp_trans, *tftp_done_trans;
 
   /* utility string buffer, hold max sized IP address as string */
   char *addrbuff;
@@ -1040,6 +1041,9 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd);
 void helper_write(void);
 void queue_script(int action, struct dhcp_lease *lease, 
 		  char *hostname, time_t now);
+#ifdef HAVE_TFTP
+void queue_tftp(off_t file_len, char *filename, union mysockaddr *peer);
+#endif
 int helper_buf_empty(void);
 #endif
 
@@ -1047,6 +1051,7 @@ int helper_buf_empty(void);
 #ifdef HAVE_TFTP
 void tftp_request(struct listener *listen, time_t now);
 void check_tftp_listeners(fd_set *rset, time_t now);
+int do_tftp_script_run(void);
 #endif
 
 /* conntrack.c */

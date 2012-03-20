@@ -24,6 +24,24 @@ version 2.61
 	    Add --host-record. Thanks to Rob Zwissler for the
 	    suggestion.
 
+	    Invoke the DHCP script with action "tftp" when a TFTP file
+	    transfer completes. The size of the file, address to which
+	    it was sent and complete pathname are supplied. Note that
+	    version 2.60 introduced some script incompatibilties
+	    associated with DHCPv6, and this is a further change. To
+	    be safe, scripts should ignore unknown actions, and if
+	    not IPv6-aware, should exit if the environment
+	    variable DNSMASQ_IAID is set. The use-case for this is
+	    to track netboot/install.  Suggestion from Shantanu
+	    Gadgil.
+
+	    Update contrib/port-forward/dnsmasq-portforward to reflect
+	    the above.
+
+	    Set the environment variable DNSMASQ_LOG_DHCP when running
+	    the script id --log-dhcp is in effect, so that script can
+	    taylor their logging verbosity. Suggestion from Malte Forkel.
+
  
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf

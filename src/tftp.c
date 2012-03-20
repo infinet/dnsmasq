@@ -571,7 +571,9 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 		my_syslog(MS_TFTP | LOG_INFO, _("sent %s to %s"), transfer->file->filename, daemon->addrbuff);
 	      /* unlink */
 	      *up = tmp;
-	      free_transfer(transfer);
+	      /* put on queue to be sent to script and deleted */
+	      transfer->next = daemon->tftp_done_trans;
+	      daemon->tftp_done_trans = transfer;
 	      continue;
 	    }
 	}
@@ -709,4 +711,21 @@ static ssize_t get_block(char *packet, struct tftp_transfer *transfer)
     }
 }
 
+
+int do_tftp_script_run(void)
+{
+  struct tftp_transfer *transfer;
+
+  if ((transfer = daemon->tftp_done_trans))
+    {
+      daemon->tftp_done_trans = transfer->next;
+#ifdef HAVE_SCRIPT
+      queue_tftp(transfer->file->size, transfer->file->filename, &transfer->peer);
+#endif
+      free_transfer(transfer);
+      return 1;
+    }
+
+  return 0;
+}
 #endif

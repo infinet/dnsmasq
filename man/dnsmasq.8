@@ -1069,7 +1069,8 @@ re-intialised. The enterprise-id is assigned by IANA, and the uid is a
 string of hex octets unique to a particular device.
 .TP
 .B \-6 --dhcp-script=<path>
-Whenever a new DHCP lease is created, or an old one destroyed, the
+Whenever a new DHCP lease is created, or an old one destroyed, or a
+TFTP file transfer completes, the
 executable specified by this option is run.  <path>
 must be an absolute pathname, no PATH search occurs. 
 The arguments to the process
@@ -1119,6 +1120,8 @@ is known.
 DNSMASQ_TAGS contains all the tags set during the
 DHCP transaction, separated by spaces.
 
+DNSMASQ_LOG_DHCP is set if --log-dhcp is in effect.
+
 For IPv4 only:
 
 DNSMASQ_CLIENT_ID if the host provided a client-id.
@@ -1145,6 +1148,8 @@ only  supplied for
 since these data are not held in dnsmasq's lease
 database.
 
+
+
 All file descriptors are
 closed except stdin, stdout and stderr which are open to /dev/null
 (except in debug mode).
@@ -1163,6 +1168,17 @@ all existing leases as they are read from the lease file. Expired
 leases will be called with "del" and others with "old". When dnsmasq
 receives a HUP signal, the script will be invoked for existing leases
 with an "old " event.
+
+
+There are two further actions which may appear as the first argument
+to the script, "init" and "tftp". More may be added in the future, so
+scripts should be written to ignore unknown actions. "init" is
+decsribed below in 
+.B --leasefile-ro
+The "tftp" action is invoked when a TFTP file transfer completes: the
+arguments are the file size in bytes, the address to which the file
+was sent, and the complete pathname of the file.
+ 
 .TP
 .B --dhcp-luascript=<path>
 Specify a script written in Lua, to be run when leases are created,
@@ -1176,11 +1192,13 @@ function, and may provide
 and
 .B shutdown
 functions, which are called, without arguments when dnsmasq starts up
-and terminates.
+and terminates. It may also provide a 
+.B tftp
+function.
 
 The 
 .B lease
-method receives the information detailed in 
+function receives the information detailed in 
 .B --dhcp-script. 
 It gets two arguments, firstly the action, which is a string
 containing, "add", "old" or "del", and secondly a table of tag value
@@ -1197,7 +1215,16 @@ for IPv4, and
 .B client_duid, ip_address
 and 
 .B hostname
-for IPv6. 
+for IPv6.
+
+The  
+.B tftp
+function is called in the same way as the lease function, and the
+table holds the tags 
+.B destination_address,
+.B file_name
+and 
+.B file_size.
 .TP
 .B --dhcp-scriptuser
 Specify the user as which to run the lease-change script or Lua script. This defaults to root, but can be changed to another user using this flag. 
