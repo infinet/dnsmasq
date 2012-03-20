@@ -206,7 +206,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   ra->type = ND_ROUTER_ADVERT;
   ra->code = 0;
   ra->hop_limit = hop_limit;
-  ra->flags = 0;
+  ra->flags = 0x00;
   ra->lifetime = htons(1800); /* AdvDefaultLifetime*/
   ra->reachable_time = 0;
   ra->retrans_time = 0;
@@ -246,7 +246,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 
   /* set managed bits unless we're providing only RA on this link */
   if (parm.managed)
-    ra->flags = 0xc0; 
+    ra->flags = 0xc0; /* M flag, managed, O flag, other */ 
 
   /* decide where we're sending */
   memset(&addr, 0, sizeof(addr));
@@ -293,7 +293,11 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		is_same_net6(local, &context->start6, prefix) &&
 		is_same_net6(local, &context->end6, prefix))
 	      {
-		if (!(context->flags & CONTEXT_RA_ONLY))
+		int do_slaac = 0;
+
+		if (context->flags & CONTEXT_RA_ONLY)
+		  do_slaac = 1;
+		else
 		  {
 		    /* don't do RA for non-ra-only unless --enable-ra is set */
 		    if (!option_bool(OPT_RA))
@@ -317,6 +321,10 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		      is_same_net6(local, &tmp->start6, prefix) &&
 		      is_same_net6(local, &tmp->end6, prefix))
 		    {
+		      /* if any dhcp-range with ra-only on this subnet
+			 set the "do_slaac" bit */
+		      if (tmp->flags & CONTEXT_RA_ONLY)
+			do_slaac = 1;
 		      tmp->flags |= CONTEXT_RA_DONE;
 		      context->ra_time = 0;
 		    }
@@ -335,7 +343,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    opt->len = 4;
 		    opt->prefix_len = prefix;
 		    /* autonomous only is we're not doing dhcp */
-		    opt->flags = (context->flags & CONTEXT_RA_ONLY) ? 0xc0 : 0x00;
+		    opt->flags = do_slaac ? 0x40 : 0x00;
 		    opt->valid_lifetime = opt->preferred_lifetime = htonl(time);
 		    opt->reserved = 0;
 		    

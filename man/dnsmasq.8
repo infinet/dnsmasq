@@ -576,14 +576,14 @@ for details. Instead, the keyword
 .B ra-names
 may be used. This does the same at ra-only, but also enables a mode
 which gives DNS names to dual-stack hosts which do SLAAC for
-IPv6. Dnsmasq uses the hosts IPv4 lease to derive the name, network
+IPv6. Dnsmasq uses the host's IPv4 lease to derive the name, network
 segment and MAC address and assumes that the host will also have an
 IPv6 address calculated using the SLAAC alogrithm, on the same network
-segment. An AAAA record is added to the DNS for this IPv6
+segment. The address is pinged, and if a reply is received, an AAAA
+record is added to the DNS for this IPv6
 address. Note that this is only happens for directly-connected
-networks, (not one doing DHCP via a relay) and it will generate an
-erroneous AAAA record if a host is using privacy extensions or does
-not support IPv6. Use with care.
+networks, (not one doing DHCP via a relay) and it will not work 
+if a host is using privacy extensions. 
 
 The interface:<interface name> section is not normally used. See the
 NOTES section for details of this.
@@ -1292,13 +1292,17 @@ only a subset of this is needed, and dnsmasq can handle it, using
 existing DHCP configuration to provide most data. When RA is enabled,
 dnsmasq will advertise a prefix for each dhcp-range, with default
 router and recursive DNS server as the relevant link-local address on 
-the machine running dnsmasq. The "managed address" bits are set,
-except for a dhcp-range which is marked as "ra-only", in which case RA
-is provided but no DHCPv6 service and the managed address bits are
-cleared. 
+the machine running dnsmasq. The "managed address" bits are set, and
+the "use SLAAC" bit is reset, except for a dhcp-range which is 
+marked as "ra-only" or "ra-names", in which case RA is provided but no 
+DHCPv6 service and the managed address bits are
+cleared and the "use SLAAC" bit set. If the same subnet appears in a
+normal dhcp-range and an "ra-only" dhcp-range, then the "managed
+address" bits and the "use SLAAC" bits are all set, allowing SLAAC and
+DHCP address to co-exist on the same subnet.  
 .B enable-ra
 enables router advertisement for prefixes where dnsmasq is doing
-DHCPv6. It is not needed to "ra-only" prefixes. Creating an "ra-only"
+DHCPv6. It is not needed for "ra-only" prefixes. Creating an "ra-only"
 prefix and not setting 
 .B enable-ra
 sends advertisements only to "ra-only" prefixes. 

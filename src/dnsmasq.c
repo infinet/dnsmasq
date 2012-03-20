@@ -23,7 +23,6 @@ struct daemon *daemon;
 
 static volatile pid_t pid = 0;
 static volatile int pipewrite;
-static int alarm_queued = 0;
 
 static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp);
 static void check_dns_listeners(fd_set *set, time_t now);
@@ -868,20 +867,14 @@ static void sig_handler(int sig)
 /* now == 0 -> queue immediate callback */
 void send_alarm(time_t event, time_t now)
 {
-  
-  if (now != 0 && event == 0)
-    return;
-
-  if ((now == 0 || difftime(event, now) <= 0.0))
+  if (now == 0 || event != 0)
     {
-      if (!alarm_queued)
-	{
-	  send_event(pipewrite, EVENT_ALARM, 0, NULL);
-	  alarm_queued = 1;
-	}
+      /* alarm(0) or alarm(-ve) doesn't do what we want.... */
+      if ((now == 0 || difftime(event, now) <= 0.0))
+	send_event(pipewrite, EVENT_ALARM, 0, NULL);
+      else 
+	alarm((unsigned)difftime(event, now)); 
     }
-  else 
-    alarm((unsigned)difftime(event, now)); 
 }
 
 void send_event(int fd, int event, int data, char *msg)
@@ -995,7 +988,6 @@ static void async_event(int pipe, time_t now)
 	break;
 	
       case EVENT_ALARM:
-	alarm_queued = 0;
 #ifdef HAVE_DHCP
 	if (daemon->dhcp || daemon->dhcp6)
 	  {
