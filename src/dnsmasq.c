@@ -209,13 +209,6 @@ int main (int argc, char **argv)
       for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
 	if (if_tmp->name && !if_tmp->used)
 	  die(_("unknown interface %s"), if_tmp->name, EC_BADNET);
-  
-      for (if_tmp = daemon->if_addrs; if_tmp; if_tmp = if_tmp->next)
-	if (!if_tmp->used)
-	  {
-	    prettyprint_addr(&if_tmp->addr, daemon->namebuff);
-	    die(_("no interface with address %s"), daemon->namebuff, EC_BADNET);
-	  }
     }
   else 
     create_wildcard_listeners();
@@ -1284,18 +1277,19 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	  int confd;
 	  struct irec *iface = NULL;
 	  pid_t p;
+	  union mysockaddr tcp_addr;
+	  socklen_t tcp_len = sizeof(union mysockaddr);
+
+	  while ((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
 	  
-	  while((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
-	  
-	  if (confd == -1)
+	  if (confd == -1 ||
+	      getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1)
 	    continue;
 	  
 	  if (option_bool(OPT_NOWILD))
-	    iface = listener->iface;
+	    iface = listener->iface; /* May be NULL */
 	  else
 	    {
-	      union mysockaddr tcp_addr;
-	      socklen_t tcp_len = sizeof(union mysockaddr);
 	      /* Check for allowed interfaces when binding the wildcard address:
 		 we do this by looking for an interface with the same address as 
 		 the local address of the TCP connection, then looking to see if that's
@@ -1303,14 +1297,13 @@ static void check_dns_listeners(fd_set *set, time_t now)
 		 interface too, for localisation. */
 	      
 	      /* interface may be new since startup */
-	      if (enumerate_interfaces() &&
-		  getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) != -1)
+	      if (enumerate_interfaces())
 		for (iface = daemon->interfaces; iface; iface = iface->next)
 		  if (sockaddr_isequal(&iface->addr, &tcp_addr))
 		    break;
 	    }
 	  
-	  if (!iface)
+	  if (!iface && !option_bool(OPT_NOWILD))
 	    {
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);
@@ -1336,7 +1329,13 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      unsigned char *buff;
 	      struct server *s; 
 	      int flags;
-	      
+	      struct in_addr netmask;
+
+	      if (iface)
+		netmask = iface->netmask;
+	      else
+		netmask.s_addr = 0;
+
 #ifndef NO_FORK
 	      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
 		 terminate the process. */
@@ -1354,7 +1353,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
 		fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
 	      
-	      buff = tcp_request(confd, now, &iface->addr, iface->netmask);
+	      buff = tcp_request(confd, now, &tcp_addr, netmask);
 	       
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);

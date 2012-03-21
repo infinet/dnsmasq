@@ -57,7 +57,7 @@ void tftp_request(struct listener *listen, time_t now)
   int mtuflag = IP_PMTUDISC_DONT;
 #endif
   char namebuff[IF_NAMESIZE];
-  char *name;
+  char *name = NULL;
   char *prefix = daemon->tftp_prefix;
   struct tftp_prefix *pref;
   struct interface_list *ir;
@@ -95,9 +95,20 @@ void tftp_request(struct listener *listen, time_t now)
   
   if (option_bool(OPT_NOWILD))
     {
-      addr = listen->iface->addr;
-      mtu = listen->iface->mtu;
-      name = listen->iface->name;
+      if (listen->iface)
+	{
+	  addr = listen->iface->addr;
+	  mtu = listen->iface->mtu;
+	  name = listen->iface->name;
+	}
+      else
+	{
+	  /* we're listening on an address that doesn't appear on an interface,
+	     ask the kernel what the socket is bound to */
+	  socklen_t tcp_len = sizeof(union mysockaddr);
+	  if (getsockname(listen->tftpfd, (struct sockaddr *)&addr, &tcp_len) == -1)
+	    return;
+	}
     }
   else
     {
@@ -211,15 +222,18 @@ void tftp_request(struct listener *listen, time_t now)
 	mtu = ifr.ifr_mtu;      
     }
   
-  /* check for per-interface prefix */ 
-  for (pref = daemon->if_prefix; pref; pref = pref->next)
-    if (strcmp(pref->interface, name) == 0)
-      prefix = pref->prefix;
-
-  /* wierd TFTP interfaces disable special options. */
-  for (ir = daemon->tftp_interfaces; ir; ir = ir->next)
-    if (strcmp(ir->interface, name) == 0)
-      special = 1;
+  if (name)
+    {
+      /* check for per-interface prefix */ 
+      for (pref = daemon->if_prefix; pref; pref = pref->next)
+	if (strcmp(pref->interface, name) == 0)
+	  prefix = pref->prefix;
+      
+      /* wierd TFTP interfaces disable special options. */
+      for (ir = daemon->tftp_interfaces; ir; ir = ir->next)
+	if (strcmp(ir->interface, name) == 0)
+	  special = 1;
+    }
 
   if (listen->family == AF_INET)
     {

@@ -660,7 +660,7 @@ void receive_query(struct listener *listen, time_t now)
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
-  if (listen->family == AF_INET && option_bool(OPT_NOWILD))
+  if (listen->iface && listen->family == AF_INET && option_bool(OPT_NOWILD))
     {
       dst_addr_4 = listen->iface->addr.in.sin_addr;
       netmask = listen->iface->netmask;

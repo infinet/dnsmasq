@@ -395,7 +395,7 @@ struct irec {
 
 struct listener {
   int fd, tcpfd, tftpfd, family;
-  struct irec *iface; /* only valid for non-wildcard */
+  struct irec *iface; /* only sometimes valid for non-wildcard */
   struct listener *next;
 };
 

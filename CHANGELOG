@@ -40,7 +40,16 @@ version 2.61
 
 	    Set the environment variable DNSMASQ_LOG_DHCP when running
 	    the script id --log-dhcp is in effect, so that script can
-	    taylor their logging verbosity. Suggestion from Malte Forkel.
+	    taylor their logging verbosity. Suggestion from Malte
+	    Forkel.
+	    
+	    Arrange that addresses specified with --listen-address
+	    work even if there is no interface carrying the
+	    address. This is chiefly useful for IPv4 loopback
+	    addresses, where any address in 127.0.0.0/8 is a valid
+	    loopback address, but normally only 127.0.0.1 appears on
+	    the lo interface. Thanks to Mathieu Trudel-Lapierre for
+	    the idea and initial patch. 
 
  
 version 2.60
