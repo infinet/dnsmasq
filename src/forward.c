@@ -26,9 +26,9 @@ static struct randfd *allocate_rfd(int family);
 
 /* Send a UDP packet with its source address set as "source" 
    unless nowild is true, when we just send it with the kernel default */
-void send_from(int fd, int nowild, char *packet, size_t len, 
-	       union mysockaddr *to, struct all_addr *source,
-	       unsigned int iface)
+int send_from(int fd, int nowild, char *packet, size_t len, 
+	      union mysockaddr *to, struct all_addr *source,
+	      unsigned int iface, int *errp)
 {
   struct msghdr msg;
   struct iovec iov[1]; 
@@ -110,8 +110,15 @@ void send_from(int fd, int nowild, char *packet, size_t len,
       if (retry_send())
 	goto retry;
       
-      my_syslog(LOG_ERR, _("failed to send packet: %s"), strerror(errno));
+      if (errp)
+	*errp = errno;
+      else
+	my_syslog(LOG_ERR, _("failed to send packet: %s"), strerror(errno));
+      
+      return 0;
     }
+
+  return 1;
 }
           
 static unsigned int search_servers(time_t now, struct all_addr **addrpp, 
@@ -432,7 +439,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   if (udpfd != -1)
     {
       plen = setup_reply(header, plen, addrp, flags, daemon->local_ttl);
-      send_from(udpfd, option_bool(OPT_NOWILD), (char *)header, plen, udpaddr, dst_addr, dst_iface);
+      send_from(udpfd, option_bool(OPT_NOWILD), (char *)header, plen, udpaddr, dst_addr, dst_iface, NULL);
     }
 
   return 0;
@@ -621,7 +628,7 @@ void reply_query(int fd, int family, time_t now)
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
 	  send_from(forward->fd, option_bool(OPT_NOWILD), daemon->packet, nn, 
-		    &forward->source, &forward->dest, forward->iface);
+		    &forward->source, &forward->dest, forward->iface, NULL);
 	}
       free_frec(forward); /* cancel */
     }
@@ -816,7 +823,7 @@ void receive_query(struct listener *listen, time_t now)
   if (m >= 1)
     {
       send_from(listen->fd, option_bool(OPT_NOWILD), (char *)header, 
-		m, &source_addr, &dst_addr, if_index);
+		m, &source_addr, &dst_addr, if_index, NULL);
       daemon->local_answer++;
     }
   else if (forward_query(listen->fd, &source_addr, &dst_addr, if_index,

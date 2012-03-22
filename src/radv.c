@@ -199,7 +199,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   struct ifreq ifr;
   struct sockaddr_in6 addr;
   struct dhcp_context *context;
- 
+
   save_counter(0);
   ra = expand(sizeof(struct ra_packet));
   
@@ -266,7 +266,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
     inet_pton(AF_INET6, ALL_HOSTS, &addr.sin6_addr); 
   
   send_from(daemon->icmp6fd, 0, daemon->outpacket.iov_base, save_counter(0),
-	    (union mysockaddr *)&addr, (struct all_addr *)&parm.link_local, iface); 
+	    (union mysockaddr *)&addr, (struct all_addr *)&parm.link_local, iface, NULL); 
   
 }
 

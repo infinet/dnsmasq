@@ -911,9 +911,9 @@ unsigned char *tcp_request(int confd, time_t now,
 			   union mysockaddr *local_addr, struct in_addr netmask);
 void server_gone(struct server *server);
 struct frec *get_new_frec(time_t now, int *wait);
-void send_from(int fd, int nowild, char *packet, size_t len, 
+int send_from(int fd, int nowild, char *packet, size_t len, 
 	       union mysockaddr *to, struct all_addr *source,
-	       unsigned int iface);
+	       unsigned int iface, int *errp);
 
 /* network.c */
 int indextoname(int fd, int index, char *name);
