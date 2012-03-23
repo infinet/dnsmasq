@@ -1,3 +1,9 @@
+dnsmasq (2.60-2) unstable; urgency=high
+
+   * Fix DHCPv4 segfault. (closes: #665008)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 23 Mar 2012 09:37:23 +0000
+
 dnsmasq (2.61-1) unstable; urgency=low
 
    * New upstream.
