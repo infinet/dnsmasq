@@ -2095,7 +2095,8 @@ static void do_options(struct dhcp_context *context,
   struct dhcp_netid_list *id_list;
 
   /* filter options based on tags, those we want get DHOPT_TAGOK bit set */
-  context->netid.next = NULL;
+  if (context)
+    context->netid.next = NULL;
   tagif = option_filter(netid, context && context->netid.net ? &context->netid : NULL, config_opts);
 	
   /* logging */

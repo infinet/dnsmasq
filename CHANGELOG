@@ -51,6 +51,10 @@ version 2.61
 	    the lo interface. Thanks to Mathieu Trudel-Lapierre for
 	    the idea and initial patch. 
 
+	    Fix crash, introduced in 2.60, when a DHCPINFORM is
+	    received from a network which has no valid dhcp-range.
+	    Thanks to Stephane Glondu for the bug report.
+
  
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
