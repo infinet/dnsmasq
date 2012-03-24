@@ -693,12 +693,12 @@ int main (int argc, char **argv)
 	{
 	  FD_SET(daemon->dhcp6fd, &rset);
 	  bump_maxfd(daemon->dhcp6fd, &maxfd);
-	  
-	  if (daemon->ra_contexts)
-	    {
-	      FD_SET(daemon->icmp6fd, &rset);
-	      bump_maxfd(daemon->icmp6fd, &maxfd); 
-	    }
+	}
+
+      if (daemon->ra_contexts)
+	{
+	  FD_SET(daemon->icmp6fd, &rset);
+	  bump_maxfd(daemon->icmp6fd, &maxfd); 
 	}
 #endif
 
