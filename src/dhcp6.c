@@ -229,7 +229,7 @@ int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int cl
   
   for (pass = 0; pass <= 1; pass++)
     for (c = context; c; c = c->current)
-      if (c->flags & (CONTEXT_STATIC | CONTEXT_PROXY))
+      if (c->flags & (CONTEXT_STATIC | CONTEXT_RA_STATELESS))
 	continue;
       else if (!match_netid(c->filter, netids, pass))
 	continue;

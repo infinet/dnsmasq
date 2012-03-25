@@ -646,13 +646,15 @@ struct dhcp_context {
   struct dhcp_context *next, *current;
 };
 
-#define CONTEXT_STATIC    1
-#define CONTEXT_NETMASK   2
-#define CONTEXT_BRDCAST   4
-#define CONTEXT_PROXY     8
-#define CONTEXT_RA_ONLY  16
-#define CONTEXT_RA_DONE  32
-#define CONTEXT_RA_NAME  64
+#define CONTEXT_STATIC         1
+#define CONTEXT_NETMASK        2
+#define CONTEXT_BRDCAST        4
+#define CONTEXT_PROXY          8
+#define CONTEXT_RA_ONLY       16
+#define CONTEXT_RA_DONE       32
+#define CONTEXT_RA_NAME       64
+#define CONTEXT_RA_STATELESS 128
+#define CONTEXT_DHCP         256
 
 struct ping_result {
   struct in_addr addr;

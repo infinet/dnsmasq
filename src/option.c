@@ -1959,7 +1959,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
     case 'F':  /* --dhcp-range */
       {
 	int k, leasepos = 2;
-	char *cp, *a[5] = { NULL, NULL, NULL, NULL, NULL };
+	char *cp, *a[7] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 	struct dhcp_context *new = opt_malloc(sizeof(struct dhcp_context));
 	
 	memset (new, 0, sizeof(*new));
@@ -2010,7 +2010,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	      }
 	  }
 	
-	for (k = 1; k < 5; k++)
+	for (k = 1; k < 7; k++)
 	  if (!(a[k] = split(a[k-1])))
 	    break;
 	
@@ -2020,17 +2020,12 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	  {
 	    new->next = daemon->dhcp;
 	    daemon->dhcp = new;
+	    new->end = new->start;
 	    if (strcmp(a[1], "static") == 0)
-	      {
-		new->end = new->start;
-		new->flags |= CONTEXT_STATIC;
-	      }
+	      new->flags |= CONTEXT_STATIC;
 	    else if (strcmp(a[1], "proxy") == 0)
-	      {
-		new->end = new->start;
-		new->flags |= CONTEXT_PROXY;
-	      }
-	    else if ((new->end.s_addr = inet_addr(a[1])) == (in_addr_t)-1)
+	      new->flags |= CONTEXT_PROXY;
+	    else if (!inet_pton(AF_INET, a[1], &new->end))
 	      option = '?';
 	    
 	    if (ntohl(new->start.s_addr) > ntohl(new->end.s_addr))
@@ -2060,53 +2055,54 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	else if (inet_pton(AF_INET6, a[0], &new->start6))
 	  {
 	    new->prefix = 64; /* default */
+	    new->end6 = new->start6;
+
+	    for (leasepos = 1; leasepos < k; leasepos++)
+	      {
+		if (strcmp(a[leasepos], "static") == 0)
+		  new->flags |= CONTEXT_STATIC | CONTEXT_DHCP;
+		else if (strcmp(a[leasepos], "ra-only") == 0 || strcmp(a[leasepos], "slaac") == 0 )
+		  new->flags |= CONTEXT_RA_ONLY;
+		else if (strcmp(a[leasepos], "ra-names") == 0)
+		  new->flags |= CONTEXT_RA_NAME;
+		else if (strcmp(a[leasepos], "ra-stateless") == 0)
+		  new->flags |= CONTEXT_RA_STATELESS | CONTEXT_DHCP;
+		else if (leasepos == 1 && inet_pton(AF_INET6, a[leasepos], &new->end6))
+		  new->flags |= CONTEXT_DHCP; 
+		else  
+		  break;
+	      }
 	    
-	    if (strcmp(a[1], "static") == 0)
-	      {
-		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
-		new->flags |= CONTEXT_STATIC;
-	      }
-	    else if (strcmp(a[1], "ra-only") == 0)
-	      {
-		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
-		new->flags |= CONTEXT_RA_ONLY;
-	      }
-	    else if (strcmp(a[1], "ra-names") == 0)
-	      {
-		memcpy(&new->end6, &new->start6, IN6ADDRSZ);
-		new->flags |= CONTEXT_RA_NAME | CONTEXT_RA_ONLY;
-	      }
-	    else if (!inet_pton(AF_INET6, a[1], &new->end6))
-	      option = '?';
-	    
-	    if (new->flags & CONTEXT_RA_ONLY)
-	      {
-		new->next = daemon->ra_contexts;
-		daemon->ra_contexts = new;
-	      }
-	    else
+	    if (new->flags & CONTEXT_DHCP)
 	      {
 		new->next = daemon->dhcp6;
 		daemon->dhcp6 = new;
 	      }
-
+	    else
+	      {
+		new->next = daemon->ra_contexts;
+		daemon->ra_contexts = new;
+	      }
+	     
 	    /* bare integer < 128 is prefix value */
-	    if (option != '?' && k >= 3)
+	    if (option != '?' && leasepos < k)
 	      {
 		int pref;
-		for (cp = a[2]; *cp; cp++)
+		for (cp = a[leasepos]; *cp; cp++)
 		  if (!(*cp >= '0' && *cp <= '9'))
 		    break;
-		if (!*cp && (pref = atoi(a[2])) <= 128)
+		if (!*cp && (pref = atoi(a[leasepos])) <= 128)
 		  {
 		    new->prefix = pref;
-		    leasepos = 3;
-		    if ((new->flags & CONTEXT_RA_ONLY) && new->prefix != 64)
+		    leasepos++;
+		    if ((new->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)) && 
+			new->prefix != 64)
 		      problem = _("prefix must be exactly 64 for RA subnets");
 		    else if (new->prefix < 64)
 		      problem = _("prefix must be at least 64");
 		  }
 	      }
+	    
 	    if (!problem && !is_same_net6(&new->start6, &new->end6, new->prefix))
 	      problem = _("inconsistent DHCPv6 range");
 	    else if (addr6part(&new->start6) > addr6part(&new->end6))
@@ -2118,7 +2114,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	  }
 #endif
 	
-	if (k >= leasepos+1)
+	if (leasepos < k)
 	  {
 	    if (strcmp(a[leasepos], "infinite") == 0)
 	      new->lease_time = 0xffffffff;

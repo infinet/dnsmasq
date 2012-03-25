@@ -549,23 +549,30 @@ int main (int argc, char **argv)
 	    {
 	      start = &dhcp_tmp->start6;
 	      end = &dhcp_tmp->end6;
+	      struct in6_addr subnet = dhcp_tmp->start6;
+	      setaddr6part(&subnet, 0);
+	      inet_ntop(AF_INET6, &subnet, daemon->dhcp_buff2, 256);
 	    }
 #endif
 	  
-	  prettyprint_time(daemon->dhcp_buff2, dhcp_tmp->lease_time);
+	  prettyprint_time(daemon->namebuff, dhcp_tmp->lease_time);
 	  inet_ntop(family, start, daemon->dhcp_buff, 256);
 	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
-	  my_syslog(MS_DHCP | LOG_INFO, 
-		    (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		    _("DHCP, static leases only on %.0s%s, lease time %s") :
-		    (dhcp_tmp->flags & CONTEXT_RA_NAME) ? 
-		    _("router advertisement with DHCPv4-derived names on %.0s%s, lifetime %s") :
-		    (dhcp_tmp->flags & CONTEXT_RA_ONLY) ? 
-		    _("router advertisement only on %.0s%s, lifetime %s") :
-		    (dhcp_tmp->flags & CONTEXT_PROXY) ?
-		    _("DHCP, proxy on subnet %.0s%s%.0s") :
-		    _("DHCP, IP range %s -- %s, lease time %s"),
-		    daemon->dhcp_buff, daemon->dhcp_buff3, daemon->dhcp_buff2);
+	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
+	    my_syslog(MS_DHCP | LOG_INFO, 
+		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
+		      _("DHCP, static leases only on %.0s%s, lease time %s") :
+		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
+		      _("SLAAC and stateless DHCPv6 on %.0s%s%.0s") :
+		      (dhcp_tmp->flags & CONTEXT_PROXY) ?
+		      _("DHCP, proxy on subnet %.0s%s%.0s") :
+		      _("DHCP, IP range %s -- %s, lease time %s"),
+		      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
+	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
+	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC and DHCPv4-derived names on %s"), daemon->dhcp_buff2);
+	  if (dhcp_tmp->flags & CONTEXT_RA_ONLY)
+	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s"), daemon->dhcp_buff2);
+ 
 	}
       
 #ifdef HAVE_DHCP6

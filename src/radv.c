@@ -27,7 +27,7 @@
 #include <netinet/icmp6.h>
 
 struct ra_param {
-  int ind, managed, found_context, first;
+  int ind, managed, other, found_context, first;
   char *if_name;
   struct in6_addr link_local;
 };
@@ -213,6 +213,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 
   parm.ind = iface;
   parm.managed = 0;
+  parm.other = 0;
   parm.found_context = 0;
   parm.if_name = iface_name;
   parm.first = 1;
@@ -246,8 +247,10 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 
   /* set managed bits unless we're providing only RA on this link */
   if (parm.managed)
-    ra->flags = 0xc0; /* M flag, managed, O flag, other */ 
-
+    ra->flags |= 0x80; /* M flag, managed, */
+   if (parm.other)
+    ra->flags |= 0x40; /* O flag, other */ 
+			
   /* decide where we're sending */
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -295,14 +298,20 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	      {
 		int do_slaac = 0;
 
-		if (context->flags & CONTEXT_RA_ONLY)
-		  do_slaac = 1;
+		if ((context->flags & 
+		     (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
+		  {
+		    do_slaac = 1;
+		    if (context->flags & CONTEXT_RA_STATELESS)
+		      param->other = 1; 
+		  }
 		else
 		  {
 		    /* don't do RA for non-ra-only unless --enable-ra is set */
 		    if (!option_bool(OPT_RA))
 		      continue;
 		    param->managed = 1;
+		    param->other = 1;
 		  }
 
 		if (context->flags & CONTEXT_RA_DONE)
@@ -321,14 +330,27 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		      is_same_net6(local, &tmp->start6, prefix) &&
 		      is_same_net6(local, &tmp->end6, prefix))
 		    {
-		      /* if any dhcp-range with ra-only on this subnet
-			 set the "do_slaac" bit */
-		      if (tmp->flags & CONTEXT_RA_ONLY)
-			do_slaac = 1;
 		      tmp->flags |= CONTEXT_RA_DONE;
 		      context->ra_time = 0;
+		      /* if any dhcp-range with ra-only on this subnet
+			 set the "do_slaac" bit */
+		      if (tmp->flags & 
+			  (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
+			{
+			  do_slaac = 1;
+			  if (context->flags & CONTEXT_RA_STATELESS)
+			    param->other = 1; 
+			}
+		      else
+			{
+			  /* don't do RA for non-ra-only unless --enable-ra is set */
+			  if (!option_bool(OPT_RA))
+			    continue;
+			  param->managed = 1;
+			  param->other = 1;
+			}
 		    }
-
+		
 		if ((opt = expand(sizeof(struct prefix_opt))))
 		  {
 		    u64 addrpart = addr6part(&context->start6);
