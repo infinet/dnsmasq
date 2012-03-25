@@ -395,11 +395,11 @@ time_t periodic_ra(time_t now)
       for (next_event = 0, context = daemon->ra_contexts; context; context = context->next)
 	if (context->ra_time != 0)
 	  {
-	    if (difftime(context->ra_time, now) < 0.0)
+	    if (difftime(context->ra_time, now) <= 0.0)
 	      break; /* overdue */
 	    
-	    if (next_event == 0 || difftime(next_event, context->ra_time + 2) > 0.0)
-	      next_event = context->ra_time + 2;
+	    if (next_event == 0 || difftime(next_event, context->ra_time) > 0.0)
+	      next_event = context->ra_time;
 	  }
       
       /* none overdue */
