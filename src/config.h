@@ -167,7 +167,7 @@ HAVE_SOLARIS_NETWORK
    define exactly one of these to alter interaction with kernel networking.
 
 HAVE_GETOPT_LONG
-   defined when GNU-sty;e getopt_long available. 
+   defined when GNU-style getopt_long available. 
 
 HAVE_ARC4RANDOM
    defined if arc4random() available to get better security from DNS spoofs
