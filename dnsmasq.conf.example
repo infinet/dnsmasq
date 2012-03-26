@@ -169,13 +169,31 @@
 # hosts. Use the DHCPv4 lease to derive the name, network segment and 
 # MAC address and assume that the host will also have an
 # IPv6 address calculated using the SLAAC alogrithm.
-# This will generate an erroneous AAAA record if a host is using privacy 
-# extensions or does not support IPv6. Use with care.
 #dhcp-range=1234::, ra-names
 
 # Do Router Advertisements, BUT NOT DHCP for this subnet.
 # Set the lifetime to 46 hours. (Note: minimum lifetime is 2 hours.)
 #dhcp-range=1234::, ra-only, 48h
+
+# Do DHCP and Router Advertisements for this subnet. Set the A bit in the RA
+# so that clients can use SLAAC addresses as well as DHCP ones.
+#dhcp-range=1234::2, 1234::500, slaac
+
+# Do Router Advertisements and stateless DHCP for this subnet. Clients will
+# not get addresses from DHCP, but they will get other configuration information.
+# They will use SLAAC for addresses.
+#dhcp-range=1234::, ra-stateless
+
+# Do stateless DHCP, SLAAC, and generate DNS names for SLAAC addresses
+# from DHCPv4 leases.
+#dhcp-range=1234::, ra-stateless, ra-names
+
+# Do router advertisements for all subnets where we're doing DHCPv6
+# Unless overriden by ra-stateless, ra-names, et al, the router 
+# advertisements will have the M and O bits set, so that the clients
+# get addresses and configuration from DHCPv6, and the A bit reset, so the 
+# clients don't use SLAAC addresses.
+#enable-ra
 
 # Supply parameters for specified hosts using DHCP. There are lots
 # of valid alternatives, so we will give examples of each. Note that
