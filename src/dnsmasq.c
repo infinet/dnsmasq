@@ -560,19 +560,22 @@ int main (int argc, char **argv)
 	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
 	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
 	    my_syslog(MS_DHCP | LOG_INFO, 
-		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		      _("DHCP, static leases only on %.0s%s, lease time %s") :
+#ifdef HAVE_DHCP6
 		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
 		      _("SLAAC and stateless DHCPv6 on %.0s%s%.0s") :
+#endif
+		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
+		      _("DHCP, static leases only on %.0s%s, lease time %s") :
 		      (dhcp_tmp->flags & CONTEXT_PROXY) ?
 		      _("DHCP, proxy on subnet %.0s%s%.0s") :
 		      _("DHCP, IP range %s -- %s, lease time %s"),
 		      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
+#ifdef HAVE_DHCP6
 	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
 	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC and DHCPv4-derived names on %s"), daemon->dhcp_buff2);
 	  if (dhcp_tmp->flags & CONTEXT_RA_ONLY)
 	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s"), daemon->dhcp_buff2);
- 
+#endif 
 	}
       
 #ifdef HAVE_DHCP6
