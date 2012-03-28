@@ -33,12 +33,12 @@ void dhcp6_init(void)
 {
   int fd;
   struct sockaddr_in6 saddr;
-#if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
+#if defined(IPV6_TCLASS) && defined(IPTOS_CLASS_CS6)
   int class = IPTOS_CLASS_CS6;
 #endif
   
   if ((fd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1 ||
-#if defined(IP_TOS) && defined(IPTOS_CLASS_CS6)
+#if defined(IPV6_TCLASS) && defined(IPTOS_CLASS_CS6)
       setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &class, sizeof(class)) == -1 ||
 #endif
       !fix_fd(fd) ||
