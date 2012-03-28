@@ -4,8 +4,12 @@ version 2.61
 	    and allows us to find the prefix length for IPv6
 	    addresses.
 
-	    Add ra-names DHCPv6 keyword which adds AAAA records
-	    for dual-stack hosts which get IPv6 addresses via SLAAC.
+	    Add ra-names, ra-stateless and slaac keywords for DHCPv6.
+	    Dnsmasq can now synthesise AAAA records for dual-stack 
+            hosts which get IPv6 addresses via SLAAC. It is also now 
+	    possible to use SLAAC and stateless DHCPv6, and to 
+	    tell clients to use SLAAC addresses as well as DHCP ones.
+	    Thanks to Dave Taht for help with this.
 
 	    Add --dhcp-duid to allow DUID-EN uids to be used.
 
