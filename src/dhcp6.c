@@ -229,7 +229,7 @@ int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int cl
   
   for (pass = 0; pass <= 1; pass++)
     for (c = context; c; c = c->current)
-      if (c->flags & (CONTEXT_STATIC | CONTEXT_RA_STATELESS))
+      if (c->flags & (CONTEXT_DEPRECATE | CONTEXT_STATIC | CONTEXT_RA_STATELESS))
 	continue;
       else if (!match_netid(c->filter, netids, pass))
 	continue;
@@ -282,9 +282,9 @@ struct dhcp_context *address6_available(struct dhcp_context *context,
       start = addr6part(&tmp->start6);
       end = addr6part(&tmp->end6);
 
-      if (!(tmp->flags & (CONTEXT_STATIC | CONTEXT_PROXY)) &&
-          is_same_net6(&context->start6, taddr, context->prefix) &&
-	  is_same_net6(&context->end6, taddr, context->prefix) &&
+      if (!(tmp->flags & (CONTEXT_STATIC | CONTEXT_RA_STATELESS)) &&
+          is_same_net6(&tmp->start6, taddr, tmp->prefix) &&
+	  is_same_net6(&tmp->end6, taddr, tmp->prefix) &&
 	  addr >= start &&
           addr <= end &&
           match_netid(tmp->filter, netids, 1))

@@ -655,6 +655,7 @@ struct dhcp_context {
 #define CONTEXT_RA_NAME       64
 #define CONTEXT_RA_STATELESS 128
 #define CONTEXT_DHCP         256
+#define CONTEXT_DEPRECATE    512
 
 struct ping_result {
   struct in_addr addr;

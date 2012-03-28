@@ -276,9 +276,8 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 static int add_prefixes(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int dad, void *vparam)
 {
-  struct dhcp_context *context, *tmp;
+  struct dhcp_context *context;
   struct ra_param *param = vparam;
-  struct prefix_opt *opt;
 
   (void)scope; /* warning */
   (void)dad;
@@ -291,13 +290,17 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	       !IN6_IS_ADDR_LINKLOCAL(local) &&
 	       !IN6_IS_ADDR_MULTICAST(local))
 	{
+	  int do_slaac = 0;
+	  int deprecate  = 0;
+	  unsigned int time = 0xffffffff;
+	  struct in6_addr *addr = NULL;
+	  struct prefix_opt *opt;
+
 	  for (context = daemon->ra_contexts; context; context = context->next)
 	    if (prefix == context->prefix &&
 		is_same_net6(local, &context->start6, prefix) &&
 		is_same_net6(local, &context->end6, prefix))
 	      {
-		int do_slaac = 0;
-
 		if ((context->flags & 
 		     (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
 		  {
@@ -314,68 +317,51 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    param->other = 1;
 		  }
 
-		if (context->flags & CONTEXT_RA_DONE)
-		  continue;
+		/* find floor time */
+		if (time > context->lease_time)
+		  time = context->lease_time;
 		
-		/* subsequent prefixes on the same interface don't need timers */
+		if (context->flags & CONTEXT_DEPRECATE)
+		  deprecate = 1;
+
+		/* subsequent prefixes on the same interface 
+		   and subsequent instances of this prefix don't need timers */
 		if (!param->first)
 		  context->ra_time = 0;
 		param->first = 0;
 		param->found_context = 1;
-		context->flags |= CONTEXT_RA_DONE;
-
-		/* mark this subnet and duplicates: as done. */
-		for (tmp = context->next; tmp; tmp = tmp->next)
-		  if (tmp->prefix == prefix &&
-		      is_same_net6(local, &tmp->start6, prefix) &&
-		      is_same_net6(local, &tmp->end6, prefix))
-		    {
-		      tmp->flags |= CONTEXT_RA_DONE;
-		      context->ra_time = 0;
-		      /* if any dhcp-range with ra-only on this subnet
-			 set the "do_slaac" bit */
-		      if (tmp->flags & 
-			  (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
-			{
-			  do_slaac = 1;
-			  if (context->flags & CONTEXT_RA_STATELESS)
-			    param->other = 1; 
-			}
-		      else
-			{
-			  /* don't do RA for non-ra-only unless --enable-ra is set */
-			  if (!option_bool(OPT_RA))
-			    continue;
-			  param->managed = 1;
-			  param->other = 1;
-			}
-		    }
 		
-		if ((opt = expand(sizeof(struct prefix_opt))))
-		  {
-		    u64 addrpart = addr6part(&context->start6);
-		    u64 mask = (prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU;
-		    unsigned int time = context->lease_time;
-
-		    /* lifetimes must be min 2 hrs, by RFC 2462 */
-		    if (time < 7200)
-		      time = 7200;
-
-		    opt->type = ICMP6_OPT_PREFIX;
-		    opt->len = 4;
-		    opt->prefix_len = prefix;
-		    /* autonomous only is we're not doing dhcp */
-		    opt->flags = do_slaac ? 0x40 : 0x00;
-		    opt->valid_lifetime = opt->preferred_lifetime = htonl(time);
-		    opt->reserved = 0;
-		    
-		    opt->prefix = context->start6;
-		    setaddr6part(&opt->prefix, addrpart & ~mask);
-		    
-		    inet_ntop(AF_INET6, &opt->prefix, daemon->addrbuff, ADDRSTRLEN);
-		    my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s", param->if_name, daemon->addrbuff); 		    
-		  }
+		if (context->flags & CONTEXT_RA_DONE)
+		  continue;
+		
+		context->flags |= CONTEXT_RA_DONE;
+		addr = &context->start6;
 	      }
+		
+	  if (addr && (opt = expand(sizeof(struct prefix_opt))))
+	    {
+	      u64 addrpart = addr6part(addr);
+	      u64 mask = (prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU;
+	      
+	      /* lifetimes must be min 2 hrs, by RFC 2462 */
+	      if (time < 7200)
+		time = 7200;
+	      
+	      opt->type = ICMP6_OPT_PREFIX;
+	      opt->len = 4;
+	      opt->prefix_len = prefix;
+	      /* autonomous only is we're not doing dhcp */
+	      opt->flags = do_slaac ? 0x40 : 0x00;
+	      opt->valid_lifetime = htonl(time);
+	      opt->preferred_lifetime = htonl(deprecate ? 0 : time);
+	      opt->reserved = 0;
+	      
+	      opt->prefix = *addr;
+	      setaddr6part(&opt->prefix, addrpart & ~mask);
+			
+	      inet_ntop(AF_INET6, &opt->prefix, daemon->addrbuff, ADDRSTRLEN);
+	      my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s", param->if_name, daemon->addrbuff); 		    
+	    }
 	}
     }          
   return 1;

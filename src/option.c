@@ -2118,6 +2118,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	  {
 	    if (strcmp(a[leasepos], "infinite") == 0)
 	      new->lease_time = 0xffffffff;
+	    else if (strcmp(a[leasepos], "deprecated") == 0)
+	      new->flags |= CONTEXT_DEPRECATE;
 	    else
 	      {
 		int fac = 1;
@@ -2150,16 +2152,6 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 		  }
 	      }
 	  }
-
-#ifdef HAVE_DHCP6
-	/* lifetimes must be min 2 hrs, by RFC 2462.
-	   This gets enforced in radv.c for DHCP ranges
-	   which are legitimately less. */
-	if ((new->flags & CONTEXT_RA_ONLY) &&
-	    new->lease_time < 7200)
-	  new->lease_time = 7200;
-#endif
-	    
 	break;
       }
 

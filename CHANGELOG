@@ -55,6 +55,18 @@ version 2.61
 	    received from a network which has no valid dhcp-range.
 	    Thanks to Stephane Glondu for the bug report.
 
+	    Add a new DHCP lease time keyword, "deprecated" for
+	    --dhcp-range. This is only valid for IPv6, and sets the
+	    preffered lease time for both DHCP and RA to zero. The
+	    effect is that clients can continue to use the address 
+	    for existing connections, but new connections will use
+            other addresses, if they exist. This makes hitless
+	    renumbering at least possible.
+
+	    Fix bug in address6_available() which caused DHCPv6 lease
+	    aquistion to fail of more than one dhcp-range in use.
+	    
+
  
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf

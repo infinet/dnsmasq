@@ -513,13 +513,13 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    while (1)
 	      {
 		struct in6_addr alloced_addr, *addrp = NULL;
-		u32 preferred_time = 0;
+		u32 requested_time = 0;
 		struct dhcp_lease *lease = NULL;
 		
 		if (ia_option)
 		  {
 		    struct in6_addr *req_addr = opt6_ptr(ia_option, 0);
-		    preferred_time = opt6_uint(ia_option, 16, 4);
+		    requested_time = opt6_uint(ia_option, 16, 4);
 		    
 		    if (!address6_available(context, req_addr, tags) &&
 			(!have_config(config, CONFIG_ADDR6) || memcmp(&config->addr6, req_addr, IN6ADDRSZ) != 0))
@@ -621,10 +621,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			
 			if (ia_option)
 			  {
-			    if (preferred_time < 120u )
-			      preferred_time = 120u; /* sanity */
-			    if (lease_time == 0xffffffff || (preferred_time != 0xffffffff && preferred_time < lease_time))
-			      lease_time = preferred_time;
+			    if (requested_time < 120u )
+			      requested_time = 120u; /* sanity */
+			    if (lease_time == 0xffffffff || (requested_time != 0xffffffff && requested_time < lease_time))
+			      lease_time = requested_time;
 			  }
 			  
 			if (lease_time < min_time)
@@ -730,8 +730,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			  {
 			    o1 =  new_opt6(OPTION6_IAADDR);
 			    put_opt6(addrp, sizeof(*addrp));
-			    put_opt6_long(lease_time);
-			    put_opt6_long(lease_time);
+			    /* preferred lifetime */
+			    put_opt6_long(this_context && (this_context->flags & CONTEXT_DEPRECATE) ? 0 : lease_time);
+			    put_opt6_long(lease_time); /* valid lifetime */
 			    end_opt6(o1);
 
 			    log6_packet( make_lease ? "DHCPREPLY" : "DHCPADVERTISE", 
@@ -842,7 +843,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	      {
 		struct dhcp_lease *lease = NULL;
 		struct in6_addr *req_addr = opt6_ptr(ia_option, 0);
-		u32 preferred_time = opt6_uint(ia_option, 16, 4);
+		u32 requested_time = opt6_uint(ia_option, 16, 4);
 		unsigned int lease_time;
 		struct dhcp_context *this_context;
 		struct dhcp_config *valid_config = config;
@@ -873,7 +874,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		
 		if (!address6_available(context, req_addr, tagif) || 
 		    !(this_context = narrow_context6(context, req_addr, tagif)))
-		  lease_time = 0;
+		  {
+		    lease_time = 0;
+		    this_context = NULL;
+		  }
 		else
 		  {
 		    /* get tags from context if we've not used it before */
@@ -895,10 +899,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    
 		    lease_time = have_config(valid_config, CONFIG_TIME) ? valid_config->lease_time : this_context->lease_time;
 		    
-		    if (preferred_time < 120u )
-		      preferred_time = 120u; /* sanity */
-		    if (lease_time == 0xffffffff || (preferred_time != 0xffffffff && preferred_time < lease_time))
-		      lease_time = preferred_time;
+		    if (requested_time < 120u )
+		      requested_time = 120u; /* sanity */
+		    if (lease_time == 0xffffffff || (requested_time != 0xffffffff && requested_time < lease_time))
+		      lease_time = requested_time;
 		    
 		    lease_set_expires(lease, lease_time, now);
 		    if (ia_type == OPTION6_IA_NA && hostname)
@@ -917,8 +921,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		
 		o1 =  new_opt6(OPTION6_IAADDR);
 		put_opt6(req_addr, sizeof(*req_addr));
-		put_opt6_long(lease_time);
-		put_opt6_long(lease_time);
+		/* preferred lifetime */
+		put_opt6_long(this_context && (this_context->flags & CONTEXT_DEPRECATE) ? 0 : lease_time);
+		put_opt6_long(lease_time); /* valid lifetime */
 		end_opt6(o1);
 	      }
 	    

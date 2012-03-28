@@ -530,7 +530,7 @@ int main (int argc, char **argv)
     my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
 
 #ifdef HAVE_DHCP
-  if (daemon->dhcp || daemon->dhcp6)
+  if (daemon->dhcp || daemon->dhcp6 || daemon->ra_contexts)
     {
       struct dhcp_context *dhcp_tmp;
       int family = AF_INET;
@@ -543,7 +543,7 @@ int main (int argc, char **argv)
 	{
 	  void *start = &dhcp_tmp->start;
 	  void *end = &dhcp_tmp->end;
-	  
+	  	  
 #ifdef HAVE_DHCP6
 	  if (family == AF_INET6)
 	    {
@@ -551,31 +551,48 @@ int main (int argc, char **argv)
 	      end = &dhcp_tmp->end6;
 	      struct in6_addr subnet = dhcp_tmp->start6;
 	      setaddr6part(&subnet, 0);
-	      inet_ntop(AF_INET6, &subnet, daemon->dhcp_buff2, 256);
+	      inet_ntop(AF_INET6, &subnet, daemon->addrbuff, 256);
 	    }
 #endif
 	  
-	  prettyprint_time(daemon->namebuff, dhcp_tmp->lease_time);
-	  inet_ntop(family, start, daemon->dhcp_buff, 256);
-	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
+	  if (family != AF_INET && (dhcp_tmp->flags & CONTEXT_DEPRECATE))
+	    strcpy(daemon->namebuff, _("prefix deprecated"));
+	  else
+	    {
+	      char *p = daemon->namebuff;
+	      p += sprintf(p, _("lease time "));
+	      prettyprint_time(p, dhcp_tmp->lease_time);
+	    }
+	  
+	  if (daemon->dhcp_buff)
+	    inet_ntop(family, start, daemon->dhcp_buff, 256);
+	  if (daemon->dhcp_buff3)
+	    inet_ntop(family, end, daemon->dhcp_buff3, 256);
 	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
 	    my_syslog(MS_DHCP | LOG_INFO, 
-#ifdef HAVE_DHCP6
 		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
-		      _("SLAAC and stateless DHCPv6 on %.0s%s%.0s") :
-#endif
+		      _("stateless DHCPv6 on %s%.0s%.0s") :
 		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		      _("DHCP, static leases only on %.0s%s, lease time %s") :
+		      _("DHCP, static leases only on %.0s%s, %s") :
 		      (dhcp_tmp->flags & CONTEXT_PROXY) ?
 		      _("DHCP, proxy on subnet %.0s%s%.0s") :
-		      _("DHCP, IP range %s -- %s, lease time %s"),
+		      _("DHCP, IP range %s -- %s, %s"),
 		      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
-#ifdef HAVE_DHCP6
+
 	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
-	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC and DHCPv4-derived names on %s"), daemon->dhcp_buff2);
-	  if (dhcp_tmp->flags & CONTEXT_RA_ONLY)
-	    my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s"), daemon->dhcp_buff2);
-#endif 
+	    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s"), 
+		      daemon->addrbuff);
+	  if (dhcp_tmp->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
+	    {
+	      if (!(dhcp_tmp->flags & CONTEXT_DEPRECATE))
+		{
+		  char *p = daemon->namebuff;
+		  p += sprintf(p, _("prefix valid "));
+		  prettyprint_time(p, dhcp_tmp->lease_time > 7200 ? dhcp_tmp->lease_time : 7200);
+		}
+	      my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s %s"), 
+			daemon->addrbuff, daemon->namebuff);
+	    }
 	}
       
 #ifdef HAVE_DHCP6
