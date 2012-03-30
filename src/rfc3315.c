@@ -349,28 +349,28 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 
        if (len != 0 && len < 255)
 	 {
-	  unsigned char *pp, *op = opt6_ptr(opt, 1);
-	  char *pq = daemon->dhcp_buff;
-	  
-	  pp = op;
-	  while (*op != 0 && ((op + (*op) + 1) - pp) < len)
-	    {
-            memcpy(pq, op+1, *op);
-            pq += *op;
-            op += (*op)+1;
-            *(pq++) = '.';
-	    }
-	  
-	  if (pq != daemon->dhcp_buff)
-	    pq--;
-	  *pq = 0;
-
-	  if (legal_hostname(daemon->dhcp_buff))
-	    {
-	      client_hostname = daemon->dhcp_buff;
-	      if (option_bool(OPT_LOG_OPTS))
-		my_syslog(MS_DHCP | LOG_INFO, _("%u client provides name: %s"), xid, client_hostname); 
-	    }
+	   unsigned char *pp, *op = opt6_ptr(opt, 1);
+	   char *pq = daemon->dhcp_buff;
+	   
+	   pp = op;
+	   while (*op != 0 && ((op + (*op)) - pp) < len)
+	     {
+	       memcpy(pq, op+1, *op);
+	       pq += *op;
+	       op += (*op)+1;
+	       *(pq++) = '.';
+	     }
+	   
+	   if (pq != daemon->dhcp_buff)
+	     pq--;
+	   *pq = 0;
+	   
+	   if (legal_hostname(daemon->dhcp_buff))
+	     {
+	       client_hostname = daemon->dhcp_buff;
+	       if (option_bool(OPT_LOG_OPTS))
+		 my_syslog(MS_DHCP | LOG_INFO, _("%u client provides name: %s"), xid, client_hostname); 
+	     }
 	 }
     }	 
   
