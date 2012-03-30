@@ -294,10 +294,12 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		     (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
 		  {
 		    do_slaac = 1;
-		    if (context->flags & CONTEXT_RA_STATELESS)
-		      param->other = 1; 
 		    if (context->flags & CONTEXT_DHCP)
-		      param->managed = 1;
+		      {
+			param->other = 1; 
+			if (!(context->flags & CONTEXT_RA_STATELESS))
+			  param->managed = 1;
+		      }
 		  }
 		else
 		  {
