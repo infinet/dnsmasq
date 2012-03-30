@@ -296,6 +296,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    do_slaac = 1;
 		    if (context->flags & CONTEXT_RA_STATELESS)
 		      param->other = 1; 
+		    if (context->flags & CONTEXT_DHCP)
+		      param->managed = 1;
 		  }
 		else
 		  {
