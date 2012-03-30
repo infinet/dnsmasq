@@ -373,7 +373,10 @@ static int find_interface_v6(struct in6_addr *local,  int prefix,
 
 void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface)
 {
-  slaac_ping_reply(sender, packet, interface, leases);
+  /* We may be doing RA but not DHCPv4, in which case the lease
+     database may not exist and we have nothing to do anyway */
+  if (daemon->dhcp)
+    slaac_ping_reply(sender, packet, interface, leases);
 }
 
 #endif

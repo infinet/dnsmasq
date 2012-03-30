@@ -116,8 +116,7 @@ void icmp6_packet(void)
     char control6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
   } control_u;
   struct sockaddr_in6 from;
-  unsigned char *p;
-  char *mac = "";
+  unsigned char *packet;
   struct iname *tmp;
   struct dhcp_context *context;
 
@@ -132,6 +131,8 @@ void icmp6_packet(void)
   
   if ((sz = recv_dhcp_packet(daemon->icmp6fd, &msg)) == -1 || sz < 8)
     return;
+   
+  packet = (unsigned char *)daemon->outpacket.iov_base;
   
   for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
     if (cmptr->cmsg_level == IPPROTO_IPV6 && cmptr->cmsg_type == daemon->v6pktinfo)
@@ -160,36 +161,25 @@ void icmp6_packet(void)
     if (!context->interface || strcmp(context->interface, interface) == 0)
       break;
   
-  if (!context)
+  if (!context || packet[1] != 0)
     return;
 
-  p = (unsigned char *)daemon->outpacket.iov_base;
-  
-  if (p[1] != 0)
-    return;
-
-  if (p[0] == ICMP6_ECHO_REPLY)
+  if (packet[0] == ICMP6_ECHO_REPLY)
+    lease_ping_reply(&from.sin6_addr, packet, interface); 
+  else if (packet[0] == ND_ROUTER_SOLICIT)
     {
-      /* We may be doing RA but not DHCPv4, in which case the lease
-	 database may not exist and we have nothing to do anyway */
-      if (daemon->dhcp)
-	lease_ping_reply(&from.sin6_addr, p, interface);
-      return;
+      char *mac = "";
+      
+      /* look for link-layer address option for logging */
+      if (sz >= 16 && packet[8] == ICMP6_OPT_SOURCE_MAC && (packet[9] * 8) + 8 <= sz)
+	{
+	  print_mac(daemon->namebuff, &packet[10], (packet[9] * 8) - 2);
+	  mac = daemon->namebuff;
+	}
+         
+      my_syslog(MS_DHCP | LOG_INFO, "RTR-SOLICIT(%s) %s", interface, mac);
+      send_ra(if_index, interface, &from.sin6_addr);
     }
-
-  if (p[0] != ND_ROUTER_SOLICIT)
-    return;
-  
-  /* look for link-layer address option for logging */
-  if (sz >= 16 && p[8] == ICMP6_OPT_SOURCE_MAC && (p[9] * 8) + 8 <= sz)
-    {
-      print_mac(daemon->namebuff, &p[10], (p[9] * 8) - 2);
-      mac = daemon->namebuff;
-    }
-  
-  my_syslog(MS_DHCP | LOG_INFO, "RTR-SOLICIT(%s) %s", interface, mac);
-  
-  send_ra(if_index, interface, &from.sin6_addr);
 }
 
 static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
@@ -343,9 +333,9 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	     	      
 	      if ((opt = expand(sizeof(struct prefix_opt))))
 		{
-		  u64 addrpart = addr6part(local);
-		  u64 mask = (prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU;
-	      
+		  /* zero net part of address */
+		  setaddr6part(local, addr6part(local) & ~((prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU));
+		  
 		  /* lifetimes must be min 2 hrs, by RFC 2462 */
 		  if (time < 7200)
 		    time = 7200;
@@ -353,16 +343,14 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
 		  opt->prefix_len = prefix;
-		  /* autonomous only is we're not doing dhcp */
+		  /* autonomous only if we're not doing dhcp */
 		  opt->flags = do_slaac ? 0x40 : 0x00;
 		  opt->valid_lifetime = htonl(time);
 		  opt->preferred_lifetime = htonl(deprecate ? 0 : time);
-		  opt->reserved = 0;
-		  
+		  opt->reserved = 0; 
 		  opt->prefix = *local;
-		  setaddr6part(&opt->prefix, addrpart & ~mask);
 		  
-		  inet_ntop(AF_INET6, &opt->prefix, daemon->addrbuff, ADDRSTRLEN);
+		  inet_ntop(AF_INET6, local, daemon->addrbuff, ADDRSTRLEN);
 		  my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s", param->if_name, daemon->addrbuff); 		    
 		}
 	    }
