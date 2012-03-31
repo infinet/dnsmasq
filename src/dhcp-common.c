@@ -111,6 +111,13 @@ struct dhcp_netid *option_filter(struct dhcp_netid *tags, struct dhcp_netid *con
       last_tag->next = tags;
       tagif = run_tag_if(context_tags);
       
+      /* reset stuff with tag:!<tag> which now matches. */
+      for (opt = opts; opt; opt = opt->next)
+	if (!(opt->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925)) &&
+	    (opt->flags & DHOPT_TAGOK) &&
+	    !match_netid(opt->netid, tagif, 0))
+	  opt->flags &= ~DHOPT_TAGOK;
+
       for (opt = opts; opt; opt = opt->next)
 	if (!(opt->flags & (DHOPT_ENCAPSULATE | DHOPT_VENDOR | DHOPT_RFC3925 | DHOPT_TAGOK)) &&
 	    match_netid(opt->netid, tagif, 0))
