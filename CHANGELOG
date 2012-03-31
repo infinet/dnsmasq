@@ -69,9 +69,12 @@ version 2.61
 
 	    Fix bug in address6_available() which caused DHCPv6 lease
 	    aquistion to fail of more than one dhcp-range in use.
+
+	    Provide RDNSS and DNSSL data in router advertisements,
+	    using the settings provided for DHCP options
+	    option6:domain-search and option6:dns-server.
 	    
 
- 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
             Flebbe for the patch.

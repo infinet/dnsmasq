@@ -29,6 +29,7 @@
 struct ra_param {
   int ind, managed, other, found_context, first;
   char *if_name;
+  struct dhcp_netid *tags;
   struct in6_addr link_local;
 };
 
@@ -189,7 +190,10 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   struct ifreq ifr;
   struct sockaddr_in6 addr;
   struct dhcp_context *context;
-
+  struct dhcp_netid iface_id;
+  struct dhcp_opt *opt_cfg;
+  int done_dns = 0;
+ 
   save_counter(0);
   ra = expand(sizeof(struct ra_packet));
   
@@ -208,9 +212,17 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   parm.if_name = iface_name;
   parm.first = 1;
 
-  for (context = daemon->ra_contexts; context; context = context->next)
-    context->flags &= ~CONTEXT_RA_DONE;
+  /* set tag with name == interface */
+  iface_id.net = iface_name;
+  iface_id.next = NULL;
+  parm.tags = &iface_id; 
   
+  for (context = daemon->ra_contexts; context; context = context->next)
+    {
+      context->flags &= ~CONTEXT_RA_DONE;
+      context->netid.next = &context->netid;
+    }
+
   if (!iface_enumerate(AF_INET6, &parm, add_prefixes) ||
       !parm.found_context)
     return;
@@ -226,14 +238,63 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
     }
      
   iface_enumerate(AF_LOCAL, &iface, add_lla);
+ 
+  /* RDNSS, RFC 6106, use relevant DHCP6 options */
+  (void)option_filter(parm.tags, NULL, daemon->dhcp_opts6);
   
-  /* RDNSS, RFC 6106 */
-  put_opt6_char(ICMP6_OPT_RDNSS);
-  put_opt6_char(3);
-  put_opt6_short(0);
-  put_opt6_long(1800); /* lifetime - twice RA retransmit */
-  put_opt6(&parm.link_local, IN6ADDRSZ);
+  for (opt_cfg = daemon->dhcp_opts6; opt_cfg; opt_cfg = opt_cfg->next)
+    {
+      int i;
+      
+      /* netids match and not encapsulated? */
+      if (!(opt_cfg->flags & DHOPT_TAGOK))
+        continue;
+      
+      if (opt_cfg->opt == OPTION6_DNS_SERVER)
+        {
+	  struct in6_addr *a = (struct in6_addr *)opt_cfg->val;
 
+	  done_dns = 1;
+          if (opt_cfg->len == 0)
+            continue;
+	  
+	  put_opt6_char(ICMP6_OPT_RDNSS);
+	  put_opt6_char((opt_cfg->len/8) + 1);
+	  put_opt6_short(0);
+	  put_opt6_long(1800); /* lifetime - twice RA retransmit */
+	  /* zero means "self" */
+	  for (i = 0; i < opt_cfg->len; i += IN6ADDRSZ, a++)
+	    if (IN6_IS_ADDR_UNSPECIFIED(a))
+	      put_opt6(&parm.link_local, IN6ADDRSZ);
+	    else
+	      put_opt6(a, IN6ADDRSZ);
+	}
+      
+      if (opt_cfg->opt == OPTION6_DOMAIN_SEARCH && opt_cfg->len != 0)
+	{
+	  int len = ((opt_cfg->len+7)/8);
+	  
+	  put_opt6_char(ICMP6_OPT_DNSSL);
+	  put_opt6_char(len + 1);
+	  put_opt6_short(0);
+	  put_opt6_long(1800); /* lifetime - twice RA retransmit */
+	  put_opt6(opt_cfg->val, opt_cfg->len);
+	  
+	  /* pad */
+	  for (i = opt_cfg->len; i < len * 8; i++)
+	    put_opt6_char(0);
+	}
+    }
+	
+  if (!done_dns)
+    {
+      /* default == us. */
+      put_opt6_char(ICMP6_OPT_RDNSS);
+      put_opt6_char(3);
+      put_opt6_short(0);
+      put_opt6_long(1800); /* lifetime - twice RA retransmit */
+      put_opt6(&parm.link_local, IN6ADDRSZ);
+    }
 
   /* set managed bits unless we're providing only RA on this link */
   if (parm.managed)
@@ -323,7 +384,14 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  context->ra_time = 0;
 		param->first = 0;
 		param->found_context = 1;
-		
+
+		/* collect dhcp-range tags */
+		if (context->netid.next == &context->netid && context->netid.net)
+		  {
+		    context->netid.next = param->tags;
+		    param->tags = &context->netid;
+		  }
+		  
 		if (!(context->flags & CONTEXT_RA_DONE))
 		  {
 		    context->flags |= CONTEXT_RA_DONE;

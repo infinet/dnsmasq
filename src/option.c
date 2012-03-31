@@ -1000,6 +1000,7 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	      while (arg && *arg)
 		{
 		  u16 len = strlen(arg);
+		  unhide_metas(arg);
 		  PUTSHORT(len, p);
 		  memcpy(p, arg, len);
 		  p += len; 
@@ -1013,29 +1014,40 @@ static char *parse_dhcp_opt(char *arg, int flags)
 	    }
 	  else if (comma && (opt_len & OT_RFC1035_NAME))
 	    {
-	      int i, commas = 1;
-	      unsigned char *p, *newp;
-	      
-	      for (i = 0; comma[i]; i++)
-		if (comma[i] == ',')
-		  commas++;
-	      
-	      newp = opt_malloc(strlen(comma)+(2*commas));
-	      p = newp;
+	      unsigned char *p = NULL, *newp, *end;
+	      int len = 0;
 	      arg = comma;
 	      comma = split(arg);
 	      
 	      while (arg && *arg)
 		{
-		  p = do_rfc1035_name(p, arg);
-		  *p++ = 0;
+		  char *dom = canonicalise_opt(arg);
+		  if (!dom)
+		    {
+		      problem = _("bad domain in dhcp-option");
+		      break;
+		    }
 		  
+		  newp = opt_malloc(len + strlen(dom) + 2);
+		  
+		  if (p)
+		    {
+		      memcpy(newp, p, len);
+		      free(p);
+		    }
+		  
+		  p = newp;
+		  end = do_rfc1035_name(p + len, dom);
+		  *end++ = 0;
+		  len = end - p;
+		  free(dom);
+
 		  arg = comma;
 		  comma = split(arg);
 		}
 	      
-	      new->val = newp;
-	      new->len = p - newp;
+	      new->val = p;
+	      new->len = len;
 	    }
 #endif
 	  else

@@ -43,6 +43,7 @@ struct prefix_opt {
 #define ICMP6_OPT_PREFIX       3
 #define ICMP6_OPT_MTU          5
 #define ICMP6_OPT_RDNSS       25
+#define ICMP6_OPT_DNSSL       31
 
 
 
