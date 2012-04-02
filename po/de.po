@@ -1128,9 +1128,10 @@ msgstr "DHCP, Proxy im Subnetz %.0s%s%.0s"
 msgid "DHCP, IP range %s -- %s, lease time %s"
 msgstr "DHCP, IP-Bereich %s - %s, Lease-Zeit %s "
 
+# FIXME: this and the next few must be full strings to be translatable - do not assemble in code"
 #: dnsmasq.c:588
 msgid "root is "
-msgstr "FIXME: this and the next few must be full strings to be translatable - do not assemble in code"
+msgstr ""
 
 #: dnsmasq.c:588
 msgid "enabled"
