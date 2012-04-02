@@ -73,6 +73,9 @@ version 2.61
 	    Provide RDNSS and DNSSL data in router advertisements,
 	    using the settings provided for DHCP options
 	    option6:domain-search and option6:dns-server.
+
+	    Tweak logo/favicon.ico to add some transparency. Thanks to
+	    SamLT for work on this.
 	    
 
 version 2.60
