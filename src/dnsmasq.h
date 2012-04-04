@@ -305,8 +305,7 @@ struct keydata {
 
 struct crec { 
   struct crec *next, *prev, *hash_next;
-  time_t ttd; /* time to die */
-  int uid; 
+  /* union is 16 bytes when doing IPv6, 8 bytes on 32 bit machines without IPv6 */
   union {
     struct all_addr addr;
     struct {
@@ -316,10 +315,13 @@ struct crec {
     struct {
       struct keydata *keydata;
       unsigned char algo;
-      unsigned char flags;
-      unsigned short keylen;
+      unsigned char digest; /* DS only */
+      unsigned short flags_or_keyid; /* flags for DNSKEY, keyid for DS */
     } key;
   } addr;
+  time_t ttd; /* time to die */
+  /* used as keylen if F_DS or F_DNSKEY, index to source for F_HOSTS */
+  int uid; 
   unsigned short flags;
   union {
     char sname[SMALLDNAME];

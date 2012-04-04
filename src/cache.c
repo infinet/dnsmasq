@@ -240,7 +240,11 @@ static int is_outdated_cname_pointer(struct crec *crecp)
   if (!(crecp->flags & F_CNAME))
     return 0;
   
-  if (crecp->addr.cname.cache && crecp->addr.cname.uid == crecp->addr.cname.cache->uid)
+  /* NB. record may be reused as DS or DNSKEY, where uid is 
+     overloaded for something completely different */
+  if (crecp->addr.cname.cache && 
+      (crecp->addr.cname.cache->flags & (F_IPV4 | F_IPV6)) &&
+      crecp->addr.cname.uid == crecp->addr.cname.cache->uid)
     return 0;
   
   return 1;
@@ -1158,10 +1162,16 @@ void dump_cache(time_t now)
 		  a = cache_get_name(cache->addr.cname.cache);
 	      }
 #ifdef HAVE_DNSSEC
-	    else if (cache->flags & (F_DNSKEY | F_DS))
+	    else if (cache->flags & F_DNSKEY)
 	      {
 		a = daemon->addrbuff;
-		sprintf(a, "%u %u", cache->addr.key.algo, cache->addr.key.keylen);
+		sprintf(a, "%3u %u", cache->addr.key.algo, cache->uid);
+	      }
+	    else if (cache->flags & F_DS)
+	      {
+		a = daemon->addrbuff;
+		sprintf(a, "%5u %3u %3u %u", cache->addr.key.flags_or_keyid,
+			cache->addr.key.algo, cache->addr.key.digest, cache->uid);
 	      }
 #endif
 	    else 
