@@ -25,6 +25,9 @@ static int cache_inserted = 0, cache_live_freed = 0, insert_error;
 static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
 static int uid = 0;
+#ifdef HAVE_DNSSEC
+static struct keydata *keyblock_free = NULL;
+#endif
 
 /* type->string mapping: this is also used by the name-hash function as a mixing table. */
 static const struct {
@@ -190,6 +193,10 @@ static void cache_free(struct crec *crecp)
       big_free = crecp->name.bname;
       crecp->flags &= ~F_BIGNAME;
     }
+#ifdef HAVE_DNSSEC
+  else if (crecp->flags & (F_DNSKEY | F_DS))
+    keydata_free(crecp->addr.key.keydata);
+#endif
 }    
 
 /* insert a new cache entry at the head of the list (youngest entry) */
@@ -280,7 +287,7 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
 	      }
 	  } 
 	else if ((crecp->flags & F_FORWARD) && 
-		 ((flags & crecp->flags & (F_IPV4 | F_IPV6)) || ((crecp->flags | flags) & F_CNAME)) &&
+		 ((flags & crecp->flags & F_TYPE) || ((crecp->flags | flags) & F_CNAME)) &&
 		 hostname_isequal(cache_get_name(crecp), name))
 	  {
 	    if (crecp->flags & (F_HOSTS | F_DHCP))
@@ -360,7 +367,9 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
   int freed_all = flags & F_REVERSE;
   int free_avail = 0;
 
-  log_query(flags | F_UPSTREAM, name, addr, NULL);
+  /* Don't log keys */
+  if (flags & (F_IPV4 | F_IPV6))
+    log_query(flags | F_UPSTREAM, name, addr, NULL);
 
   /* if previous insertion failed give up now. */
   if (insert_error)
@@ -452,9 +461,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 
   if (addr)
     new->addr.addr = *addr;
-  else
-    new->addr.cname.cache = NULL;
-  
+
   new->ttd = now + (time_t)ttl;
   new->next = new_chain;
   new_chain = new;
@@ -1150,22 +1157,29 @@ void dump_cache(time_t now)
 		if (!is_outdated_cname_pointer(cache))
 		  a = cache_get_name(cache->addr.cname.cache);
 	      }
-#ifdef HAVE_IPV6
+#ifdef HAVE_DNSSEC
+	    else if (cache->flags & (F_DNSKEY | F_DS))
+	      {
+		a = daemon->addrbuff;
+		sprintf(a, "%u %u", cache->addr.key.algo, cache->addr.key.keylen);
+	      }
+#endif
 	    else 
 	      { 
 		a = daemon->addrbuff;
 		if (cache->flags & F_IPV4)
 		  inet_ntop(AF_INET, &cache->addr.addr, a, ADDRSTRLEN);
+#ifdef HAVE_IPV6
 		else if (cache->flags & F_IPV6)
 		  inet_ntop(AF_INET6, &cache->addr.addr, a, ADDRSTRLEN);
-	      }
-#else
-            else 
-	      a = inet_ntoa(cache->addr.addr.addr.addr4);
 #endif
-	    p += sprintf(p, "%-30.30s %s%s%s%s%s%s%s%s%s%s  ", a, 
+	      }
+
+	    p += sprintf(p, "%-30.30s %s%s%s%s%s%s%s%s%s%s%s%s%s  ", a, 
 			 cache->flags & F_IPV4 ? "4" : "",
 			 cache->flags & F_IPV6 ? "6" : "",
+			 cache->flags & F_DNSKEY ? "K" : "",
+			 cache->flags & F_DS ? "S" : "",
 			 cache->flags & F_CNAME ? "C" : "",
 			 cache->flags & F_FORWARD ? "F" : " ",
 			 cache->flags & F_REVERSE ? "R" : " ",
@@ -1173,7 +1187,8 @@ void dump_cache(time_t now)
 			 cache->flags & F_DHCP ? "D" : " ",
 			 cache->flags & F_NEG ? "N" : " ",
 			 cache->flags & F_NXDOMAIN ? "X" : " ",
-			 cache->flags & F_HOSTS ? "H" : " ");
+			 cache->flags & F_HOSTS ? "H" : " ",
+			 cache->flags & F_DNSSECOK ? "V" : " ");
 #ifdef HAVE_BROKEN_RTC
 	    p += sprintf(p, "%lu", cache->flags & F_IMMORTAL ? 0: (unsigned long)(cache->ttd - now));
 #else
@@ -1287,3 +1302,50 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
   my_syslog(LOG_INFO, "%s %s %s %s", source, name, verb, dest);
 }
 
+#ifdef HAVE_DNSSEC
+struct keydata *keydata_alloc(char *data, size_t len)
+{
+  struct keydata *block, *ret = NULL;
+  struct keydata **prev = &ret;
+  while (len > 0)
+    {
+      if (keyblock_free)
+	{
+	  block = keyblock_free;
+	  keyblock_free = block->next;
+	}
+      else
+	block = whine_malloc(sizeof(struct keydata));
+
+      if (!block)
+	{
+	  /* failed to alloc, free partial chain */
+	  keydata_free(ret);
+	  return NULL;
+	}
+      
+      memcpy(block->key, data, len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len);
+      data += KEYBLOCK_LEN;
+      len -= KEYBLOCK_LEN;
+      *prev = block;
+      prev = &block->next;
+      block->next = NULL;
+    }
+  
+  return ret;
+}
+
+void keydata_free(struct keydata *blocks)
+{
+  struct keydata *tmp;
+
+  if (blocks)
+    {
+      for (tmp = blocks; tmp->next; tmp = tmp->next);
+      tmp->next = keyblock_free;
+      keyblock_free = blocks;
+    }
+}
+#endif
+
+      

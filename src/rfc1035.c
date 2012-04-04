@@ -936,10 +936,14 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			  if (!cname_count--)
 			    return 0; /* looped CNAMES */
 			  newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
-			  if (newc && cpp)
+			  if (newc)
 			    {
-			      cpp->addr.cname.cache = newc;
-			      cpp->addr.cname.uid = newc->uid;
+			      newc->addr.cname.cache = NULL;
+			      if (cpp)
+				{
+				  cpp->addr.cname.cache = newc;
+				  cpp->addr.cname.uid = newc->uid;
+				}
 			    }
 
 			  cpp = newc;

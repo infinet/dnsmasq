@@ -298,6 +298,11 @@ union bigname {
   union bigname *next; /* freelist */
 };
 
+struct keydata {
+  struct keydata *next;
+  unsigned char key[KEYBLOCK_LEN];
+};
+
 struct crec { 
   struct crec *next, *prev, *hash_next;
   time_t ttd; /* time to die */
@@ -308,6 +313,12 @@ struct crec {
       struct crec *cache;
       int uid;
     } cname;
+    struct {
+      struct keydata *keydata;
+      unsigned char algo;
+      unsigned char flags;
+      unsigned short keylen;
+    } key;
   } addr;
   unsigned short flags;
   union {
@@ -329,14 +340,21 @@ struct crec {
 #define F_BIGNAME   (1u<<9)
 #define F_NXDOMAIN  (1u<<10)
 #define F_CNAME     (1u<<11)
-#define F_NOERR     (1u<<12)
+#define F_DNSKEY    (1u<<12)
 #define F_CONFIG    (1u<<13)
+#define F_DS        (1u<<14)
+#define F_DNSSECOK  (1u<<15)
+
 /* below here are only valid as args to log_query: cache
    entries are limited to 16 bits */
 #define F_UPSTREAM  (1u<<16)
 #define F_RRNAME    (1u<<17)
 #define F_SERVER    (1u<<18)
 #define F_QUERY     (1u<<19)
+#define F_NOERR     (1u<<20)
+/* composites */
+#define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* Only one may be set */
+
 
 
 /* struct sockaddr is not large enough to hold any address,
@@ -838,6 +856,10 @@ char *cache_get_name(struct crec *crecp);
 char *get_domain(struct in_addr addr);
 #ifdef HAVE_IPV6
 char *get_domain6(struct in6_addr *addr);
+#endif
+#ifdef HAVE_DNSSEC
+struct keydata *keydata_alloc(char *data, size_t len);
+void keydata_free(struct keydata *blocks);
 #endif
 
 /* rfc1035.c */
