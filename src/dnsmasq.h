@@ -916,7 +916,7 @@ void server_gone(struct server *server);
 struct frec *get_new_frec(time_t now, int *wait);
 int send_from(int fd, int nowild, char *packet, size_t len, 
 	       union mysockaddr *to, struct all_addr *source,
-	       unsigned int iface, int *errp);
+	       unsigned int iface);
 
 /* network.c */
 int indextoname(int fd, int index, char *name);

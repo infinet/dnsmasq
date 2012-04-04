@@ -158,11 +158,7 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 	    if (sendto(daemon->icmp6fd, daemon->outpacket.iov_base, save_counter(0), 0,
 		       (struct sockaddr *)&addr,  sizeof(addr)) == -1 &&
 		errno == EHOSTUNREACH)
-	      {
-		slaac->ping_time = 0; /* Give up */ 
-		inet_ntop(AF_INET6, &addr, daemon->addrbuff, ADDRSTRLEN);
-		my_syslog(MS_DHCP | LOG_INFO, "SLAAC-HOSTUNREACH %s", daemon->addrbuff);
-	      }
+	      slaac->ping_time = 0; /* Give up */ 
 	    else
 	      {
 		slaac->ping_time += (1 << (slaac->backoff - 1)) + (rand16()/21785); /* 0 - 3 */
