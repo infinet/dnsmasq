@@ -108,8 +108,8 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 {
   struct dhcp_context *context;
   struct dhcp_lease *lease;
-   struct slaac_address *slaac;
-   time_t next_event = 0;
+  struct slaac_address *slaac;
+  time_t next_event = 0;
   
   for (context = daemon->ra_contexts; context; context = context->next)
     if ((context->flags & CONTEXT_RA_NAME))
@@ -139,8 +139,7 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 	  {
 	    struct ping_packet *ping;
 	    struct sockaddr_in6 addr;
-	    int err;
-	    
+ 
 	    save_counter(0);
 	    ping = expand(sizeof(struct ping_packet));
 	    ping->type = ICMP6_ECHO_REQUEST;
@@ -156,9 +155,15 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 	    addr.sin6_port = htons(IPPROTO_ICMPV6);
 	    addr.sin6_addr = slaac->addr;
 	    
-	    if (send_from(daemon->icmp6fd, 0, daemon->outpacket.iov_base, save_counter(0),
-			  (union mysockaddr *)&addr, (struct all_addr *)&slaac->local, 
-			  lease->last_interface, &err)) 
+	    if (sendto(daemon->icmp6fd, daemon->outpacket.iov_base, save_counter(0), 0,
+		       (struct sockaddr *)&addr,  sizeof(addr)) == -1 &&
+		errno == EHOSTUNREACH)
+	      {
+		slaac->ping_time = 0; /* Give up */ 
+		inet_ntop(AF_INET6, &addr, daemon->addrbuff, ADDRSTRLEN);
+		my_syslog(MS_DHCP | LOG_INFO, "SLAAC-HOSTUNREACH %s", daemon->addrbuff);
+	      }
+	    else
 	      {
 		slaac->ping_time += (1 << (slaac->backoff - 1)) + (rand16()/21785); /* 0 - 3 */
 		if (slaac->backoff > 4)
@@ -166,8 +171,6 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 		if (slaac->backoff < 12)
 		  slaac->backoff++;
 	      }
-	    else if (err == EHOSTUNREACH)
-	      slaac->ping_time = 0; /* Give up */
 	  }
 	
 	if (slaac->ping_time != 0 &&
