@@ -50,6 +50,10 @@
 #define T_SRV		33
 #define T_NAPTR		35
 #define T_OPT		41
+#define T_DS            43
+#define T_RRSIG         46
+#define T_NSEC          47
+#define T_DNSKEY        48
 #define	T_TKEY		249		
 #define	T_TSIG		250
 #define T_AXFR          252
