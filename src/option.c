@@ -109,7 +109,7 @@ struct myoption {
 #define LOPT_NO_REBIND 298
 #define LOPT_LOC_REBND 299
 #define LOPT_ADD_MAC   300
-#define LOPT_DNSSEC    301
+#define LOPT_SEC_PROXY 301
 #define LOPT_INCR_ADDR 302
 #define LOPT_CONNTRACK 303
 #define LOPT_FQDN      304
@@ -250,7 +250,7 @@ static const struct myoption opts[] =
     { "dhcp-generate-names", 2, 0, LOPT_GEN_NAMES },
     { "rebind-localhost-ok", 0, 0,  LOPT_LOC_REBND },
     { "add-mac", 0, 0, LOPT_ADD_MAC },
-    { "proxy-dnssec", 0, 0, LOPT_DNSSEC },
+    { "proxy-dnssec", 0, 0, LOPT_SEC_PROXY },
     { "dhcp-sequential-ip", 0, 0,  LOPT_INCR_ADDR },
     { "conntrack", 0, 0, LOPT_CONNTRACK },
     { "dhcp-client-update", 0, 0, LOPT_FQDN },
@@ -394,7 +394,7 @@ static struct {
   { LOPT_PXE_SERV, ARG_DUP, "<service>", gettext_noop("Boot service for PXE menu."), NULL },
   { LOPT_TEST, 0, NULL, gettext_noop("Check configuration syntax."), NULL },
   { LOPT_ADD_MAC, OPT_ADD_MAC, NULL, gettext_noop("Add requestor's MAC address to forwarded DNS queries."), NULL },
-  { LOPT_DNSSEC, OPT_DNSSEC, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
+  { LOPT_SEC_PROXY, OPT_DNSSEC_PROXY, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
   { LOPT_INCR_ADDR, OPT_CONSEC_ADDR, NULL, gettext_noop("Attempt to allocate sequential IP addresses to DHCP clients."), NULL },
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },

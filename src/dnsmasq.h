@@ -213,7 +213,7 @@ struct event_desc {
 #define OPT_NO_OVERRIDE    30
 #define OPT_NO_REBIND      31
 #define OPT_ADD_MAC        32
-#define OPT_DNSSEC         33
+#define OPT_DNSSEC_PROXY   33
 #define OPT_CONSEC_ADDR    34
 #define OPT_CONNTRACK      35
 #define OPT_FQDN_UPDATE    36

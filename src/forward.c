@@ -476,7 +476,7 @@ static size_t process_reply(struct dns_header *header, time_t now,
     }
 
   /* RFC 4035 sect 4.6 para 3 */
-  if (!is_sign && !option_bool(OPT_DNSSEC))
+  if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
      header->hb4 &= ~HB4_AD;
 
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
