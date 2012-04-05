@@ -68,7 +68,7 @@ version 2.61
 	    renumbering at least possible.
 
 	    Fix bug in address6_available() which caused DHCPv6 lease
-	    aquistion to fail of more than one dhcp-range in use.
+	    aquistion to fail if more than one dhcp-range in use.
 
 	    Provide RDNSS and DNSSL data in router advertisements,
 	    using the settings provided for DHCP options
