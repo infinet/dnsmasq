@@ -1003,10 +1003,16 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	}
     }
   
-  /* Don't put stuff from a truncated packet into the cache,
-     also don't cache replies where DNSSEC validation was turned off, either
-     the upstream server told us so, or the original query specified it. */
-  if (!(header->hb3 & HB3_TC) && !(header->hb4 & HB4_CD) && !checking_disabled)
+  /* Don't put stuff from a truncated packet into the cache.
+     Don't cache replies where DNSSEC validation was turned off, either
+     the upstream server told us so, or the original query specified it. 
+     Don't cache replies from non-recursive nameservers, since we may get a 
+     reply containing a CNAME but not its target, even though the target 
+     does exist. */
+  if (!(header->hb3 & HB3_TC) && 
+      !(header->hb4 & HB4_CD) &&
+      (header->hb4 & HB4_RA) &&
+      !checking_disabled)
     cache_end_insert();
 
   return 0;

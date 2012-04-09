@@ -77,6 +77,10 @@ version 2.61
 	    Tweak logo/favicon.ico to add some transparency. Thanks to
 	    SamLT for work on this.
 	    
+	    Don't cache data from non-recursive nameservers, since it
+	    may erroneously look like a valid CNAME to a non-exitant
+	    name. Thanks to Ben Winslow for finding this.
+	    
 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
