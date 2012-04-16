@@ -4,7 +4,8 @@ dnsmasq (2.61-1) unstable; urgency=low
    * Provide "dump-stats" initscript method. (closes: #654656)
    * Add (empty) build-indep and build-arch rules targets.
    * Bump standards-version to 3.9.3
-	
+   * Add port option to example dnsmasq.conf (closes: #668386)
+
  -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 6 Mar 2012 19:45:43 +0000
 
 dnsmasq (2.60-2) unstable; urgency=high
