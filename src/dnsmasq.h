@@ -388,7 +388,7 @@ struct server {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int tftp_ok, mtu, done, dad;
+  int tftp_ok, dhcp_ok, mtu, done, dad;
   char *name;
   struct irec *next;
 };
@@ -1108,6 +1108,9 @@ u16 lookup_dhcp_opt(int prot, char *name);
 u16 lookup_dhcp_len(int prot, u16 val);
 char *option_string(int prot, unsigned int opt, unsigned char *val, 
 		    int opt_len, char *buf, int buf_len);
+#ifdef HAVE_LINUX_NETWORK
+void bindtodevice(int fd);
+#endif
 #  ifdef HAVE_DHCP6
 void display_opts6(void);
 void join_multicast(void);

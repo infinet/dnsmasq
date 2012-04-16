@@ -80,6 +80,13 @@ version 2.61
 	    Don't cache data from non-recursive nameservers, since it
 	    may erroneously look like a valid CNAME to a non-exitant
 	    name. Thanks to Ben Winslow for finding this.
+
+	    Call SO_BINDTODEVICE on the DHCP socket(s) when doing DHCP
+	    on exacly one interface and --bind-interfaces is set. This 
+	    makes the OpenStack use-case of one dnsmasq per virtual
+	    interface work. This is only available on Linux; it's not
+	    supported on other platforms. Thanks to Vishvananda Ishaya
+	    and thr OpenStack team for the suggestion.
 	    
 
 version 2.60

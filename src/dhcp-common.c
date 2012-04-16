@@ -451,6 +451,41 @@ void join_multicast(void)
 }
 #endif
 
+#ifdef HAVE_LINUX_NETWORK 
+void bindtodevice(int fd)
+{
+  /* If we are doing DHCP on exactly one interface, and running linux, do SO_BINDTODEVICE
+     to that device. This is for the use case of  (eg) OpenStack, which runs a new
+     dnsmasq instance for each VLAN interface it creates. Without the BINDTODEVICE, 
+     individual processes don't always see the packets they should.
+     SO_BINDTODEVICE is only available Linux. */
+  
+  struct irec *iface, *found;
+
+  for (found = NULL, iface = daemon->interfaces; iface; iface = iface->next)
+    if (iface->dhcp_ok)
+      {
+	if (!found)
+	  found = iface;
+	else if (strcmp(found->name, iface->name) != 0) 
+	  {
+	    /* more than one. */
+	    found = NULL;
+	    break;
+	  }
+      }
+  
+  if (found)
+	{
+	  struct ifreq ifr;
+	  strcpy(ifr.ifr_name, found->name);
+	  /* only allowed by root. */
+	  if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) == -1 &&
+	      errno != EPERM)
+	    die(_("failed to set SO_BINDTODEVICE on DHCP socket: %s"), NULL, EC_BADNET);
+	}
+}
+#endif
 
 static const struct opttab_t {
   char *name;

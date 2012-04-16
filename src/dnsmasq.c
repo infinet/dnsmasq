@@ -209,6 +209,21 @@ int main (int argc, char **argv)
       for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
 	if (if_tmp->name && !if_tmp->used)
 	  die(_("unknown interface %s"), if_tmp->name, EC_BADNET);
+
+#if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP)
+      /* after enumerate_interfaces()  */
+      if (daemon->dhcp)
+	{
+	  bindtodevice(daemon->dhcpfd);
+	  if (daemon->enable_pxe)
+	    bindtodevice(daemon->pxefd);
+	}
+#endif
+
+#if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP6)
+      if (daemon->dhcp6)
+	bindtodevice(daemon->dhcp6fd);
+#endif
     }
   else 
     create_wildcard_listeners();

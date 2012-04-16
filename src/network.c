@@ -162,6 +162,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
   int fd, mtu = 0, loopback;
   struct ifreq ifr;
   int tftp_ok = daemon->tftp_unlimited;
+  int dhcp_ok = 1;
 #ifdef HAVE_DHCP
   struct iname *tmp;
 #endif
@@ -190,6 +191,9 @@ static int iface_allowed(struct irec **irecp, int if_index,
     }
    
   loopback = ifr.ifr_flags & IFF_LOOPBACK;
+  
+  if (loopback)
+     dhcp_ok = 0;
 
   if (ioctl(fd, SIOCGIFMTU, &ifr) != -1)
     mtu = ifr.ifr_mtu;
@@ -238,7 +242,10 @@ static int iface_allowed(struct irec **irecp, int if_index,
 #ifdef HAVE_DHCP
       for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
 	if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
-	  tftp_ok = 0;
+	  {
+	    tftp_ok = 0;
+	    dhcp_ok = 0;
+	  }
 #endif
       
 #ifdef HAVE_IPV6
@@ -254,6 +261,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
       iface->addr = *addr;
       iface->netmask = netmask;
       iface->tftp_ok = tftp_ok;
+      iface->dhcp_ok = dhcp_ok;
       iface->mtu = mtu;
       iface->dad = dad;
       iface->done = 0;
