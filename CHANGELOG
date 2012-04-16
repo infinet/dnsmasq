@@ -89,6 +89,9 @@ version 2.61
 	    and the OpenStack team for the suggestion.
 
 	    Updated French translation. Thanks to Gildas Le Nadan.
+
+	    Give correct from-cache answers to explict CNAME queries.
+	    Thanks to Rob Zwissler for spotting this.
 	    
 
 version 2.60

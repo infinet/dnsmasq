@@ -1639,6 +1639,23 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    } while ((crecp = cache_find_by_name(crecp, name, now, flag | F_CNAME)));
 		}
 	    }
+
+	  if (qtype == T_CNAME || qtype == T_ANY)
+	    {
+	      if ((crecp = cache_find_by_name(NULL, name, now, F_CNAME)) &&
+		  (qtype == T_CNAME || (crecp->flags & (F_HOSTS | F_DHCP))))
+		{
+		  ans = 1;
+		  if (!dryrun)
+		    {
+		      log_query(crecp->flags, name, NULL, record_source(crecp->uid));
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      crec_ttl(crecp, now), &nameoffset,
+					      T_CNAME, C_IN, "d", cache_get_name(crecp->addr.cname.cache)))
+			anscount++;
+		    }
+		}
+	    }
 	  
 	  if (qtype == T_MX || qtype == T_ANY)
 	    {
