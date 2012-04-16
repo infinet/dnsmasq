@@ -22,7 +22,8 @@ peut être configuré pour envoyer n'importe quel option DHCP.
 Il inclut un serveur TFTP sécurisé en lecture seule permettant le démarrage via
 le réseau/PXE de clients DHCP et supporte également le protocole BOOTP.
 .PP
-Dnsmasq supporte IPv6 pour le DNS et TFTP mais pas pour le DHCP.
+Dnsmasq supporte IPv6 et contient un démon minimaliste capable de faire des
+annonces routeurs ("router-advertisements").
 .SH OPTIONS
 Notes : Il est possible d'utiliser des options sans leur donner de paramètre.
 Dans ce cas, la fonction correspondante sera désactivée. Par exemple
@@ -492,6 +493,27 @@ dans un ordre différents. Pour un service/domaine donné, plus d'un
 enregistrement SRV est autorisé et tous les enregistrements qui coïncident sont
 retournés dans la réponse.
 .TP
+.B --host-record=<nom>[,<nom>....][<adresse IPv4>],[<adresse IPv6>]
+Ajoute des enregistrements A, AAAA et PTR dans le DNS. Ceci permet d'ajouter
+un ou plusieurs noms dans le DNS et de les associer à des enregistrements IPv4
+(A) ou IPv6 (AAAA). Un nom peut apparaître dans plus d'une entrée
+.B host-record
+et de fait être associé à plus d'une adresse. Seule la première entrée créée
+l'enregistrement PTR associée au nom. Ceci correspond à la même règle que celle
+utilisée lors de la lecture du fichier hosts.
+Les options
+.B host-record
+sont considérées lues avant le fichier hosts, ainsi un nom apparaissant dans
+une option host-record et dans le fichier hosts n'aura pas d'enregistrement
+PTR associé à l'entrée dans le fichier hosts. A l'inverse du fichier hosts, les
+noms ne sont pas étendus, même lorsque l'option
+.B expand-hosts
+est activée. Les noms longs et les noms courts peuvent apparaitre dans la même
+entrée 
+.B host-record,
+c-à-d
+.B --host-record=laptop,laptop.thekelleys.org,192.168.0.1,1234::100
+.TP
 .B \-Y, --txt-record=<nom>[[,<texte>],<texte>]
 Définit un enregistrement DNS de type TXT. La valeur de l'enregistrement TXT est
 un ensemble de chaînes de caractères, donc un nombre variable de chaînes de
@@ -577,11 +599,11 @@ l'ayant déclenché, ce qui est pratique pour la gestion de la bande passante
 (accounting) et le filtrage (firewall). Dnsmasq doit pour cela être compilé
 avec le support conntrack, le noyau doit également inclure conntrack et être
 configuré pour cela. Cette option ne peut pas être combinée avec
---query-port. 
+--query-port.
 .TP
-.B \-F, --dhcp-range=[interface:<interface>,][tag:<label>[,tag:<label>],][set:<label>],]<adresse de début>,<adresse de fin>[,<masque de réseau>[,<broadcast>]][,<durée de bail>]
+.B \-F, --dhcp-range=[interface:<interface>,][tag:<label>[,tag:<label>],][set:<label>],]<adresse de début>[,<adresse de fin>][,<mode>][,<masque de réseau>[,<broadcast>]][,<durée de bail>]
 .TP
-.B \-F, --dhcp-range=[interface:<interface>,][tag:<label>[,tag:<label>],][set:<label>],]<addresse IPv6 de début>,<adresse IPv6 de fin>[,<longueur de préfixe>][,<durée de bail>]
+.B \-F, --dhcp-range=[interface:<interface>,][tag:<label>[,tag:<label>],][set:<label>],]<addresse IPv6 de début>[,<adresse IPv6 de fin>][,<mode>][,<longueur de préfixe>][,<durée de bail>]
 Active le serveur DHCP. Les adresses seront données dans la plage comprise entre
 <adresse de début> et <adresse de fin> et à partir des adresses définies
 statiquement dans l'option
@@ -592,6 +614,13 @@ en heures (exemple : 1h) ou être la chaine de caractère "infinite" pour une
 durée indéterminée. Si aucune valeur n'est donnée, une durée de bail par défaut
 de une heure est appliquée. La valeur minimum pour un bail DHCP est de 2
 minutes.
+
+Pour les plages IPv6, la durée de bail peut-être égale au mot-clef "deprecated"
+(obsolète); Cela positionne la durée de vie préférée envoyée dans les baux DHCP
+ou les annonces routeurs à zéro, ce qui incite les clients à utiliser d'autres
+adresses autant que possible, pour toute nouvelle connexion, en préalable à
+la renumérotation.
+
 Cette option peut être répétée, avec différentes adresses,
 pour activer le service DHCP sur plus d'un réseau. Pour des réseaux directement
 connectés (c'est-à-dire des réseaux dans lesquels la machine sur laquelle tourne
@@ -622,30 +651,59 @@ Lorsque préfixé par 'tag:', la signification change, et au lieu de définir un
 label, il définit le label pour laquelle la règle s'applique. Un seul label peut-
 être défini mais plusieurs labels peuvent coïncider.
 
-L'adresse de fin peut être remplacée par le mot-clef
+Le mot clef optionnel <mode> peut être égal à
 .B static
-("statique") qui indique à Dnsmasq d'activer le service DHCP pour le réseau
+("statique") ce qui indique à Dnsmasq d'activer le service DHCP pour le réseau
 spécifié, mais de ne pas activer l'allocation dynamique d'adresses IP : Seuls
 les hôtes possédant des adresses IP statiques fournies via 
 .B dhcp-host
 ou présentes dans le fichier /etc/ethers seront alors servis par le DHCP.
 
-L'adresse de fin peut-être remplacée par le mot-clef
+Pour IPv4, le <mode> peut est égal à
 .B proxy
 , auquel cas Dnsmasq fournira un service de DHCP proxy pour le sous-réseau
 spécifié. (voir
 .B pxe-prompt
 et
 .B pxe-service
-pour plus de détails, s'applique à IPv4 seulement).
+pour plus de détails).
 
-L'adresse de fin peut être remplacée par le mot-clef
+Pour IPv6, le mode peut-être une combinaison des valeurs
+.B ra-only, slaac, ra-names, ra-stateless.
+
 .B ra-only
-qui indique à dnsmasq de n'effectuer que des annonces de routeur (Router
-Advertisement, RA) sur ce sous-réseau, et de ne pas faire de DHCP. Ceci
-s'applique uniquement à IPv6, voir
-.B enable-ra
-pour plus de détails.
+indique à dnsmasq de n'effectuer que des annonces de routeur (Router
+Advertisement, RA) sur ce sous-réseau, et de ne pas faire de DHCP.
+
+.B slaac
+indique à dnsmasq d'effectuer des annonces de routeur sur ce sous-réseau
+et de positionner dans celles-ci le bit A, afin que les clients utilisent
+des adresses SLAAC. Lorsqu'utilisé conjointement avec une plage DHCP ou des
+affectations statiques d'adresses DHCP, les clients disposeront à la fois
+d'adresses DHCP assignées et d'adresses SLAAC.
+
+.B ra-stateless
+indique à dnsmasq d'effectuer des annonces de routeur avec les bits 0 et A
+positionnés, et de fournir un service DHCP sans état ("stateless"). Les clients
+utiliseront des adresses SLAAC, et utiliseront DHCP pour toutes les autres
+informations de configuration.
+
+.B ra-names
+active un mode qui fourni des noms DNS aux hôtes fonctionnant en double pile
+("dual stack") et configurés pour faire du SLAAC en IPv6. Dnsmasq utilise le
+bail IPv4 de l'hôte afin de dériver le nom, le segment de réseau et l'adresse
+MAC et assume que l'hôte disposera d'une adresse IPv6 calculée via l'algorithme
+SLAAC, sur le même segment de réseau. Un ping est envoyé à l'adresse, et si une
+réponse est obtenue, un enregistrement AAAA est rajouté dans le DNS pour cette
+adresse IPv6. Veuillez-noter que cela n'arrive que pour les réseaux directement
+connectés (et non ceux pour lesquels DHCP se fait via relai), et ne
+fonctionnera pas si un hôte utilise les "extensions de vie privée"
+("privacy extensions").
+.B ra-names
+peut-être combiné avec
+.B ra-stateless
+et
+.B slaac.
 
 La section interface:<nom d'interface> n'est normalement pas utilisée. Se
 référer aux indications de la section NOTES pour plus de détail à ce sujet.
@@ -1170,9 +1228,21 @@ détermination de celles-ci.
 .B \-l, --dhcp-leasefile=<chemin de fichier>
 Utilise le fichier dont le chemin est fourni pour stocker les informations de
 baux DHCP.
-.TP 
+.TP
+.B --dhcp-duid=<ID d'entreprise>,<uid>
+(IPv6 seulement) Spécifie le numéro d'UID de serveur persistant que le serveur
+DHCPv6 doit utiliser. Cette option n'est normalement pas requise, Dnsmasq
+créant un DUID automatiquement lorsque cela est nécessaire. Lorsque cette
+option est positionnée, elle fournit à Dnsmasq les données nécessaires à la
+création d'un DUID de type DUID-EN. Veuillez noter qu'une fois créé, le DUID
+est stocké dans la base des baux, aussi changer entre un DUID créé
+automatiquement et un DUID-EN et vice-versa impose de réinitialiser la base de
+baux. Le numéro d'ID d'entreprise est assigné par l'IANA, et l'uid est une
+chaine hexadécimale unique à chaque serveur.
+.TP
 .B \-6 --dhcp-script=<chemin de fichier>
-Lorsqu'un bail DHCP est créé, ou qu'un ancien est supprimé, le fichier dont le
+Lorsqu'un bail DHCP est créé, qu'un ancien est supprimé, ou qu'un transfert
+TFTP est terminé, le fichier dont le
 chemin  est spécifié est exécuté. Le <chemin de fichier> doit être un chemin
 absolu, aucune recherche n'est effectuée via la variable d'environnement PATH.
 Les arguments fournis à celui-ci sont soit
@@ -1223,6 +1293,10 @@ relai DHCP pour contacter Dnsmasq, si l'adresse IP du relai est connue.
 DNSMASQ_TAGS contient tous les labels fournis pendant la transaction DHCP,
 séparés par des espaces.
 
+DNSMASQ_LOG_DHCP est positionné si
+.B --log-dhcp
+est activé.
+
 Pour IPv4 seulement :
 
 DNSMASQ_CLIENT_ID, si l'hôte a fourni un identifiant de client.
@@ -1262,6 +1336,16 @@ Au démarrage de Dnsmasq, le script sera invoqué pour chacun des baux existants
 dans le fichier des baux. Le script sera lancé avec l'action "del" pour les
 baux expirés, et "old" pour les autres. Lorsque Dnsmasq reçoit un signal HUP,
 le script sera invoqué avec une action "old" pour tous les baux existants.
+
+Il existe deux autres actions pouvant apparaître comme argument au script :
+"init" et "tftp". D'autres sont susceptibles d'être rajoutées dans le futur,
+aussi les scripts devraient-être écrits de sorte à ignorer les actions
+inconnues. "init" est décrite ci-dessous dans
+.B --leasefile-ro.
+L'action "tftp" est invoquée lorsqu'un transfert de fichier TFTP s'est
+terminé. Ses arguments sont la taille du fichier en octets, l'adresse à
+laquelle le fichier a été envoyé, ainsi que le chemin complet du fichier.
+
 .TP
 .B --dhcp-luascript=<chemin>
 Spécifie un script écrit en Lua, devant être exécuté lorsque des baux sont
@@ -1276,8 +1360,10 @@ et peut fournir des fonctions
 et
 .B shutdown
 qui sont appellées, sans arguments, lorsque dnsmasq démarre ou s'arrête.
+Il peut également fournir une fonction
+.B tftp.
 
-La méthode
+La fonction
 .B lease
 reçoit les informations détaillées dans
 .B --dhcp-script. 
@@ -1301,6 +1387,16 @@ et
 ainsi que
 .B hostname
 (le nom d'hôte) dans le cas d'IPv6.
+
+La fonction
+.B tftp
+est appelée de la même façon que la fonction "lease", et la table contient les
+labels
+.B destination_address,
+.B file_name
+et
+.B file_size
+(respectivement "adresse de destination", "nom de fichier" et "taille de fichier").
 .TP
 .B --dhcp-scriptuser
 Spécifie l'utilisateur sous lequel le script shell lease-change ou le script
@@ -1367,7 +1463,7 @@ Si la gamme d'adresse est fournie sous la forme
 qui a pour effect d'ajouter --local-declarations aux requêtes DNS directes et
 inverses. C-à-d
 .B --domain=thekelleys.org.uk,192.168.0.0/24,local
-est indentique à
+est identique à
 .B --domain=thekelleys.org.uk,192.168.0.0/24
 --local=/thekelleys.org.uk/ --local=/0.168.192.in-addr.arpa/
 La taille de réseau doit-être de 8, 16 ou 24 pour être valide.
@@ -1411,10 +1507,15 @@ Advertisement") sont activées, dnsmasq va annoncer un préfixe pour chaque
 dhcp-range et, par défaut, fournir comme valeur de routeur et de DNS récursif
 la valeur d'adresse link-local appropriée parmi celles de la machine sur
 laquelle tourne dnsmasq.
-Les bits "managed address" sont positionnés, sauf pour un dhcp-range marqué
-comme "ra-only" (annonce routeur uniquement). Dans ce cas le service d'annonce
-routeur est rendu mais aucun service DHCPv6 n'est assuré, et les bits "managed
-address" ne sont pas positionnés.
+Par défaut, les bits "managed address" sont positionnés, et le bit "use SLAAC"
+("utiliser SLAAC") est réinitialisé. Cela peut-être changé pour des
+sous-réseaux donnés par le biais du mot clef de mode décris dans
+.B --dhcp-range.
+Les paramètres DNS du RFC6106 sont inclus dans les annonces. Par défaut,
+l'adresse link-local appropriée parmi celles de la machine sur laquelle tourne
+dnsmasq est spécifiée comme DNS récursif. Si elles sont fournies, les
+options dns-server et domain-search sont utilisées respectivement pour RDNSS et
+DNSSL.
 .TP
 .B --enable-tftp[=<interface>]
 Active la fonction serveur TFTP. Celui-ci est de manière délibérée limité aux

@@ -23,7 +23,7 @@ options. It includes a secure, read-only,
 TFTP server to allow net/PXE boot of DHCP hosts and also supports BOOTP.
 .PP
 Dnsmasq 
-supports IPv6 for all functions and a minimal router-advertisemnet daemon.
+supports IPv6 for all functions and a minimal router-advertisement daemon.
 .SH OPTIONS
 Note that in general missing parameters are allowed and switch off
 functions, for instance "--pid-file" disables writing a PID file. On
@@ -416,7 +416,7 @@ zone files: the port, weight and priority numbers are in a different
 order. More than one SRV record for a given service/domain is allowed,
 all that match are returned.
 .TP
-.B --host-record=<name>[,<name>....][<IPv4-address>],[IPv6-address]
+.B --host-record=<name>[,<name>....][<IPv4-address>],[<IPv6-address>]
 Add A, AAAA and PTR records to the DNS. This adds one or more names to
 the DNS with associated IPv4 (A) and IPv6 (AAAA) records. A name may
 appear in more than one 
@@ -427,10 +427,12 @@ the same rule as is used reading hosts-files.
 .B host-record
 options are considered to be read before host-files, so a name
 appearing there inhibits PTR-record creation if it appears in
-hosts-file also. Unlike host-files, names are not expanded, even when
+hosts-file also. Unlike hosts-files, names are not expanded, even when
 .B expand-hosts
 is in effect. Short and long names may appear in the same 
-.B host-record, eg. --host-record=laptop,laptop.thekelleys.org,192.168.0.1,1234::100
+.B host-record,
+eg. 
+.B --host-record=laptop,laptop.thekelleys.org,192.168.0.1,1234::100
 .TP
 .B \-Y, --txt-record=<name>[[,<text>],<text>]
 Return a TXT DNS record. The value of TXT record is a set of strings,
@@ -560,7 +562,7 @@ addresses given via
 .B dhcp-host
 or from /etc/ethers will be served. 
 
-Fot IPv4, the <mode> may be 
+For IPv4, the <mode> may be 
 .B proxy
 in which case dnsmasq will provide proxy-DHCP on the specified
 subnet. (See 
@@ -593,7 +595,7 @@ enables a mode
 which gives DNS names to dual-stack hosts which do SLAAC for
 IPv6. Dnsmasq uses the host's IPv4 lease to derive the name, network
 segment and MAC address and assumes that the host will also have an
-IPv6 address calculated using the SLAAC alogrithm, on the same network
+IPv6 address calculated using the SLAAC algorithm, on the same network
 segment. The address is pinged, and if a reply is received, an AAAA
 record is added to the DNS for this IPv6
 address. Note that this is only happens for directly-connected
@@ -1140,7 +1142,9 @@ is known.
 DNSMASQ_TAGS contains all the tags set during the
 DHCP transaction, separated by spaces.
 
-DNSMASQ_LOG_DHCP is set if --log-dhcp is in effect.
+DNSMASQ_LOG_DHCP is set if
+.B --log-dhcp
+is in effect.
 
 For IPv4 only:
 
@@ -1193,7 +1197,7 @@ with an "old " event.
 There are two further actions which may appear as the first argument
 to the script, "init" and "tftp". More may be added in the future, so
 scripts should be written to ignore unknown actions. "init" is
-decsribed below in 
+described below in 
 .B --leasefile-ro
 The "tftp" action is invoked when a TFTP file transfer completes: the
 arguments are the file size in bytes, the address to which the file

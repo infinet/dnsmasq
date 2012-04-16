@@ -86,7 +86,9 @@ version 2.61
 	    makes the OpenStack use-case of one dnsmasq per virtual
 	    interface work. This is only available on Linux; it's not
 	    supported on other platforms. Thanks to Vishvananda Ishaya
-	    and thr OpenStack team for the suggestion.
+	    and the OpenStack team for the suggestion.
+
+	    Updated French translation. Thanks to Gildas Le Nadan.
 	    
 
 version 2.60
