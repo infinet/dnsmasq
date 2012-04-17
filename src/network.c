@@ -266,10 +266,13 @@ static int iface_allowed(struct irec **irecp, int if_index,
       iface->dad = dad;
       iface->done = 0;
       if ((iface->name = whine_malloc(strlen(ifr.ifr_name)+1)))
-	strcpy(iface->name, ifr.ifr_name);
-      iface->next = *irecp;
-      *irecp = iface;
-      return 1;
+	{
+	  strcpy(iface->name, ifr.ifr_name);
+	  iface->next = *irecp;
+	  *irecp = iface;
+	  return 1;
+	}
+      free(iface);
     }
   
   errno = ENOMEM; 
