@@ -24,6 +24,7 @@ static ssize_t tftp_err(int err, char *packet, char *mess, char *file);
 static ssize_t tftp_err_oops(char *packet, char *file);
 static ssize_t get_block(char *packet, struct tftp_transfer *transfer);
 static char *next(char **p, char *end);
+static void sanitise(char *buf);
 
 #define OP_RRQ  1
 #define OP_WRQ  2
@@ -562,27 +563,23 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	      len = tftp_err_oops(daemon->packet, transfer->file->filename);
 	      endcon = 1;
 	    }
-	  else if (++transfer->backoff > 5)
+	  /* don't complain about timeout when we're awaiting the last
+	     ACK, some clients never send it */
+	  else if (++transfer->backoff > 5 && len != 0)
 	    {
-	      /* don't complain about timeout when we're awaiting the last
-		 ACK, some clients never send it */
-	      if (len != 0)
-		{
-		  my_syslog(MS_TFTP | LOG_ERR, _("failed sending %s to %s"), 
-			    transfer->file->filename, daemon->addrbuff);
-		  len = 0;
-		  endcon = 1;
-		}
+	      endcon = 1;
+	      len = 0;
 	    }
-	  
+
 	  if (len != 0)
 	    while(sendto(transfer->sockfd, daemon->packet, len, 0, 
 			 (struct sockaddr *)&transfer->peer, sizeof(transfer->peer)) == -1 && errno == EINTR);
 	  
 	  if (endcon || len == 0)
 	    {
-	      if (!endcon)
-		my_syslog(MS_TFTP | LOG_INFO, _("sent %s to %s"), transfer->file->filename, daemon->addrbuff);
+	      strcpy(daemon->namebuff, transfer->file->filename);
+	      sanitise(daemon->namebuff);
+	      my_syslog(MS_TFTP | LOG_INFO, endcon ? _("failed sending %s to %s") : _("sent %s to %s"), daemon->namebuff, daemon->addrbuff);
 	      /* unlink */
 	      *up = tmp;
 	      /* put on queue to be sent to script and deleted */
@@ -621,6 +618,15 @@ static char *next(char **p, char *end)
   return ret;
 }
 
+static void sanitise(char *buf)
+{
+  char *end = buf + strlen(buf);
+
+  while (*(buf++))
+    if (!isprint(*buf))
+      memmove(buf, buf + 1, end - buf);
+}      
+
 static ssize_t tftp_err(int err, char *packet, char *message, char *file)
 {
   struct errmess {
@@ -629,7 +635,9 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
   } *mess = (struct errmess *)packet;
   ssize_t ret = 4;
   char *errstr = strerror(errno);
- 
+  
+  sanitise(file);
+
   mess->op = htons(OP_ERR);
   mess->err = htons(err);
   ret += (snprintf(mess->message, 500,  message, file, errstr) + 1);
@@ -640,7 +648,9 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
 
 static ssize_t tftp_err_oops(char *packet, char *file)
 {
-  return tftp_err(ERR_NOTDEF, packet, _("cannot read %s: %s"), file);
+  /* May have >1 refs to file, so potentially mangle a copy of the name */
+  strcpy(daemon->namebuff, file);
+  return tftp_err(ERR_NOTDEF, packet, _("cannot read %s: %s"), daemon->namebuff);
 }
 
 /* return -1 for error, zero for done. */
