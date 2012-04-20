@@ -345,9 +345,12 @@ void tftp_request(struct listener *listen, time_t now)
 	}
 
       /* cope with backslashes from windows boxen. */
-      while ((p = strchr(filename, '\\')))
-	*p = '/';
-
+      for (p = filename; *p; p++)
+	if (*p == '\\')
+	  *p = '/';
+	else if (option_bool(OPT_TFTP_LC))
+	  *p = tolower(*p);
+		
       strcpy(daemon->namebuff, "/");
       if (prefix)
 	{

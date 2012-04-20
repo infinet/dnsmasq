@@ -1385,6 +1385,12 @@ are accessible. It is not recommended to run dnsmasq as root with TFTP
 enabled, and certainly not without specifying --tftp-root. Doing so
 can expose any world-readable file on the server to any host on the net. 
 .TP
+.B --tftp-lowercase
+Convert filenames in TFTP requests to all lowercase. This is useful
+for requests from Windows machines, which have case-insensitive
+filesystems and tend to play fast-and-loose with case in filenames.
+Note that dnsmasq's tftp server always converts "\\" to "/" in filenames.
+.TP
 .B --tftp-max=<connections>
 Set the maximum number of concurrent TFTP connections allowed. This
 defaults to 50. When serving a large number of TFTP connections,

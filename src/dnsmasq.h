@@ -217,7 +217,8 @@ struct event_desc {
 #define OPT_CONNTRACK      35
 #define OPT_FQDN_UPDATE    36
 #define OPT_RA             37
-#define OPT_LAST           38
+#define OPT_TFTP_LC        38
+#define OPT_LAST           39
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */

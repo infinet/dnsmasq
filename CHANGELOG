@@ -93,6 +93,9 @@ version 2.61
 	    Give correct from-cache answers to explict CNAME queries.
 	    Thanks to Rob Zwissler for spotting this.
 	    
+	    Add --dhcp-lowercase option. Thanks to Oliver Rath for the
+	    patch. 
+	    
 
 version 2.60
             Fix compilation problem in Mac OS X Lion. Thanks to Olaf
