@@ -529,13 +529,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 		  if (!err)
 		    err = "";
 		  else
-		    {
-		      unsigned char *q, *r;
-		      for (q = r = (unsigned char *)err; *r; r++)
-			if (isprint(*r))
-			  *(q++) = *r;
-		      *q = 0;
-		    }
+		    sanitise(err);
 
 		  my_syslog(MS_TFTP | LOG_ERR, _("error %d %s received from %s"),
 			    (int)ntohs(mess->block), err, 
@@ -620,12 +614,13 @@ static char *next(char **p, char *end)
 
 static void sanitise(char *buf)
 {
-  char *end = buf + strlen(buf);
+  unsigned char *q, *r;
+  for (q = r = (unsigned char *)buf; *r; r++)
+    if (isprint(*r))
+      *(q++) = *r;
+  *q = 0;
 
-  while (*(buf++))
-    if (!isprint(*buf))
-      memmove(buf, buf + 1, end - buf);
-}      
+}
 
 static ssize_t tftp_err(int err, char *packet, char *message, char *file)
 {
