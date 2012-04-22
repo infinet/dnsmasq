@@ -93,6 +93,8 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
       while (count-- >= 0 && rr < end)
         {
           *buf = *rr++;
+          if (!isascii(*buf) || iscntrl(*buf) || *buf == '.')
+            return 0;
           if (*buf >= 'A' && *buf <= 'Z')
             *buf += 'a' - 'A';
           buf++;
