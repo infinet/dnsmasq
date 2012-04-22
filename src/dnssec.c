@@ -99,6 +99,7 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
         } 
       *buf++ = '.';
     }
+  rr++;
   *buf = 0;
   if (rr == end)
     return 0;
