@@ -491,7 +491,12 @@ static size_t process_reply(struct dns_header *header, time_t now,
       if (!option_bool(OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
-    
+
+#ifdef HAVE_DNSSEC
+    printf("validate\n");
+   dnssec_validate(header, n);
+#endif
+
   if (daemon->bogus_addr && RCODE(header) != NXDOMAIN &&
       check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
