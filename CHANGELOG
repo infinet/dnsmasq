@@ -93,7 +93,7 @@ version 2.61
 	    Give correct from-cache answers to explict CNAME queries.
 	    Thanks to Rob Zwissler for spotting this.
 	    
-	    Add --dhcp-lowercase option. Thanks to Oliver Rath for the
+	    Add --tftp-lowercase option. Thanks to Oliver Rath for the
 	    patch. 
 	    
 
