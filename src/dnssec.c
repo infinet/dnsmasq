@@ -43,16 +43,25 @@ typedef struct
   int (*verify)(unsigned char *key, unsigned key_len);
 } VerifyAlg;
 
-/* RFC4034, Appendix A.1: only algorithm 3 (DSA/SHA1) and 5 (RSA/SHA1) are
-   currently valid for zone-signing. */
-static const VerifyAlg valgs[6] = 
+/* Updated registry that merges various RFCs:
+   https://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xml */
+static const VerifyAlg valgs[] =
 {
-  {0,0,0,0,0},   /* 0: reserved */
-  {0,0,0,0,0},   /* 1: RSA/MD5 */
-  {0,0,0,0,0},   /* 2: DH */
-  {0,0,0,0,0},   /* 3: DSA/SHA1 */
-  {0,0,0,0,0},   /* 4: ECC */
-  {0,0,0,0,0},   /* 5: RSA/SHA1 */
+  {0,0,0,0,0},   /*  0: reserved */
+  {0,0,0,0,0},   /*  1: RSAMD5 */
+  {0,0,0,0,0},   /*  2: DH */
+  {0,0,0,0,0},   /*  3: DSA */
+  {0,0,0,0,0},   /*  4: ECC */
+  {0,0,0,0,0},   /*  5: RSASHA1 */
+  {0,0,0,0,0},   /*  6: DSA-NSEC3-SHA1 */
+  {0,0,0,0,0},   /*  7: RSASHA1-NSEC3-SHA1 */
+  {0,0,0,0,0},   /*  8: RSASHA256 */
+  {0,0,0,0,0},   /*  9: unassigned */
+  {0,0,0,0,0},   /* 10: RSASHA512 */
+  {0,0,0,0,0},   /* 11: unassigned */
+  {0,0,0,0,0},   /* 12: ECC-GOST */
+  {0,0,0,0,0},   /* 13: ECDSAP256SHA256 */
+  {0,0,0,0,0},   /* 14: ECDSAP384SHA384 */
 };
 
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
