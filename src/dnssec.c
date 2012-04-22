@@ -1,5 +1,6 @@
 
 #include "dnsmasq.h"
+#include "dnssec-crypto.h"
 #include <assert.h>
 
 #define SERIAL_UNDEF  -100
@@ -10,58 +11,25 @@
 #define countof(x)      (long)(sizeof(x) / sizeof(x[0]))
 #define MIN(a,b)        ((a) < (b) ? (a) : (b))
 
-/* 
- * vtable for a signature verification algorithm.
- *
- * Each algorithm verifies that a certain signature over a (possibly non-contigous)
- * array of data has been made with the specified key.
- *
- * Sample of usage:
- *
- *    // First, set the signature we need to check. Notice: data is not copied
- *    // nor consumed, so the pointer must stay valid.
- *    alg->set_signature(sig, 16);
- *
- *    // Second, push the data in; data is consumed immediately, so the buffer
- *    // can be freed or modified.
- *    alg->begin_data();
- *    alg->add_data(buf1, 123);
- *    alg->add_data(buf2, 45);
- *    alg->add_data(buf3, 678);
- *    alg->end_data();
- *
- *    // Third, verify if we got the correct key for this signature.
- *    alg->verify(key1, 16);
- *    alg->verify(key2, 16);
- */ 
-typedef struct
-{
-  int (*set_signature)(unsigned char *data, unsigned len);
-  void (*begin_data)(void);
-  void (*add_data)(void *data, unsigned len);
-  void (*end_data)(void);
-  int (*verify)(unsigned char *key, unsigned key_len);
-} VerifyAlg;
-
 /* Updated registry that merges various RFCs:
    https://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xml */
 static const VerifyAlg valgs[] =
 {
-  {0,0,0,0,0},   /*  0: reserved */
-  {0,0,0,0,0},   /*  1: RSAMD5 */
-  {0,0,0,0,0},   /*  2: DH */
-  {0,0,0,0,0},   /*  3: DSA */
-  {0,0,0,0,0},   /*  4: ECC */
-  {0,0,0,0,0},   /*  5: RSASHA1 */
-  {0,0,0,0,0},   /*  6: DSA-NSEC3-SHA1 */
-  {0,0,0,0,0},   /*  7: RSASHA1-NSEC3-SHA1 */
-  {0,0,0,0,0},   /*  8: RSASHA256 */
-  {0,0,0,0,0},   /*  9: unassigned */
-  {0,0,0,0,0},   /* 10: RSASHA512 */
-  {0,0,0,0,0},   /* 11: unassigned */
-  {0,0,0,0,0},   /* 12: ECC-GOST */
-  {0,0,0,0,0},   /* 13: ECDSAP256SHA256 */
-  {0,0,0,0,0},   /* 14: ECDSAP384SHA384 */
+  {0,0,0,0,0},            /*  0: reserved */
+  {0,0,0,0,0},            /*  1: RSAMD5 */
+  {0,0,0,0,0},            /*  2: DH */
+  {0,0,0,0,0},            /*  3: DSA */
+  {0,0,0,0,0},            /*  4: ECC */
+  VALG_VTABLE(rsasha1),   /*  5: RSASHA1 */
+  {0,0,0,0,0},            /*  6: DSA-NSEC3-SHA1 */
+  {0,0,0,0,0},            /*  7: RSASHA1-NSEC3-SHA1 */
+  {0,0,0,0,0},            /*  8: RSASHA256 */
+  {0,0,0,0,0},            /*  9: unassigned */
+  {0,0,0,0,0},            /* 10: RSASHA512 */
+  {0,0,0,0,0},            /* 11: unassigned */
+  {0,0,0,0,0},            /* 12: ECC-GOST */
+  {0,0,0,0,0},            /* 13: ECDSAP256SHA256 */
+  {0,0,0,0,0},            /* 14: ECDSAP384SHA384 */
 };
 
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
