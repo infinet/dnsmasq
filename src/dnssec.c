@@ -169,9 +169,12 @@ static int validate_rrsig(struct dns_header *header, size_t pktlen,
       if (res == 1 && qtype == sigtype && qclass == sigclass)
         {
           ++rrsetidx;
-          assert(rrsetidx < countof(rrset));
-          /* TODO: here we should convert to lowercase domain names within 
-             RDATA. We can do it in place. */
+          if (rrsetidx == countof(rrset))
+            {
+              /* Internal buffer too small */
+              printf("internal buffer too small for this RRset\n");
+              return 0;
+            }
         }
       p += rdlen;
     }
@@ -205,6 +208,8 @@ static int validate_rrsig(struct dns_header *header, size_t pktlen,
       p = (unsigned char*)(rrset[i]);
       p += 8;
       GETSHORT(rdlen, p);
+      /* TODO: instead of a direct add_data(), we must call a RRtype-specific 
+         function, that extract and canonicalizes domain names within RDATA. */
       alg->add_data(p-2, rdlen+2);
     }
   alg->end_data();
