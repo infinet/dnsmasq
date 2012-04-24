@@ -312,7 +312,10 @@ void tftp_request(struct listener *listen, time_t now)
       !(filename = next(&p, end)) ||
       !(mode = next(&p, end)) ||
       (strcasecmp(mode, "octet") != 0 && strcasecmp(mode, "netascii") != 0))
-    len = tftp_err(ERR_ILL, packet, _("unsupported request from %s"), daemon->addrbuff);
+    {
+      len = tftp_err(ERR_ILL, packet, _("unsupported request from %s"), daemon->addrbuff);
+      is_err = 1;
+    }
   else
     {
       if (strcasecmp(mode, "netascii") == 0)
@@ -505,12 +508,12 @@ void check_tftp_listeners(fd_set *rset, time_t now)
     {
       tmp = transfer->next;
       
+      prettyprint_addr(&transfer->peer, daemon->addrbuff);
+     
       if (FD_ISSET(transfer->sockfd, rset))
 	{
 	  /* we overwrote the buffer... */
 	  daemon->srv_save = NULL;
-	   
-	  prettyprint_addr(&transfer->peer, daemon->addrbuff);
 	  
 	  if ((len = recv(transfer->sockfd, daemon->packet, daemon->packet_buff_sz, 0)) >= (ssize_t)sizeof(struct ack))
 	    {
@@ -533,7 +536,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 		    err = "";
 		  else
 		    sanitise(err);
-
+		  
 		  my_syslog(MS_TFTP | LOG_ERR, _("error %d %s received from %s"),
 			    (int)ntohs(mess->block), err, 
 			    daemon->addrbuff);	
