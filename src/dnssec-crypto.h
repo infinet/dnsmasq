@@ -50,7 +50,7 @@ typedef struct
   alg ## _verify \
   } /**/
 
-/* Algorithm 5: RSASHA1 */
 DEFINE_VALG(rsasha1);
+DEFINE_VALG(rsasha256);
 
 #endif /* DNSSEC_CRYPTO_H */

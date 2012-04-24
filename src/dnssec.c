@@ -23,7 +23,7 @@ static const VerifyAlg valgs[] =
   VALG_VTABLE(rsasha1),   /*  5: RSASHA1 */
   {0,0,0,0,0},            /*  6: DSA-NSEC3-SHA1 */
   {0,0,0,0,0},            /*  7: RSASHA1-NSEC3-SHA1 */
-  {0,0,0,0,0},            /*  8: RSASHA256 */
+  VALG_VTABLE(rsasha256), /*  8: RSASHA256 */
   {0,0,0,0,0},            /*  9: unassigned */
   {0,0,0,0,0},            /* 10: RSASHA512 */
   {0,0,0,0,0},            /* 11: unassigned */
