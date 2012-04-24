@@ -149,7 +149,7 @@ static int validate_rrsig(struct dns_header *header, size_t pktlen,
       return 0;
     }
 
-  if (!check_date_range(ntohl(date_start), ntohl(date_end)))
+  if (!check_date_range(date_start, date_end))
     {
       printf("RRSIG outside date range\n");
       return 0;
