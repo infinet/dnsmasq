@@ -58,7 +58,7 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
   while (rr < end && *rr != 0)
     {
       count = *rr++;
-      while (count-- >= 0 && rr < end)
+      while (count-- > 0 && rr < end)
         {
           *buf = *rr++;
           if (!isascii(*buf) || iscntrl(*buf) || *buf == '.')
