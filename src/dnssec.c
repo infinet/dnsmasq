@@ -98,7 +98,7 @@ static int check_date_range(unsigned long date_start, unsigned long date_end)
 static int rrset_canonical_order(const void *r1, const void *r2)
 {
   int r1len, r2len, res;
-  const unsigned char *pr1=r1, *pr2=r2;
+  const unsigned char *pr1=*(unsigned char**)r1, *pr2=*(unsigned char**)r2;
   
   pr1 += 8; pr2 += 8;
   GETSHORT(r1len, pr1); GETSHORT(r2len, pr2);
