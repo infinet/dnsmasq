@@ -1222,51 +1222,56 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 
 	  log_tags(tagif_netid, ntohl(mess->xid));
 	  
-#ifdef HAVE_SCRIPT
-	  if (do_classes && daemon->lease_change_command)
+	  if (do_classes)
 	    {
-	      struct dhcp_netid *n;
-	      
-	      if (mess->giaddr.s_addr)
-		lease->giaddr = mess->giaddr;
-	      
+	      /* pick up INIT-REBOOT events. */
 	      lease->flags |= LEASE_CHANGED;
-	      free(lease->extradata);
-	      lease->extradata = NULL;
-	      lease->extradata_size = lease->extradata_len = 0;
-	      
-	      add_extradata_opt(lease, option_find(mess, sz, OPTION_VENDOR_ID, 1));
-	      add_extradata_opt(lease, option_find(mess, sz, OPTION_HOSTNAME, 1));
-	      add_extradata_opt(lease, oui);
-	      add_extradata_opt(lease, serial);
-	      add_extradata_opt(lease, class);
-	      
-	      /* space-concat tag set */
-	      if (!tagif_netid)
-		add_extradata_opt(lease, NULL);
-	      else
-		for (n = tagif_netid; n; n = n->next)
-		  {
-		    struct dhcp_netid *n1;
-		    /* kill dupes */
-		    for (n1 = n->next; n1; n1 = n1->next)
-		      if (strcmp(n->net, n1->net) == 0)
-			break;
-		    if (!n1)
-		      lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
-		  }
 
-	      if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
+#ifdef HAVE_SCRIPT
+	      if (daemon->lease_change_command)
 		{
-		  int len = option_len(opt);
-		  unsigned char *ucp = option_ptr(opt, 0);
-		  /* If the user-class option started as counted strings, the first byte will be zero. */
-		  if (len != 0 && ucp[0] == 0)
-		    ucp++, len--;
-		  lease_add_extradata(lease, ucp, len, 0);
+		  struct dhcp_netid *n;
+		  
+		  if (mess->giaddr.s_addr)
+		    lease->giaddr = mess->giaddr;
+		  
+		  free(lease->extradata);
+		  lease->extradata = NULL;
+		  lease->extradata_size = lease->extradata_len = 0;
+		  
+		  add_extradata_opt(lease, option_find(mess, sz, OPTION_VENDOR_ID, 1));
+		  add_extradata_opt(lease, option_find(mess, sz, OPTION_HOSTNAME, 1));
+		  add_extradata_opt(lease, oui);
+		  add_extradata_opt(lease, serial);
+		  add_extradata_opt(lease, class);
+		  
+		  /* space-concat tag set */
+		  if (!tagif_netid)
+		    add_extradata_opt(lease, NULL);
+		  else
+		    for (n = tagif_netid; n; n = n->next)
+		      {
+			struct dhcp_netid *n1;
+			/* kill dupes */
+			for (n1 = n->next; n1; n1 = n1->next)
+			  if (strcmp(n->net, n1->net) == 0)
+			    break;
+			if (!n1)
+			  lease_add_extradata(lease, (unsigned char *)n->net, strlen(n->net), n->next ? ' ' : 0); 
+		      }
+		  
+		  if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
+		    {
+		      int len = option_len(opt);
+		      unsigned char *ucp = option_ptr(opt, 0);
+		      /* If the user-class option started as counted strings, the first byte will be zero. */
+		      if (len != 0 && ucp[0] == 0)
+			ucp++, len--;
+		      lease_add_extradata(lease, ucp, len, 0);
+		    }
 		}
-	    }
 #endif
+	    }
 	  
 	  if (!hostname_auth && (client_hostname = host_from_dns(mess->yiaddr)))
 	    {

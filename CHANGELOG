@@ -95,6 +95,11 @@ version 2.61
 	    
 	    Add --tftp-lowercase option. Thanks to Oliver Rath for the
 	    patch. 
+
+	    Ensure that the DBus DhcpLeaseUpdated events are generated
+	    when a lease goes through INIT_REBOOT state, even if the
+	    dhcp-script is not in use. thanks to Antoaneta-Ecaterina
+	    Ene for the patch.
 	    
 
 version 2.60
