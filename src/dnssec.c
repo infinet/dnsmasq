@@ -64,8 +64,10 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
         } 
       *buf++ = '.';
     }
+  // Remove trailing dot (if any)
+  if (rr != start)
+    *(--buf) = 0;
   rr++;
-  *buf = 0;
   if (rr == end)
     return 0;
   return rr-start;
@@ -200,7 +202,7 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   
   alg->vtbl->begin_data(alg);
   alg->vtbl->add_data(alg, sigrdata, 18);
-  alg->vtbl->add_data(alg, signer_name, strlen(signer_name)-1); /* remove trailing dot */
+  alg->vtbl->add_data(alg, signer_name, strlen(signer_name));
   for (i = 0; i < rrsetidx; ++i)
     {
       int rdlen;
