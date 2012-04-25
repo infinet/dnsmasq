@@ -323,7 +323,6 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
         return 0;
     }
 
-  cache_start_insert();
   /* TODO: time(0) is correct here? */
   crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);
   if (crecp)
@@ -343,7 +342,6 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
       printf("DNSKEY: cache insertion failure\n");
       return 0;
     }
-  cache_end_insert();
   return 1;
 }
 
@@ -364,6 +362,9 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
     return 0;
   if (!(reply = p = skip_questions(header, pktlen)))
     return 0;
+
+  /* First, process DNSKEY/DS records and add them to the cache. */
+  cache_start_insert();
   for (i = 0; i < ntohs(header->ancount); i++)
     {
       if (!extract_name(header, pktlen, &p, owner, 1, 10))
@@ -384,8 +385,9 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
         }
       p += rdlen;
     }
+  cache_end_insert();
 
-  /* After we have parsed DNSKEY/DS records, start looking for RRSIGs.
+  /* After we have cached DNSKEY/DS records, start looking for RRSIGs.
      We want to do this in a separate step because we want the cache
      to be already populated with DNSKEYs before parsing signatures. */
   p = reply;
