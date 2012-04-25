@@ -8,9 +8,6 @@
 #define SERIAL_LT       -1
 #define SERIAL_GT        1
 
-#define countof(x)      (long)(sizeof(x) / sizeof(x[0]))
-#define MIN(a,b)        ((a) < (b) ? (a) : (b))
-
 /* Updated registry that merges various RFCs:
    https://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xml */
 static const VerifyAlg valgs[] =

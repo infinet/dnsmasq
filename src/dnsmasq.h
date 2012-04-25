@@ -56,6 +56,9 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
+#define countof(x)      (long)(sizeof(x) / sizeof(x[0]))
+#define MIN(a,b)        ((a) < (b) ? (a) : (b))
+
 #include "dns-protocol.h"
 #include "dhcp-protocol.h"
 #ifdef HAVE_DHCP6
