@@ -1184,7 +1184,7 @@ void dump_cache(time_t now)
 	    else if (cache->flags & F_DS)
 	      {
 		a = daemon->addrbuff;
-		sprintf(a, "%5u %3u %3u %u", cache->addr.key.flags_or_keyid,
+		sprintf(a, "%5u %3u %3u %u", cache->addr.key.keytag,
 			cache->addr.key.algo, cache->addr.key.digest, cache->uid);
 	      }
 #endif

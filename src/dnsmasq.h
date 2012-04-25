@@ -342,7 +342,7 @@ struct crec {
       struct keydata *keydata;
       unsigned char algo;
       unsigned char digest; /* DS only */
-      unsigned short flags_or_keyid; /* flags for DNSKEY, keyid for DS */
+      unsigned short keytag;
     } key;
   } addr;
   time_t ttd; /* time to die */
