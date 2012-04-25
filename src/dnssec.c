@@ -94,9 +94,17 @@ static int rrset_canonical_order(const void *r1, const void *r2)
   return res;
 }
 
-static int validate_rrsig(struct dns_header *header, size_t pktlen,
-                          unsigned char *reply, int count, char *owner,
-                          int sigclass, int sigrdlen, unsigned char *sig)
+typedef struct PendingRRSIGValidation
+{
+  VerifyAlgCtx *alg;
+  char *signer_name;
+  int keytag;
+} PendingRRSIGValidation;
+
+static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
+                                  unsigned char *reply, int count, char *owner,
+                                  int sigclass, int sigrdlen, unsigned char *sig,
+                                  PendingRRSIGValidation *out)
 {
   int i, res;
   int sigtype, sigalg, siglbl;
@@ -119,7 +127,7 @@ static int validate_rrsig(struct dns_header *header, size_t pktlen,
   GETSHORT(keytag, sig);
   sigrdlen -= 18;
   
-  if (sigalg >= countof(valgs) || !valgs[sigalg].set_signature)
+  if (!verifyalg_supported(sigalg))
     {
       printf("RRSIG algorithm not supported: %d\n", sigalg);
       return 0;
@@ -165,42 +173,79 @@ static int validate_rrsig(struct dns_header *header, size_t pktlen,
   
   /* Now initialize the signature verification algorithm and process the whole
      RRset */
-  const VerifyAlg *alg = &valgs[sigalg];
-  if (!alg->set_signature(sig, sigrdlen))
+  VerifyAlgCtx *alg = verifyalg_alloc(sigalg);
+  if (!alg)
+    return 0;
+  if (!alg->vtbl->set_signature(alg, sig, sigrdlen))
     return 0;
   
-  alg->begin_data();
-  alg->add_data(sigrdata, 18);
-  alg->add_data(signer_name, strlen(signer_name)-1); /* remove trailing dot */
+  alg->vtbl->begin_data(alg);
+  alg->vtbl->add_data(alg, sigrdata, 18);
+  alg->vtbl->add_data(alg, signer_name, strlen(signer_name)-1); /* remove trailing dot */
   for (i = 0; i < rrsetidx; ++i)
     {
       int rdlen;
       
-      alg->add_data(owner, strlen(owner));
-      alg->add_data(&sigtype, 2);
-      alg->add_data(&sigclass, 2);
-      alg->add_data(&sigttl, 4);
+      alg->vtbl->add_data(alg, owner, strlen(owner));
+      alg->vtbl->add_data(alg, &sigtype, 2);
+      alg->vtbl->add_data(alg, &sigclass, 2);
+      alg->vtbl->add_data(alg, &sigttl, 4);
     
       p = (unsigned char*)(rrset[i]);
       p += 8;
       GETSHORT(rdlen, p);
       /* TODO: instead of a direct add_data(), we must call a RRtype-specific 
          function, that extract and canonicalizes domain names within RDATA. */
-      alg->add_data(p-2, rdlen+2);
+      alg->vtbl->add_data(alg, p-2, rdlen+2);
     }
-  alg->end_data();
-  
-  /* TODO: now we need to fetch the DNSKEY of signer_name with the specified
-     keytag, and check whether it validates with the current algorithm. */
-  /*
-    pseudo-code:
+  alg->vtbl->end_data(alg);
 
-    char *key; int keylen;
-    if (!fetch_dnskey(signer_name, keytag, &key, &keylen))
-      return 0;
-    return alg->verify(key, keylen);
-   */
-  return 0;
+  out->alg = alg;
+  out->keytag = keytag;
+  out->signer_name = signer_name;
+  return 1;
+}
+
+static int end_rrsig_validation(PendingRRSIGValidation *val, struct crec *crec_dnskey)
+{
+
+}
+
+static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
+                              unsigned char *reply, int count, char *owner,
+                              int sigclass, int sigrdlen, unsigned char *sig)
+{
+  PendingRRSIGValidation val;
+
+  /* Initiate the RRSIG validation process. The pending state is returned into val. */
+  if (!begin_rrsig_validation(header, pktlen, reply, count, owner, sigclass, sigrdlen, sig, &val))
+    return;
+
+  printf("RRSIG: querying cache for DNSKEY %s (keytag: %d)\n", val.signer_name, val.keytag);
+  /* Look in the cache for all the DNSKEYs with matching signer_name and keytag */
+  char onekey = 0;
+  struct crec *crecp = NULL;
+  while (crecp = cache_find_by_name(crecp, val.signer_name, time(0), F_DNSKEY))  /* TODO: time(0) */
+    {
+      onekey = 1;
+
+      if (crecp->addr.key.keytag != val.keytag)
+        continue;
+
+      printf("RRSIG: found DNSKEY %d in cache, attempting validation\n", val.keytag);
+
+      if (end_rrsig_validation(&val, crecp))
+        printf("Validation OK\n");
+      else
+        printf("Validation FAILED\n");
+    }
+
+  if (!onekey)
+    {
+      printf("DNSKEY not found, need to fetch it");
+      /* TODO: store PendingRRSIGValidation in routing table,
+         fetch key (and make it go through dnssec_parskey), then complete validation. */
+    }
 }
 
 
@@ -231,7 +276,7 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
              There is a memory vs CPU conflict here; should we validate everything
              to save memory and thus waste CPU, or better first acquire all information
              (wasting memory) and then doing the minimum CPU computations required? */
-          validate_rrsig(header, pktlen, reply, ntohs(header->ancount), owner, qclass, rdlen, p);
+          dnssec_parserrsig(header, pktlen, reply, ntohs(header->ancount), owner, qclass, rdlen, p);
       	}
       p += rdlen;
     }
