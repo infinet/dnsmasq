@@ -265,7 +265,7 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
 
   if (!onekey)
     {
-      printf("DNSKEY not found, need to fetch it");
+      printf("DNSKEY not found, need to fetch it\n");
       /* TODO: store PendingRRSIGValidation in routing table,
          fetch key (and make it go through dnssec_parskey), then complete validation. */
     }
@@ -315,9 +315,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
 
         if (rdlen < explen)
           return 0;
-        printf("Alloc'ing: %d bytes\n", rdlen);
         key = keydata_alloc(rdata, rdlen);
-        printf("Done\n");
         break;
 
       default:
@@ -346,7 +344,6 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
       return 0;
     }
   cache_end_insert();
-  printf("DNSKEY record inserted\n");
   return 1;
 }
 
