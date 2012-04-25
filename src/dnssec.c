@@ -382,17 +382,33 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
           printf("DNSKEY found\n");
           dnssec_parsekey(header, pktlen, owner, ttl, rdlen, p);
         }
-      else if (qtype == T_RRSIG)
+      p += rdlen;
+    }
+
+  /* After we have parsed DNSKEY/DS records, start looking for RRSIGs.
+     We want to do this in a separate step because we want the cache
+     to be already populated with DNSKEYs before parsing signatures. */
+  p = reply;
+  for (i = 0; i < ntohs(header->ancount); i++)
+    {
+      if (!extract_name(header, pktlen, &p, owner, 1, 10))
+        return 0;
+      GETSHORT(qtype, p);
+      GETSHORT(qclass, p);
+      GETLONG(ttl, p);
+      GETSHORT(rdlen, p);
+      if (qtype == T_RRSIG)
         {
-      	  printf("RRSIG found\n");
+          printf("RRSIG found\n");
           /* TODO: missing logic. We should only validate RRSIGs for which we
-             have a valid DNSKEY that is referenced by a DS record upstream. 
+             have a valid DNSKEY that is referenced by a DS record upstream.
              There is a memory vs CPU conflict here; should we validate everything
              to save memory and thus waste CPU, or better first acquire all information
              (wasting memory) and then doing the minimum CPU computations required? */
           dnssec_parserrsig(header, pktlen, reply, ntohs(header->ancount), owner, qclass, rdlen, p);
-      	}
+        }
       p += rdlen;
     }
+
   return 1;
 }
