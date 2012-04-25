@@ -243,24 +243,24 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
     return;
 
   printf("RRSIG: querying cache for DNSKEY %s (keytag: %d)\n", val.signer_name, val.keytag);
-  /* Look in the cache for all the DNSKEYs with matching signer_name and keytag */
+
+  /* Look in the cache for *all* the DNSKEYs with matching signer_name and keytag */
   char onekey = 0;
   struct crec *crecp = NULL;
   while (crecp = cache_find_by_name(crecp, val.signer_name, time(0), F_DNSKEY))  /* TODO: time(0) */
     {
       onekey = 1;
 
-      if (crecp->addr.key.keytag != val.keytag)
-        continue;
-      if (crecp->addr.key.algo != verifyalg_algonum(val.alg))
-        continue;
+      if (crecp->addr.key.keytag == val.keytag
+          && crecp->addr.key.algo == verifyalg_algonum(val.alg))
+        {
+          printf("RRSIG: found DNSKEY %d in cache, attempting validation\n", val.keytag);
 
-      printf("RRSIG: found DNSKEY %d in cache, attempting validation\n", val.keytag);
-
-      if (end_rrsig_validation(&val, crecp))
-        printf("Validation OK\n");
-      else
-        printf("Validation FAILED\n");
+          if (end_rrsig_validation(&val, crecp))
+            printf("Validation OK\n");
+          else
+            printf("Validation FAILED\n");
+        }
     }
 
   if (!onekey)
