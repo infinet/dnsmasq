@@ -25,32 +25,25 @@
  *    alg->verify(key1, 16);
  *    alg->verify(key2, 16);
  */ 
+
+typedef struct VerifyAlgCtx VerifyAlgCtx;
+
 typedef struct
 {
-  int (*set_signature)(unsigned char *data, unsigned len);
-  void (*begin_data)(void);
-  void (*add_data)(void *data, unsigned len);
-  void (*end_data)(void);
-  int (*verify)(unsigned char *key, unsigned key_len);
+  int (*set_signature)(VerifyAlgCtx *ctx, unsigned char *data, unsigned len);
+  void (*begin_data)(VerifyAlgCtx *ctx);
+  void (*add_data)(VerifyAlgCtx *ctx, void *data, unsigned len);
+  void (*end_data)(VerifyAlgCtx *ctx);
+  int (*verify)(VerifyAlgCtx *ctx, unsigned char *key, unsigned key_len);
 } VerifyAlg;
 
-#define DEFINE_VALG(alg) \
-  void alg ## _set_signature(unsigned char *data, unsigned len); \
-  void alg ## _begin_data(void); \
-  void alg ## _add_data(void *data, unsigned len); \
-  void alg ## _end_data(void); \
-  int alg ## _verify(unsigned char *key, unsigned key_len) \
-  /**/
+struct VerifyAlgCtx
+{
+   const VerifyAlg *vtbl;
+};
 
-#define VALG_VTABLE(alg) { \
-  alg ## _set_signature, \
-  alg ## _begin_data, \
-  alg ## _add_data, \
-  alg ## _end_data, \
-  alg ## _verify \
-  } /**/
-
-DEFINE_VALG(rsasha1);
-DEFINE_VALG(rsasha256);
+int verifyalg_supported(int algo);
+VerifyAlgCtx* verifyalg_alloc(int algo);
+void verifyalg_free(VerifyAlgCtx *a);
 
 #endif /* DNSSEC_CRYPTO_H */

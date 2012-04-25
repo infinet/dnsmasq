@@ -8,27 +8,6 @@
 #define SERIAL_LT       -1
 #define SERIAL_GT        1
 
-/* Updated registry that merges various RFCs:
-   https://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xml */
-static const VerifyAlg valgs[] =
-{
-  {0,0,0,0,0},            /*  0: reserved */
-  {0,0,0,0,0},            /*  1: RSAMD5 */
-  {0,0,0,0,0},            /*  2: DH */
-  {0,0,0,0,0},            /*  3: DSA */
-  {0,0,0,0,0},            /*  4: ECC */
-  VALG_VTABLE(rsasha1),   /*  5: RSASHA1 */
-  {0,0,0,0,0},            /*  6: DSA-NSEC3-SHA1 */
-  {0,0,0,0,0},            /*  7: RSASHA1-NSEC3-SHA1 */
-  VALG_VTABLE(rsasha256), /*  8: RSASHA256 */
-  {0,0,0,0,0},            /*  9: unassigned */
-  {0,0,0,0,0},            /* 10: RSASHA512 */
-  {0,0,0,0,0},            /* 11: unassigned */
-  {0,0,0,0,0},            /* 12: ECC-GOST */
-  {0,0,0,0,0},            /* 13: ECDSAP256SHA256 */
-  {0,0,0,0,0},            /* 14: ECDSAP384SHA384 */
-};
-
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
 static int serial_compare_32(unsigned long s1, unsigned long s2)
 {
