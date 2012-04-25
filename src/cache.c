@@ -1333,6 +1333,8 @@ struct keydata *keydata_alloc(char *data, size_t len)
 {
   struct keydata *block, *ret = NULL;
   struct keydata **prev = &ret;
+  size_t blen;
+
   while (len > 0)
     {
       if (keyblock_free)
@@ -1350,9 +1352,10 @@ struct keydata *keydata_alloc(char *data, size_t len)
 	  return NULL;
 	}
       
-      memcpy(block->key, data, len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len);
-      data += KEYBLOCK_LEN;
-      len -= KEYBLOCK_LEN;
+      blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
+      memcpy(block->key, data, blen);
+      data += blen;
+      len -= blen;
       *prev = block;
       prev = &block->next;
       block->next = NULL;
