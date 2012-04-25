@@ -252,6 +252,8 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
 
       if (crecp->addr.key.keytag != val.keytag)
         continue;
+      if (crecp->addr.key.algo != verifyalg_algonum(val.alg))
+        continue;
 
       printf("RRSIG: found DNSKEY %d in cache, attempting validation\n", val.keytag);
 
