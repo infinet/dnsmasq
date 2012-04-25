@@ -378,7 +378,7 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
       else if (qtype == T_DNSKEY)
         {
           printf("DNSKEY found\n");
-          dnssec_parsekey(header, pktlen, owner, qclass, rdlen, p);
+          dnssec_parsekey(header, pktlen, owner, ttl, rdlen, p);
         }
       else if (qtype == T_RRSIG)
         {
