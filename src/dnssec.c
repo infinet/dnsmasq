@@ -299,6 +299,9 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
 
   if (proto != 3)
     return 0;
+  /* Skip non-signing keys (as specified in RFC4034 */
+  if (!(flags & 0x100))
+    return 0;
 
   switch (alg)
     {
