@@ -269,6 +269,87 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
     }
 }
 
+/* Compute keytag (checksum to quickly index a key). See RFC4034 */
+static int dnskey_keytag(unsigned char *rdata, int rdlen)
+{
+  unsigned long ac;
+  int i;
+
+  ac = 0;
+  for (i = 0; i < rdlen; ++i)
+    ac += (i & 1) ? rdata[i] : rdata[i] << 8;
+  ac += (ac >> 16) & 0xFFFF;
+  return ac & 0xFFFF;
+}
+
+int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
+                    int rdlen, unsigned char *rdata)
+{
+  int flags, proto, alg;
+  struct keydata *key; struct crec *crecp;
+  int explen, keytag;
+  unsigned long exp;
+  unsigned char *ordata = rdata; int ordlen = rdlen;
+
+  CHECKED_GETSHORT(flags, rdata, rdlen);
+  CHECKED_GETCHAR(proto, rdata, rdlen);
+  CHECKED_GETCHAR(alg, rdata, rdlen);
+
+  if (proto != 3)
+    return 0;
+
+  switch (alg)
+    {
+      case 5: /* RSASHA1 */
+        CHECKED_GETCHAR(explen, rdata, rdlen);
+        if (explen == 0)
+          {
+            printf("DNSKEY: RSASHA1: Unsupported huge exponents\n");
+            return 0;
+          }
+
+        if (rdlen < explen)
+          return 0;
+        printf("Alloc'ing: %d bytes\n", rdlen);
+        key = keydata_alloc(rdata, rdlen);
+        printf("Done\n");
+        break;
+
+      default:
+        printf("DNSKEY: Unsupported algorithm: %d\n", alg);
+        return 0;
+    }
+
+  cache_start_insert();
+  /* TODO: time(0) is correct here? */
+  crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);
+  if (crecp)
+    {
+      /* TODO: improve union not to name "uid" this field */
+      crecp->uid = rdlen;
+      crecp->addr.key.keydata = key;
+      crecp->addr.key.algo = alg;
+      crecp->addr.key.keytag = dnskey_keytag(ordata, ordlen);
+      printf("DNSKEY: storing key for %s (keytag: %d)\n", owner, crecp->addr.key.keytag);
+    }
+  else
+    {
+      keydata_free(key);
+      /* TODO: if insertion really might fail, verify we don't depend on cache
+         insertion success for validation workflow correctness */
+      printf("DNSKEY: cache insertion failure\n");
+      return 0;
+    }
+  cache_end_insert();
+  printf("DNSKEY record inserted\n");
+  return 1;
+}
+
+int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
+                   int rdlen, unsigned char *rdata)
+{
+  return 0;
+}
 
 int dnssec_validate(struct dns_header *header, size_t pktlen)
 {
@@ -289,7 +370,17 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
       GETSHORT(qclass, p);
       GETLONG(ttl, p);
       GETSHORT(rdlen, p);
-      if (qtype == T_RRSIG)
+      if (qtype == T_DS)
+        {
+          printf("DS found\n");
+          dnssec_parseds(header, pktlen, owner, ttl, rdlen, p);
+        }
+      else if (qtype == T_DNSKEY)
+        {
+          printf("DNSKEY found\n");
+          dnssec_parsekey(header, pktlen, owner, qclass, rdlen, p);
+        }
+      else if (qtype == T_RRSIG)
         {
       	  printf("RRSIG found\n");
           /* TODO: missing logic. We should only validate RRSIGs for which we
