@@ -201,3 +201,11 @@ void verifyalg_free(VerifyAlgCtx *a)
 
   pool_used &= ~(1 << pool_idx);
 }
+
+int verifyalg_algonum(VerifyAlgCtx *a)
+{
+  int num = a->vtbl - valgs;
+  if (num < 0 || num >= countof(valgs))
+    return -1;
+  return num;
+}

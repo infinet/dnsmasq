@@ -45,5 +45,6 @@ struct VerifyAlgCtx
 int verifyalg_supported(int algo);
 VerifyAlgCtx* verifyalg_alloc(int algo);
 void verifyalg_free(VerifyAlgCtx *a);
+int verifyalg_algonum(VerifyAlgCtx *a);
 
 #endif /* DNSSEC_CRYPTO_H */
