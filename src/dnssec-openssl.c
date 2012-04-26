@@ -180,7 +180,7 @@ VerifyAlgCtx* verifyalg_alloc(int algo)
     for (i = 0; i < POOL_SIZE; ++i)
       if (!(pool_used & (1 << i)))
         {
-          ret = &Pool[i];
+          ret = (VerifyAlgCtx*)&Pool[i];
           pool_used |= 1 << i;
           break;
         }
