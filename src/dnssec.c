@@ -229,6 +229,7 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
 
 static int end_rrsig_validation(PendingRRSIGValidation *val, struct crec *crec_dnskey)
 {
+  /* FIXME: keydata is non-contiguous */
   return val->alg->vtbl->verify(val->alg, crec_dnskey->addr.key.keydata, crec_dnskey->uid);
 }
 
