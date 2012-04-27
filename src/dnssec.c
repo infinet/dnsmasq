@@ -103,6 +103,27 @@ typedef struct PendingRRSIGValidation
   int keytag;
 } PendingRRSIGValidation;
 
+/* Pass a domain name through a verification hash function.
+
+   We must pass domain names in DNS wire format, but uncompressed.
+   This means that we cannot directly use raw data from the original
+   message since it might be compressed. */
+static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
+{
+  unsigned char len; char *p;
+
+  while ((p = strchr(name, '.')))
+    {
+      len = p-name;
+      alg->vtbl->add_data(alg, &len, 1);
+      alg->vtbl->add_data(alg, name, len);
+      name = p+1;
+    }
+  len = strlen(name);
+  alg->vtbl->add_data(alg, &len, 1);
+  alg->vtbl->add_data(alg, name, len+1);
+}
+
 static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
                                   unsigned char *reply, int count, char *owner,
                                   int sigclass, int sigrdlen, unsigned char *sig,
@@ -114,6 +135,7 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   unsigned long sigttl, date_end, date_start;
   unsigned char* p = reply;
   char* signer_name = daemon->namebuff;
+  int signer_name_rdlen;
   int keytag;
   void *rrset[16];  /* TODO: max RRset size? */
   int rrsetidx = 0;
@@ -169,10 +191,10 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
   
   /* Extract the signer name (we need to query DNSKEY of this name) */
-  if (!(res = extract_name_no_compression(sig, sigrdlen, signer_name)))
+  if (!(signer_name_rdlen = extract_name_no_compression(sig, sigrdlen, signer_name)))
     return 0;
-  sig += res; sigrdlen -= res;
-  
+  sig += signer_name_rdlen; sigrdlen -= signer_name_rdlen;
+
   /* Now initialize the signature verification algorithm and process the whole
      RRset */
   VerifyAlgCtx *alg = verifyalg_alloc(sigalg);
@@ -186,18 +208,17 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   sigttl = htonl(sigttl);
 
   alg->vtbl->begin_data(alg);
-  alg->vtbl->add_data(alg, sigrdata, 18);
-  alg->vtbl->add_data(alg, signer_name, strlen(signer_name));
+  alg->vtbl->add_data(alg, sigrdata, 18+signer_name_rdlen);
   for (i = 0; i < rrsetidx; ++i)
     {
       int rdlen;
-      
-      alg->vtbl->add_data(alg, owner, strlen(owner));
+      p = (unsigned char*)(rrset[i]);
+
+      verifyalg_add_data_domain(alg, owner);
       alg->vtbl->add_data(alg, &sigtype, 2);
       alg->vtbl->add_data(alg, &sigclass, 2);
       alg->vtbl->add_data(alg, &sigttl, 4);
     
-      p = (unsigned char*)(rrset[i]);
       p += 8;
       GETSHORT(rdlen, p);
       /* TODO: instead of a direct add_data(), we must call a RRtype-specific 
