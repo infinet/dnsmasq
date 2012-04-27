@@ -582,9 +582,14 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	      my_syslog(MS_TFTP | LOG_INFO, endcon ? _("failed sending %s to %s") : _("sent %s to %s"), daemon->namebuff, daemon->addrbuff);
 	      /* unlink */
 	      *up = tmp;
-	      /* put on queue to be sent to script and deleted */
-	      transfer->next = daemon->tftp_done_trans;
-	      daemon->tftp_done_trans = transfer;
+	      if (endcon)
+		free_transfer(transfer);
+	      else
+		{
+		  /* put on queue to be sent to script and deleted */
+		  transfer->next = daemon->tftp_done_trans;
+		  daemon->tftp_done_trans = transfer;
+		}
 	      continue;
 	    }
 	}

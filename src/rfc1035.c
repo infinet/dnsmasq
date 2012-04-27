@@ -699,15 +699,17 @@ static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *
 	      unsigned char *p2 = p1;
 	      /* make counted string zero-term  and sanitise */
 	      for (i = 0; i < len; i++)
-		if (isprint(*(p2+1)))
-		  {
-		    *p2 = *(p2+1);
-		    p2++;
-		  }
+		{
+		  if (!isprint((int)*(p2+1)))
+		    break;
+		  
+		  *p2 = *(p2+1);
+		  p2++;
+		}
 	      *p2 = 0;
 	      my_syslog(LOG_INFO, "reply %s is %s", name, p1);
 	      /* restore */
-	      memmove(p1 + 1, p1, len);
+	      memmove(p1 + 1, p1, i);
 	      *p1 = len;
 	      p1 += len+1;
 	    }
