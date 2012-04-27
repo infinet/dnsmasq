@@ -190,10 +190,13 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   /* Sort RRset records in canonical order. */
   qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
   
-  /* Extract the signer name (we need to query DNSKEY of this name) */
-  if (!(signer_name_rdlen = extract_name_no_compression(sig, sigrdlen, signer_name)))
+  /* Skip through the signer name; we don't extract it right now because
+     we don't want to overwrite the single daemon->namebuff which contains
+     the owner name. We'll get to this later. */
+  if (!(p = skip_name(sig, header, pktlen, 0)))
     return 0;
-  sig += signer_name_rdlen; sigrdlen -= signer_name_rdlen;
+  signer_name_rdlen = p - sig;
+  sig = p; sigrdlen -= signer_name_rdlen;
 
   /* Now initialize the signature verification algorithm and process the whole
      RRset */
@@ -226,6 +229,10 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
       alg->vtbl->add_data(alg, p-2, rdlen+2);
     }
   alg->vtbl->end_data(alg);
+
+  /* We don't need the owner name anymore; now extract the signer name */
+  if (!extract_name_no_compression(sigrdata+18, signer_name_rdlen, signer_name))
+    return 0;
 
   out->alg = alg;
   out->keytag = keytag;
