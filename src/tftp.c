@@ -627,7 +627,7 @@ static void sanitise(char *buf)
 {
   unsigned char *q, *r;
   for (q = r = (unsigned char *)buf; *r; r++)
-    if (isprint(*r))
+    if (isprint((int)*r))
       *(q++) = *r;
   *q = 0;
 
