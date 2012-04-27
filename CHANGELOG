@@ -100,6 +100,9 @@ version 2.61
 	    when a lease goes through INIT_REBOOT state, even if the
 	    dhcp-script is not in use. thanks to Antoaneta-Ecaterina
 	    Ene for the patch.
+
+	    Fix failure of TFTP over IPv4 on OpenBSD platform. Thanks
+	    to Brad Smith for spotting this.
 	    
 
 version 2.60
