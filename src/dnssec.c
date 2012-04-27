@@ -181,6 +181,10 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   if (!alg->vtbl->set_signature(alg, sig, sigrdlen))
     return 0;
   
+  sigtype = htons(sigtype);
+  sigclass = htons(sigclass);
+  sigttl = htonl(sigttl);
+
   alg->vtbl->begin_data(alg);
   alg->vtbl->add_data(alg, sigrdata, 18);
   alg->vtbl->add_data(alg, signer_name, strlen(signer_name));
