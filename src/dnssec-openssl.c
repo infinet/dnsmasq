@@ -2,6 +2,7 @@
 #include "dnsmasq.h"
 #include "dnssec-crypto.h"
 #include <openssl/evp.h>
+#include <openssl/rsa.h>
 
 typedef struct VACTX_rsasha1
 {
@@ -90,10 +91,63 @@ static void rsasha256_end_data(VerifyAlgCtx *ctx_)
   memcpy(ctx->digest, digest, 32);
 }
 
+static int keydata_to_bn(BIGNUM *ret, struct keydata **key_data, unsigned char **p, unsigned len)
+{
+  size_t cnt;
+  BIGNUM temp;
+
+  BN_init(ret);
+
+  cnt = keydata_walk(key_data, p, len);
+  BN_bin2bn(*p, cnt, ret);
+  len -= cnt;
+  *p += cnt;
+  while (len > 0)
+    {
+      if (!(cnt = keydata_walk(key_data, p, len)))
+        return 0;
+      BN_lshift(ret, ret, cnt*8);
+      BN_init(&temp);
+      BN_bin2bn(*p, cnt, &temp);
+      BN_add(ret, ret, &temp);
+      len -= cnt;
+      *p += cnt;
+    }
+  return 1;
+}
+
+static int rsasha1_parse_key(BIGNUM *exp, BIGNUM *mod, struct keydata *key_data, unsigned key_len)
+{
+  unsigned char *p = key_data->key;
+  size_t exp_len, mod_len;
+
+  CHECKED_GETCHAR(exp_len, p, key_len);
+  if (exp_len == 0)
+    CHECKED_GETSHORT(exp_len, p, key_len);
+  if (exp_len >= key_len)
+    return 0;
+  mod_len = key_len - exp_len;
+
+  return keydata_to_bn(exp, &key_data, &p, exp_len) &&
+      keydata_to_bn(mod, &key_data, &p, mod_len);
+}
+
 static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned key_len)
 {
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
-  return 0;
+  int validated = 0;
+
+  printf("OpenSSL RSA verification\n");
+  RSA *rsa = RSA_new();
+  rsa->e = BN_new();
+  rsa->n = BN_new();
+
+  if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
+      && RSA_verify(NID_sha1, ctx->digest, 20, ctx->sig, ctx->siglen, rsa))
+    validated = 1;
+
+  RSA_free(rsa);
+  return validated;
 }
 
 static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key, unsigned key_len)
