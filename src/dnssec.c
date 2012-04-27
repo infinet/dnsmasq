@@ -42,16 +42,16 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
           if (*buf >= 'A' && *buf <= 'Z')
             *buf += 'a' - 'A';
           buf++;
-        } 
+        }
       *buf++ = '.';
     }
   // Remove trailing dot (if any)
   if (rr != start)
     *(--buf) = 0;
-  rr++;
   if (rr == end)
     return 0;
-  return rr-start;
+  // Trailing \0 in source data must be consumed
+  return rr-start+1;
 }
 
 /* Check whether today/now is between date_start and date_end */
