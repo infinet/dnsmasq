@@ -390,7 +390,7 @@ int dnssec_validate(struct dns_header *header, size_t pktlen)
       GETSHORT(rdlen, p);
       if (qtype == T_RRSIG)
         {
-          printf("RRSIG found\n");
+          printf("RRSIG found (owner: %s)\n", owner);
           /* TODO: missing logic. We should only validate RRSIGs for which we
              have a valid DNSKEY that is referenced by a DS record upstream.
              There is a memory vs CPU conflict here; should we validate everything
