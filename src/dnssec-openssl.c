@@ -90,13 +90,13 @@ static void rsasha256_end_data(VerifyAlgCtx *ctx_)
   memcpy(ctx->digest, digest, 32);
 }
 
-static int rsasha1_verify(VerifyAlgCtx *ctx_, unsigned char *key, unsigned key_len)
+static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned key_len)
 {
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
   return 0;
 }
 
-static int rsasha256_verify(VerifyAlgCtx *ctx_, unsigned char *key, unsigned key_len)
+static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key, unsigned key_len)
 {
   VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
   return 0;
@@ -107,7 +107,7 @@ static int rsasha256_verify(VerifyAlgCtx *ctx_, unsigned char *key, unsigned key
   void alg ## _begin_data(VerifyAlgCtx *ctx); \
   void alg ## _add_data(VerifyAlgCtx *ctx, void *data, unsigned len); \
   void alg ## _end_data(VerifyAlgCtx *ctx); \
-  int alg ## _verify(VerifyAlgCtx *ctx, unsigned char *key, unsigned key_len) \
+  int alg ## _verify(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len) \
   /**/
 
 #define VALG_VTABLE(alg) { \

@@ -285,25 +285,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
   if (!(flags & 0x100))
     return 0;
 
-  switch (alg)
-    {
-      case 5: /* RSASHA1 */
-        CHECKED_GETCHAR(explen, rdata, rdlen);
-        if (explen == 0)
-          {
-            printf("DNSKEY: RSASHA1: Unsupported huge exponents\n");
-            return 0;
-          }
-
-        if (rdlen < explen)
-          return 0;
-        key = keydata_alloc(rdata, rdlen);
-        break;
-
-      default:
-        printf("DNSKEY: Unsupported algorithm: %d\n", alg);
-        return 0;
-    }
+  key = keydata_alloc(rdata, rdlen);
 
   /* TODO: time(0) is correct here? */
   crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);

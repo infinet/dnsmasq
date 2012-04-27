@@ -1,6 +1,8 @@
 #ifndef DNSSEC_CRYPTO_H
 #define DNSSEC_CRYPTO_H
 
+struct keydata;
+
 /* 
  * vtable for a signature verification algorithm.
  *
@@ -34,7 +36,7 @@ typedef struct
   void (*begin_data)(VerifyAlgCtx *ctx);
   void (*add_data)(VerifyAlgCtx *ctx, void *data, unsigned len);
   void (*end_data)(VerifyAlgCtx *ctx);
-  int (*verify)(VerifyAlgCtx *ctx, unsigned char *key, unsigned key_len);
+  int (*verify)(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len);
 } VerifyAlg;
 
 struct VerifyAlgCtx
