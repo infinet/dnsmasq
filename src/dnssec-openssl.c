@@ -36,6 +36,16 @@ static union _Pool
 } Pool[POOL_SIZE];
 static char pool_used = 0;
 
+static void print_hex(unsigned char *data, unsigned len)
+{
+  while (len > 0)
+    {
+      printf("%02x", *data++);
+      --len;
+    }
+  printf("\n");
+}
+
 static int rsasha1_set_signature(VerifyAlgCtx *ctx_, unsigned char *data, unsigned len)
 {
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
