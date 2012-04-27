@@ -274,7 +274,7 @@ int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
   return 0;
 }
 
-static unsigned char *skip_name(unsigned char *ansp, struct dns_header *header, size_t plen, int extrabytes)
+unsigned char *skip_name(unsigned char *ansp, struct dns_header *header, size_t plen, int extrabytes)
 {
   while(1)
     {

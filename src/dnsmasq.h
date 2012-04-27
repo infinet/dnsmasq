@@ -940,6 +940,7 @@ int is_rev_synth(int flag, struct all_addr *addr, char *name);
 /* rfc1035.c */
 int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
                  char *name, int isExtract, int extrabytes);
+unsigned char *skip_name(unsigned char *ansp, struct dns_header *header, size_t plen, int extrabytes);
 unsigned char *skip_questions(struct dns_header *header, size_t plen);
 unsigned int extract_request(struct dns_header *header, size_t qlen, 
 			       char *name, unsigned short *typep);
