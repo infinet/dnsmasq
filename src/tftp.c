@@ -400,7 +400,7 @@ void tftp_request(struct listener *listen, time_t now)
     }
   
   while (sendto(transfer->sockfd, packet, len, 0, 
-		(struct sockaddr *)&peer, sizeof(peer)) == -1 && errno == EINTR);
+		(struct sockaddr *)&peer, sa_len(&peer)) == -1 && errno == EINTR);
   
   if (is_err)
     free_transfer(transfer);
@@ -573,7 +573,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 
 	  if (len != 0)
 	    while(sendto(transfer->sockfd, daemon->packet, len, 0, 
-			 (struct sockaddr *)&transfer->peer, sizeof(transfer->peer)) == -1 && errno == EINTR);
+			 (struct sockaddr *)&transfer->peer, sa_len(&transfer->peer)) == -1 && errno == EINTR);
 	  
 	  if (endcon || len == 0)
 	    {
