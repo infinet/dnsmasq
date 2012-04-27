@@ -925,6 +925,7 @@ char *cache_get_name(struct crec *crecp);
 struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
 struct keydata *keydata_alloc(char *data, size_t len);
+size_t keydata_walk(struct keydata **key, unsigned char **p, size_t cnt);
 void keydata_free(struct keydata *blocks);
 #endif
 

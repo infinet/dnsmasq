@@ -1364,6 +1364,23 @@ struct keydata *keydata_alloc(char *data, size_t len)
   return ret;
 }
 
+size_t keydata_walk(struct keydata **key, unsigned char **p, size_t cnt)
+{
+  size_t ret;
+
+  if (*p == NULL)
+    *p = (*key)->key;
+  else if (*p == (*key)->key + KEYBLOCK_LEN)
+    {
+      *key = (*key)->next;
+      if (*key == NULL)
+        return 0;
+      *p = (*key)->key;
+    }
+
+  return MIN(cnt, (*key)->key + KEYBLOCK_LEN - (*p));
+}
+
 void keydata_free(struct keydata *blocks)
 {
   struct keydata *tmp;
