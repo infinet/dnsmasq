@@ -195,6 +195,7 @@ static int verifyalg_add_rdata(VerifyAlgCtx *alg, int sigtype, struct dns_header
   switch (sigtype)
     {
     /* TODO: missing lots of RR types, see RFC4034, §6.2 */
+    case T_NS:
     case T_CNAME:
       if (!(res = verifyalg_add_data_wire_domain(NULL, header, pktlen, &p)))
         return 0;
