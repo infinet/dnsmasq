@@ -45,12 +45,12 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
         }
       *buf++ = '.';
     }
-  // Remove trailing dot (if any)
+  /* Remove trailing dot (if any) */
   if (rr != start)
     *(--buf) = 0;
   if (rr == end)
     return 0;
-  // Trailing \0 in source data must be consumed
+  /* Trailing \0 in source data must be consumed */
   return rr-start+1;
 }
 
