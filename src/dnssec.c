@@ -261,7 +261,7 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
   /* Look in the cache for *all* the DNSKEYs with matching signer_name and keytag */
   char onekey = 0;
   struct crec *crecp = NULL;
-  while (crecp = cache_find_by_name(crecp, val.signer_name, time(0), F_DNSKEY))  /* TODO: time(0) */
+  while ((crecp = cache_find_by_name(crecp, val.signer_name, time(0), F_DNSKEY)))  /* TODO: time(0) */
     {
       onekey = 1;
 
@@ -303,8 +303,6 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
 {
   int flags, proto, alg;
   struct keydata *key; struct crec *crecp;
-  int explen, keytag;
-  unsigned long exp;
   unsigned char *ordata = rdata; int ordlen = rdlen;
 
   CHECKED_GETSHORT(flags, rdata, rdlen);
@@ -317,7 +315,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
   if (!(flags & 0x100))
     return 0;
 
-  key = keydata_alloc(rdata, rdlen);
+  key = keydata_alloc((char*)rdata, rdlen);
 
   /* TODO: time(0) is correct here? */
   crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);

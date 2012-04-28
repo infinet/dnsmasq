@@ -163,6 +163,7 @@ static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned
 static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key, unsigned key_len)
 {
   VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
+  (void)ctx;
   return 0;
 }
 
