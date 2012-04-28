@@ -147,11 +147,9 @@ static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
   int validated = 0;
 
-  printf("OpenSSL RSA verification\n");
   RSA *rsa = RSA_new();
   rsa->e = BN_new();
   rsa->n = BN_new();
-
   if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
       && RSA_verify(NID_sha1, ctx->digest, 20, ctx->sig, ctx->siglen, rsa))
     validated = 1;
@@ -160,11 +158,20 @@ static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned
   return validated;
 }
 
-static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key, unsigned key_len)
+static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned key_len)
 {
   VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
-  (void)ctx;
-  return 0;
+  int validated = 0;
+
+  RSA *rsa = RSA_new();
+  rsa->e = BN_new();
+  rsa->n = BN_new();
+  if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
+      && RSA_verify(NID_sha256, ctx->digest, 32, ctx->sig, ctx->siglen, rsa))
+    validated = 1;
+
+  RSA_free(rsa);
+  return validated;
 }
 
 #define DEFINE_VALG(alg) \
