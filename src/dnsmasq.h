@@ -1000,7 +1000,7 @@ u64 lease_find_max_addr6(struct dhcp_context *context);
 void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface);
 #endif
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
-		      unsigned char *clid, int hw_len, int hw_type, int clid_len, time_t now);
+		      unsigned char *clid, int hw_len, int hw_type, int clid_len, time_t now, int force);
 void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *domain, char *config_domain);
 void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now);
 void lease_set_interface(struct dhcp_lease *lease, int interface, time_t now);
@@ -1166,7 +1166,7 @@ void ra_start_unsolicted(time_t now, struct dhcp_context *context);
 /* slaac.c */ 
 #ifdef HAVE_DHCP6
 void build_subnet_map(void);
-void slaac_add_addrs(struct dhcp_lease *lease, time_t now);
+void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force);
 time_t periodic_slaac(time_t now, struct dhcp_lease *leases);
 void slaac_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface, struct dhcp_lease *leases);
 void schedule_subnet_map(void);

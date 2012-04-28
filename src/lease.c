@@ -98,7 +98,7 @@ void lease_init(time_t now)
 	      hw_type = ARPHRD_ETHER; 
 
 	    lease_set_hwaddr(lease, (unsigned char *)daemon->dhcp_buff2, (unsigned char *)daemon->packet, 
-			     hw_len, hw_type, clid_len, now);
+			     hw_len, hw_type, clid_len, now, 0);
 	    
 	    if (strcmp(daemon->dhcp_buff, "*") !=  0)
 	      lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain(lease->addr), NULL);
@@ -119,7 +119,7 @@ void lease_init(time_t now)
 	    
 	    if ((lease = lease6_allocate(&addr.addr.addr6, lease_type)))
 	      {
-		lease_set_hwaddr(lease, NULL, (unsigned char *)daemon->packet, 0, hw_type, clid_len, now);
+		lease_set_hwaddr(lease, NULL, (unsigned char *)daemon->packet, 0, hw_type, clid_len, now, 0);
 		
 		if (strcmp(daemon->dhcp_buff, "*") !=  0)
 		  lease_set_hostname(lease, daemon->dhcp_buff, 0, get_domain6((struct in6_addr *)lease->hwaddr), NULL);
@@ -702,12 +702,15 @@ void lease_set_expires(struct dhcp_lease *lease, unsigned int len, time_t now)
 } 
 
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
-		      unsigned char *clid, int hw_len, int hw_type, int clid_len, time_t now)
+		      unsigned char *clid, int hw_len, int hw_type, int clid_len, 
+		      time_t now, int force)
 {
 #ifdef HAVE_DHCP6
-  int change = 0;
+  int change = force;
   lease->flags |= LEASE_HAVE_HWADDR;
 #endif
+
+  (void)force;
 
   if (hw_len != lease->hwaddr_len ||
       hw_type != lease->hwaddr_type || 
@@ -758,7 +761,7 @@ void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
   
 #ifdef HAVE_DHCP6
   if (change)
-    slaac_add_addrs(lease, now);
+    slaac_add_addrs(lease, now, force);
 #endif
 }
 
@@ -886,7 +889,7 @@ void lease_set_interface(struct dhcp_lease *lease, int interface, time_t now)
   lease->flags |= LEASE_CHANGED; 
 
 #ifdef HAVE_DHCP6
-  slaac_add_addrs(lease, now);
+  slaac_add_addrs(lease, now, 0);
 #endif
 }
 

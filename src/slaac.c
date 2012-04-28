@@ -23,12 +23,13 @@
 static int map_rebuild = 0;
 static int ping_id = 0;
 
-void slaac_add_addrs(struct dhcp_lease *lease, time_t now)
+void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force)
 {
   struct slaac_address *slaac, *old, **up;
   struct dhcp_context *context;
   
   if (!(lease->flags & LEASE_HAVE_HWADDR) || 
+      (lease->flags & (LEASE_TA | LEASE_NA)) ||
       lease->last_interface == 0 ||
       !lease->hostname)
     return ;
@@ -72,6 +73,13 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now)
 	    if (IN6_ARE_ADDR_EQUAL(&addr, &slaac->addr))
 	      {
 		*up = slaac->next;
+		/* recheck when DHCPv4 goes through init-reboot */
+		if (force)
+		  {
+		    slaac->ping_time = now;
+		    slaac->backoff = 1;
+		    lease_update_dns(1);
+		  }
 		break;
 	      }
 	    up = &slaac->next;
