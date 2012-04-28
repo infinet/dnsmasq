@@ -27,6 +27,7 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force)
 {
   struct slaac_address *slaac, *old, **up;
   struct dhcp_context *context;
+  int dns_dirty = 0;
   
   if (!(lease->flags & LEASE_HAVE_HWADDR) || 
       (lease->flags & (LEASE_TA | LEASE_NA)) ||
@@ -78,7 +79,7 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force)
 		  {
 		    slaac->ping_time = now;
 		    slaac->backoff = 1;
-		    lease_update_dns(1);
+		    dns_dirty = 1;
 		  }
 		break;
 	      }
@@ -102,6 +103,9 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force)
 	    lease->slaac_address = slaac;
 	  }
       }
+  
+  if (old || dns_dirty)
+    lease_update_dns(1);
   
   /* Free any no reused */
   for (; old; old = slaac)
