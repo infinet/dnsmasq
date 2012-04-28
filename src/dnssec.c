@@ -124,6 +124,98 @@ static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
   alg->vtbl->add_data(alg, name, len+1);
 }
 
+/* Pass a DNS domain name in wire format through a hash function. Returns the
+   total number of bytes passed through the function or 0 in case of errors.
+   Updates the rdata pointer moving it further within the RR.
+
+   If alg is NULL, go in dry run mode (still correctly updates rdata and return
+   the correct total).
+
+   The function canonicalizes the domain name (RFC 4034, §6.2), which basically
+   means conversion to lower case, and uncompression. */
+static int verifyalg_add_data_wire_domain(VerifyAlgCtx *alg, struct dns_header *header, size_t pktlen,
+                                          unsigned char** rdata)
+{
+  int hops = 0, total = 0;
+  unsigned char label_type;
+  unsigned char *end = (unsigned char *)header + pktlen;
+  unsigned char count; unsigned char *p = *rdata;
+
+  while (1)
+    {
+      if (p >= end)
+        return 0;
+      if (!(count = *p++))
+        break;
+      label_type = count & 0xC0;
+      if (label_type == 0xC0)
+        {
+          if (p >= end)
+            return 0;
+          p = (unsigned char*)header + (count & 0x3F) * 256 + *p;
+          if (hops == 0)
+            *rdata = p;
+          if (++hops == 256)
+            return 0;
+        }
+      else if (label_type == 0x00)
+        {
+          if (p+count-1 >= end)
+            return 0;
+          if (alg)
+            {
+              alg->vtbl->add_data(alg, &count, 1);
+              /* TODO: missing conversion to lower-case and alphabet check */
+              alg->vtbl->add_data(alg, p, count);
+            }
+          total += count+1;
+          p += count;
+        }
+      else
+        return 0; /* unsupported label_type */
+    }
+
+  if (hops == 0)
+    *rdata = p;
+  if (alg)
+      alg->vtbl->add_data(alg, &count, 1);
+  return total+1;
+}
+
+/* Pass a resource record's rdata field through a verification hash function.
+
+   We must pass the record in DNS wire format, but if the record contains domain names,
+   they must be uncompressed. This makes things very tricky, because  */
+static int verifyalg_add_rdata(VerifyAlgCtx *alg, int sigtype, struct dns_header *header, size_t pktlen,
+                               unsigned char *rdata)
+{
+  unsigned char *p;
+  int res; unsigned short rdlen;
+
+  GETSHORT(rdlen, rdata);
+  p = rdata;
+
+  switch (sigtype)
+    {
+    /* TODO: missing lots of RR types, see RFC4034, §6.2 */
+    case T_CNAME:
+      if (!(res = verifyalg_add_data_wire_domain(NULL, header, pktlen, &p)))
+        return 0;
+      if (p - rdata > rdlen)
+        return 0;
+      rdlen = htons(res);
+      alg->vtbl->add_data(alg, &rdlen, 2);
+      verifyalg_add_data_wire_domain(alg, header, pktlen, &rdata);
+      break;
+
+    default:
+      alg->vtbl->add_data(alg, rdata-2, rdlen+2);
+      break;
+    }
+  return 1;
+}
+
+
 static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
                                   unsigned char *reply, int count, char *owner,
                                   int sigclass, int sigrdlen, unsigned char *sig,
@@ -214,7 +306,6 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   alg->vtbl->add_data(alg, sigrdata, 18+signer_name_rdlen);
   for (i = 0; i < rrsetidx; ++i)
     {
-      int rdlen;
       p = (unsigned char*)(rrset[i]);
 
       verifyalg_add_data_domain(alg, owner);
@@ -223,10 +314,8 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
       alg->vtbl->add_data(alg, &sigttl, 4);
     
       p += 8;
-      GETSHORT(rdlen, p);
-      /* TODO: instead of a direct add_data(), we must call a RRtype-specific 
-         function, that extract and canonicalizes domain names within RDATA. */
-      alg->vtbl->add_data(alg, p-2, rdlen+2);
+      if (!verifyalg_add_rdata(alg, ntohs(sigtype), header, pktlen, p))
+        return 0;
     }
   alg->vtbl->end_data(alg);
 
