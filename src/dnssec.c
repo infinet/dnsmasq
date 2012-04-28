@@ -100,6 +100,17 @@ typedef struct PendingRRSIGValidation
   int keytag;
 } PendingRRSIGValidation;
 
+/* strchrnul - like strchr, but when character is not found, returns a pointer to the terminating \0.
+
+   This is an existing C GNU extension, but it's easier to reimplement it,
+   rather than tweaking with configure. */
+static char *strchrnul(char *str, char ch)
+{
+  while (*str && *str != ch)
+    str++;
+  return str;
+}
+
 /* Pass a domain name through a verification hash function.
 
    We must pass domain names in DNS wire format, but uncompressed.
@@ -109,16 +120,19 @@ static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
 {
   unsigned char len; char *p;
 
-  while ((p = strchr(name, '.')))
+  do
     {
-      len = p-name;
-      alg->vtbl->add_data(alg, &len, 1);
-      alg->vtbl->add_data(alg, name, len);
+      p = strchrnul(name, '.');
+      if ((len = p-name))
+        {
+          alg->vtbl->add_data(alg, &len, 1);
+          alg->vtbl->add_data(alg, name, len);
+        }
       name = p+1;
     }
-  len = strlen(name);
-  alg->vtbl->add_data(alg, &len, 1);
-  alg->vtbl->add_data(alg, name, len+1);
+  while (*p);
+
+  alg->vtbl->add_data(alg, "\0", 1);
 }
 
 /* Pass a DNS domain name in wire format through a hash function. Returns the
