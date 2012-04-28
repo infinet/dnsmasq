@@ -197,7 +197,7 @@ static const VerifyAlg valgs[] =
   {0,0,0,0,0},            /*  4: ECC */
   VALG_VTABLE(rsasha1),   /*  5: RSASHA1 */
   {0,0,0,0,0},            /*  6: DSA-NSEC3-SHA1 */
-  {0,0,0,0,0},            /*  7: RSASHA1-NSEC3-SHA1 */
+  VALG_VTABLE(rsasha1),   /*  7: RSASHA1-NSEC3-SHA1 */
   VALG_VTABLE(rsasha256), /*  8: RSASHA256 */
   {0,0,0,0,0},            /*  9: unassigned */
   {0,0,0,0,0},            /* 10: RSASHA512 */
@@ -216,7 +216,7 @@ static const int valgctx_size[] =
   0,                        /*  4: ECC */
   sizeof(VACTX_rsasha1),    /*  5: RSASHA1 */
   0,                        /*  6: DSA-NSEC3-SHA1 */
-  0,                        /*  7: RSASHA1-NSEC3-SHA1 */
+  sizeof(VACTX_rsasha1),    /*  7: RSASHA1-NSEC3-SHA1 */
   sizeof(VACTX_rsasha256),  /*  8: RSASHA256 */
   0,                        /*  9: unassigned */
   0,                        /* 10: RSASHA512 */
