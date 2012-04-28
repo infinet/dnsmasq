@@ -62,11 +62,8 @@ static int check_date_range(unsigned long date_start, unsigned long date_end)
   unsigned long curtime = time(0);
 
   /* We must explicitly check against wanted values, because of SERIAL_UNDEF */
-  if (serial_compare_32(curtime, date_start) != SERIAL_GT)
-    return 0;
-  if (serial_compare_32(curtime, date_end) != SERIAL_LT)
-    return 0;
-  return 1;
+  return serial_compare_32(curtime, date_start) == SERIAL_GT
+         && serial_compare_32(curtime, date_end) == SERIAL_LT;
 }
 
 /* Sort RRs within a RRset in canonical order, according to RFC4034, §6.3
