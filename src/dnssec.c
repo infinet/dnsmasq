@@ -240,6 +240,93 @@ static const int rdata_description[][8] =
 };
 
 
+/* On-the-fly rdata canonicalization
+ *
+ * This set of functions allow the user to iterate over the rdata section of a RR
+ * while canonicalizing it on-the-fly. This is a great memory saving since the user
+ * doesn't need to allocate memory for a copy of the whole rdata section.
+ *
+ * Sample usage:
+ *
+ *    RDataCFrom cf;
+ *    rdata_cfrom_init(
+ *       &cf,
+ *       header, pktlen,     // dns_header
+ *       rdata,              // pointer to rdata section
+ *       rrtype,             // RR tyep
+ *       tmpbuf);            // temporary buf (MAXCDNAME)
+ *
+ *    while ((p = rdata_cfrom_next(&cf, &len))
+ *      {
+ *         // Process p[0..len]
+ *      }
+ *
+ *    if (rdata_cfrom_error(&cf))
+ *      // error occurred while parsing
+ *
+ */
+typedef struct
+{
+  struct dns_header *header;
+  size_t pktlen;
+  unsigned char *rdata;
+  unsigned char *tmpbuf;
+  size_t rdlen;
+  int rrtype;
+  int cnt;
+} RDataCForm;
+
+static void rdata_cform_init(RDataCForm *ctx, struct dns_header *header, size_t pktlen,
+                             unsigned char *rdata, int rrtype, unsigned char *tmpbuf)
+{
+  if (rrtype >= countof(rdata_description))
+    rrtype = 0;
+  ctx->header = header;
+  ctx->pktlen = pktlen;
+  ctx->rdata = rdata;
+  ctx->rrtype = rrtype;
+  ctx->tmpbuf = tmpbuf;
+  ctx->cnt = -1;
+  GETSHORT(ctx->rdlen, ctx->rdata);
+}
+
+static int rdata_cform_error(RDataCForm *ctx)
+{
+  return ctx->cnt == -2;
+}
+
+static unsigned char *rdata_cform_next(RDataCForm *ctx, size_t *len)
+{
+  if (ctx->cnt != -1 && rdata_description[ctx->rrtype][ctx->cnt] == RDESC_END)
+    return NULL;
+
+  int d = rdata_description[ctx->rrtype][++ctx->cnt];
+  if (d == RDESC_DOMAIN)
+    {
+      *len = process_domain_name(ctx->header, ctx->pktlen, &ctx->rdata, &ctx->rdlen, ctx->tmpbuf, PWN_EXTRACT);
+      if (!*len)
+        {
+          ctx->cnt = -2;
+          return NULL;
+        }
+      return ctx->tmpbuf;
+    }
+  else if (d == RDESC_END)
+    {
+      *len = ctx->rdlen;
+      return ctx->rdata;
+    }
+  else
+    {
+      unsigned char *ret = ctx->rdata;
+      ctx->rdlen -= d;
+      ctx->rdata += d;
+      *len = d;
+      return ret;
+    }
+}
+
+
 /* Check whether today/now is between date_start and date_end */
 static int check_date_range(unsigned long date_start, unsigned long date_end)
 {
