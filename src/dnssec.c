@@ -237,6 +237,7 @@ static const int rdata_description[][8] =
   /* 3: .. */     { RDESC_END },
   /* 4: .. */     { RDESC_END },
   /* 5: CNAME */  { RDESC_DOMAIN, RDESC_END },
+  /* 6: SOA */    { RDESC_DOMAIN, RDESC_DOMAIN, RDESC_END },
 };
 
 
