@@ -3,6 +3,9 @@
 #include "dnssec-crypto.h"
 #include <assert.h>
 
+/* Maximum length in octects of a domain name, in wire format */
+#define MAXCDNAME  256
+
 #define SERIAL_UNDEF  -100
 #define SERIAL_EQ        0
 #define SERIAL_LT       -1
@@ -53,6 +56,187 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
   /* Trailing \0 in source data must be consumed */
   return rr-start+1;
 }
+
+/* process_domain_name() - do operations with domain names in canonicalized wire format.
+ *
+ * Handling domain names in wire format can be done with buffers as large as MAXCDNAME (256),
+ * while the representation format (as created by, eg., extract_name) requires MAXDNAME (1024).
+ *
+ * With "canonicalized wire format", we mean the standard DNS wire format, eg:
+ *
+ *   <3>www<7>example<3>org<0>
+ *
+ * with all ÅSCII letters converted to lowercase, and no wire-level compression.
+ *
+ * The function works with two different buffers:
+ *    - Input buffer: 'rdata' is a pointer to the actual wire data, and 'rdlen' is
+ *      the total length till the end of the rdata or DNS packet section. Both
+ *      variables are updated after processing the domain name, so that rdata points
+ *      after it, and rdlen is decreased by the amount of the processed octects.
+ *    - Output buffer: 'out' points to it. In some cases, this buffer can be prefilled
+ *      and used as additional input (see below).
+ *
+ * The argument "action" decides what to do with the submitted domain name:
+ *
+ *    PDN_EXTRACT:
+ *       Extract the domain name from input buffer into the output buffer, possibly uncompressing it.
+ *       Return the length of the domain name in the output buffer in octects, or zero if error.
+ *
+ *    PDN_COMPARE:
+ *       Compare the domain name in the input buffer and the one in the output buffer (ignoring
+ *       differences in compression). Returns 0 in case of error, a positive number
+ *       if they are equal, or a negative number if they are different. This function always
+ *       consumes the whole name in the input buffer (there is no early exit).
+ *
+ *    PDN_ORDER:
+ *       Order between the domain name in the input buffer and the domain name in the output buffer.
+ *       Returns 0 if the names are equal, 1 if input > output, or -1 if input < output. This
+ *       function early-exits when it finds a difference, so rdata might not be fully updated.
+ *
+ * Notice: because of compression, rdata/rdlen might be updated with a different quantity than
+ * the returned number of octects. For instance, if we extract a compressed domain name, rdata/rdlen
+ * might be updated only by 2 bytes (that is, rdata is incresed by 2, and rdlen decreased by 2),
+ * because it then reuses existing data elsewhere in the DNS packet, while the return value might be
+ * larger, reflecting the total number of octects composing the domain name.
+ *
+ */
+#define PDN_EXTRACT   0
+#define PDN_COMPARE   1
+#define PDN_ORDER     2
+static int process_domain_name(struct dns_header *header, size_t pktlen,
+                               unsigned char** rdata, size_t* rdlen,
+                               unsigned char *out, int action)
+{
+  int hops = 0, total = 0, i;
+  unsigned char label_type;
+  unsigned char *end = (unsigned char *)header + pktlen;
+  unsigned char count; unsigned char *p = *rdata;
+  int nonequal = 0;
+
+#define PROCESS(ch) \
+  do { \
+    if (action == PWN_EXTRACT) \
+      *out++ = ch; \
+    else if (action == PWN_COMPARE) \
+      { \
+        if (*out++ != ch) \
+          nonequal = 1; \
+      } \
+    else if (action == PWN_ORDER) \
+      { \
+        char _ch = *out++; \
+        if (ch < _ch) \
+          return -1; \
+        else if (_ch > ch) \
+          return 1; \
+      } \
+  } while (0)
+
+  while (1)
+    {
+      if (p >= end)
+        return 0;
+      if (!(count = *p++))
+        break;
+      label_type = count & 0xC0;
+      if (label_type == 0xC0)
+        {
+          if (p >= end)
+            return 0;
+          if (hops == 0)
+            {
+              if (p - *rdata > *rdlen)
+                return 0;
+              *rdlen -= p - *rdata;
+              *rdata = p;
+            }
+          if (++hops == 256)
+            return 0;
+          p = (unsigned char*)header + (count & 0x3F) * 256 + *p;
+        }
+      else if (label_type == 0x00)
+        {
+          if (p+count-1 >= end)
+            return 0;
+          total += count+1;
+          if (total >= MAXCDNAME)
+            return 0;
+          PROCESS(count);
+          for (i = 0; i < count; ++i)
+            {
+              unsigned char ch = *p++;
+              if (ch >= 'A' && ch <= 'Z')
+                ch += 'a' - 'A';
+              PROCESS(ch);
+            }
+        }
+      else
+        return 0; /* unsupported label_type */
+    }
+
+  if (hops == 0)
+    {
+      if (p - *rdata > *rdlen)
+        return 0;
+      *rdlen -= p - *rdata;
+      *rdata = p;
+    }
+  ++total;
+  if (total >= MAXCDNAME)
+    return 0;
+  PROCESS(0);
+
+  /* If we arrived here without early-exit, they're equal */
+  if (action == PWN_ORDER)
+    return 0;
+  return nonequal ? -total : total;
+
+  #undef PROCESS
+}
+
+
+/* RDATA meta-description.
+ *
+ * RFC4034 §6.2 introduces the concept of a "canonical form of a RR". This canonical
+ * form is used in two important points within the DNSSEC protocol/algorithm:
+ *
+ * 1) When computing the hash for verifying the RRSIG signature, we need to do it on
+ *    the canonical form.
+ * 2) When ordering a RRset in canonical order (§6.3), we need to lexicographically sort
+ *    the RRs in canonical form.
+ *
+ * The canonical form of a RR is specifically tricky because it also affects the RDATA,
+ * which is different for each RR type; in fact, RFC4034 says that "domain names in
+ * RDATA must be canonicalized" (= uncompressed and lower-cased).
+ *
+ * To handle this correctly, we then need a way to describe how the RDATA section is
+ * composed for each RR type; we don't need to describe every field, but just to specify
+ * where domain names are. The following array contains this description, and it is
+ * used by rrset_canonical_order() and verifyalg_add_rdata(), to adjust their behaviour
+ * for each RR type.
+ *
+ * The format of the description is very easy, for instance:
+ *
+ *   { 12, RDESC_DOMAIN, RDESC_DOMAIN, 4, RDESC_DOMAIN, RDESC_END }
+ *
+ * This means that this (ficticious) RR type has a RDATA section containing 12 octects
+ * (we don't care what they contain), followed by 2 domain names, followed by 4 octects,
+ * followed by 1 domain name, and then followed by an unspecificied number of octects (0
+ * or more).
+ */
+
+#define RDESC_DOMAIN   -1
+#define RDESC_END       0
+static const int rdata_description[][8] =
+{
+  /**/            { RDESC_END },
+  /* 1: A */      { RDESC_END },
+  /* 2: NS */     { RDESC_DOMAIN, RDESC_END },
+  /* 3: .. */     { RDESC_END },
+  /* 4: .. */     { RDESC_END },
+  /* 5: CNAME */  { RDESC_DOMAIN, RDESC_END },
+};
+
 
 /* Check whether today/now is between date_start and date_end */
 static int check_date_range(unsigned long date_start, unsigned long date_end)
