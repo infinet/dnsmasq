@@ -250,31 +250,68 @@ static int check_date_range(unsigned long date_start, unsigned long date_end)
          && serial_compare_32(curtime, date_end) == SERIAL_LT;
 }
 
+
 /* Sort RRs within a RRset in canonical order, according to RFC4034, §6.3
    Notice that the RRDATA sections have been already normalized, so a memcpy
    is sufficient.
    NOTE: r1/r2 point immediately after the owner name. */
+
+struct {
+  struct dns_header *header;
+  size_t pktlen;
+} rrset_canonical_order_ctx;
+
 static int rrset_canonical_order(const void *r1, const void *r2)
 {
-  int r1len, r2len, res;
-  const unsigned char *pr1=*(unsigned char**)r1, *pr2=*(unsigned char**)r2;
+  size_t r1len, r2len;
+  int rrtype, i;
+  unsigned char *pr1=*(unsigned char**)r1, *pr2=*(unsigned char**)r2;
+  unsigned char tmp1[MAXCDNAME], tmp2[MAXCDNAME];   /* TODO: use part of daemon->namebuff */
   
-  pr1 += 8; pr2 += 8;
+  #define ORDER(buf1,len1, buf2,len2) \
+    do { \
+      int res = memcmp(buf1, buf2, MIN(len1,len2)); \
+      if (res != 0) return res; \
+      if (len1 < len2) return -1; \
+      if (len1 > len2) return 1; \
+    } while (0)
+
+  GETSHORT(rrtype, pr1);
+  pr1 += 6; pr2 += 8;
   GETSHORT(r1len, pr1); GETSHORT(r2len, pr2);
 
-  /* Lexicographically compare RDATA (thus, if equal, smaller length wins) */
-  res = memcmp(pr1, pr2, MIN(r1len, r2len));
-  if (res == 0)
-    {
-      if (r1len < r2len)
-        return -1;
-      else
-        /* NOTE: RFC2181 says that an RRset is not allowed to contain duplicate
-           records. If it happens, it is a protocol error and anything goes. */
-        return 1;
-    }
-  
-  return res;
+  if (rrtype < countof(rdata_description))
+    for (i = 0; rdata_description[rrtype][i] != RDESC_END; ++i)
+      {
+        int d = rdata_description[rrtype][i];
+        if (d == RDESC_DOMAIN)
+          {
+            int dl1 = process_domain_name(rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
+                                          &pr1, &r1len, tmp1, PWN_EXTRACT);
+            int dl2 = process_domain_name(rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
+                                          &pr2, &r2len, tmp2, PWN_EXTRACT);
+            /* TODO: how do we handle errors, that is dl1==0 or dl2==0 ? */
+            assert(dl1 != 0);
+            assert(dl2 != 0);
+            ORDER(tmp1, dl1, tmp2, dl2);
+          }
+        else
+          {
+            ORDER(pr1, d, pr2, d);
+            pr1 += d; pr2 += d;
+            r1len -= d; r2len -= d;
+          }
+      }
+
+  /* Order the rest of the record. */
+  ORDER(pr1, r1len, pr2, r2len);
+
+  /* If we reached this point, the two RRs are identical.
+     RFC2181 says that an RRset is not allowed to contain duplicate
+     records. If it happens, it is a protocol error and anything goes. */
+  return 1;
+
+  #undef ORDER
 }
 
 typedef struct PendingRRSIGValidation
@@ -318,6 +355,7 @@ static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
 
   alg->vtbl->add_data(alg, "\0", 1);
 }
+
 
 /* Pass a DNS domain name in wire format through a hash function. Returns the
    total number of bytes passed through the function or 0 in case of errors.
@@ -476,6 +514,8 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
     }
   
   /* Sort RRset records in canonical order. */
+  rrset_canonical_order_ctx.header = header;
+  rrset_canonical_order_ctx.pktlen = pktlen;
   qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
   
   /* Skip through the signer name; we don't extract it right now because
