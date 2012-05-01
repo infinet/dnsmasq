@@ -141,8 +141,10 @@ static int process_domain_name(struct dns_header *header, size_t pktlen,
       label_type = count & 0xC0;
       if (label_type == 0xC0)
         {
+          int l2;
           if (p >= end)
             return 0;
+          l2 = *p++;
           if (hops == 0)
             {
               if (p - *rdata > *rdlen)
@@ -152,7 +154,7 @@ static int process_domain_name(struct dns_header *header, size_t pktlen,
             }
           if (++hops == 256)
             return 0;
-          p = (unsigned char*)header + (count & 0x3F) * 256 + *p;
+          p = (unsigned char*)header + (count & 0x3F) * 256 + l2;
         }
       else if (label_type == 0x00)
         {
