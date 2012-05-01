@@ -426,64 +426,6 @@ static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
 }
 
 
-/* Pass a DNS domain name in wire format through a hash function. Returns the
-   total number of bytes passed through the function or 0 in case of errors.
-   Updates the rdata pointer moving it further within the RR.
-
-   If alg is NULL, go in dry run mode (still correctly updates rdata and return
-   the correct total).
-
-   The function canonicalizes the domain name (RFC 4034, §6.2), which basically
-   means conversion to lower case, and uncompression. */
-static int verifyalg_add_data_wire_domain(VerifyAlgCtx *alg, struct dns_header *header, size_t pktlen,
-                                          unsigned char** rdata)
-{
-  int hops = 0, total = 0;
-  unsigned char label_type;
-  unsigned char *end = (unsigned char *)header + pktlen;
-  unsigned char count; unsigned char *p = *rdata;
-
-  while (1)
-    {
-      if (p >= end)
-        return 0;
-      if (!(count = *p++))
-        break;
-      label_type = count & 0xC0;
-      if (label_type == 0xC0)
-        {
-          if (p >= end)
-            return 0;
-          p = (unsigned char*)header + (count & 0x3F) * 256 + *p;
-          if (hops == 0)
-            *rdata = p;
-          if (++hops == 256)
-            return 0;
-        }
-      else if (label_type == 0x00)
-        {
-          if (p+count-1 >= end)
-            return 0;
-          if (alg)
-            {
-              alg->vtbl->add_data(alg, &count, 1);
-              /* TODO: missing conversion to lower-case and alphabet check */
-              alg->vtbl->add_data(alg, p, count);
-            }
-          total += count+1;
-          p += count;
-        }
-      else
-        return 0; /* unsupported label_type */
-    }
-
-  if (hops == 0)
-    *rdata = p;
-  if (alg)
-      alg->vtbl->add_data(alg, &count, 1);
-  return total+1;
-}
-
 /* Pass a resource record's rdata field through a verification hash function.
 
    We must pass the record in DNS wire format, but if the record contains domain names,
@@ -491,30 +433,32 @@ static int verifyalg_add_data_wire_domain(VerifyAlgCtx *alg, struct dns_header *
 static int verifyalg_add_rdata(VerifyAlgCtx *alg, int sigtype, struct dns_header *header, size_t pktlen,
                                unsigned char *rdata)
 {
+  size_t len;
   unsigned char *p;
-  int res; unsigned short rdlen;
+  unsigned short total;
+  unsigned char tmpbuf[MAXDNAME]; /* TODO: reuse part of daemon->namebuff */
+  RDataCForm cf1, cf2;
 
-  GETSHORT(rdlen, rdata);
-  p = rdata;
+  /* Initialize two iterations over the canonical form*/
+  rdata_cform_init(&cf1, header, pktlen, rdata, sigtype, tmpbuf);
+  cf2 = cf1;
 
-  switch (sigtype)
-    {
-    /* TODO: missing lots of RR types, see RFC4034, §6.2 */
-    case T_NS:
-    case T_CNAME:
-      if (!(res = verifyalg_add_data_wire_domain(NULL, header, pktlen, &p)))
-        return 0;
-      if (p - rdata > rdlen)
-        return 0;
-      rdlen = htons(res);
-      alg->vtbl->add_data(alg, &rdlen, 2);
-      verifyalg_add_data_wire_domain(alg, header, pktlen, &rdata);
-      break;
+  /* Iteration 1: go through the canonical record and count the total octects.
+     This number might be different from the non-canonical rdata length
+     because of domain names compression. */
+  total = 0;
+  while ((p = rdata_cform_next(&cf1, &len)))
+    total += len;
+  if (rdata_cform_error(&cf1))
+    return 0;
 
-    default:
-      alg->vtbl->add_data(alg, rdata-2, rdlen+2);
-      break;
-    }
+  /* Iteration 2: process the canonical record through the hash function */
+  total = htons(total);
+  alg->vtbl->add_data(alg, &total, 2);
+
+  while ((p = rdata_cform_next(&cf2, &len)))
+    alg->vtbl->add_data(alg, p, len);
+
   return 1;
 }
 
