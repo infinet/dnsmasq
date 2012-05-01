@@ -100,9 +100,9 @@ static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
  * larger, reflecting the total number of octects composing the domain name.
  *
  */
-#define PDN_EXTRACT   0
-#define PDN_COMPARE   1
-#define PDN_ORDER     2
+#define PWN_EXTRACT   0
+#define PWN_COMPARE   1
+#define PWN_ORDER     2
 static int process_domain_name(struct dns_header *header, size_t pktlen,
                                unsigned char** rdata, size_t* rdlen,
                                unsigned char *out, int action)
