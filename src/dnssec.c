@@ -353,54 +353,34 @@ struct {
 static int rrset_canonical_order(const void *r1, const void *r2)
 {
   size_t r1len, r2len;
-  int rrtype, i;
+  int rrtype;
   unsigned char *pr1=*(unsigned char**)r1, *pr2=*(unsigned char**)r2;
   unsigned char tmp1[MAXCDNAME], tmp2[MAXCDNAME];   /* TODO: use part of daemon->namebuff */
   
-  #define ORDER(buf1,len1, buf2,len2) \
-    do { \
-      int res = memcmp(buf1, buf2, MIN(len1,len2)); \
-      if (res != 0) return res; \
-      if (len1 < len2) return -1; \
-      if (len1 > len2) return 1; \
-    } while (0)
-
   GETSHORT(rrtype, pr1);
   pr1 += 6; pr2 += 8;
-  GETSHORT(r1len, pr1); GETSHORT(r2len, pr2);
 
-  if (rrtype < countof(rdata_description))
-    for (i = 0; rdata_description[rrtype][i] != RDESC_END; ++i)
-      {
-        int d = rdata_description[rrtype][i];
-        if (d == RDESC_DOMAIN)
-          {
-            int dl1 = process_domain_name(rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
-                                          &pr1, &r1len, tmp1, PWN_EXTRACT);
-            int dl2 = process_domain_name(rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
-                                          &pr2, &r2len, tmp2, PWN_EXTRACT);
-            /* TODO: how do we handle errors, that is dl1==0 or dl2==0 ? */
-            assert(dl1 != 0);
-            assert(dl2 != 0);
-            ORDER(tmp1, dl1, tmp2, dl2);
-          }
-        else
-          {
-            ORDER(pr1, d, pr2, d);
-            pr1 += d; pr2 += d;
-            r1len -= d; r2len -= d;
-          }
-      }
+  RDataCForm cf1, cf2;
+  rdata_cform_init(&cf1, rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
+                   pr1, rrtype, tmp1);
+  rdata_cform_init(&cf2, rrset_canonical_order_ctx.header, rrset_canonical_order_ctx.pktlen,
+                   pr2, rrtype, tmp2);
+  while ((pr1 = rdata_cform_next(&cf1, &r1len)) &&
+         (pr2 = rdata_cform_next(&cf2, &r2len)))
+    {
+      int res = memcmp(pr1, pr2, MIN(r1len,r2len));
+      if (res != 0)
+        return res;
+      if (r1len < r2len)
+        return -1;
+      if (r2len > r1len)
+        return 1;
+    }
 
-  /* Order the rest of the record. */
-  ORDER(pr1, r1len, pr2, r2len);
-
-  /* If we reached this point, the two RRs are identical.
+  /* If we reached this point, the two RRs are identical (or an error occurred).
      RFC2181 says that an RRset is not allowed to contain duplicate
      records. If it happens, it is a protocol error and anything goes. */
   return 1;
-
-  #undef ORDER
 }
 
 typedef struct PendingRRSIGValidation
