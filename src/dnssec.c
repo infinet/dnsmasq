@@ -238,6 +238,15 @@ static const int rdata_description[][8] =
   /* 4: .. */     { RDESC_END },
   /* 5: CNAME */  { RDESC_DOMAIN, RDESC_END },
   /* 6: SOA */    { RDESC_DOMAIN, RDESC_DOMAIN, RDESC_END },
+  /* 7: */        { RDESC_END },
+  /* 8: */        { RDESC_END },
+  /* 9: */        { RDESC_END },
+  /* 10: */       { RDESC_END },
+  /* 11: */       { RDESC_END },
+  /* 12: */       { RDESC_END },
+  /* 13: */       { RDESC_END },
+  /* 14: */       { RDESC_END },
+  /* 15: MX */    { 2, RDESC_DOMAIN, RDESC_END },
 };
 
 
