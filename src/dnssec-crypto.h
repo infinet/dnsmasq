@@ -15,13 +15,13 @@ struct keydata;
  *    // nor consumed, so the pointer must stay valid.
  *    alg->set_signature(sig, 16);
  *
- *    // Second, push the data in; data is consumed immediately, so the buffer
- *    // can be freed or modified.
- *    alg->begin_data();
- *    alg->add_data(buf1, 123);
- *    alg->add_data(buf2, 45);
- *    alg->add_data(buf3, 678);
- *    alg->end_data();
+ *    // Second, get push the data through the corresponding digest algorithm;
+ *    // data is consumed immediately, so the buffers can be freed or modified.
+ *    digestalg_begin(alg->get_digestalgo());
+ *    digestalg_add_data(buf1, 123);
+ *    digestalg_add_data(buf2, 45);
+ *    digestalg_add_data(buf3, 678);
+ *    alg->set_digest(digestalg_final());
  *
  *    // Third, verify if we got the correct key for this signature.
  *    alg->verify(key1, 16);
@@ -33,9 +33,8 @@ typedef struct VerifyAlgCtx VerifyAlgCtx;
 typedef struct
 {
   int (*set_signature)(VerifyAlgCtx *ctx, unsigned char *data, unsigned len);
-  void (*begin_data)(VerifyAlgCtx *ctx);
-  void (*add_data)(VerifyAlgCtx *ctx, void *data, unsigned len);
-  void (*end_data)(VerifyAlgCtx *ctx);
+  int (*get_digestalgo)(VerifyAlgCtx *ctx);
+  void (*set_digest)(VerifyAlgCtx *ctx, unsigned char *digest);
   int (*verify)(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len);
 } VerifyAlg;
 
@@ -50,10 +49,16 @@ void verifyalg_free(VerifyAlgCtx *a);
 int verifyalg_algonum(VerifyAlgCtx *a);
 
 /* Functions to calculate the digest of a key */
+
+/* RFC4034 digest algorithms */
+#define DIGESTALG_SHA1     1
+#define DIGESTALG_SHA256   2
+
 int digestalg_supported(int algo);
 int digestalg_begin(int algo);
 void digestalg_add_data(void *data, unsigned len);
 void digestalg_add_keydata(struct keydata *key, size_t len);
-int digestalg_final(struct keydata *digest);
+unsigned char *digestalg_final(void);
+int digestalg_len(void);
 
 #endif /* DNSSEC_CRYPTO_H */

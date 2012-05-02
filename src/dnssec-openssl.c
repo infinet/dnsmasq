@@ -9,11 +9,7 @@ typedef struct VACTX_rsasha1
   VerifyAlgCtx base;
   unsigned char *sig;
   unsigned siglen;
-  union
-    {
-      EVP_MD_CTX hash;
-      unsigned char digest[20];
-    };
+  unsigned char digest[20];
 } VACTX_rsasha1;
 
 typedef struct VACTX_rsasha256
@@ -21,11 +17,7 @@ typedef struct VACTX_rsasha256
   VerifyAlgCtx base;
   unsigned char *sig;
   unsigned siglen;
-  union
-    {
-      EVP_MD_CTX hash;
-      unsigned char digest[32];
-    };
+  unsigned char digest[32];
 } VACTX_rsasha256;
 
 #define POOL_SIZE 1
@@ -62,43 +54,26 @@ static int rsasha256_set_signature(VerifyAlgCtx *ctx_, unsigned char *data, unsi
   return 1;
 }
 
-static void rsasha1_begin_data(VerifyAlgCtx *ctx_)
+static int rsasha1_get_digestalgo(VerifyAlgCtx *ctx_)
 {
-  VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
-  EVP_MD_CTX_init(&ctx->hash);
-  EVP_DigestInit_ex(&ctx->hash, EVP_sha1(), NULL);
+  (void)ctx_;
+  return DIGESTALG_SHA1;
 }
-static void rsasha256_begin_data(VerifyAlgCtx *ctx_)
+static int rsasha256_get_digestalgo(VerifyAlgCtx *ctx_)
 {
-  VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
-  EVP_MD_CTX_init(&ctx->hash);
-  EVP_DigestInit_ex(&ctx->hash, EVP_sha256(), NULL);
+  (void)ctx_;
+  return DIGESTALG_SHA256;
 }
 
-static void rsasha1_add_data(VerifyAlgCtx *ctx_, void *data, unsigned len)
+static void rsasha1_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
 {
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
-  EVP_DigestUpdate(&ctx->hash, data, len);
+  memcpy(ctx->digest, digest, sizeof(ctx->digest));
 }
-static void rsasha256_add_data(VerifyAlgCtx *ctx_, void *data, unsigned len)
+static void rsasha256_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
 {
   VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
-  EVP_DigestUpdate(&ctx->hash, data, len);
-}
-
-static void rsasha1_end_data(VerifyAlgCtx *ctx_)
-{
-  VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
-  unsigned char digest[20];
-  EVP_DigestFinal(&ctx->hash, digest, NULL);
-  memcpy(ctx->digest, digest, 20);
-}
-static void rsasha256_end_data(VerifyAlgCtx *ctx_)
-{
-  VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
-  unsigned char digest[32];
-  EVP_DigestFinal(&ctx->hash, digest, NULL);
-  memcpy(ctx->digest, digest, 32);
+  memcpy(ctx->digest, digest, sizeof(ctx->digest));
 }
 
 static int keydata_to_bn(BIGNUM *ret, struct keydata **key_data, unsigned char **p, unsigned len)
@@ -174,44 +149,36 @@ static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsign
   return validated;
 }
 
-#define DEFINE_VALG(alg) \
-  int alg ## _set_signature(VerifyAlgCtx *ctx, unsigned char *data, unsigned len); \
-  void alg ## _begin_data(VerifyAlgCtx *ctx); \
-  void alg ## _add_data(VerifyAlgCtx *ctx, void *data, unsigned len); \
-  void alg ## _end_data(VerifyAlgCtx *ctx); \
-  int alg ## _verify(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len) \
-  /**/
+#define VALG_UNSUPPORTED() { \
+    0,0,0,0 \
+  } /**/
 
 #define VALG_VTABLE(alg) { \
   alg ## _set_signature, \
-  alg ## _begin_data, \
-  alg ## _add_data, \
-  alg ## _end_data, \
+  alg ## _get_digestalgo, \
+  alg ## _set_digest, \
   alg ## _verify \
   } /**/
-
-DEFINE_VALG(rsasha1);
-DEFINE_VALG(rsasha256);
 
 /* Updated registry that merges various RFCs:
    https://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xml */
 static const VerifyAlg valgs[] =
 {
-  {0,0,0,0,0},            /*  0: reserved */
-  {0,0,0,0,0},            /*  1: RSAMD5 */
-  {0,0,0,0,0},            /*  2: DH */
-  {0,0,0,0,0},            /*  3: DSA */
-  {0,0,0,0,0},            /*  4: ECC */
-  VALG_VTABLE(rsasha1),   /*  5: RSASHA1 */
-  {0,0,0,0,0},            /*  6: DSA-NSEC3-SHA1 */
-  VALG_VTABLE(rsasha1),   /*  7: RSASHA1-NSEC3-SHA1 */
-  VALG_VTABLE(rsasha256), /*  8: RSASHA256 */
-  {0,0,0,0,0},            /*  9: unassigned */
-  {0,0,0,0,0},            /* 10: RSASHA512 */
-  {0,0,0,0,0},            /* 11: unassigned */
-  {0,0,0,0,0},            /* 12: ECC-GOST */
-  {0,0,0,0,0},            /* 13: ECDSAP256SHA256 */
-  {0,0,0,0,0},            /* 14: ECDSAP384SHA384 */
+  VALG_UNSUPPORTED(),            /*  0: reserved */
+  VALG_UNSUPPORTED(),            /*  1: RSAMD5 */
+  VALG_UNSUPPORTED(),            /*  2: DH */
+  VALG_UNSUPPORTED(),            /*  3: DSA */
+  VALG_UNSUPPORTED(),            /*  4: ECC */
+  VALG_VTABLE(rsasha1),          /*  5: RSASHA1 */
+  VALG_UNSUPPORTED(),            /*  6: DSA-NSEC3-SHA1 */
+  VALG_VTABLE(rsasha1),          /*  7: RSASHA1-NSEC3-SHA1 */
+  VALG_VTABLE(rsasha256),        /*  8: RSASHA256 */
+  VALG_UNSUPPORTED(),            /*  9: unassigned */
+  VALG_UNSUPPORTED(),            /* 10: RSASHA512 */
+  VALG_UNSUPPORTED(),            /* 11: unassigned */
+  VALG_UNSUPPORTED(),            /* 12: ECC-GOST */
+  VALG_UNSUPPORTED(),            /* 13: ECDSAP256SHA256 */
+  VALG_UNSUPPORTED(),            /* 14: ECDSAP384SHA384 */
 };
 
 static const int valgctx_size[] =
@@ -286,7 +253,7 @@ static EVP_MD_CTX digctx;
 
 int digestalg_supported(int algo)
 {
-  return (algo == 1 || algo == 2);
+  return (algo == DIGESTALG_SHA1 || algo == DIGESTALG_SHA256);
 }
 
 int digestalg_begin(int algo)
@@ -299,6 +266,11 @@ int digestalg_begin(int algo)
   else
     return 0;
   return 1;
+}
+
+int digestalg_len()
+{
+  return EVP_MD_CTX_size(&digctx);
 }
 
 void digestalg_add_data(void *data, unsigned len)
@@ -318,10 +290,10 @@ void digestalg_add_keydata(struct keydata *key, size_t len)
     }
 }
 
-int digestalg_final(struct keydata *expected)
+unsigned char* digestalg_final(void)
 {
-  unsigned char digest[32];
+  static unsigned char digest[32];
   EVP_DigestFinal(&digctx, digest, NULL);
-  /* FIXME: why EVP_MD_CTX_size() crashes? */
-  return (memcmp(digest, expected->key, 20) == 0);
+  return digest;
 }
+

@@ -443,11 +443,11 @@ static int convert_domain_to_wire(char *name, unsigned char* out)
 }
 
 
-/* Pass a resource record's rdata field through a verification hash function.
+/* Pass a resource record's rdata field through the currently-initailized digest algorithm.
 
    We must pass the record in DNS wire format, but if the record contains domain names,
    they must be uncompressed. This makes things very tricky, because  */
-static int verifyalg_add_rdata(VerifyAlgCtx *alg, int sigtype, struct dns_header *header, size_t pktlen,
+static int digestalg_add_rdata(int sigtype, struct dns_header *header, size_t pktlen,
                                unsigned char *rdata)
 {
   size_t len;
@@ -471,10 +471,10 @@ static int verifyalg_add_rdata(VerifyAlgCtx *alg, int sigtype, struct dns_header
 
   /* Iteration 2: process the canonical record through the hash function */
   total = htons(total);
-  alg->vtbl->add_data(alg, &total, 2);
+  digestalg_add_data(&total, 2);
 
   while ((p = rdata_cform_next(&cf2, &len)))
-    alg->vtbl->add_data(alg, p, len);
+    digestalg_add_data(p, len);
 
   return 1;
 }
@@ -575,22 +575,22 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   unsigned char owner_wire[MAXCDNAME];
   int owner_wire_len = convert_domain_to_wire(owner, owner_wire);
 
-  alg->vtbl->begin_data(alg);
-  alg->vtbl->add_data(alg, sigrdata, 18+signer_name_rdlen);
+  digestalg_begin(alg->vtbl->get_digestalgo(alg));
+  digestalg_add_data(sigrdata, 18+signer_name_rdlen);
   for (i = 0; i < rrsetidx; ++i)
     {
       p = (unsigned char*)(rrset[i]);
 
-      alg->vtbl->add_data(alg, owner_wire, owner_wire_len);
-      alg->vtbl->add_data(alg, &sigtype, 2);
-      alg->vtbl->add_data(alg, &sigclass, 2);
-      alg->vtbl->add_data(alg, &sigttl, 4);
+      digestalg_add_data(owner_wire, owner_wire_len);
+      digestalg_add_data(&sigtype, 2);
+      digestalg_add_data(&sigclass, 2);
+      digestalg_add_data(&sigttl, 4);
     
       p += 8;
-      if (!verifyalg_add_rdata(alg, ntohs(sigtype), header, pktlen, p))
+      if (!digestalg_add_rdata(ntohs(sigtype), header, pktlen, p))
         return 0;
     }
-  alg->vtbl->end_data(alg);
+  alg->vtbl->set_digest(alg, digestalg_final());
 
   /* We don't need the owner name anymore; now extract the signer name */
   if (!extract_name_no_compression(sigrdata+18, signer_name_rdlen, signer_name))
@@ -672,14 +672,16 @@ static int dnskey_ds_match(struct crec *dnskey, struct crec *ds)
   int owner_len = convert_domain_to_wire(cache_get_name(ds), owner);
   size_t keylen = dnskey->uid;
   int dig = ds->uid;
+  int digsize;
 
   if (!digestalg_begin(dig))
     return 0;
+  digsize = digestalg_len();
   digestalg_add_data(owner, owner_len);
   digestalg_add_data("\x01\x01\x03", 3);
   digestalg_add_data(&ds->addr.key.algo, 1);
   digestalg_add_keydata(dnskey->addr.key.keydata, keylen);
-  return digestalg_final(ds->addr.key.keydata);
+  return (memcmp(digestalg_final(), ds->addr.key.keydata->key, digsize) == 0);
 }
 
 int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
