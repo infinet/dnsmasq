@@ -411,28 +411,28 @@ static char *strchrnul(char *str, char ch)
   return str;
 }
 
-/* Pass a domain name through a verification hash function.
-
-   We must pass domain names in DNS wire format, but uncompressed.
-   This means that we cannot directly use raw data from the original
-   message since it might be compressed. */
-static void verifyalg_add_data_domain(VerifyAlgCtx *alg, char* name)
+/* Convert a domain name to wire format */
+static int convert_domain_to_wire(char *name, unsigned char* out)
 {
-  unsigned char len; char *p;
+  unsigned char len;
+  unsigned char *start = out;
+  char *p;
 
   do
     {
       p = strchrnul(name, '.');
       if ((len = p-name))
         {
-          alg->vtbl->add_data(alg, &len, 1);
-          alg->vtbl->add_data(alg, name, len);
+          *out++ = len;
+          memcpy(out, name, len);
+          out += len;
         }
       name = p+1;
     }
   while (*p);
 
-  alg->vtbl->add_data(alg, "\0", 1);
+  *out++ = '\0';
+  return out-start;
 }
 
 
@@ -561,13 +561,20 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   sigclass = htons(sigclass);
   sigttl = htonl(sigttl);
 
+  /* TODO: we shouldn't need to convert this to wire here. Best solution would be:
+     - Use process_name() instead of extract_name() everywhere in dnssec code
+     - Convert from wire format to representation format only for querying/storing cache
+   */
+  unsigned char owner_wire[MAXCDNAME];
+  int owner_wire_len = convert_domain_to_wire(owner, owner_wire);
+
   alg->vtbl->begin_data(alg);
   alg->vtbl->add_data(alg, sigrdata, 18+signer_name_rdlen);
   for (i = 0; i < rrsetidx; ++i)
     {
       p = (unsigned char*)(rrset[i]);
 
-      verifyalg_add_data_domain(alg, owner);
+      alg->vtbl->add_data(alg, owner_wire, owner_wire_len);
       alg->vtbl->add_data(alg, &sigtype, 2);
       alg->vtbl->add_data(alg, &sigclass, 2);
       alg->vtbl->add_data(alg, &sigttl, 4);
