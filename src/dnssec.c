@@ -509,13 +509,13 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   
   if (!verifyalg_supported(sigalg))
     {
-      printf("RRSIG algorithm not supported: %d\n", sigalg);
+      printf("ERROR: RRSIG algorithm not supported: %d\n", sigalg);
       return 0;
     }
 
   if (!check_date_range(date_start, date_end))
     {
-      printf("RRSIG outside date range\n");
+      printf("ERROR: RRSIG outside date range\n");
       return 0;
     }
 
