@@ -107,6 +107,11 @@ static int rsasha256_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigne
   return rsa_verify(ctx, key_data, key_len, NID_sha256, 32);
 }
 
+static int rsasha512_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+{
+  return rsa_verify(ctx, key_data, key_len, NID_sha512, 64);
+}
+
 static int dsasha1_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
 {
   static unsigned char asn1_signature[] =
@@ -159,11 +164,11 @@ static const VerifyAlg valgs[] =
   VALG_VTABLE(dsasha1, DIGESTALG_SHA1),      /*  3: DSA */
   VALG_UNSUPPORTED(),                        /*  4: ECC */
   VALG_VTABLE(rsasha1, DIGESTALG_SHA1),      /*  5: RSASHA1 */
-  VALG_UNSUPPORTED(),                        /*  6: DSA-NSEC3-SHA1 */
+  VALG_VTABLE(dsasha1, DIGESTALG_SHA1),      /*  6: DSA-NSEC3-SHA1 */
   VALG_VTABLE(rsasha1, DIGESTALG_SHA1),      /*  7: RSASHA1-NSEC3-SHA1 */
   VALG_VTABLE(rsasha256, DIGESTALG_SHA256),  /*  8: RSASHA256 */
   VALG_UNSUPPORTED(),                        /*  9: unassigned */
-  VALG_UNSUPPORTED(),                        /* 10: RSASHA512 */
+  VALG_VTABLE(rsasha512, DIGESTALG_SHA512),  /* 10: RSASHA512 */
   VALG_UNSUPPORTED(),                        /* 11: unassigned */
   VALG_UNSUPPORTED(),                        /* 12: ECC-GOST */
   VALG_UNSUPPORTED(),                        /* 13: ECDSAP256SHA256 */
@@ -184,7 +189,7 @@ static const int valgctx_size[] =
   sizeof(VerifyAlgCtx),     /*  7: RSASHA1-NSEC3-SHA1 */
   sizeof(VerifyAlgCtx),     /*  8: RSASHA256 */
   0,                        /*  9: unassigned */
-  0,                        /* 10: RSASHA512 */
+  sizeof(VerifyAlgCtx),     /* 10: RSASHA512 */
   0,                        /* 11: unassigned */
   0,                        /* 12: ECC-GOST */
   0,                        /* 13: ECDSAP256SHA256 */
@@ -246,7 +251,8 @@ int digestalg_supported(int algo)
 {
   return (algo == DIGESTALG_SHA1 ||
           algo == DIGESTALG_SHA256 ||
-          algo == DIGESTALG_MD5);
+          algo == DIGESTALG_MD5 ||
+          algo == DIGESTALG_SHA512);
 }
 
 int digestalg_begin(int algo)
@@ -256,6 +262,8 @@ int digestalg_begin(int algo)
     EVP_DigestInit_ex(&digctx, EVP_sha1(), NULL);
   else if (algo == DIGESTALG_SHA256)
     EVP_DigestInit_ex(&digctx, EVP_sha256(), NULL);
+  else if (algo == DIGESTALG_SHA512)
+    EVP_DigestInit_ex(&digctx, EVP_sha512(), NULL);
   else if (algo == DIGESTALG_MD5)
     EVP_DigestInit_ex(&digctx, EVP_md5(), NULL);
   else

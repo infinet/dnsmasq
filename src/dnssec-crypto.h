@@ -41,7 +41,7 @@ struct VerifyAlgCtx
    const VerifyAlg *vtbl;
    unsigned char *sig;
    size_t siglen;
-   unsigned char digest[32];
+   unsigned char digest[64];  /* TODO: if memory problems, use VLA */
 };
 
 int verifyalg_supported(int algo);
@@ -55,6 +55,7 @@ int verifyalg_algonum(VerifyAlgCtx *a);
 #define DIGESTALG_SHA1     1
 #define DIGESTALG_SHA256   2
 #define DIGESTALG_MD5      256
+#define DIGESTALG_SHA512   257
 
 int digestalg_supported(int algo);
 int digestalg_begin(int algo);
