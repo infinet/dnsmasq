@@ -653,6 +653,28 @@ static int dnskey_keytag(unsigned char *rdata, int rdlen)
   return ac & 0xFFFF;
 }
 
+/* Check if the DS record (from cache) points to the DNSKEY record (from cache) */
+static int dnskey_ds_match(struct crec *dnskey, struct crec *ds)
+{
+  if (dnskey->addr.key.keytag != ds->addr.key.keytag)
+    return 0;
+  if (dnskey->addr.key.algo != ds->addr.key.algo)
+    return 0;
+
+  unsigned char owner[MAXCDNAME];  /* TODO: user part of daemon->namebuff */
+  int owner_len = convert_domain_to_wire(cache_get_name(ds), owner);
+  size_t keylen = dnskey->uid;
+  int dig = ds->uid;
+
+  if (!digestalg_begin(dig))
+    return 0;
+  digestalg_add_data(owner, owner_len);
+  digestalg_add_data("\x01\x01\x03", 3);
+  digestalg_add_data(&ds->addr.key.algo, 1);
+  digestalg_add_keydata(dnskey->addr.key.keydata, keylen);
+  return digestalg_final(ds->addr.key.keydata);
+}
+
 int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
                     int rdlen, unsigned char *rdata)
 {
@@ -697,6 +719,48 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
 int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
                    int rdlen, unsigned char *rdata)
 {
+  int keytag, algo, dig;
+  struct keydata *key; struct crec *crec_ds, *crec_key;
+
+  CHECKED_GETSHORT(keytag, rdata, rdlen);
+  CHECKED_GETCHAR(algo, rdata, rdlen);
+  CHECKED_GETCHAR(dig, rdata, rdlen);
+
+  if (!digestalg_supported(dig))
+    return 0;
+
+  key = keydata_alloc((char*)rdata, rdlen);
+
+  /* TODO: time(0) is correct here? */
+  crec_ds = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DS);
+  if (!crec_ds)
+    {
+      keydata_free(key);
+      /* TODO: if insertion really might fail, verify we don't depend on cache
+         insertion success for validation workflow correctness */
+      printf("DS: cache insertion failure\n");
+      return 0;
+    }
+
+  /* TODO: improve union not to name "uid" this field */
+  crec_ds->uid = dig;
+  crec_ds->addr.key.keydata = key;
+  crec_ds->addr.key.algo = algo;
+  crec_ds->addr.key.keytag = keytag;
+  printf("DS: storing key for %s (digest: %d)\n", owner, dig);
+
+  /* Now try to find a DNSKEY which matches this DS digest. */
+  printf("Looking for a DNSKEY matching DS %d...\n", keytag);
+  crec_key = NULL;
+  while ((crec_key = cache_find_by_name(crec_key, owner, time(0), F_DNSKEY)))  /* TODO: time(0) */
+    {
+      if (dnskey_ds_match(crec_key, crec_ds))
+        {
+          /* TODO: create a link within the cache: ds => dnskey */
+          printf("MATCH FOUND for keytag %d\n", keytag);
+        }
+    }
+
   return 0;
 }
 
