@@ -636,7 +636,7 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
           if (end_rrsig_validation(&val, crecp))
             printf("Validation OK\n");
           else
-            printf("Validation FAILED\n");
+            printf("ERROR: Validation FAILED (%s, keytag:%d, algo:%d)\n", owner, val.keytag, verifyalg_algonum(val.alg));
         }
     }
 
@@ -777,9 +777,11 @@ int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsign
         {
           /* TODO: create a link within the cache: ds => dnskey */
           printf("MATCH FOUND for keytag %d\n", keytag);
+          return 1;
         }
     }
 
+  printf("ERROR: match not found for DS %d (owner: %s)\n", keytag, owner);
   return 0;
 }
 
