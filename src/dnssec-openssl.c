@@ -281,3 +281,47 @@ int verifyalg_algonum(VerifyAlgCtx *a)
     return -1;
   return num;
 }
+
+static EVP_MD_CTX digctx;
+
+int digestalg_supported(int algo)
+{
+  return (algo == 1 || algo == 2);
+}
+
+int digestalg_begin(int algo)
+{
+  EVP_MD_CTX_init(&digctx);
+  if (algo == 1)
+    EVP_DigestInit_ex(&digctx, EVP_sha1(), NULL);
+  else if (algo == 2)
+    EVP_DigestInit_ex(&digctx, EVP_sha256(), NULL);
+  else
+    return 0;
+  return 1;
+}
+
+void digestalg_add_data(void *data, unsigned len)
+{
+  EVP_DigestUpdate(&digctx, data, len);
+}
+
+void digestalg_add_keydata(struct keydata *key, size_t len)
+{
+  size_t cnt; unsigned char *p = NULL;
+  while (len)
+    {
+      cnt = keydata_walk(&key, &p, len);
+      EVP_DigestUpdate(&digctx, p, cnt);
+      p += cnt;
+      len -= cnt;
+    }
+}
+
+int digestalg_final(struct keydata *expected)
+{
+  unsigned char digest[32];
+  EVP_DigestFinal(&digctx, digest, NULL);
+  /* FIXME: why EVP_MD_CTX_size() crashes? */
+  return (memcmp(digest, expected->key, 20) == 0);
+}

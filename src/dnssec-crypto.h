@@ -49,4 +49,11 @@ VerifyAlgCtx* verifyalg_alloc(int algo);
 void verifyalg_free(VerifyAlgCtx *a);
 int verifyalg_algonum(VerifyAlgCtx *a);
 
+/* Functions to calculate the digest of a key */
+int digestalg_supported(int algo);
+int digestalg_begin(int algo);
+void digestalg_add_data(void *data, unsigned len);
+void digestalg_add_keydata(struct keydata *key, size_t len);
+int digestalg_final(struct keydata *digest);
+
 #endif /* DNSSEC_CRYPTO_H */
