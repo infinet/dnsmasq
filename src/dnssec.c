@@ -649,16 +649,25 @@ static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
 }
 
 /* Compute keytag (checksum to quickly index a key). See RFC4034 */
-static int dnskey_keytag(unsigned char *rdata, int rdlen)
+static int dnskey_keytag(int alg, unsigned char *rdata, int rdlen)
 {
-  unsigned long ac;
-  int i;
+  if (alg == 1)
+    {
+      /* Algorithm 1 (RSAMD5) has a different (older) keytag calculation algorithm.
+         See RFC4034, Appendix B.1 */
+      return rdata[rdlen-3] * 256 + rdata[rdlen-2];
+    }
+  else
+    {
+      unsigned long ac;
+      int i;
 
-  ac = 0;
-  for (i = 0; i < rdlen; ++i)
-    ac += (i & 1) ? rdata[i] : rdata[i] << 8;
-  ac += (ac >> 16) & 0xFFFF;
-  return ac & 0xFFFF;
+      ac = 0;
+      for (i = 0; i < rdlen; ++i)
+        ac += (i & 1) ? rdata[i] : rdata[i] << 8;
+      ac += (ac >> 16) & 0xFFFF;
+      return ac & 0xFFFF;
+    }
 }
 
 /* Check if the DS record (from cache) points to the DNSKEY record (from cache) */
@@ -712,7 +721,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
       crecp->uid = rdlen;
       crecp->addr.key.keydata = key;
       crecp->addr.key.algo = alg;
-      crecp->addr.key.keytag = dnskey_keytag(ordata, ordlen);
+      crecp->addr.key.keytag = dnskey_keytag(alg, ordata, ordlen);
       printf("DNSKEY: storing key for %s (keytag: %d)\n", owner, crecp->addr.key.keytag);
     }
   else

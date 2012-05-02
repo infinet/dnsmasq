@@ -77,39 +77,34 @@ static int dsasha1_parse_key(BIGNUM *Q, BIGNUM *P, BIGNUM *G, BIGNUM *Y, struct 
       keydata_to_bn(Y, &key_data, &p, 64+T*8);
 }
 
+static int rsa_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len, int nid, int dlen)
+{
+  int validated = 0;
+
+  RSA *rsa = RSA_new();
+  rsa->e = BN_new();
+  rsa->n = BN_new();
+  if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
+      && RSA_verify(nid, ctx->digest, dlen, ctx->sig, ctx->siglen, rsa))
+    validated = 1;
+
+  RSA_free(rsa);
+  return validated;
+}
+
 static int rsamd5_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
 {
-  return 0;
+  return rsa_verify(ctx, key_data, key_len, NID_md5, 16);
 }
 
 static int rsasha1_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
 {
-  int validated = 0;
-
-  RSA *rsa = RSA_new();
-  rsa->e = BN_new();
-  rsa->n = BN_new();
-  if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
-      && RSA_verify(NID_sha1, ctx->digest, 20, ctx->sig, ctx->siglen, rsa))
-    validated = 1;
-
-  RSA_free(rsa);
-  return validated;
+  return rsa_verify(ctx, key_data, key_len, NID_sha1, 20);
 }
 
 static int rsasha256_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
 {
-  int validated = 0;
-
-  RSA *rsa = RSA_new();
-  rsa->e = BN_new();
-  rsa->n = BN_new();
-  if (rsasha1_parse_key(rsa->e, rsa->n, key_data, key_len)
-      && RSA_verify(NID_sha256, ctx->digest, 32, ctx->sig, ctx->siglen, rsa))
-    validated = 1;
-
-  RSA_free(rsa);
-  return validated;
+  return rsa_verify(ctx, key_data, key_len, NID_sha256, 32);
 }
 
 static int dsasha1_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
