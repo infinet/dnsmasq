@@ -561,8 +561,8 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   VerifyAlgCtx *alg = verifyalg_alloc(sigalg);
   if (!alg)
     return 0;
-  if (!alg->vtbl->set_signature(alg, sig, sigrdlen))
-    return 0;
+  alg->sig = sig;
+  alg->siglen = sigrdlen;
   
   sigtype = htons(sigtype);
   sigclass = htons(sigclass);
@@ -575,7 +575,7 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
   unsigned char owner_wire[MAXCDNAME];
   int owner_wire_len = convert_domain_to_wire(owner, owner_wire);
 
-  digestalg_begin(alg->vtbl->get_digestalgo(alg));
+  digestalg_begin(alg->vtbl->digest_algo);
   digestalg_add_data(sigrdata, 18+signer_name_rdlen);
   for (i = 0; i < rrsetidx; ++i)
     {
@@ -590,7 +590,8 @@ static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
       if (!digestalg_add_rdata(ntohs(sigtype), header, pktlen, p))
         return 0;
     }
-  alg->vtbl->set_digest(alg, digestalg_final());
+  int digest_len = digestalg_len();
+  memcpy(alg->digest, digestalg_final(), digest_len);
 
   /* We don't need the owner name anymore; now extract the signer name */
   if (!extract_name_no_compression(sigrdata+18, signer_name_rdlen, signer_name))

@@ -32,15 +32,16 @@ typedef struct VerifyAlgCtx VerifyAlgCtx;
 
 typedef struct
 {
-  int (*set_signature)(VerifyAlgCtx *ctx, unsigned char *data, unsigned len);
-  int (*get_digestalgo)(VerifyAlgCtx *ctx);
-  void (*set_digest)(VerifyAlgCtx *ctx, unsigned char *digest);
+  int digest_algo;
   int (*verify)(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len);
 } VerifyAlg;
 
 struct VerifyAlgCtx
 {
    const VerifyAlg *vtbl;
+   unsigned char *sig;
+   size_t siglen;
+   unsigned char digest[32];
 };
 
 int verifyalg_supported(int algo);
@@ -53,6 +54,7 @@ int verifyalg_algonum(VerifyAlgCtx *a);
 /* RFC4034 digest algorithms */
 #define DIGESTALG_SHA1     1
 #define DIGESTALG_SHA256   2
+#define DIGESTALG_MD5      256
 
 int digestalg_supported(int algo);
 int digestalg_begin(int algo);
