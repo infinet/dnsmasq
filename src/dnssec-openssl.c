@@ -3,6 +3,8 @@
 #include "dnssec-crypto.h"
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
+#include <openssl/dsa.h>
+#include <openssl/err.h>
 
 typedef struct VACTX_rsasha1
 {
@@ -20,11 +22,21 @@ typedef struct VACTX_rsasha256
   unsigned char digest[32];
 } VACTX_rsasha256;
 
+typedef struct VACTX_dsasha1
+{
+  VerifyAlgCtx base;
+  unsigned char *sig;
+  unsigned siglen;
+  unsigned char digest[20];
+} VACTX_dsasha1;
+
+
 #define POOL_SIZE 1
 static union _Pool
 {
   VACTX_rsasha1 rsasha1;
   VACTX_rsasha256 rsasha256;
+  VACTX_dsasha1 dsasha1;
 } Pool[POOL_SIZE];
 static char pool_used = 0;
 
@@ -54,6 +66,14 @@ static int rsasha256_set_signature(VerifyAlgCtx *ctx_, unsigned char *data, unsi
   return 1;
 }
 
+static int dsasha1_set_signature(VerifyAlgCtx *ctx_, unsigned char *data, unsigned len)
+{
+  VACTX_dsasha1 *ctx = (VACTX_dsasha1 *)ctx_;
+  ctx->sig = data;
+  ctx->siglen = len;
+  return 1;
+}
+
 static int rsasha1_get_digestalgo(VerifyAlgCtx *ctx_)
 {
   (void)ctx_;
@@ -64,6 +84,11 @@ static int rsasha256_get_digestalgo(VerifyAlgCtx *ctx_)
   (void)ctx_;
   return DIGESTALG_SHA256;
 }
+static int dsasha1_get_digestalgo(VerifyAlgCtx *ctx_)
+{
+  (void)ctx_;
+  return DIGESTALG_SHA1;
+}
 
 static void rsasha1_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
 {
@@ -73,6 +98,11 @@ static void rsasha1_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
 static void rsasha256_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
 {
   VACTX_rsasha256 *ctx = (VACTX_rsasha256 *)ctx_;
+  memcpy(ctx->digest, digest, sizeof(ctx->digest));
+}
+static void dsasha1_set_digest(VerifyAlgCtx *ctx_, unsigned char *digest)
+{
+  VACTX_dsasha1 *ctx = (VACTX_dsasha1 *)ctx_;
   memcpy(ctx->digest, digest, sizeof(ctx->digest));
 }
 
@@ -117,6 +147,19 @@ static int rsasha1_parse_key(BIGNUM *exp, BIGNUM *mod, struct keydata *key_data,
       keydata_to_bn(mod, &key_data, &p, mod_len);
 }
 
+static int dsasha1_parse_key(BIGNUM *Q, BIGNUM *P, BIGNUM *G, BIGNUM *Y, struct keydata *key_data, unsigned key_len)
+{
+  unsigned char *p = key_data->key;
+  int T;
+
+  CHECKED_GETCHAR(T, p, key_len);
+  return
+      keydata_to_bn(Q, &key_data, &p, 20) &&
+      keydata_to_bn(P, &key_data, &p, 64+T*8)  &&
+      keydata_to_bn(G, &key_data, &p, 64+T*8)  &&
+      keydata_to_bn(Y, &key_data, &p, 64+T*8);
+}
+
 static int rsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned key_len)
 {
   VACTX_rsasha1 *ctx = (VACTX_rsasha1 *)ctx_;
@@ -149,6 +192,40 @@ static int rsasha256_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsign
   return validated;
 }
 
+static int dsasha1_verify(VerifyAlgCtx *ctx_, struct keydata *key_data, unsigned key_len)
+{
+  static unsigned char asn1_signature[] =
+  {
+    0x30, 0x2E,   // sequence
+    0x02, 21,     // large integer (21 bytes)
+    0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,   // R
+    0x02, 21,     // large integer (21 bytes)
+    0x00, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,   // S
+  };
+  VACTX_dsasha1 *ctx = (VACTX_dsasha1 *)ctx_;
+  int validated = 0;
+
+  /* A DSA signature is made of 2 bignums (R & S). We could parse them manually with BN_bin2bn(),
+     but OpenSSL does not have an API to verify a DSA signature given R and S, and insists
+     in having a ASN.1 BER sequence (as per RFC3279).
+     We prepare a hard-coded ASN.1 sequence, and just fill in the R&S numbers in it. */
+  memcpy(asn1_signature+5,  ctx->sig+1, 20);
+  memcpy(asn1_signature+28, ctx->sig+21, 20);
+
+  DSA *dsa = DSA_new();
+  dsa->q = BN_new();
+  dsa->p = BN_new();
+  dsa->g = BN_new();
+  dsa->pub_key = BN_new();
+
+  if (dsasha1_parse_key(dsa->q, dsa->p, dsa->g, dsa->pub_key, key_data, key_len)
+      && DSA_verify(0, ctx->digest, 20, asn1_signature, countof(asn1_signature), dsa) > 0)
+    validated = 1;
+
+  DSA_free(dsa);
+  return validated;
+}
+
 #define VALG_UNSUPPORTED() { \
     0,0,0,0 \
   } /**/
@@ -167,7 +244,7 @@ static const VerifyAlg valgs[] =
   VALG_UNSUPPORTED(),            /*  0: reserved */
   VALG_UNSUPPORTED(),            /*  1: RSAMD5 */
   VALG_UNSUPPORTED(),            /*  2: DH */
-  VALG_UNSUPPORTED(),            /*  3: DSA */
+  VALG_VTABLE(dsasha1),          /*  3: DSA */
   VALG_UNSUPPORTED(),            /*  4: ECC */
   VALG_VTABLE(rsasha1),          /*  5: RSASHA1 */
   VALG_UNSUPPORTED(),            /*  6: DSA-NSEC3-SHA1 */
@@ -186,7 +263,7 @@ static const int valgctx_size[] =
   0,                        /*  0: reserved */
   0,                        /*  1: RSAMD5 */
   0,                        /*  2: DH */
-  0,                        /*  3: DSA */
+  sizeof(VACTX_dsasha1),    /*  3: DSA */
   0,                        /*  4: ECC */
   sizeof(VACTX_rsasha1),    /*  5: RSASHA1 */
   0,                        /*  6: DSA-NSEC3-SHA1 */
