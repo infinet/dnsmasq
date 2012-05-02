@@ -424,8 +424,15 @@ static int convert_domain_to_wire(char *name, unsigned char* out)
       if ((len = p-name))
         {
           *out++ = len;
-          memcpy(out, name, len);
-          out += len;
+          while (len--)
+            {
+              char ch = *name++;
+              /* TODO: this will not be required anymore once we
+                 remove all usages of extract_name() from DNSSEC code */
+              if (ch >= 'A' && ch <= 'Z')
+                ch = ch - 'A' + 'a';
+              *out++ = ch;
+            }
         }
       name = p+1;
     }
