@@ -185,7 +185,7 @@ static const int valgctx_size[] =
   sizeof(VerifyAlgCtx),     /*  3: DSA */
   0,                        /*  4: ECC */
   sizeof(VerifyAlgCtx),     /*  5: RSASHA1 */
-  0,                        /*  6: DSA-NSEC3-SHA1 */
+  sizeof(VerifyAlgCtx),     /*  6: DSA-NSEC3-SHA1 */
   sizeof(VerifyAlgCtx),     /*  7: RSASHA1-NSEC3-SHA1 */
   sizeof(VerifyAlgCtx),     /*  8: RSASHA256 */
   0,                        /*  9: unassigned */
