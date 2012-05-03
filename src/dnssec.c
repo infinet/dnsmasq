@@ -404,7 +404,7 @@ typedef struct PendingRRSIGValidation
 
    This is an existing C GNU extension, but it's easier to reimplement it,
    rather than tweaking with configure. */
-static char *strchrnul(char *str, char ch)
+static char *my_strchrnul(char *str, char ch)
 {
   while (*str && *str != ch)
     str++;
@@ -420,7 +420,7 @@ static int convert_domain_to_wire(char *name, unsigned char* out)
 
   do
     {
-      p = strchrnul(name, '.');
+      p = my_strchrnul(name, '.');
       if ((len = p-name))
         {
           *out++ = len;
