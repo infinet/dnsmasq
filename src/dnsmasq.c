@@ -1209,13 +1209,9 @@ void clear_cache_and_reload(time_t now)
     }
 #ifdef HAVE_DHCP6
   else if (daemon->ra_contexts)
-    {
-      /* Not doing DHCP, so no lease system, manage 
-	 alarms for ra only */
-      time_t next_event = periodic_ra(now);
-      if (next_event != 0)
-	alarm((unsigned)difftime(next_event, now)); 
-    }
+    /* Not doing DHCP, so no lease system, manage 
+       alarms for ra only */
+    send_alarm(periodic_ra(now), now);
 #endif
 #endif
 }
