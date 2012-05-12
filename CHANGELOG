@@ -4,6 +4,10 @@ version 2.62
 	    Cope with router-solict packets wich don't have a valid 
 	    source address. Thanks to Vladislav Grishenko for the patch.
 
+	    Fixed bug which caused missing periodic router
+	    advertisements with some configurations. Thanks to
+	    Vladislav Grishenko for the patch.
+
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use
