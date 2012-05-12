@@ -179,7 +179,8 @@ void icmp6_packet(void)
 	}
          
       my_syslog(MS_DHCP | LOG_INFO, "RTR-SOLICIT(%s) %s", interface, mac);
-      send_ra(if_index, interface, &from.sin6_addr);
+      /* source address may not be valid in solicit request. */
+      send_ra(if_index, interface, !IN6_IS_ADDR_UNSPECIFIED(&from.sin6_addr) ? &from.sin6_addr : NULL);
     }
 }
 
@@ -317,7 +318,7 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 	addr.sin6_scope_id = iface;
     }
   else
-    inet_pton(AF_INET6, ALL_HOSTS, &addr.sin6_addr); 
+    inet_pton(AF_INET6, ALL_NODES, &addr.sin6_addr); 
   
   send_from(daemon->icmp6fd, 0, daemon->outpacket.iov_base, save_counter(0),
 	    (union mysockaddr *)&addr, (struct all_addr *)&parm.link_local, iface); 
