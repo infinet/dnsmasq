@@ -330,7 +330,7 @@ int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen)
     return 0;
 
   if (pfbits == 0 ||
-      (a->s6_addr[pfbytes] >> (8 - pfbits) != b->s6_addr[pfbytes] >> (8 - pfbits)))
+      (a->s6_addr[pfbytes] >> (8 - pfbits) == b->s6_addr[pfbytes] >> (8 - pfbits)))
     return 1;
 
   return 0;

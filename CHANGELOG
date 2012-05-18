@@ -8,6 +8,10 @@ version 2.62
 	    advertisements with some configurations. Thanks to
 	    Vladislav Grishenko for the patch.
 
+	    Fixed bug which broke DHCPv6/RA with prefix lengths 
+	    which are not divisible by 8. Thanks to Andre Coetzee 
+	    for spotting this.
+
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use
