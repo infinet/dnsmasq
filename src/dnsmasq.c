@@ -849,14 +849,11 @@ int main (int argc, char **argv)
 	}
 
 #ifdef HAVE_DHCP6
-      if (daemon->dhcp6)
-	{
-	  if (FD_ISSET(daemon->dhcp6fd, &rset))
-	    dhcp6_packet(now);
+      if (daemon->dhcp6 && FD_ISSET(daemon->dhcp6fd, &rset))
+	dhcp6_packet(now);
 
-	  if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
-	    icmp6_packet();
-	}
+      if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
+	icmp6_packet();
 #endif
 
 #  ifdef HAVE_SCRIPT

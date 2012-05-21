@@ -12,6 +12,10 @@ version 2.62
 	    which are not divisible by 8. Thanks to Andre Coetzee 
 	    for spotting this.
 
+	    Fix non-response to router-solicitations when
+	    router-advertisement configured, but DHCPv6 not
+	    configured. Thanks to Marien Zwart for the patch.
+
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use
