@@ -11,14 +11,14 @@
 
 package=dnsmasq-base
 
-# policy manual, section 10.1
-ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
-     CFLAGS = -g -O0 -Wall -W
-else
-     CFLAGS = -g -O2 -Wall -W
-endif
+CFLAGS = $(shell export DEB_BUILD_OPTIONS=$(DEB_BUILD_OPTIONS); dpkg-buildflags --get CFLAGS)
+CFLAGS += $(shell dpkg-buildflags --get CPPFLAGS)
+CFLAGS += -Wall -W
+
+LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 
 COPTS = 
+
 TARGET = install-i18n
 
 DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)

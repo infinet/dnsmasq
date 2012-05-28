@@ -1,6 +1,7 @@
 dnsmasq (2.62-1) unstable; urgency=low
 
    * New upstream.
+   * Use dpkg-buildflags. (Enables hardening).
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Sat, 12 May 2012 15:25:23 +0000
 
