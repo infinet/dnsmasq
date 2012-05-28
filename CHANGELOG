@@ -16,6 +16,8 @@ version 2.62
 	    router-advertisement configured, but DHCPv6 not
 	    configured. Thanks to Marien Zwart for the patch.
 
+	    Add --dns-rr, to allow arbitrary DNS resource records.
+
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use

@@ -426,7 +426,7 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
   
   while (maxlen == -1 || i < maxlen)
     {
-      for (r = in; *r != 0 && *r != ':' && *r != '-'; r++)
+      for (r = in; *r != 0 && *r != ':' && *r != '-' && *r != ' '; r++)
 	if (*r != '*' && !isxdigit((unsigned char)*r))
 	  return -1;
       
@@ -444,12 +444,29 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
 	  else
 	    {
 	      *r = 0;
-	      mask = mask << 1;
 	      if (strcmp(in, "*") == 0)
-		mask |= 1;
+		{
+		  mask = (mask << 1) | 1;
+		  i++;
+		}
 	      else
-		out[i] = strtol(in, NULL, 16);
-	      i++;
+		{
+		  int j, bytes = (1 + (r - in))/2;
+		  for (j = 0; j < bytes; j++)
+		    { 
+		      char sav;
+		      if (j < bytes - 1)
+			{
+			  sav = in[(j+1)*2];
+			  in[(j+1)*2] = 0;
+			}
+		      out[i] = strtol(&in[j*2], NULL, 16);
+		      mask = mask << 1;
+		      i++;
+		      if (j < bytes - 1)
+			in[(j+1)*2] = sav;
+		    }
+		}
 	    }
 	}
       in = r+1;
