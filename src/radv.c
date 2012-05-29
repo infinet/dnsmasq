@@ -158,7 +158,8 @@ void icmp6_packet(void)
       return;
  
   /* weird libvirt-inspired access control */
-  for (context = daemon->ra_contexts; context; context = context->next)
+  for (context = daemon->ra_contexts ? daemon->ra_contexts : daemon->dhcp6; 
+       context; context = context->next)
     if (!context->interface || strcmp(context->interface, interface) == 0)
       break;
   

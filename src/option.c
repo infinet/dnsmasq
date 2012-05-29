@@ -2952,7 +2952,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	
 	if (!atoi_check(comma, &val) || 
 	    !(new->name = canonicalise_opt(arg)) ||
-	    (data && (len = parse_hex(data, (unsigned char *)data, -1, NULL, NULL)) == -1))
+	    (data && (len = parse_hex(data, (unsigned char *)data, -1, NULL, NULL)) == -1U))
 	  {
 	    problem = _("bad RR record");
 	    break;
