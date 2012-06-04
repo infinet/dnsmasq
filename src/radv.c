@@ -380,13 +380,6 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		if (context->flags & CONTEXT_DEPRECATE)
 		  deprecate = 1;
 
-		/* subsequent prefixes on the same interface 
-		   and subsequent instances of this prefix don't need timers */
-		if (!param->first)
-		  context->ra_time = 0;
-		param->first = 0;
-		param->found_context = 1;
-
 		/* collect dhcp-range tags */
 		if (context->netid.next == &context->netid && context->netid.net)
 		  {
@@ -394,11 +387,20 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    param->tags = &context->netid;
 		  }
 		  
+		/* subsequent prefixes on the same interface 
+		   and subsequent instances of this prefix don't need timers.
+		   Be careful not to find the same prefix twice with different
+		   addresses. */
 		if (!(context->flags & CONTEXT_RA_DONE))
 		  {
+		    if (!param->first)
+		      context->ra_time = 0;
 		    context->flags |= CONTEXT_RA_DONE;
 		    do_prefix = 1;
 		  }
+
+		param->first = 0;	
+		param->found_context = 1;
 	      }
 	  
 	  if (do_prefix)
