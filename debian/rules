@@ -115,7 +115,7 @@ binary-arch:	checkroot
 		-d debian/base/usr/share/doc/$(package)/examples \
 	        -d debian/base/var/run \
 	        -d debian/base/var/lib/misc
-	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" COPTS="$(COPTS)" CC=gcc
+	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(COPTS)" CC=gcc
 ifeq (,$(findstring nodocs,$(DEB_BUILD_OPTIONS)))
 	install -m 644 doc.html debian/base/usr/share/doc/$(package)/.
 	install -m 644 setup.html debian/base/usr/share/doc/$(package)/.
@@ -155,7 +155,7 @@ ifeq ($(DEB_BUILD_ARCH_OS),linux)
                        -d debian/utils/usr/share/man/man1 \
 	               -d debian/utils/usr/bin \
                        -d debian/utils/usr/share/doc/dnsmasq-utils
-	make -C contrib/wrt PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" COPTS="$(COPTS)" CC=gcc
+	make -C contrib/wrt PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(COPTS)" CC=gcc
 	install -m 755 contrib/wrt/dhcp_release debian/utils/usr/bin/dhcp_release
 	install -m 644 contrib/wrt/dhcp_release.1 debian/utils/usr/share/man/man1/dhcp_release.1
 	gzip -9 debian/utils/usr/share/man/man1/dhcp_release.1
