@@ -1,8 +1,14 @@
+dnsmasq (2.63-1) unstable; urgency=low
+
+   * New upstream.
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 7 Jun 2012 15:31:35 +0000
+
 dnsmasq (2.62-2) unstable; urgency=low
 
    * Pass LDFLAGS to make to get hardening in linker.
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 7 June 2012 09:53:43 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 7 Jun 2012 09:53:43 +0000
 
 dnsmasq (2.62-1) unstable; urgency=low
 
