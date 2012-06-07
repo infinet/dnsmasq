@@ -3762,6 +3762,9 @@ void read_opts(int argc, char **argv, char *compile_opts)
 
   if (testmode)
     {
+      /* Can cause a call to die() */
+      check_dhcp_hosts(1);
+      
       fprintf(stderr, "dnsmasq: %s.\n", _("syntax check OK"));
       exit(0);
     }
