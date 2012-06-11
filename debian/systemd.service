@@ -8,22 +8,24 @@ BusName=uk.org.thekelleys.dnsmasq
 # Test the config file and refuse starting if it is not valid.
 ExecStartPre=/usr/sbin/dnsmasq --test
 
-# Enable DBus by default because we use DBus activation.
+# We run dnsmasq via the /etc/init.d/dnsmasq script which acts as a
+# wrapper picking up extra configuration files and then execs dnsmasq
+# itself, when called with the "systemd-exec" function.
 #
-# Drop privileges and become the 'dnsmasq' user. It is recommended by dnsmasq
-# upstream to run dnsmasq as an isolated user that does not run any other
-# processes, owns no files and has no shell. The default 'nobody' user has a
-# shell and might be used for other processes.
+# It also adds the command-line flags
+#    --keep-in-foreground --pid-file --enable-dbus 
+# to disable writing a pid-file (not needed with systemd) and 
+# enable DBus by default because we use DBus activation.
 #
-# Debian-specific: add /etc/dnsmasq.d to config search path (with the exception
-# of .dpkg-*). Packages such as libvirt leave config files there.
-#
-# --pid-file without argument disables writing a PIDfile, we don't need one.
-ExecStart=/usr/sbin/dnsmasq -k \
-          --enable-dbus \
-          --user=dnsmasq \
-          -7 /etc/dnsmasq.d,.dpkg-dist,.dpkg-old,.dpkg-new \
-          --pid-file
+ExecStart=/etc/init.d/dnsmasq systemd-exec
+
+# The systemd-*-resolvconf functions configure (and deconfigure)
+# resolvconf to work with the dnsmasq DNS server. They're called liek
+# this to get correct error handling (ie don't start-resolvconf if the 
+# dnsmasq daemon fails to start.
+ExecStartPost=/etc/init.d/dnsmasq systemd-start-resolvconf
+ExecStop=/etc/init.d/dnsmasq systemd-stop-resolvconf
+
 
 ExecReload=/bin/kill -HUP $MAINPID
 
