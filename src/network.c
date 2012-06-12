@@ -546,7 +546,7 @@ void create_bound_listeners(int dienow)
 
   for (if_tmp = daemon->if_addrs; if_tmp; if_tmp = if_tmp->next)
     if (!if_tmp->used && 
-	(new = create_listeners(&if_tmp->addr, 1, dienow)))
+	(new = create_listeners(&if_tmp->addr, daemon->tftp_unlimited, dienow)))
       {
 	new->iface = NULL;
 	new->next = daemon->listeners;
