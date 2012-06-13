@@ -159,6 +159,7 @@ struct event_desc {
 #define EVENT_LOG_ERR   17
 #define EVENT_FORK_ERR  18
 #define EVENT_LUA_ERR   19
+#define EVENT_TFTP_ERR  20
 
 /* Exit codes. */
 #define EC_GOOD        0

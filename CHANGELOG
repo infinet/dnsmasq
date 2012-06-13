@@ -1,6 +1,12 @@
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
 
+	    Check that tftp-root directories are accessible before
+	    start-up. Thanks to Daniel Veillard for the initial patch.
+
+	    Allow more than one --tfp-root flag. The per-interface
+	    stuff is pointless without that.
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.

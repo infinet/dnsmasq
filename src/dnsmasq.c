@@ -498,6 +498,34 @@ int main (int argc, char **argv)
     prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
 #endif
 
+#ifdef HAVE_TFTP
+  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
+    {
+      DIR *dir;
+      struct tftp_prefix *p;
+      
+      if (daemon->tftp_prefix)
+	{
+	  if (!((dir = opendir(daemon->tftp_prefix))))
+	    {
+	      send_event(err_pipe[1], EVENT_TFTP_ERR, errno, daemon->tftp_prefix);
+	      _exit(0);
+	    }
+	  closedir(dir);
+	}
+
+      for (p = daemon->if_prefix; p; p = p->next)
+	{
+	  if (!((dir = opendir(p->prefix))))
+	   {
+	     send_event(err_pipe[1], EVENT_TFTP_ERR, errno, p->prefix);
+	     _exit(0);
+	   } 
+	  closedir(dir);
+	}
+    }
+#endif
+
   if (daemon->port == 0)
     my_syslog(LOG_INFO, _("started, version %s DNS disabled"), VERSION);
   else if (daemon->cachesize != 0)
@@ -995,6 +1023,9 @@ static void fatal_event(struct event_desc *ev, char *msg)
     
     case EVENT_LUA_ERR:
       die(_("failed to load Lua script: %s"), msg, EC_MISC);
+
+    case EVENT_TFTP_ERR:
+      die(_("TFTP directory %s inaccessible: %s"), msg, EC_FILE);
     }
 }	
       
