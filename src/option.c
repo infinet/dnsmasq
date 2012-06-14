@@ -1570,7 +1570,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	/* new->name may be NULL if someone does
 	   "interface=" to disable all interfaces except loop. */
 	new->name = opt_string_alloc(arg);
-	new->isloop = new->used = 0;
+	new->used = 0;
 	arg = comma;
       } while (arg);
       break;
@@ -1640,7 +1640,8 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	    option = '?'; /* error */
 	    break;
 	  }
-	
+
+	new->used = 0;
 	daemon->if_addrs = new;
 	arg = comma;
       } while (arg);

@@ -425,7 +425,7 @@ struct listener {
 struct iname {
   char *name;
   union mysockaddr addr;
-  int isloop, used;
+  int used;
   struct iname *next;
 };
 
