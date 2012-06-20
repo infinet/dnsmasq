@@ -347,6 +347,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
   if ((fd = socket(family, type, 0)) == -1)
     {
       int port;
+      char *s;
 
       /* No error if the kernel just doesn't support this IP flavour */
       if (errno == EPROTONOSUPPORT ||
@@ -355,15 +356,15 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
 	return -1;
       
     err:
+      port = prettyprint_addr(addr, daemon->addrbuff);
+      if (!option_bool(OPT_NOWILD) && !option_bool(OPT_CLEVERBIND))
+	sprintf(daemon->addrbuff, "port %d", port);
+      s = _("failed to create listening socket for %s: %s");
+      
       if (dienow)
-	{
-	  port = prettyprint_addr(addr, daemon->namebuff);
-	  if (!option_bool(OPT_NOWILD))
-	    sprintf(daemon->namebuff, "port %d", port);
-	  die(_("failed to create listening socket for %s: %s"), 
-	      daemon->namebuff, EC_BADNET);
-	
-	}
+	die(s, daemon->addrbuff, EC_BADNET);
+      
+      my_syslog(LOG_ERR, s, daemon->addrbuff, strerror(errno));
       return -1;
     }	
 
