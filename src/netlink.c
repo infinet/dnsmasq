@@ -188,7 +188,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	if (h->nlmsg_seq != seq || h->nlmsg_pid != netlink_pid || h->nlmsg_type == NLMSG_ERROR)
 	  {
 	    /* May be multicast arriving async */
-	    if (nl_async(h))
+	    if (nl_async(h) && option_bool(OPT_CLEVERBIND))
 	      newaddr = 1; 
 	  }
 	else if (h->nlmsg_type == NLMSG_DONE)
@@ -319,7 +319,7 @@ void netlink_multicast(void)
   
   if ((len = netlink_recv()) != -1)
     for (h = (struct nlmsghdr *)iov.iov_base; NLMSG_OK(h, (size_t)len); h = NLMSG_NEXT(h, len))
-      if (nl_async(h))
+      if (nl_async(h) && option_bool(OPT_CLEVERBIND))
 	newaddr = 1;
   
   /* restore non-blocking status */
@@ -357,7 +357,7 @@ static int nl_async(struct nlmsghdr *h)
 		 iface_enumerate and can't re-enter it now */
 	      send_alarm(0, 0);
 	    }
-	  return !!option_bool(OPT_CLEVERBIND); /* clever bind mode - rescan */
+	  return 1; /* clever bind mode - rescan */
 	}
 #endif	 
 
