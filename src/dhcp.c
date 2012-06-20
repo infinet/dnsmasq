@@ -66,7 +66,7 @@ static int make_fd(int port)
   /* When bind-interfaces is set, there might be more than one dnmsasq
      instance binding port 67. That's OK if they serve different networks.
      Need to set REUSEADDR to make this posible, or REUSEPORT on *BSD. */
-  if (option_bool(OPT_NOWILD))
+  if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND))
     {
 #ifdef SO_REUSEPORT
       int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &oneopt, sizeof(oneopt));

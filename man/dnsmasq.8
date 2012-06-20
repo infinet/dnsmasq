@@ -204,6 +204,17 @@ running another nameserver (or another instance of dnsmasq) on the
 same machine. Setting this option also enables multiple instances of
 dnsmasq which provide DHCP service to run in the same machine.
 .TP
+.B --bind-dynamic
+Enable a network mode which is a hybrid between 
+.B --bind-interfaces
+and the default. Dnsmasq binds the address of indivdual interfaces,
+allowing multiple dnsmasq instances, but if new interfaces or
+addresses appear, it automatically listens on those (subject to any
+access-control configuration). This makes dynamically created
+interfaces work in the same way as the default. Implementing this
+option requires non-standard networking APIs and it is only availble
+under Linux. 
+.TP
 .B \-y, --localise-queries
 Return answers to DNS queries from /etc/hosts which depend on the interface over which the query was
 received. If a name in /etc/hosts has more than one address associated with

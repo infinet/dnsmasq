@@ -119,6 +119,7 @@ struct myoption {
 #define LOPT_HOST_REC  308
 #define LOPT_TFTP_LC   309
 #define LOPT_RR        310
+#define LOPT_CLVERBIND 311
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -243,6 +244,7 @@ static const struct myoption opts[] =
     { "enable-ra", 0, 0, LOPT_RA },
     { "dhcp-duid", 1, 0, LOPT_DUID },
     { "host-record", 1, 0, LOPT_HOST_REC },
+    { "bind-dynamic", 0, 0, LOPT_CLVERBIND },
     { NULL, 0, 0, 0 }
   };
 
@@ -374,6 +376,7 @@ static struct {
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
+  { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL},
   { 0, 0, NULL, NULL, NULL }
 }; 
 

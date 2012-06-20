@@ -7,6 +7,10 @@ version 2.63
 	    Allow more than one --tfp-root flag. The per-interface
 	    stuff is pointless without that.
 
+	    Add --bind-dynamic. A hybrid mode between the default and
+	    --bind-interfaces which copes with dynamically created
+	    interfaces. 
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.

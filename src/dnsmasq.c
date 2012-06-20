@@ -114,6 +114,9 @@ int main (int argc, char **argv)
       set_option_bool(OPT_NOWILD);
     }
 #  endif
+
+  if (option_bool(OPT_CLEVERBIND))
+    die(_("--bind-dynamic not available on this platform"), NULL, EC_BADCONF);
 #endif
 
 #ifndef HAVE_TFTP
@@ -185,6 +188,9 @@ int main (int argc, char **argv)
 #ifdef HAVE_LINUX_NETWORK
   /* After lease_init */
   netlink_init();
+
+  if (option_bool(OPT_NOWILD) && option_bool(OPT_CLEVERBIND))
+    die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
 #endif
 
 #ifdef HAVE_DHCP6
@@ -202,13 +208,14 @@ int main (int argc, char **argv)
   if (!enumerate_interfaces())
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
   
-  if (option_bool(OPT_NOWILD)) 
+  if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND)) 
     {
       create_bound_listeners(1);
-
-      for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
-	if (if_tmp->name && !if_tmp->used)
-	  die(_("unknown interface %s"), if_tmp->name, EC_BADNET);
+      
+      if (!option_bool(OPT_CLEVERBIND))
+	for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
+	  if (if_tmp->name && !if_tmp->used)
+	    die(_("unknown interface %s"), if_tmp->name, EC_BADNET);
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP)
       /* after enumerate_interfaces()  */
@@ -425,8 +432,9 @@ int main (int argc, char **argv)
 #if defined(HAVE_LINUX_NETWORK)	  
 	  /* On linux, we keep CAP_NETADMIN (for ARP-injection) and
 	     CAP_NET_RAW (for icmp) if we're doing dhcp. If we have yet to bind 
-	     ports because of DAD, we need CAP_NET_BIND_SERVICE too. */
-	  if (is_dad_listeners())
+	     ports because of DAD, or we're doing it dynamically,
+	     we need CAP_NET_BIND_SERVICE too. */
+	  if (is_dad_listeners() || option_bool(OPT_CLEVERBIND))
 	    data->effective = data->permitted = data->inheritable =
 	      (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW) | 
 	      (1 << CAP_SETUID) | (1 << CAP_NET_BIND_SERVICE);
@@ -474,7 +482,7 @@ int main (int argc, char **argv)
 	    }     
 
 #ifdef HAVE_LINUX_NETWORK
-	 if (is_dad_listeners())
+	  if (is_dad_listeners() || option_bool(OPT_CLEVERBIND))
 	   data->effective = data->permitted =
 	     (1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW) | (1 << CAP_NET_BIND_SERVICE);
 	 else
@@ -1352,7 +1360,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1)
 	    continue;
 	  
-	  if (option_bool(OPT_NOWILD))
+	  if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND))
 	    iface = listener->iface; /* May be NULL */
 	  else
 	    {
@@ -1369,7 +1377,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 		    break;
 	    }
 	  
-	  if (!iface && !option_bool(OPT_NOWILD))
+	  if (!iface && !(option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND)))
 	    {
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);
