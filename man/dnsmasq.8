@@ -213,7 +213,7 @@ addresses appear, it automatically listens on those (subject to any
 access-control configuration). This makes dynamically created
 interfaces work in the same way as the default. Implementing this
 option requires non-standard networking APIs and it is only availble
-under Linux. 
+under Linux. On other platforms it falls-back to --bind-interfaces mode.
 .TP
 .B \-y, --localise-queries
 Return answers to DNS queries from /etc/hosts which depend on the interface over which the query was
