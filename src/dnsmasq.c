@@ -120,7 +120,7 @@ int main (int argc, char **argv)
     {
       bind_fallback = 1;
       set_option_bool(OPT_NOWILD);
-      reset_option_bool(OPT_CLVERBIND);
+      reset_option_bool(OPT_CLEVERBIND);
     }
 #endif
   
