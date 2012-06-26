@@ -1119,6 +1119,14 @@ void set_option_bool(unsigned int opt)
     daemon->options2 |= 1u << (opt - 32);
 }
 
+void reset_option_bool(unsigned int opt)
+{
+  if (opt < 32)
+    daemon->options &= ~(1u << opt);
+  else
+    daemon->options2 &= ~(1u << (opt - 32));
+}
+
 static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 {      
   int i;

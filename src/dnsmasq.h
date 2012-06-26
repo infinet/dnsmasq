@@ -932,6 +932,7 @@ char *option_string(int prot, unsigned int opt, unsigned char *val,
 		    int opt_len, char *buf, int buf_len);
 void reread_dhcp(void);
 void set_option_bool(unsigned int opt);
+void reset_option_bool(unsigned int opt);
 struct hostsfile *expand_filelist(struct hostsfile *list);
 
 /* forward.c */

@@ -114,11 +114,16 @@ int main (int argc, char **argv)
       set_option_bool(OPT_NOWILD);
     }
 #  endif
-
+  
+  /* -- bind-dynamic not supported on !Linux, fall back to --bind-interfaces */
   if (option_bool(OPT_CLEVERBIND))
-    die(_("--bind-dynamic not available on this platform"), NULL, EC_BADCONF);
+    {
+      bind_fallback = 1;
+      set_option_bool(OPT_NOWILD);
+      reset_option_bool(OPT_CLVERBIND);
+    }
 #endif
-
+  
 #ifndef HAVE_TFTP
   if (daemon->tftp_unlimited || daemon->tftp_interfaces)
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
