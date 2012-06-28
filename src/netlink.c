@@ -39,7 +39,6 @@ static struct iovec iov;
 static u32 netlink_pid;
 
 static int nl_async(struct nlmsghdr *h);
-static void nl_routechange(struct nlmsghdr *h);
 
 void netlink_init(void)
 {
@@ -342,59 +341,54 @@ static int nl_async(struct nlmsghdr *h)
     }
   else if (h->nlmsg_pid == 0 && h->nlmsg_type == RTM_NEWROUTE) 
     {
-      nl_routechange(h);
+      /* We arrange to receive netlink multicast messages whenever the network route is added.
+	 If this happens and we still have a DNS packet in the buffer, we re-send it.
+	 This helps on DoD links, where frequently the packet which triggers dialling is
+	 a DNS query, which then gets lost. By re-sending, we can avoid the lookup
+	 failing. */ 
+      struct rtmsg *rtm = NLMSG_DATA(h);
+      
+      if (rtm->rtm_type == RTN_UNICAST && rtm->rtm_scope == RT_SCOPE_LINK)
+	{
+  	  /* Force re-reading resolv file right now, for luck. */
+	  daemon->last_resolv = 0;
+	  
+	  if (daemon->srv_save)
+	    {
+	      int fd;
+
+	      if (daemon->srv_save->sfd)
+		fd = daemon->srv_save->sfd->fd;
+	      else if (daemon->rfd_save && daemon->rfd_save->refcount != 0)
+		fd = daemon->rfd_save->fd;
+	      else
+		return 0;
+	      
+	      while(sendto(fd, daemon->packet, daemon->packet_len, 0,
+			   &daemon->srv_save->addr.sa, sa_len(&daemon->srv_save->addr)) == -1 && retry_send()); 
+	    }
+	}
       return 0;
     }
-  else if (h->nlmsg_type == RTM_NEWADDR) 
-	{
 #ifdef HAVE_DHCP6
-	  /* force RAs to sync new network and pick up new interfaces.  */
-	  if (daemon->ra_contexts)
-	    {
-	      schedule_subnet_map();
-	      ra_start_unsolicted(dnsmasq_time(), NULL);
-	      /* cause lease_update_file to run after we return, in case we were called from
-		 iface_enumerate and can't re-enter it now */
-	      send_alarm(0, 0);
-	    }
-	  return 1; /* clever bind mode - rescan */
+  else if (h->nlmsg_type == RTM_NEWADDR) 
+    {
+      /* force RAs to sync new network and pick up new interfaces.  */
+      if (daemon->ra_contexts)
+	{
+	  schedule_subnet_map();
+	  ra_start_unsolicted(dnsmasq_time(), NULL);
+	  /* cause lease_update_file to run after we return, in case we were called from
+	     iface_enumerate and can't re-enter it now */
+	  send_alarm(0, 0);
 	}
+      return 1; /* clever bind mode - rescan */
+    }
 #endif	 
-
+  
   return 0;
 }
   
-/* We arrange to receive netlink multicast messages whenever the network route is added.
-   If this happens and we still have a DNS packet in the buffer, we re-send it.
-   This helps on DoD links, where frequently the packet which triggers dialling is
-   a DNS query, which then gets lost. By re-sending, we can avoid the lookup
-   failing. */ 
-static void nl_routechange(struct nlmsghdr *h)
-{
-  struct rtmsg *rtm = NLMSG_DATA(h);
-  int fd;
-  
-  if (rtm->rtm_type != RTN_UNICAST || rtm->rtm_scope != RT_SCOPE_LINK)
-    return;
-  
-  /* Force re-reading resolv file right now, for luck. */
-  daemon->last_resolv = 0;
-  
-  if (daemon->srv_save)
-    {
-      if (daemon->srv_save->sfd)
-	fd = daemon->srv_save->sfd->fd;
-      else if (daemon->rfd_save && daemon->rfd_save->refcount != 0)
-	fd = daemon->rfd_save->fd;
-      else
-	return;
-      
-      while(sendto(fd, daemon->packet, daemon->packet_len, 0,
-		   &daemon->srv_save->addr.sa, sa_len(&daemon->srv_save->addr)) == -1 && retry_send()); 
-    }
-}
-
-
 #endif
 
       
