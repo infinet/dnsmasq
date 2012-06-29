@@ -33,7 +33,6 @@
 #define SMALLDNAME 40 /* most domain names are smaller than this */
 #define HOSTSFILE "/etc/hosts"
 #define ETHERSFILE "/etc/ethers"
-#define RUNFILE "/var/run/dnsmasq.pid"
 #define DEFLEASE 3600 /* default lease time, 1 hour */
 #define CHUSER "nobody"
 #define CHGRP "dip"
@@ -158,7 +157,13 @@ RESOLVFILE
 #   endif
 #endif
 
-
+#ifndef RUNFILE
+#   if defined(__ANDROID__)
+#      define RUNFILE "/data/dnsmasq.pid"
+#    else
+#      define RUNFILE "/var/run/dnsmasq.pid"
+#    endif
+#endif
 
 /* platform dependent options: these are determined automatically below
 
