@@ -10,6 +10,9 @@ version 2.63
 	    Add --bind-dynamic. A hybrid mode between the default and
 	    --bind-interfaces which copes with dynamically created
 	    interfaces. 
+	    
+	    A couple of fixes to the build system for Android. Thanks
+	    to Metin Kaya for the patches.
 
 
 version 2.62
