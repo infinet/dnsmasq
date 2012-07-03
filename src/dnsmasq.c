@@ -125,7 +125,7 @@ int main (int argc, char **argv)
 #endif
   
 #ifndef HAVE_TFTP
-  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
+  if (option_bool(OPT_TFTP)
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
 #endif
 
@@ -512,7 +512,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_TFTP
-  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
+      if (option_bool(OPT_TFTP))
     {
       DIR *dir;
       struct tftp_prefix *p;
@@ -668,7 +668,7 @@ int main (int argc, char **argv)
 
 
 #ifdef HAVE_TFTP
-  if (daemon->tftp_unlimited || daemon->tftp_interfaces)
+	if (option_bool(OPT_TFTP))
     {
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)

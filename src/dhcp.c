@@ -257,14 +257,6 @@ void dhcp_packet(time_t now, int pxe_fd)
     if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
       return;
   
-  /* weird libvirt-inspired access control */
-  for (context = daemon->dhcp; context; context = context->next)
-    if (!context->interface || strcmp(context->interface, ifr.ifr_name) == 0)
-      break;
-
-  if (!context)
-    return;
-
   /* unlinked contexts are marked by context->current == context */
   for (context = daemon->dhcp; context; context = context->next)
     context->current = context;
@@ -277,7 +269,7 @@ void dhcp_packet(time_t now, int pxe_fd)
       /* If we failed to match the primary address of the interface, see if we've got a --listen-address
 	 for a secondary */
       struct match_param match;
-
+      
       match.matched = 0;
       match.ind = iface_index;
       

@@ -529,9 +529,9 @@ compiled in and the kernel must have conntrack support
 included and configured. This option cannot be combined with
 --query-port. 
 .TP
-.B \-F, --dhcp-range=[interface:<interface>,][tag:<tag>[,tag:<tag>],][set:<tag],]<start-addr>[,<end-addr>][,<mode>][,<netmask>[,<broadcast>]][,<lease time>]
+.B \-F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag],]<start-addr>[,<end-addr>][,<mode>][,<netmask>[,<broadcast>]][,<lease time>]
 .TP
-.B \-F, --dhcp-range=[interface:<interface>,][tag:<tag>[,tag:<tag>],][set:<tag],]<start-IPv6addr>[,<end-IPv6addr>][,<mode>][,<prefix-len>][,<lease time>]
+.B \-F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag],]<start-IPv6addr>[,<end-IPv6addr>][,<mode>][,<prefix-len>][,<lease time>]
 
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
@@ -624,8 +624,6 @@ can be combined  with
 and
 .B slaac.
 
-The interface:<interface name> section is not normally used. See the
-NOTES section for details of this.
 .TP
 .B \-G, --dhcp-host=[<hwaddr>][,id:<client_id>|*][,set:<tag>][,<ipaddr>][,<hostname>][,<lease_time>][,ignore]
 Specify per host parameters for the DHCP server. This allows a machine
@@ -1369,12 +1367,11 @@ the relevant link-local address of the machine running dnsmasq is sent
 as recursive DNS server. If provided, the DHCPv6 options dns-server and
 domain-search are used for RDNSS and DNSSL.
 .TP
-.B --enable-tftp[=<interface>]
+.B --enable-tftp
 Enable the TFTP server function. This is deliberately limited to that
 needed to net-boot a client. Only reading is allowed; the tsize and
 blksize extensions are supported (tsize is only supported in octet
-mode). See NOTES section for use of the interface argument.
-
+mode). 
 .TP
 .B --tftp-root=<directory>[,<interface>]
 Look for files to transfer using TFTP relative to the given
@@ -1637,52 +1634,6 @@ static address mappings.) The filename
 parameter in a BOOTP request is used as a tag,
 as is the tag "bootp", allowing some control over the options returned to
 different classes of hosts.
-
-.B dhcp-range
-may have an interface name supplied as
-"interface:<interface-name>". The semantics if this are as follows:
-For DHCP, if any other dhcp-range exists _without_ an interface name,
-then the interface name is ignored and and dnsmasq behaves as if the
-interface parts did not exist, otherwise DHCP is only provided to 
-interfaces mentioned in dhcp-range
-declarations. For DNS, if there are no
-.B --interface
-or 
-.B --listen-address
-flags, behaviour is unchanged by the interface part. If either of
-these flags are present, the interfaces mentioned in
-dhcp-ranges are added to the set which get DNS service.
-
-Similarly, 
-.B enable-tftp
-may take an interface name, which enables TFTP only for a particular
-interface, ignoring 
-.B --interface 
-or
-.B --listen-address
-flags. In addition 
-.B --tftp-secure
-and
-.B --tftp-unique-root
-and
-.B --tftp-no-blocksize
-are ignored for requests from such interfaces. (A 
-.B --tftp-root
-directive giving a root path and an interface should be 
-provided too.)
-
-These rules may seem odd at first sight, but  they
-allow a single line  of the form "dhcp-range=interface:virt0,192.168.0.4,192.168.0.200"
-to be added to dnsmasq configuration which then supplies
-DHCP and DNS services to that interface, without affecting
-what services are supplied to other interfaces and irrespective of 
-the existance or lack of "interface=<interface>" 
-lines elsewhere in the dnsmasq configuration.
-"enable-tftp=virt0" and "tftp-root=<root>,virt0" do the same job for TFTP.
- The idea is
-that such a line can be added automatically by libvirt
-or equivalent systems, without disturbing any manual
-configuration.
 
 .SH EXIT CODES
 .PP
