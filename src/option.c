@@ -21,7 +21,7 @@
 
 static volatile int mem_recover = 0;
 static jmp_buf mem_jmp;
-static void one_file(char *file, int hard_opt);
+static int one_file(char *file, int hard_opt);
 
 /* Solaris headers don't have facility names. */
 #ifdef HAVE_SOLARIS_NETWORK
@@ -3289,7 +3289,7 @@ static void read_file(char *file, FILE *f, int hard_opt)
   fclose(f);
 }
 
-static void one_file(char *file, int hard_opt)
+static int one_file(char *file, int hard_opt)
 {
   FILE *f;
   int nofile_ok = 0;
@@ -3310,7 +3310,7 @@ static void one_file(char *file, int hard_opt)
   if (hard_opt == 0 && strcmp(file, "-") == 0)
     {
       if (read_stdin == 1)
-	return;
+	return 1;
       read_stdin = 1;
       file = "stdin";
       f = stdin;
@@ -3326,7 +3326,7 @@ static void one_file(char *file, int hard_opt)
 	  
 	  for (r = filesread; r; r = r->next)
 	    if (r->dev == statbuf.st_dev && r->ino == statbuf.st_ino)
-	      return;
+	      return 1;
 	  
 	  r = safe_malloc(sizeof(struct fileread));
 	  r->next = filesread;
@@ -3338,14 +3338,14 @@ static void one_file(char *file, int hard_opt)
       if (!(f = fopen(file, "r")))
 	{   
 	  if (errno == ENOENT && nofile_ok)
-	    return; /* No conffile, all done. */
+	    return 1; /* No conffile, all done. */
 	  else
 	    {
 	      char *str = _("cannot read %s: %s");
 	      if (hard_opt != 0)
 		{
 		  my_syslog(LOG_ERR, str, file, strerror(errno));
-		  return;
+		  return 0;
 		}
 	      else
 		die(str, file, EC_FILE);
@@ -3354,6 +3354,7 @@ static void one_file(char *file, int hard_opt)
     }
   
   read_file(file, f, hard_opt);
+  return 1;
 }
 
 /* expand any name which is a directory */
@@ -3506,8 +3507,8 @@ void reread_dhcp(void)
       for (hf = daemon->dhcp_hosts_file; hf; hf = hf->next)
 	 if (!(hf->flags & AH_INACTIVE))
 	   {
-	     one_file(hf->fname, LOPT_BANK);  
-	     my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
+	     if (one_file(hf->fname, LOPT_BANK))  
+	       my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
 	   }
     }
 
@@ -3542,8 +3543,8 @@ void reread_dhcp(void)
       for (hf = daemon->dhcp_opts_file; hf; hf = hf->next)
 	if (!(hf->flags & AH_INACTIVE))
 	  {
-	    one_file(hf->fname, LOPT_OPTS);  
-	    my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
+	    if (one_file(hf->fname, LOPT_OPTS))  
+	      my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
 	  }
     }
 }
