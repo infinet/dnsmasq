@@ -220,7 +220,8 @@ struct event_desc {
 #define OPT_RA             37
 #define OPT_TFTP_LC        38
 #define OPT_CLEVERBIND     39
-#define OPT_LAST           40
+#define OPT_TFTP           40
+#define OPT_LAST           41
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -664,7 +665,6 @@ struct dhcp_context {
   time_t ra_time;
 #endif
   int flags;
-  char *interface;
   struct dhcp_netid netid, *filter;
   struct dhcp_context *next, *current;
 };
@@ -710,11 +710,6 @@ struct tftp_transfer {
 struct addr_list {
   struct in_addr addr;
   struct addr_list *next;
-};
-
-struct interface_list {
-  char *interface;
-  struct interface_list *next;
 };
 
 struct tftp_prefix {
@@ -780,8 +775,6 @@ extern struct daemon {
   unsigned short edns_pktsz;
   char *tftp_prefix; 
   struct tftp_prefix *if_prefix; /* per-interface TFTP prefixes */
-  struct interface_list *tftp_interfaces; /* interfaces for limited TFTP service */
-  int tftp_unlimited;
   unsigned int duid_enterprise, duid_config_len;
   unsigned char *duid_config;
 

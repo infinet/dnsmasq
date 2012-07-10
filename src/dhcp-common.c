@@ -372,7 +372,6 @@ static int join_multicast_worker(struct in6_addr *local, int prefix,
   char ifrn_name[IFNAMSIZ];
   struct ipv6_mreq mreq;
   int fd, i, max = *((int *)vparam);
-  struct dhcp_context *context;
   struct iname *tmp;
 
   (void)prefix;
@@ -406,15 +405,6 @@ static int join_multicast_worker(struct in6_addr *local, int prefix,
     if (tmp->name && (strcmp(tmp->name, ifrn_name) == 0))
       return 1;
 
-  /* weird libvirt-inspired access control */
-  for (context = daemon->ra_contexts ? daemon->ra_contexts : daemon->dhcp6; 
-       context; context = context->next)
-    if (!context->interface || strcmp(context->interface, ifrn_name) == 0)
-      break;
-  
-  if (!context)
-    return 1;
-  
   mreq.ipv6mr_interface = if_index;
   
   inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);

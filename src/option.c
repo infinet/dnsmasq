@@ -195,7 +195,7 @@ static const struct myoption opts[] =
     { "dns-forward-max", 1, 0, '0' },
     { "clear-on-reload", 0, 0, LOPT_RELOAD },
     { "dhcp-ignore-names", 2, 0, LOPT_NO_NAMES },
-    { "enable-tftp", 2, 0, LOPT_TFTP },
+    { "enable-tftp", 0, 0, LOPT_TFTP },
     { "tftp-secure", 0, 0, LOPT_SECURE },
     { "tftp-unique-root", 0, 0, LOPT_APREF },
     { "tftp-root", 1, 0, LOPT_PREFIX },
@@ -342,7 +342,7 @@ static struct {
   { LOPT_RELOAD, OPT_RELOAD, NULL, gettext_noop("Clear DNS cache when reloading %s."), RESOLVFILE },
   { LOPT_NO_NAMES, ARG_DUP, "[=tag:<tag>]...", gettext_noop("Ignore hostnames provided by DHCP clients."), NULL },
   { LOPT_OVERRIDE, OPT_NO_OVERRIDE, NULL, gettext_noop("Do NOT reuse filename and server fields for extra DHCP options."), NULL },
-  { LOPT_TFTP, ARG_DUP, "[=<interface>]", gettext_noop("Enable integrated read-only TFTP server."), NULL },
+  { LOPT_TFTP, OPT_TFTP, NULL, gettext_noop("Enable integrated read-only TFTP server."), NULL },
   { LOPT_PREFIX, ARG_DUP, "<dir>[,<iface>]", gettext_noop("Export files by TFTP only from the specified subtree."), NULL },
   { LOPT_APREF, OPT_TFTP_APREF, NULL, gettext_noop("Add client IP address to tftp-root."), NULL },
   { LOPT_SECURE, OPT_TFTP_SECURE, NULL, gettext_noop("Allow access only to files owned by the user running dnsmasq."), NULL },
@@ -1909,18 +1909,6 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 #endif
       
 #ifdef HAVE_TFTP
-    case LOPT_TFTP:  /* --enable-tftp */
-      if (arg)
-	{
-	  struct interface_list *new = opt_malloc(sizeof(struct interface_list));
-	  new->interface = opt_string_alloc(arg);
-	  new->next = daemon->tftp_interfaces;
-	  daemon->tftp_interfaces = new;
-	}
-      else
-	daemon->tftp_unlimited = 1;
-      break;
-
     case LOPT_TFTP_MAX:  /*  --tftp-max */
       if (!atoi_check(arg, &daemon->tftp_max))
 	option = '?';
@@ -2013,9 +2001,7 @@ static char *one_opt(int option, char *arg, char *gen_prob, int command_line)
 	    
 	    if (*cp != ',' && (comma = split(arg)))
 	      {
-		if (strstr(arg, "interface:") == arg)
-		  new->interface = opt_string_alloc(arg+10);
-		else if (is_tag_prefix(arg))
+		if (is_tag_prefix(arg))
 		  {
 		    struct dhcp_netid *tt = opt_malloc(sizeof (struct dhcp_netid));
 		    tt->net = opt_string_alloc(arg+4);
