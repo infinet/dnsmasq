@@ -1243,7 +1243,6 @@ void clear_cache_and_reload(time_t now)
 	dhcp_read_ethers();
       reread_dhcp();
       dhcp_update_configs(daemon->dhcp_conf);
-      check_dhcp_hosts(0);
       lease_update_from_configs(); 
       lease_update_file(now); 
       lease_update_dns(1);

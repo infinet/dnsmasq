@@ -116,9 +116,7 @@ void dhcp_init(void)
   
   /* Make BPF raw send socket */
   init_bpf();
-#endif
-  
-  check_dhcp_hosts(1);
+#endif  
 }
 
 void dhcp_packet(time_t now, int pxe_fd)

@@ -1123,7 +1123,6 @@ char *strip_hostname(char *hostname);
 void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 void dhcp_update_configs(struct dhcp_config *configs);
-void check_dhcp_hosts(int fatal);
 void display_opts(void);
 u16 lookup_dhcp_opt(int prot, char *name);
 u16 lookup_dhcp_len(int prot, u16 val);

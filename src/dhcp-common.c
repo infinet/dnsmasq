@@ -246,40 +246,6 @@ int match_bytes(struct dhcp_opt *o, unsigned char *p, int len)
   return 0;
 }
 
-void check_dhcp_hosts(int fatal)
-{
-  /* If the same IP appears in more than one host config, then DISCOVER
-     for one of the hosts will get the address, but REQUEST will be NAKed,
-     since the address is reserved by the other one -> protocol loop. 
-     Also check that FQDNs match the domain we are using. */
-  
-  struct dhcp_config *configs, *cp;
- 
-  for (configs = daemon->dhcp_conf; configs; configs = configs->next)
-    {
-      char *domain;
-
-      if ((configs->flags & DHOPT_BANK) || fatal)
-       {
-	 for (cp = configs->next; cp; cp = cp->next)
-	   if ((configs->flags & cp->flags & CONFIG_ADDR) && configs->addr.s_addr == cp->addr.s_addr)
-	     {
-	       if (fatal)
-		 die(_("duplicate IP address %s in dhcp-config directive."), 
-		     inet_ntoa(cp->addr), EC_BADCONF);
-	       else
-		 my_syslog(MS_DHCP | LOG_ERR, _("duplicate IP address %s in %s."), 
-			   inet_ntoa(cp->addr), daemon->dhcp_hosts_file);
-	       configs->flags &= ~CONFIG_ADDR;
-	     }
-	 
-	 /* split off domain part */
-	 if ((configs->flags & CONFIG_NAME) && (domain = strip_hostname(configs->hostname)))
-	   configs->domain = domain;
-       }
-    }
-}
-
 void dhcp_update_configs(struct dhcp_config *configs)
 {
   /* Some people like to keep all static IP addresses in /etc/hosts.

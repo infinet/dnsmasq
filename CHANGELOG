@@ -21,6 +21,9 @@ version 2.63
 	    been used, had very strange semantics, and have been
 	    superceded by other mechanisms. 
 
+	    Fixed bug logging filenames when duplicate dhcp-host
+	    addresses are found. Thanks to John Hanks for the patch.
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.
