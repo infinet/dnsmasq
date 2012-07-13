@@ -125,7 +125,7 @@ int main (int argc, char **argv)
 #endif
   
 #ifndef HAVE_TFTP
-  if (option_bool(OPT_TFTP)
+  if (option_bool(OPT_TFTP))
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
 #endif
 
