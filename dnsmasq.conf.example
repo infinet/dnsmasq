@@ -522,7 +522,7 @@
 # If you want to disable negative caching, uncomment this.
 #no-negcache
 
-# Normally responses which come form /etc/hosts and the DHCP lease
+# Normally responses which come from /etc/hosts and the DHCP lease
 # file have Time-To-Live set as zero, which conventionally means
 # do not cache further. If you are happy to trade lower load on the
 # server for potentially stale date, you can set a time-to-live (in
