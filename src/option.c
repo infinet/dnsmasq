@@ -3129,12 +3129,12 @@ static void read_file(char *file, FILE *f, int hard_opt)
   
   while (fgets(buff, MAXDNAME, f))
     {
-      int white, i, option; ;
-      char *errmess, *p, *arg, *start;
+      int white, i, option = hard_opt;
+      char *errmess, *p, *arg = NULL, *start;
       size_t len;
 
       /* Memory allocation failure longjmps here if mem_recover == 1 */ 
-      if (hard_opt)
+      if (option != 0)
 	{
 	  if (setjmp(mem_jmp))
 	    continue;
@@ -3208,7 +3208,7 @@ static void read_file(char *file, FILE *f, int hard_opt)
       else
 	start[len] = 0;
       
-      if (hard_opt != 0)
+      if (option != 0)
 	arg = start;
       else if ((p=strchr(start, '=')))
 	{
@@ -3220,9 +3220,7 @@ static void read_file(char *file, FILE *f, int hard_opt)
       else
 	arg = NULL;
 
-      if (hard_opt != 0)
-	option = hard_opt;
-      else
+      if (option == 0)
 	{
 	  for (option = 0, i = 0; opts[i].name; i++) 
 	    if (strcmp(opts[i].name, start) == 0)

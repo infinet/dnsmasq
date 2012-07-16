@@ -461,7 +461,9 @@ Return an NAPTR DNS record, as specified in RFC3403.
 Return a CNAME record which indicates that <cname> is really
 <target>. There are significant limitations on the target; it must be a
 DNS name which is known to dnsmasq from /etc/hosts (or additional
-hosts files) or from DHCP. If the target does not satisfy this
+hosts files), from DHCP or from another 
+.B --cname.
+If the target does not satisfy this
 criteria, the whole cname is ignored. The cname must be unique, but it
 is permissable to have more than one cname pointing to the same target.
 .TP

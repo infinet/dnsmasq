@@ -24,6 +24,11 @@ version 2.63
 	    Fixed bug logging filenames when duplicate dhcp-host
 	    addresses are found. Thanks to John Hanks for the patch.
 
+	    Fix regression in 2.61 which broke caching of CNAME
+	    chains. Thanks to Atul Gupta for the bug report.
+
+	    Allow the target of a --cname flag to be anothe --cname.
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.
