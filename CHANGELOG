@@ -27,7 +27,7 @@ version 2.63
 	    Fix regression in 2.61 which broke caching of CNAME
 	    chains. Thanks to Atul Gupta for the bug report.
 
-	    Allow the target of a --cname flag to be anothe --cname.
+	    Allow the target of a --cname flag to be another --cname.
 
 
 version 2.62
