@@ -326,6 +326,9 @@
 # dnsmasq and another.
 #dhcp-option=option6:dns-server,[::],[1234::88]
 
+# Ask client to poll for option changes every six hours. (RFC4242)
+#dhcp-option=option6:information-refresh-time,6h
+
 # Set the NTP time server address to be the same machine as
 # is running dnsmasq
 #dhcp-option=42,0.0.0.0

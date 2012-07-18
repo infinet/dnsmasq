@@ -764,7 +764,7 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	  } 
 	else if (c == '.')	
 	  {
-	    is_addr6 =is_dec = is_hex = 0;
+	    is_addr6 = is_dec = is_hex = 0;
 	    dots++;
 	  }
 	else if (c == '-')
@@ -811,8 +811,36 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
       /* or names */
       else if (opt_len & (OT_NAME | OT_RFC1035_NAME | OT_CSTRING))
 	is_addr6 = is_addr = is_dec = is_hex = 0;
-            
-      if (is_hex && digs > 1)
+      
+      if (found_dig && (opt_len & OT_TIME) && strlen(comma) > 0)
+	{
+	  int val, fac = 1;
+
+	  switch (comma[strlen(comma) - 1])
+	    {
+	    case 'd':
+	    case 'D':
+	      fac *= 24;
+	      /* fall though */
+	    case 'h':
+	    case 'H':
+	      fac *= 60;
+	      /* fall through */
+	    case 'm':
+	    case 'M':
+	      fac *= 60;
+	      /* fall through */
+	    case 's':
+	    case 'S':
+	      comma[strlen(comma) - 1] = 0;
+	    }
+	  
+	  new->len = 4;
+	  new->val = opt_malloc(4);
+	  val = atoi(comma);
+	  *((int *)new->val) = htonl(val * fac);	  
+	}  
+      else if (is_hex && digs > 1)
 	{
 	  new->len = digs;
 	  new->val = opt_malloc(new->len);

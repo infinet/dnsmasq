@@ -54,6 +54,11 @@ version 2.62
 	    two addresses in the same network. Thanks to Jim Bos for
 	    his help nailing this.
 
+            Teach DHCPv6 about the RFC 4242 information-refresh-time
+	    option, and add parsing if the minutes, hours and days
+	    format for options. Thanks to Francois-Xavier Le Bail for
+	    the suggestion.
+
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use
