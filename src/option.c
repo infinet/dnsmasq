@@ -818,6 +818,10 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 
 	  switch (comma[strlen(comma) - 1])
 	    {
+	    case 'w':
+	    case 'W':
+	      fac *= 7;
+	      /* fall through */
 	    case 'd':
 	    case 'D':
 	      fac *= 24;
@@ -2156,6 +2160,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  {
 		    switch (a[leasepos][strlen(a[leasepos]) - 1])
 		      {
+		      case 'w':
+		      case 'W':
+			fac *= 7;
+			/* fall through */
 		      case 'd':
 		      case 'D':
 			fac *= 24;
@@ -2306,6 +2314,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  last = *lastp;
 		  switch (last)
 		    {
+		    case 'w':
+		    case 'W':
+		      fac *= 7;
+		      /* fall through */
 		    case 'd':
 		    case 'D':
 		      fac *= 24;

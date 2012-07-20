@@ -29,6 +29,15 @@ version 2.63
 
 	    Allow the target of a --cname flag to be another --cname.
 
+            Teach DHCPv6 about the RFC 4242 information-refresh-time
+	    option, and add parsing if the minutes, hours and days
+	    format for options. Thanks to Francois-Xavier Le Bail for
+	    the suggestion.
+
+	    Allow "w" (for week) as multiplier in lease times, as well
+	    as seconds, minutes, hours and days.  Álvaro Gámez Machado 
+	    spotted the ommission.
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.
@@ -53,12 +62,6 @@ version 2.62
 	    Fixed bug which broke RA scheduling when an interface had
 	    two addresses in the same network. Thanks to Jim Bos for
 	    his help nailing this.
-
-            Teach DHCPv6 about the RFC 4242 information-refresh-time
-	    option, and add parsing if the minutes, hours and days
-	    format for options. Thanks to Francois-Xavier Le Bail for
-	    the suggestion.
-
 
 version 2.61
 	    Re-write interface discovery code on *BSD to use
