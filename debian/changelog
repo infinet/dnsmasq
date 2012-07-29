@@ -1,6 +1,7 @@
 dnsmasq (2.63-1) unstable; urgency=low
 
    * New upstream.
+   * Move /etc/dbus-1/system.d/dnsmasq.conf from dnsmasq to dnsmasq-base.
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Mon, 11 Jun 2012 21:55:35 +0000
 
