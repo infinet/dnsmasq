@@ -37,6 +37,8 @@ version 2.63
 	    Allow "w" (for week) as multiplier in lease times, as well
 	    as seconds, minutes, hours and days.  Álvaro Gámez Machado 
 	    spotted the ommission.
+ 
+	    Update French translation. Thanks to Gildas Le Nadan.
 
 
 version 2.62
