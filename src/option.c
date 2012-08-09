@@ -601,6 +601,8 @@ static void do_usage(void)
     }
 }
 
+#define ret_err(x) do { strcpy(errstr, (x)); return 0; } while (0)
+
 #ifdef HAVE_DHCP
 
 static int is_tag_prefix(char *arg)
@@ -618,8 +620,6 @@ static char *set_prefix(char *arg)
    
    return arg;
 }
-
-#define ret_err(x) do { strcpy(errstr, (x)); return 0; } while (0)
 
 /* This is too insanely large to keep in-line in the switch */
 static int parse_dhcp_opt(char *errstr, char *arg, int flags)
