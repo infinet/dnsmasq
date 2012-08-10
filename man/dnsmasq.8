@@ -271,11 +271,13 @@ time is the one used.
 Don't read /etc/resolv.conf. Get upstream servers only from the command
 line or the dnsmasq configuration file.
 .TP
-.B \-1, --enable-dbus
+.B \-1, --enable-dbus[=<service-name>]
 Allow dnsmasq configuration to be updated via DBus method calls. The
 configuration which can be changed is upstream DNS servers (and
 corresponding domains) and cache clear. Requires that dnsmasq has
-been built with DBus support.
+been built with DBus support. If the service name is given, dnsmasq
+provides service at that name, rather than the default which is 
+.B uk.org.thekelleys.dnsmasq
 .TP 
 .B \-o, --strict-order
 By default, dnsmasq will send queries to any of the upstream servers

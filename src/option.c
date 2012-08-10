@@ -184,7 +184,7 @@ static const struct myoption opts[] =
     { "localise-queries", 0, 0, 'y' },
     { "txt-record", 1, 0, 'Y' },
     { "dns-rr", 1, 0, LOPT_RR },
-    { "enable-dbus", 0, 0, '1' },
+    { "enable-dbus", 2, 0, '1' },
     { "bootp-dynamic", 2, 0, '3' },
     { "dhcp-mac", 1, 0, '4' },
     { "no-ping", 0, 0, '5' },
@@ -326,7 +326,7 @@ static struct {
   { LOPT_INTNAME, ARG_DUP, "<name>,<interface>", gettext_noop("Give DNS name to IPv4 address of interface."), NULL },
   { 'z', OPT_NOWILD, NULL, gettext_noop("Bind only to interfaces in use."), NULL },
   { 'Z', OPT_ETHERS, NULL, gettext_noop("Read DHCP static host information from %s."), ETHERSFILE },
-  { '1', OPT_DBUS, NULL, gettext_noop("Enable the DBus interface for setting upstream servers, etc."), NULL },
+  { '1', ARG_ONE, "[=<busname>]", gettext_noop("Enable the DBus interface for setting upstream servers, etc."), NULL },
   { '2', ARG_DUP, "<interface>", gettext_noop("Do not provide DHCP on this interface, only provide DNS."), NULL },
   { '3', ARG_DUP, "[=tag:<tag>]...", gettext_noop("Enable dynamic address allocation for bootp."), NULL },
   { '4', ARG_DUP, "set:<tag>,<mac address>", gettext_noop("Map MAC address (with wildcards) to option set."), NULL },
@@ -1285,6 +1285,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	break;
       }
 
+    case '1': /* --enable-dbus */
+      set_option_bool(OPT_DBUS);
+      if (arg)
+	daemon->dbus_name = opt_string_alloc(arg);
+      else
+	daemon->dbus_name = DNSMASQ_SERVICE;
+      break;
+      
     case '8': /* --log-facility */
       /* may be a filename */
       if (strchr(arg, '/') || strcmp (arg, "-") == 0)

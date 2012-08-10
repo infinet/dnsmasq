@@ -40,6 +40,11 @@ version 2.63
  
 	    Update French translation. Thanks to Gildas Le Nadan.
 
+	    Allow a DBus service name to be given with --enable-dbus
+	    which overrides the default,
+	    uk.org.thekelleys.dnsmasq. Thanks to Mathieu
+	    Trudel-Lapierre for the patch. 
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.

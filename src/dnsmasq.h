@@ -777,6 +777,7 @@ extern struct daemon {
   struct tftp_prefix *if_prefix; /* per-interface TFTP prefixes */
   unsigned int duid_enterprise, duid_config_len;
   unsigned char *duid_config;
+  char *dbus_name;
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
