@@ -45,6 +45,9 @@ version 2.63
 	    uk.org.thekelleys.dnsmasq. Thanks to Mathieu
 	    Trudel-Lapierre for the patch. 
 
+	    Set the "prefix on-link" bit in Router
+	    Advertisements. Thanks to Gui Iribarren for the patch.
+
 
 version 2.62
             Update German translation. Thanks to Conrad Kostecki.

@@ -412,8 +412,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
 		  opt->prefix_len = prefix;
-		  /* autonomous only if we're not doing dhcp */
-		  opt->flags = do_slaac ? 0x40 : 0x00;
+		  /* autonomous only if we're not doing dhcp, always set "on-link" */
+		  opt->flags = do_slaac ? 0xC0 : 0x80;
 		  opt->valid_lifetime = htonl(time);
 		  opt->preferred_lifetime = htonl(deprecate ? 0 : time);
 		  opt->reserved = 0; 
