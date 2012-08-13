@@ -113,7 +113,6 @@ void tftp_request(struct listener *listen, time_t now)
   else
     {
       struct cmsghdr *cmptr;
-      int check;
 
       if (msg.msg_controllen < sizeof(struct cmsghdr))
         return;
@@ -193,10 +192,14 @@ void tftp_request(struct listener *listen, time_t now)
 
 #ifdef HAVE_IPV6
       if (listen->family == AF_INET6)
-	check = iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name);
+	{
+	  if (!iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name))
+	    return;
+	}
       else
 #endif
-        check = iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name);
+        if (!iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name))
+	  return;
 
 #ifdef HAVE_DHCP      
       /* allowed interfaces are the same as for DHCP */
