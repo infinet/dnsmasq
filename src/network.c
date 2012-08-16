@@ -338,13 +338,22 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
 	sprintf(daemon->addrbuff, "port %d", port);
       s = _("failed to create listening socket for %s: %s");
       
-      if (dienow)
-	die(s, daemon->addrbuff, EC_BADNET);
+      if (fd != -1)
+	close (fd);
       
-      my_syslog(LOG_ERR, s, daemon->addrbuff, strerror(errno));
+      if (dienow)
+	{
+	  /* failure to bind addresses given by --listen-address at this point
+	     is OK if we're doing bind-dynamic */
+	  if (!option_bool(OPT_CLEVERBIND))
+	    die(s, daemon->addrbuff, EC_BADNET);
+	}
+      else
+	my_syslog(LOG_WARNING, s, daemon->addrbuff, strerror(errno));
+      
       return -1;
     }	
-
+  
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1 || !fix_fd(fd))
     goto err;
   
@@ -513,7 +522,8 @@ void create_bound_listeners(int dienow)
      no interface with a matching address. These may be valid: eg it's possible
      to listen on 127.0.1.1 even if the loopback interface is 127.0.0.1
 
-     If the address isn't valid the bind() will fail and we'll die().
+     If the address isn't valid the bind() will fail and we'll die() 
+     (except in bind-dynamic mode, when we'll complain but keep trying.)
 
      The resulting listeners have the ->iface field NULL, and this has to be
      handled by the DNS and TFTP code. It disables --localise-queries processing
