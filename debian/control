@@ -23,8 +23,8 @@ Description: Small caching DNS proxy and DHCP/TFTP server
 Package: dnsmasq-base
 Architecture: any
 Depends: ${shlibs:Depends}
-Breaks: dnsmasq (<< 2.62-3)
-Replaces: dnsmasq (<< 2.62-3)
+Breaks: dnsmasq (<< 2.63-1~)
+Replaces: dnsmasq (<< 2.63-1~)
 Description: Small caching DNS proxy and DHCP/TFTP server
  This package contains the dnsmasq executable and documentation, but
  not the infrastructure required to run it as a system daemon. For

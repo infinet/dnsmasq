@@ -2,7 +2,17 @@ dnsmasq (2.64-1) unstable; urgency=low
 
    * New upstream.
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 17 Aug 2012 13:45:15 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 28 Aug 2012 16:19:15 +0000
+
+dnsmasq (2.63-2) unstable; urgency=low
+
+   * Fix version script to report correct version.
+   * Unbotch move of dbus config file by using correct versions in
+     Replaces: and Breaks: lines. (closes: #685204)
+   * Create dnsmasq user in dnsmasq-base so that Dbus doesn't complain if
+     only dnsmasq-base is installed. (closes: #685987)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 28 Aug 2012 16:18:35 +0000
 
 dnsmasq (2.63-1) unstable; urgency=low
 
