@@ -1,3 +1,9 @@
+version 2.64
+            Handle DHCP FQDN options with all flag bits zero and
+            --dhcp-client-update set. Thanks to Bernd Krumbroeck for
+            spotting the problem.
+
+
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
 

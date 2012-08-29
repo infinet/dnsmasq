@@ -510,7 +510,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       char *pq = daemon->dhcp_buff;
       unsigned char *pp, *op = option_ptr(opt, 0);
       
-      fqdn_flags = *op;
+      /* Set an MBZ bit to indicate receipt of FQDN option - cleared later */
+      fqdn_flags = *op | 0x10;
       len -= 3;
       op += 3;
       pp = op;
@@ -2261,7 +2262,7 @@ static void do_options(struct dhcp_context *context,
 	  
 	  if ((p = free_space(mess, end, OPTION_CLIENT_FQDN, len)))
 	    {
-	      *(p++) = fqdn_flags;
+	      *(p++) = fqdn_flags & 0x0f; /* MBZ bits to zero */ 
 	      *(p++) = 255;
 	      *(p++) = 255;
 
