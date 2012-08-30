@@ -510,17 +510,27 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       char *pq = daemon->dhcp_buff;
       unsigned char *pp, *op = option_ptr(opt, 0);
       
-      /* Set an MBZ bit to indicate receipt of FQDN option - cleared later */
-      fqdn_flags = *op | 0x10;
+      fqdn_flags = *op;
       len -= 3;
       op += 3;
       pp = op;
       
-      /* Always force update, since the client has no way to do it itself. */
-      if (!option_bool(OPT_FQDN_UPDATE) && !(fqdn_flags & 0x01))
-	fqdn_flags |= 0x03;
-
-      fqdn_flags &= ~0x08;
+      /* NB, the following always sets at least one bit */
+      if (option_bool(OPT_FQDN_UPDATE))
+	{
+	  if (fqdn_flags & 0x01)
+	    {
+	      fqdn_flags |= 0x02; /* set O */
+	      fqdn_flags &= ~0x01; /* clear S */
+	    }
+	  fqdn_flags |= 0x08; /* set N */
+	}
+      else 
+	{
+	  if (!(fqdn_flags & 0x01))
+	    fqdn_flags |= 0x03; /* set S and O */
+	  fqdn_flags &= ~0x08; /* clear N */
+	}
       
       if (fqdn_flags & 0x04)
 	while (*op != 0 && ((op + (*op) + 1) - pp) < len)
