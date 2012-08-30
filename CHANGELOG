@@ -3,6 +3,13 @@ version 2.64
             --dhcp-client-update set. Thanks to Bernd Krumbroeck for
             spotting the problem.
 
+	    Finesse the check for /etc/hosts names which conflict with
+	    DHCP names. Previously a name/address pair in /etc/hosts
+	    which didn't match the name/address of a DHCP lease would
+	    generate a warning. Now that only happesn if there is not
+	    also a match. This allows multiple addresses for a name in 
+	    /etc/hosts with one of them assigned via DHCP.
+
 
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
