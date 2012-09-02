@@ -383,15 +383,48 @@ int main (int argc, char **argv)
       /* write pidfile _after_ forking ! */
       if (daemon->runfile)
 	{
-	  FILE *pidfile;
+	  int fd, err = 0;
+
+	  sprintf(daemon->namebuff, "%d\n", (int) getpid());
+
+	  /* Explanation: Some installations of dnsmasq (eg Debian/Ubuntu) locate the pid-file
+	     in a directory which is writable by the non-privileged user that dnsmasq runs as. This
+	     allows the daemon to delete the file as part of its shutdown. This is a security hole to the 
+	     extent that an attacker running as the unprivileged  user could replace the pidfile with a 
+	     symlink, and have the target of that symlink overwritten as root next time dnsmasq starts. 
+
+	     The folowing code first deletes any existing file, and then opens it with the O_EXCL flag,
+	     ensuring that the open() fails should there be any existing file (because the unlink() failed, 
+	     or an attacker exploited the race between unlink() and open()). This ensures that no symlink
+	     attack can succeed. 
+
+	     Any compromise of the non-privileged user still theoretically allows the pid-file to be
+	     replaced whilst dnsmasq is running. The worst that could allow is that the usual 
+	     "shutdown dnsmasq" shell command could be tricked into stopping any other process.
+
+	     Note that if dnsmasq is started as non-root (eg for testing) it silently ignores 
+	     failure to write the pid-file.
+	  */
+
+	  unlink(daemon->runfile); 
 	  
-	  /* only complain if started as root */
-	  if ((pidfile = fopen(daemon->runfile, "w")))
+	  if ((fd = open(daemon->runfile, O_WRONLY|O_CREAT|O_TRUNC|O_EXCL, S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH)) == -1)
 	    {
-	      fprintf(pidfile, "%d\n", (int) getpid());
-	      fclose(pidfile);
+	      /* only complain if started as root */
+	      if (getuid() == 0)
+		err = 1;
 	    }
-	  else if (getuid() == 0)
+	  else
+	    {
+	      if (!read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
+		err = 1;
+	      
+	      while (!err && close(fd) == -1)
+		if (!retry_send())
+		  err = 1;
+	    }
+
+	  if (err)
 	    {
 	      send_event(err_pipe[1], EVENT_PIDFILE, errno, daemon->runfile);
 	      _exit(0);
