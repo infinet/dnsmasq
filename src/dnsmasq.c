@@ -607,7 +607,7 @@ int main (int argc, char **argv)
 	      end = &dhcp_tmp->end6;
 	      struct in6_addr subnet = dhcp_tmp->start6;
 	      setaddr6part(&subnet, 0);
-	      inet_ntop(AF_INET6, &subnet, daemon->addrbuff, 256);
+	      inet_ntop(AF_INET6, &subnet, daemon->dhcp_buff2, 256);
 	    }
 #endif
 	  
@@ -620,10 +620,8 @@ int main (int argc, char **argv)
 	      prettyprint_time(p, dhcp_tmp->lease_time);
 	    }
 	  
-	  if (daemon->dhcp_buff)
-	    inet_ntop(family, start, daemon->dhcp_buff, 256);
-	  if (daemon->dhcp_buff3)
-	    inet_ntop(family, end, daemon->dhcp_buff3, 256);
+	  inet_ntop(family, start, daemon->dhcp_buff, 256);
+	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
 	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
 	    my_syslog(MS_DHCP | LOG_INFO, 
 		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
@@ -637,7 +635,7 @@ int main (int argc, char **argv)
 
 	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
 	    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s"), 
-		      daemon->addrbuff);
+		      daemon->dhcp_buff2);
 	  if (dhcp_tmp->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
 	    {
 	      if (!(dhcp_tmp->flags & CONTEXT_DEPRECATE))
@@ -647,7 +645,7 @@ int main (int argc, char **argv)
 		  prettyprint_time(p, dhcp_tmp->lease_time > 7200 ? dhcp_tmp->lease_time : 7200);
 		}
 	      my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s %s"), 
-			daemon->addrbuff, daemon->namebuff);
+			daemon->dhcp_buff2, daemon->namebuff);
 	    }
 	}
       
