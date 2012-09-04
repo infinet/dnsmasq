@@ -7,7 +7,7 @@ Standards-Version: 3.9.3
 
 Package: dnsmasq
 Architecture: all
-Depends: netbase, adduser, dnsmasq-base(>= ${source:Version})
+Depends: netbase, dnsmasq-base(>= ${source:Version})
 Suggests: resolvconf
 Conflicts: resolvconf (<<1.15)
 Description: Small caching DNS proxy and DHCP/TFTP server
@@ -22,7 +22,7 @@ Description: Small caching DNS proxy and DHCP/TFTP server
 
 Package: dnsmasq-base
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: adduser, ${shlibs:Depends}
 Breaks: dnsmasq (<< 2.63-1~)
 Replaces: dnsmasq (<< 2.63-1~)
 Description: Small caching DNS proxy and DHCP/TFTP server
