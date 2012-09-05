@@ -10,6 +10,9 @@ version 2.64
 	    also a match. This allows multiple addresses for a name in 
 	    /etc/hosts with one of them assigned via DHCP.
 
+	    Fix broken vendor-option processing for BOOTP. Thanks to
+	    Hans-Joachim Baader for the bug report.
+
 
 version 2.63
             Do duplicate dhcp-host address check in --test mode.

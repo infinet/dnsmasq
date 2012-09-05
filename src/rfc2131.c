@@ -493,8 +493,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      lease_set_interface(lease, int_index, now);
 	      
 	      clear_packet(mess, end);
+	      match_vendor_opts(NULL, daemon->dhcp_opts); /* clear flags */
 	      do_options(context, mess, end, NULL, hostname, get_domain(mess->yiaddr), 
-			 netid, subnet_addr, 0, 0, 0, NULL, 0, now);
+			 netid, subnet_addr, 0, 0, -1, NULL, 0, now);
 	    }
 	}
       
