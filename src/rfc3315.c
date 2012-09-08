@@ -497,7 +497,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    ia_option =  opt6_find(opt6_ptr(opt, ia_type == OPTION6_IA_NA ? 12 : 4), ia_end, OPTION6_IAADDR, 24);
 	    
 	    /* reset "USED" flags on leases */
-	    lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL);
+	    lease6_filter(ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, context);
 	    
 	    o = new_opt6(ia_type);
 	    put_opt6_long(iaid);
@@ -570,7 +570,12 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it was previously declined"), 
 				    daemon->addrbuff);
 			else
-			  addrp = &config->addr6;			 
+			  {
+			    addrp = &config->addr6;
+			    /* may have existing lease for this address */
+			    lease = lease6_find(clid, clid_len, 
+						ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, addrp); 
+			  }
 		      }
 		    
 		    /* existing lease */
@@ -832,7 +837,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    iacntr = save_counter(-1); 
 	    
 	    /* reset "USED" flags on leases */
-	    lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL);
+	    lease6_filter(ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, context);
 	    
 	    ia_option = opt6_ptr(opt, ia_type == OPTION6_IA_NA ? 12 : 4);
 	    ia_end = opt6_ptr(opt, opt6_len(opt));
@@ -1036,7 +1041,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    ia_option = opt6_ptr(opt, ia_type == OPTION6_IA_NA ? 12 : 4);
 	    
 	    /* reset "USED" flags on leases */
-	    lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL);
+	    lease6_filter(ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, context);
 		
 	    for (ia_option = opt6_find(ia_option, ia_end, OPTION6_IAADDR, 24);
 		 ia_option;
@@ -1115,7 +1120,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    ia_option = opt6_ptr(opt, ia_type == OPTION6_IA_NA ? 12 : 4);
 	    
 	    /* reset "USED" flags on leases */
-	    lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL);
+	    lease6_filter(ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, context);
 		
 	    for (ia_option = opt6_find(ia_option, ia_end, OPTION6_IAADDR, 24);
 		 ia_option;

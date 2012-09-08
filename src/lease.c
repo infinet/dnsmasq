@@ -562,16 +562,29 @@ struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len,
 	   memcmp(clid, lease->clid, clid_len) != 0))
 	continue;
       
-      if (clid || addr)
-	{
-	  lease->flags |= LEASE_USED;
-	  return lease;
-	}
-      else 
-	lease->flags &= ~LEASE_USED;
+      lease->flags |= LEASE_USED;
+      return lease;
     }
   
   return NULL;
+}
+
+void lease6_filter(int lease_type, int iaid, struct dhcp_context *context)
+{
+  struct dhcp_lease *lease;
+  
+  for (lease = leases; lease; lease = lease->next)
+    {
+      /* reset "USED flag */
+      lease->flags &= ~LEASE_USED;
+      
+      if (!(lease->flags & lease_type) || lease->hwaddr_type != iaid)
+	continue;
+      
+      /* leases on the wrong interface get filtered out here */
+      if (!address6_available(context, (struct in6_addr *)&lease->hwaddr, NULL))
+	lease->flags |= LEASE_USED;
+    }
 }
 
 struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr)
