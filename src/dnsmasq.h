@@ -1092,6 +1092,7 @@ void dhcp6_init(void);
 void dhcp6_packet(time_t now);
 int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
 		      int serial, struct dhcp_netid *netids, struct in6_addr *ans);
+int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr);
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
 					struct dhcp_netid *netids);

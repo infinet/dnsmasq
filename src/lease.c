@@ -582,7 +582,7 @@ void lease6_filter(int lease_type, int iaid, struct dhcp_context *context)
 	continue;
       
       /* leases on the wrong interface get filtered out here */
-      if (!address6_available(context, (struct in6_addr *)&lease->hwaddr, NULL))
+      if (!is_addr_in_context6(context, (struct in6_addr *)&lease->hwaddr))
 	lease->flags |= LEASE_USED;
     }
 }

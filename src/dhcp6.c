@@ -323,14 +323,21 @@ struct dhcp_context *narrow_context6(struct dhcp_context *context,
   return tmp;
 }
 
-static int is_addr_in_context6(struct dhcp_context *context, struct dhcp_config *config)
+static int is_config_in_context6(struct dhcp_context *context, struct dhcp_config *config)
 {
   if (!context) /* called via find_config() from lease_update_from_configs() */
     return 1; 
-  if (!(config->flags & CONFIG_ADDR6))
+  if (!(config->flags & CONFIG_ADDR6) || is_addr_in_context6(context, &config->addr6))
     return 1;
+  
+  return 0;
+}
+
+
+int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr)
+{
   for (; context; context = context->current)
-    if (is_same_net6(&config->addr6, &context->start6, context->prefix))
+    if (is_same_net6(addr, &context->start6, context->prefix))
       return 1;
   
   return 0;
@@ -350,7 +357,7 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
 	{
 	  if (config->clid_len == duid_len && 
 	      memcmp(config->clid, duid, duid_len) == 0 &&
-	      is_addr_in_context6(context, config))
+	      is_config_in_context6(context, config))
 	    return config;
 	}
     
@@ -358,7 +365,7 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
     for (config = configs; config; config = config->next)
       if ((config->flags & CONFIG_NAME) && 
           hostname_isequal(config->hostname, hostname) &&
-          is_addr_in_context6(context, config))
+          is_config_in_context6(context, config))
         return config;
 
   return NULL;

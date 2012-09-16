@@ -582,7 +582,6 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    if (!addrp &&
 			(lease = lease6_find(clid, clid_len, 
 					     ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, NULL)) &&
-			address6_available(context, (struct in6_addr *)&lease->hwaddr, tags) &&
 			!config_find_by_address6(daemon->dhcp_conf, (struct in6_addr *)&lease->hwaddr, 128, 0))
 		      addrp = (struct in6_addr *)&lease->hwaddr;
 		    
