@@ -13,6 +13,9 @@ version 2.64
 	    Fix broken vendor-option processing for BOOTP. Thanks to
 	    Hans-Joachim Baader for the bug report.
 
+	    Don't report spurious netlink errors, regression in
+	    2.63. Thanks to Vladislav Grishenko for the patch.
+
 
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
