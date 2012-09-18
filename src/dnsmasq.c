@@ -658,12 +658,13 @@ int main (int argc, char **argv)
 	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
 	    my_syslog(MS_DHCP | LOG_INFO, 
 		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
-		      _("stateless DHCPv6 on %s%.0s%.0s") :
+		      _("%s stateless on %s%.0s%.0s") :
 		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		      _("DHCP, static leases only on %.0s%s, %s") :
+		      _("%s, static leases only on %.0s%s, %s") :
 		      (dhcp_tmp->flags & CONTEXT_PROXY) ?
-		      _("DHCP, proxy on subnet %.0s%s%.0s") :
-		      _("DHCP, IP range %s -- %s, %s"),
+		      _("%s, proxy on subnet %.0s%s%.0s") :
+		      _("%s, IP range %s -- %s, %s"),
+		      (family != AF_INET) ? "DHCPv6" : "DHCP",
 		      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
 
 	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
