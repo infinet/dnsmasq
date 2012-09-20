@@ -621,6 +621,93 @@ static char *set_prefix(char *arg)
    return arg;
 }
 
+char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_addr, char *interface, int *flags)
+{
+  int source_port = 0, serv_port = NAMESERVER_PORT;
+  char *portno, *source;
+#ifdef HAVE_IPV6
+  int scope_index = 0;
+  char *scope_id;
+#endif
+  
+  if ((source = split_chr(arg, '@')) && /* is there a source. */
+      (portno = split_chr(source, '#')) &&
+      !atoi_check16(portno, &source_port))
+    return _("bad port");
+  
+  if ((portno = split_chr(arg, '#')) && /* is there a port no. */
+      !atoi_check16(portno, &serv_port))
+    return _("bad port");
+  
+#ifdef HAVE_IPV6
+  scope_id = split_chr(arg, '%');
+#endif
+  
+  if ((addr->in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t) -1)
+    {
+      addr->in.sin_port = htons(serv_port);	
+      addr->sa.sa_family = source_addr->sa.sa_family = AF_INET;
+#ifdef HAVE_SOCKADDR_SA_LEN
+      source_addr->in.sin_len = addr->in.sin_len = sizeof(struct sockaddr_in);
+#endif
+      source_addr->in.sin_addr.s_addr = INADDR_ANY;
+      source_addr->in.sin_port = htons(daemon->query_port);
+      
+      if (source)
+	{
+	  if (flags)
+	    *flags |= SERV_HAS_SOURCE;
+	  source_addr->in.sin_port = htons(source_port);
+	  if ((source_addr->in.sin_addr.s_addr = inet_addr(source)) == (in_addr_t) -1)
+	    {
+#if defined(SO_BINDTODEVICE)
+	      source_addr->in.sin_addr.s_addr = INADDR_ANY;
+	      strncpy(interface, source, IF_NAMESIZE - 1);
+#else
+	      return _("interface binding not supported");
+#endif
+	    }
+	}
+    }
+#ifdef HAVE_IPV6
+  else if (inet_pton(AF_INET6, arg, &addr->in6.sin6_addr) > 0)
+    {
+      if (scope_id && (scope_index = if_nametoindex(scope_id)) == 0)
+	return _("bad interface name");
+      
+      addr->in6.sin6_port = htons(serv_port);
+      addr->in6.sin6_scope_id = scope_index;
+      source_addr->in6.sin6_addr = in6addr_any; 
+      source_addr->in6.sin6_port = htons(daemon->query_port);
+      source_addr->in6.sin6_scope_id = 0;
+      addr->sa.sa_family = source_addr->sa.sa_family = AF_INET6;
+      addr->in6.sin6_flowinfo = source_addr->in6.sin6_flowinfo = 0;
+#ifdef HAVE_SOCKADDR_SA_LEN
+      addr->in6.sin6_len = source_addr->in6.sin6_len = sizeof(addr->in6);
+#endif
+      if (source)
+	{
+	  if (flags)
+	    *flags |= SERV_HAS_SOURCE;
+	  source_addr->in6.sin6_port = htons(source_port);
+	  if (inet_pton(AF_INET6, source, &source_addr->in6.sin6_addr) == 0)
+	    {
+#if defined(SO_BINDTODEVICE)
+	      source_addr->in6.sin6_addr = in6addr_any; 
+	      strncpy(interface, source, IF_NAMESIZE - 1);
+#else
+	      return _("interface binding not supported");
+#endif
+	    }
+	}
+    }
+#endif
+  else
+    return _("bad address");
+
+  return NULL;
+}
+
 /* This is too insanely large to keep in-line in the switch */
 static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 {
@@ -1760,84 +1847,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  }
 	else
 	  {
-	    int source_port = 0, serv_port = NAMESERVER_PORT;
-	    char *portno, *source;
-#ifdef HAVE_IPV6
-	    int scope_index = 0;
-	    char *scope_id;
-#endif
-	    
-	    if ((source = split_chr(arg, '@')) && /* is there a source. */
-		(portno = split_chr(source, '#')) &&
-		!atoi_check16(portno, &source_port))
-	      ret_err(_("bad port"));
-	       	    
-	    if ((portno = split_chr(arg, '#')) && /* is there a port no. */
-		!atoi_check16(portno, &serv_port))
-	      ret_err(_("bad port"));
-	    
-#ifdef HAVE_IPV6
-	    scope_id = split_chr(arg, '%');
-#endif
-
-	    if ((newlist->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t) -1)
-	      {
-		newlist->addr.in.sin_port = htons(serv_port);	
-		newlist->source_addr.in.sin_port = htons(source_port); 
-		newlist->addr.sa.sa_family = newlist->source_addr.sa.sa_family = AF_INET;
-#ifdef HAVE_SOCKADDR_SA_LEN
-		newlist->source_addr.in.sin_len = newlist->addr.in.sin_len = sizeof(struct sockaddr_in);
-#endif
-		if (source)
-		  {
-		    newlist->flags |= SERV_HAS_SOURCE;
-		    if ((newlist->source_addr.in.sin_addr.s_addr = inet_addr(source)) == (in_addr_t) -1)
-		      {
-#if defined(SO_BINDTODEVICE)
-			newlist->source_addr.in.sin_addr.s_addr = INADDR_ANY;
-			strncpy(newlist->interface, source, IF_NAMESIZE - 1);
-#else
-			ret_err(_("interface binding not supported"));
-#endif
-		      }
-		  }
-		else
-		  newlist->source_addr.in.sin_addr.s_addr = INADDR_ANY;
-	      }
-#ifdef HAVE_IPV6
-	    else if (inet_pton(AF_INET6, arg, &newlist->addr.in6.sin6_addr) > 0)
-	      {
-		if (scope_id && (scope_index = if_nametoindex(scope_id)) == 0)
-		  ret_err(_("bad interface name"));
-		
-		newlist->addr.in6.sin6_port = htons(serv_port);
-		newlist->addr.in6.sin6_scope_id = scope_index;
-		newlist->source_addr.in6.sin6_port = htons(source_port);
-		newlist->source_addr.in6.sin6_scope_id = 0;
-		newlist->addr.sa.sa_family = newlist->source_addr.sa.sa_family = AF_INET6;
-		newlist->addr.in6.sin6_flowinfo = newlist->source_addr.in6.sin6_flowinfo = 0;
-#ifdef HAVE_SOCKADDR_SA_LEN
-		newlist->addr.in6.sin6_len = newlist->source_addr.in6.sin6_len = sizeof(newlist->addr.in6);
-#endif
-		if (source)
-		  {
-		    newlist->flags |= SERV_HAS_SOURCE;
-		    if (inet_pton(AF_INET6, source, &newlist->source_addr.in6.sin6_addr) == 0)
-		      {
-#if defined(SO_BINDTODEVICE)
-			newlist->source_addr.in6.sin6_addr = in6addr_any; 
-			strncpy(newlist->interface, source, IF_NAMESIZE - 1);
-#else
-			ret_err(_("interface binding not supported"));
-#endif
-		      }
-		  }
-		else
-		  newlist->source_addr.in6.sin6_addr = in6addr_any; 
-	      }
-#endif
-	    else
-	      ret_err(gen_err);
+	    char *err = parse_server(arg, &newlist->addr, &newlist->source_addr, newlist->interface, &newlist->flags);
+	    if (err)
+	      ret_err(err);
 	  }
 	
 	serv = newlist;
@@ -1846,6 +1858,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    serv->next->flags = serv->flags;
 	    serv->next->addr = serv->addr;
 	    serv->next->source_addr = serv->source_addr;
+	    strcpy(serv->next->interface, serv->interface);
 	    serv = serv->next;
 	  }
 	serv->next = daemon->servers;

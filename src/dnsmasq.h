@@ -928,6 +928,8 @@ void reread_dhcp(void);
 void set_option_bool(unsigned int opt);
 void reset_option_bool(unsigned int opt);
 struct hostsfile *expand_filelist(struct hostsfile *list);
+char *parse_server(char *arg, union mysockaddr *addr, 
+		   union mysockaddr *source_addr, char *interface, int *flags);
 
 /* forward.c */
 void reply_query(int fd, int family, time_t now);

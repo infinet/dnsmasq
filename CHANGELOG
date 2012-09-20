@@ -19,6 +19,9 @@ version 2.64
 	    Flag DHCP or DHCPv6 in starup logging. Thanks to 
 	    Vladislav Grishenko for the patch.
 
+	    Add SetServersEX method in DBus interface. Thanks to Dan
+	    Williams for the patch.
+
 
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
