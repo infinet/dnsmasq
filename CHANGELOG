@@ -22,7 +22,10 @@ version 2.64
 	    Add SetServersEX method in DBus interface. Thanks to Dan
 	    Williams for the patch.
 
+	    Fix build with later Lua libraries. Thansk to Cristian
+	    Rodriguez for the patch.
 
+	    
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
 
