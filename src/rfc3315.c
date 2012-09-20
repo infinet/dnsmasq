@@ -1005,10 +1005,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
       
     case DHCP6IREQ:
       {
+	log6_packet("DHCPINFORMATION-REQUEST", clid, clid_len, NULL, xid, iface_name, ignore ? "ignored" : hostname);
 	if (ignore)
 	  return 0;
 	*outmsgtypep = DHCP6REPLY;
-	log6_packet("DHCPINFORMATION-REQUEST", clid, clid_len, NULL, xid, iface_name, hostname);
 	break;
       }
       
