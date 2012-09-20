@@ -120,6 +120,7 @@ struct myoption {
 #define LOPT_TFTP_LC   309
 #define LOPT_RR        310
 #define LOPT_CLVERBIND 311
+#define LOPT_MAXCTTL   312
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -223,6 +224,7 @@ static const struct myoption opts[] =
     { "dhcp-broadcast", 2, 0, LOPT_BROADCAST },
     { "neg-ttl", 1, 0, LOPT_NEGTTL },
     { "max-ttl", 1, 0, LOPT_MAXTTL },
+    { "max-cache-ttl", 1, 0, LOPT_MAXCTTL },
     { "dhcp-alternate-port", 2, 0, LOPT_ALTPORT },
     { "dhcp-scriptuser", 1, 0, LOPT_SCRIPTUSR },
     { "min-port", 1, 0, LOPT_MINPORT },
@@ -1930,6 +1932,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case 'T':         /* --local-ttl */
     case LOPT_NEGTTL: /* --neg-ttl */
     case LOPT_MAXTTL: /* --max-ttl */
+    case LOPT_MAXCTTL: /* --max-cache-ttl */
       {
 	int ttl;
 	if (!atoi_check(arg, &ttl))
@@ -1938,6 +1941,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  daemon->neg_ttl = (unsigned long)ttl;
 	else if (option == LOPT_MAXTTL)
 	  daemon->max_ttl = (unsigned long)ttl;
+	else if (option == LOPT_MAXCTTL)
+	  daemon->max_cache_ttl = (unsigned long)ttl;
 	else
 	  daemon->local_ttl = (unsigned long)ttl;
 	break;

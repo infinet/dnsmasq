@@ -25,6 +25,9 @@ version 2.64
 	    Fix build with later Lua libraries. Thansk to Cristian
 	    Rodriguez for the patch.
 
+	    Add --max-cache-ttl option. Thanks to Dennis Kaarsemaker
+	    for the patch.
+
 	    
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
