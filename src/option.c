@@ -3164,10 +3164,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    for (tmp = new->names; tmp->next; tmp = tmp->next);
 		    tmp->next = nl;
 		  }
-		
-		arg = comma;
-		comma = split(arg);
 	      }
+	    
+	    arg = comma;
+	    comma = split(arg);
 	  }
 
 	/* Keep list order */

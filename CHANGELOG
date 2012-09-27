@@ -28,6 +28,10 @@ version 2.64
 	    Add --max-cache-ttl option. Thanks to Dennis Kaarsemaker
 	    for the patch.
 
+	    Fix breakage of --host-record parsing, resulting in
+	    infinte loop at startup. Regression in 2.63. Thanks to
+	    Haim Gelfenbeyn for spotting this.
+
 	    
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
