@@ -364,7 +364,7 @@ static DBusMessage* dbus_read_servers_ex(DBusMessage *message)
         }
 
       /* parse the IP address */
-      addr_err = parse_server(str_addr, &addr, &source_addr, &interface, NULL);
+      addr_err = parse_server(str_addr, &addr, &source_addr, (char *) &interface, NULL);
       free(str_addr);
 
       if (addr_err)
