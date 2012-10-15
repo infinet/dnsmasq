@@ -36,14 +36,30 @@ void dhcp6_init(void)
 #if defined(IPV6_TCLASS) && defined(IPTOS_CLASS_CS6)
   int class = IPTOS_CLASS_CS6;
 #endif
-  
+  int oneopt = 1;
+
   if ((fd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1 ||
 #if defined(IPV6_TCLASS) && defined(IPTOS_CLASS_CS6)
       setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &class, sizeof(class)) == -1 ||
 #endif
+      setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &oneopt, sizeof(oneopt)) == -1 ||
       !fix_fd(fd) ||
       !set_ipv6pktinfo(fd))
     die (_("cannot create DHCPv6 socket: %s"), NULL, EC_BADNET);
+  
+  /* When bind-interfaces is set, there might be more than one dnmsasq
+     instance binding port 547. That's OK if they serve different networks.
+     Need to set REUSEADDR to make this posible, or REUSEPORT on *BSD. */
+  if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND))
+    {
+#ifdef SO_REUSEPORT
+      int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &oneopt, sizeof(oneopt));
+#else
+      int rc = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &oneopt, sizeof(oneopt));
+#endif
+      if (rc == -1)
+	die(_("failed to set SO_REUSE{ADDR|PORT} on DHCPv6 socket: %s"), NULL, EC_BADNET);
+    }
   
   memset(&saddr, 0, sizeof(saddr));
 #ifdef HAVE_SOCKADDR_SA_LEN

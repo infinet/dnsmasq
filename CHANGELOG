@@ -32,6 +32,11 @@ version 2.64
 	    infinte loop at startup. Regression in 2.63. Thanks to
 	    Haim Gelfenbeyn for spotting this.
 
+	    Set SO_REUSEADDRESS and SO_V6ONLY options on the DHCPv6
+	    socket, this allows multiple instances of dnsmasq on a
+	    single machine, in the same way as for DHCPv4. Thanks to
+	    Gene Czarcinski and Vladislav Grishenko for work on this.
+
 	    
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
