@@ -37,6 +37,10 @@ version 2.64
 	    single machine, in the same way as for DHCPv4. Thanks to
 	    Gene Czarcinski and Vladislav Grishenko for work on this.
 
+	    Fix DHCPv6 to do access control correctly when it's 
+	    configured with --listen-address. Thanks to
+	    Gene Czarcinski for sorting this out. 
+
 	    
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
