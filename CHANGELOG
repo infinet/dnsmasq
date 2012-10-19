@@ -403,7 +403,7 @@ version 2.58
 
 	    Fix regression in TFTP server on *BSD platforms introduced
 	    in version 2.56, due to confusion with sockaddr
-	    length. Many thanks to Loïc Pefferkorn for finding this.
+	    length. Many thanks to Loic Pefferkorn for finding this.
 
 	    Support scope-ids in IPv6 addresses of nameservers from
 	    /etc/resolv.conf and in --server options. Eg
