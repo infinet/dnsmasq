@@ -126,17 +126,24 @@ void dhcp6_packet(time_t now)
     if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
       return;
  
-  /* unlinked contexts are marked by context->current == context */
-  for (context = daemon->dhcp6; context; context = context->next)
-    {
-      context->current = context;
-      memset(&context->local6, 0, IN6ADDRSZ);
-    }
-
   parm.current = NULL;
   parm.ind = if_index;
   parm.addr_match = 0;
   memset(&parm.fallback, 0, IN6ADDRSZ);
+
+  for (context = daemon->dhcp6; context; context = context->next)
+    if (IN6_IS_ADDR_UNSPECIFIED(&context->start6) && context->prefix == 0)
+      {
+	/* wildcard context for DHCP-stateless only */
+	parm.current = context;
+	context->current = NULL;
+      }
+    else
+      {
+	/* unlinked contexts are marked by context->current == context */
+	context->current = context;
+	memset(&context->local6, 0, IN6ADDRSZ);
+      }
   
   if (!iface_enumerate(AF_INET6, &parm, complete_context6))
     return;

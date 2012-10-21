@@ -2115,7 +2115,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    new->prefix = 64; /* default */
 	    new->end6 = new->start6;
-
+	    
+	    /* dhcp-range=:: enables DHCP stateless on any interface */
+	    if (IN6_IS_ADDR_UNSPECIFIED(&new->start6))
+	      new->prefix = 0;
+	    
 	    for (leasepos = 1; leasepos < k; leasepos++)
 	      {
 		if (strcmp(a[leasepos], "static") == 0)
