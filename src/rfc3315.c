@@ -194,8 +194,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   iface_id.next = tags;
   tags = &iface_id; 
 
-  /* set tag "DHCPv6" */
-  v6_id.net = "DHCPv6";
+  /* set tag "dhcpv6" */
+  v6_id.net = "dhcpv6";
   v6_id.next = tags;
   tags = &v6_id;
 
