@@ -584,7 +584,11 @@ which tells dnsmasq to enable DHCP for the network specified, but not
 to dynamically allocate IP addresses: only hosts which have static
 addresses given via 
 .B dhcp-host
-or from /etc/ethers will be served. 
+or from /etc/ethers will be served. A static-only subnet with address
+all zeros may be used as a "catch-all" address to enable replies to all
+Information-request packets on a subnet which is provided with
+stateless DHCPv6, ie
+.B --dhcp=range=::,static
 
 For IPv4, the <mode> may be 
 .B proxy
