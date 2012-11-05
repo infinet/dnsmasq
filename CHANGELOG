@@ -45,7 +45,11 @@ version 2.64
 	    subnet, --dhcp-range=::,static Useful for Stateless 
 	    DHCPv6. Thanks to Vladislav Grishenko for the patch.
 
+	    Don't include lease-time in DHCPACK replies to DHCPINFORM
+	    queries, since RFC-2131 says we shouldn't. Thanks to
+	    Wouter Ibens for pointing this out.  
 	    
+
 version 2.63
             Do duplicate dhcp-host address check in --test mode.
 
