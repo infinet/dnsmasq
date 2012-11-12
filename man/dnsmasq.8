@@ -83,7 +83,9 @@ or launchd.
 Debug mode: don't fork to the background, don't write a pid file,
 don't change user id, generate a complete cache dump on receipt on
 SIGUSR1, log to stderr as well as syslog, don't fork new processes
-to handle TCP queries.
+to handle TCP queries. Note that this option is for use in debugging
+only, to stop dnsmasq daemonising in production, use 
+.B -k.
 .TP
 .B \-q, --log-queries
 Log the results of DNS queries handled by dnsmasq. Enable a full cache dump on receipt of SIGUSR1.
