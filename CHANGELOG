@@ -48,6 +48,9 @@ version 2.64
 	    Don't include lease-time in DHCPACK replies to DHCPINFORM
 	    queries, since RFC-2131 says we shouldn't. Thanks to
 	    Wouter Ibens for pointing this out.  
+
+	    Makefile tweak to do dependency checking on header files.
+	    Thanks to Johan Peeters for the patch.
 	    
 
 version 2.63
