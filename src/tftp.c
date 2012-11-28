@@ -193,12 +193,12 @@ void tftp_request(struct listener *listen, time_t now)
 #ifdef HAVE_IPV6
       if (listen->family == AF_INET6)
 	{
-	  if (!iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name))
+	  if (!iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name, NULL))
 	    return;
 	}
       else
 #endif
-        if (!iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name))
+        if (!iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name, NULL))
 	  return;
 
 #ifdef HAVE_DHCP      

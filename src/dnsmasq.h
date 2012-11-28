@@ -278,6 +278,20 @@ struct cname {
   struct cname *next;
 };
 
+struct auth_zone {
+  char *domain;
+  struct subnet {
+    int is6, prefixlen;
+    struct in_addr addr4;
+#ifdef HAVE_IPV6
+    struct in6_addr addr6;
+#endif
+    struct subnet *next;
+  } *subnet;
+  struct auth_zone *next;
+};
+
+
 struct host_record {
   struct name_list {
     char *name;
@@ -357,6 +371,8 @@ struct crec {
 #define F_SERVER    (1u<<18)
 #define F_QUERY     (1u<<19)
 #define F_NOERR     (1u<<20)
+#define F_AUTH      (1u<<21)
+
 /* composites */
 #define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* Only one may be set */
 
@@ -412,7 +428,7 @@ struct server {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int tftp_ok, dhcp_ok, mtu, done, dad;
+  int tftp_ok, dhcp_ok, mtu, done, dad, dns_auth;
   char *name;
   struct irec *next;
 };
@@ -733,11 +749,13 @@ extern struct daemon {
   struct ptr_record *ptr;
   struct host_record *host_records, *host_records_tail;
   struct cname *cnames;
+  struct auth_zone *auth_zones;
   struct interface_name *int_names;
   char *mxtarget;
   char *lease_file; 
   char *username, *groupname, *scriptuser;
   char *luascript;
+  char *authserver, *authinterface, *hostmaster;
   int group_set, osport;
   char *domain_suffix;
   struct cond_domain *cond_domain;
@@ -751,7 +769,7 @@ extern struct daemon {
   int max_logs;  /* queue limit */
   int cachesize, ftabsize;
   int port, query_port, min_port;
-  unsigned long local_ttl, neg_ttl, max_ttl, max_cache_ttl;
+  unsigned long local_ttl, neg_ttl, max_ttl, max_cache_ttl, auth_ttl;
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp, *dhcp6, *ra_contexts;
   struct dhcp_config *dhcp_conf;
@@ -778,6 +796,7 @@ extern struct daemon {
   unsigned int duid_enterprise, duid_config_len;
   unsigned char *duid_config;
   char *dbus_name;
+  unsigned long soa_sn, soa_refresh, soa_retry, soa_expiry;
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
@@ -835,7 +854,7 @@ extern struct daemon {
 void cache_init(void);
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg); 
 char *record_source(int index);
-void querystr(char *str, unsigned short type);
+void querystr(char *desc, char *str, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
 				unsigned short prot);
@@ -879,6 +898,16 @@ unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
 size_t resize_packet(struct dns_header *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
+int add_resource_record(struct dns_header *header, char *limit, int *truncp,
+			unsigned int nameoffset, unsigned char **pp, unsigned long ttl, 
+			unsigned int *offset, unsigned short type, unsigned short class, char *format, ...);
+unsigned char *skip_questions(struct dns_header *header, size_t plen);
+int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
+		 char *name, int isExtract, int extrabytes);
+int in_arpa_name_2_addr(char *namein, struct all_addr *addrp);
+
+/* auth.c */
+size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t now);
 
 /* util.c */
 void rand_init(void);
@@ -935,7 +964,7 @@ char *parse_server(char *arg, union mysockaddr *addr,
 void reply_query(int fd, int family, time_t now);
 void receive_query(struct listener *listen, time_t now);
 unsigned char *tcp_request(int confd, time_t now,
-			   union mysockaddr *local_addr, struct in_addr netmask);
+			   union mysockaddr *local_addr, struct in_addr netmask, int auth_dns);
 void server_gone(struct server *server);
 struct frec *get_new_frec(time_t now, int *wait);
 int send_from(int fd, int nowild, char *packet, size_t len, 
@@ -953,7 +982,7 @@ int enumerate_interfaces();
 void create_wildcard_listeners(void);
 void create_bound_listeners(int die);
 int is_dad_listeners(void);
-int iface_check(int family, struct all_addr *addr, char *name);
+int iface_check(int family, struct all_addr *addr, char *name, int *auth_dns);
 int fix_fd(int fd);
 struct in_addr get_ifaddr(char *intr);
 #ifdef HAVE_IPV6

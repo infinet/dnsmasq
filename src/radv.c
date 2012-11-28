@@ -149,7 +149,7 @@ void icmp6_packet(void)
   if (!indextoname(daemon->icmp6fd, if_index, interface))
     return;
     
-  if (!iface_check(AF_LOCAL, NULL, interface))
+  if (!iface_check(AF_LOCAL, NULL, interface, NULL))
     return;
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
