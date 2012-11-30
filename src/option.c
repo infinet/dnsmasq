@@ -387,7 +387,7 @@ static struct {
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
   { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL },
-  { LOPT_AUTHSERV, ARG_ONE, "<interface>,<NS>", gettext_noop("Export local names to global DNS"), NULL },
+  { LOPT_AUTHSERV, ARG_ONE, "<NS>,<interface>", gettext_noop("Export local names to global DNS"), NULL },
   { LOPT_AUTHZONE, ARG_DUP, "<domain>,<subnet>[,<subnet>]", gettext_noop("Domain to export to global DNS"), NULL },
   { LOPT_AUTHTTL, ARG_ONE, "<integer>", gettext_noop("Set TTL for authoritative replies"), NULL },
   { LOPT_AUTHSOA, ARG_ONE, "<serial>[,...]", gettext_noop("Set authoritive zone information"), NULL },
@@ -1534,14 +1534,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       }
       
     case LOPT_AUTHSERV: /* --auth-server */
-      comma = split(arg);
-      if (!comma)
+      if (!(comma = split(arg)))
 	ret_err(gen_err);
       
-      daemon->authinterface = opt_string_alloc(arg);
-      arg = comma;
-      comma = split(arg);
       daemon->authserver = opt_string_alloc(arg);
+      daemon->authinterface = opt_string_alloc(comma);
       
       break;
       
@@ -1597,9 +1594,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       atoi_check(arg, (int *)&daemon->soa_sn);
       if (comma)
 	{
+	  char *cp;
 	  arg = comma;
 	  comma = split(arg);
 	  daemon->hostmaster = opt_string_alloc(arg);
+	  for (cp = daemon->hostmaster; *cp; cp++)
+	    if (*cp == '@')
+	      *cp = '.';
+
 	  if (comma)
 	    {
 	      arg = comma;

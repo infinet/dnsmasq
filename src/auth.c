@@ -72,7 +72,11 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
       size_t domainlen, namelen;
       unsigned short flag = 0;
       int found = 0;
-      struct mx_srv_record *rec;
+      struct mx_srv_record *rec, *move, **up;
+      struct txt_record *txt;
+      struct interface_name *intr;
+      struct naptr *na;
+      struct all_addr addr;
 
       /* save pointer to name for copying into answers */
       nameoffset = p - (unsigned char *)header;
@@ -89,7 +93,6 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
       
       if (qtype == T_PTR)
 	{
-	  struct all_addr addr;
 	  
 	  if (!(flag = in_arpa_name_2_addr(name, &addr)))
 	    continue;
@@ -102,6 +105,35 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	    {
 	      auth = 0;
 	      continue;
+	    }
+ 
+	  domainlen = strlen(zone->domain);
+	  
+	  if (flag == F_IPV4)
+	    {
+	      for (intr = daemon->int_names; intr; intr = intr->next)
+		{
+		  if (addr.addr.addr4.s_addr == get_ifaddr(intr->intr).s_addr)
+		    break;
+		  else
+		    while (intr->next && strcmp(intr->intr, intr->next->intr) == 0)
+		      intr = intr->next;
+		}
+
+	      if (intr)
+		{
+		  namelen = strlen(intr->name);
+		  
+		  if (namelen >= domainlen && hostname_isequal(zone->domain, &intr->name[namelen - domainlen]) &&
+		      (namelen == domainlen || intr->name[namelen - domainlen - 1] == '.'))
+		    {	
+		      log_query(F_IPV4 | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->auth_ttl, NULL,
+					      T_PTR, C_IN, "d", intr->name))
+			anscount++;
+		    }
+		}
 	    }
 
 	  if ((crecp = cache_find_by_addr(NULL, &addr, now, flag)))
@@ -126,7 +158,6 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		}
 	      else if (crecp->flags & (F_DHCP | F_HOSTS))
 		{
-		  domainlen = strlen(zone->domain);
 		  namelen = strlen(name);
 		  
 		  if (namelen > domainlen + 1 &&
@@ -147,7 +178,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		continue;
 		    
 	    } while ((crecp = cache_find_by_addr(crecp, &addr, now, flag)));
-	
+
 	  if (!found)
 	    log_query(flag | F_NEG | F_NXDOMAIN | F_REVERSE | F_AUTH, NULL, &addr, NULL);
 
@@ -160,11 +191,12 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	{
 	  domainlen = strlen(zone->domain);
 	  if (namelen >= domainlen && 
-	      hostname_isequal(zone->domain, &name[namelen - domainlen]))
+	      hostname_isequal(zone->domain, &name[namelen - domainlen]) &&
+	      (namelen == domainlen || name[namelen - domainlen - 1] == '.'))
 	    break;
 	}
-
-      if (!zone || (namelen > domainlen && name[namelen - domainlen - 1] != '.'))
+      
+      if (!zone)
 	{
 	  auth = 0;
 	  continue;
@@ -172,21 +204,112 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 
       for (rec = daemon->mxnames; rec; rec = rec->next)
 	if (!rec->issrv && hostname_isequal(name, rec->name))
-	  break;
-
-      if (rec)
-	{
-	  nxdomain = 0;
-	  if (!found && qtype == T_MX)
-	    {
-	      found = 1;
-	      log_query(F_AUTH | F_RRNAME, name, NULL, "<MX>"); 
-	      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl,
-				      NULL, T_MX, C_IN, "sd", rec->weight, rec->target))
-		anscount++;
-	    }
-	}
+	  {
+	    nxdomain = 0;
+	         
+	    if (qtype == T_MX)
+	      {
+		found = 1;
+		log_query(F_CONFIG | F_RRNAME, name, NULL, "<MX>"); 
+		if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl,
+					NULL, T_MX, C_IN, "sd", rec->weight, rec->target))
+		  anscount++;
+	      }
+	  }
       
+      for (move = NULL, up = &daemon->mxnames, rec = daemon->mxnames; rec; rec = rec->next)
+	if (rec->issrv && hostname_isequal(name, rec->name))
+	  {
+	    nxdomain = 0;
+	    
+	    if (qtype == T_SRV)
+	      {
+		found = 1;
+		log_query(F_CONFIG | F_RRNAME, name, NULL, "<SRV>"); 
+		if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl,
+					NULL, T_SRV, C_IN, "sssd", 
+					rec->priority, rec->weight, rec->srvport, rec->target))
+
+		  anscount++;
+	      } 
+	    
+	    /* unlink first SRV record found */
+	    if (!move)
+	      {
+		move = rec;
+		*up = rec->next;
+	      }
+	    else
+	      up = &rec->next;      
+	  }
+	else
+	  up = &rec->next;
+	  
+      /* put first SRV record back at the end. */
+      if (move)
+	{
+	  *up = move;
+	  move->next = NULL;
+	}
+
+      for (txt = daemon->rr; txt; txt = txt->next)
+	if (hostname_isequal(name, txt->name))
+	  {
+	    nxdomain = 0;
+	    if (txt->class == qtype)
+	      {
+		found = 1;
+		log_query(F_CONFIG | F_RRNAME, name, NULL, "<RR>"); 
+		if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl,
+					NULL, txt->class, C_IN, "t", txt->len, txt->txt))
+		  anscount++;
+	      }
+	  }
+      
+      for (txt = daemon->txt; txt; txt = txt->next)
+	if (txt->class == C_IN && hostname_isequal(name, txt->name))
+	  {
+	    nxdomain = 0;
+	    if (qtype == T_TXT)
+	      {
+		found = 1;
+		log_query(F_CONFIG | F_RRNAME, name, NULL, "<TXT>"); 
+		if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl,
+					NULL, T_TXT, C_IN, "t", txt->len, txt->txt))
+		  anscount++;
+	      }
+	  }
+
+       for (na = daemon->naptr; na; na = na->next)
+	 if (hostname_isequal(name, na->name))
+	   {
+	     nxdomain = 0;
+	     if (qtype == T_NAPTR)
+	       {
+		 found = 1;
+		 log_query(F_CONFIG | F_RRNAME, name, NULL, "<NAPTR>");
+		 if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->auth_ttl, 
+					 NULL, T_NAPTR, C_IN, "sszzzd", 
+					 na->order, na->pref, na->flags, na->services, na->regexp, na->replace))
+			  anscount++;
+	       }
+	   }
+
+
+       for (intr = daemon->int_names; intr; intr = intr->next)
+	 if (hostname_isequal(name, intr->name))
+	   {
+	     nxdomain = 0;
+	     if (qtype == T_A && (addr.addr.addr4 = get_ifaddr(intr->intr)).s_addr != (in_addr_t) -1)
+	       {
+		 found = 1;
+		 log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, NULL);
+		 if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					 daemon->auth_ttl, NULL, T_A, C_IN, "4", &addr))
+		   anscount++;
+	       }
+	   }
+
       if (qtype == T_A)
 	flag = F_IPV4;
 
@@ -195,7 +318,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	flag = F_IPV6;
 #endif
 
-      if (!found && qtype == T_SOA && namelen == domainlen)
+      if (qtype == T_SOA && namelen == domainlen)
 	{
 	  soa = 1; /* inhibits auth section */
 	  found = 1;
@@ -209,7 +332,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	    anscount++;
 	}
       
-      if (!found && qtype == T_NS && namelen == domainlen)
+      if (qtype == T_NS && namelen == domainlen)
 	{
 	  soa = 1; /* inhibits auth section */
 	  found = 1;
@@ -220,7 +343,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	}
       
 
-      if (!found && !option_bool(OPT_DHCP_FQDN) && namelen > domainlen + 1)
+      if (!option_bool(OPT_DHCP_FQDN) && namelen > domainlen + 1)
 	{	  
 	  name[namelen - domainlen - 1] = 0; /* remove domain part */
 	  
@@ -247,7 +370,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  name[namelen - domainlen - 1] = '.'; /* restore domain part */	    
 	}
       
-      if (!found && (crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)))
+      if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)))
 	{
 	  if ((crecp->flags & F_HOSTS) || (((crecp->flags & F_DHCP) && option_bool(OPT_DHCP_FQDN))))
 	    do
