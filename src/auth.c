@@ -77,6 +77,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
       struct interface_name *intr;
       struct naptr *na;
       struct all_addr addr;
+      struct cname *a;
 
       /* save pointer to name for copying into answers */
       nameoffset = p - (unsigned char *)header;
@@ -185,8 +186,9 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  continue;
 	}
       
+    cname_restart:
       namelen = strlen(name);
-
+      
       for (zone = daemon->auth_zones; zone; zone = zone->next)
 	{
 	  domainlen = strlen(zone->domain);
@@ -309,6 +311,25 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		   anscount++;
 	       }
 	   }
+       
+       for (a = daemon->cnames; a; a = a->next)
+	 if (hostname_isequal(name, a->alias) )
+	   {
+	     log_query(F_CONFIG | F_CNAME, name, NULL, NULL);
+	     strcpy(name, a->target);
+	     if (!strchr(name, '.'))
+	       {
+		 strcat(name, ".");
+		 strcat(name, zone->domain);
+	       }
+	     found = 1;
+	     if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+				     daemon->auth_ttl, NULL,
+				     T_CNAME, C_IN, "d", name))
+	       anscount++;
+	     
+	     goto cname_restart;
+	   }
 
       if (qtype == T_A)
 	flag = F_IPV4;
@@ -347,7 +368,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	{	  
 	  name[namelen - domainlen - 1] = 0; /* remove domain part */
 	  
-	  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)))
+	  if (!strchr(name, '.') && (crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6)))
 	    {
 	      if (crecp->flags & F_DHCP)
 		do
