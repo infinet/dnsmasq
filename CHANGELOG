@@ -54,6 +54,10 @@ version 2.64
 
 	    Makefile tweak to do dependency checking on header files.
 	    Thanks to Johan Peeters for the patch.
+
+	    Check interface for outgoing unsolicited router 
+	    advertisements, rather than relying on interface address 
+	    configuration. Thanks to Gene Czarinski for the patch.
 	    
 
 version 2.63

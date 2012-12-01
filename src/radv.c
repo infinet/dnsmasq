@@ -482,7 +482,8 @@ time_t periodic_ra(time_t now)
 	 ever be able to send ra's and satistfy it. */
       if (iface_enumerate(AF_INET6, &param, iface_search))
 	context->ra_time = 0;
-      else if (indextoname(daemon->icmp6fd, param.iface, interface))
+      else if (indextoname(daemon->icmp6fd, param.iface, interface) &&
+	       iface_check(AF_LOCAL, NULL, interface))
 	send_ra(param.iface, interface, NULL); 
     }
   
