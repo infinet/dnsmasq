@@ -19,8 +19,11 @@ version 2.64
 	    Flag DHCP or DHCPv6 in starup logging. Thanks to 
 	    Vladislav Grishenko for the patch.
 
-	    Add SetServersEX method in DBus interface. Thanks to Dan
+	    Add SetServersEx method in DBus interface. Thanks to Dan
 	    Williams for the patch.
+
+	    Add SetDomainServers method in DBus interface. Thanks to
+	    Roy Marples for the patch.
 
 	    Fix build with later Lua libraries. Thansk to Cristian
 	    Rodriguez for the patch.
