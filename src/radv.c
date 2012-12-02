@@ -484,12 +484,18 @@ time_t periodic_ra(time_t now)
 	context->ra_time = 0;
       else if (indextoname(daemon->icmp6fd, param.iface, interface) &&
 	       iface_check(AF_LOCAL, NULL, interface))
-	send_ra(param.iface, interface, NULL); 
-    }
-  
+	{
+	  struct iname *tmp;
+	  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+	    if (tmp->name && (strcmp(tmp->name, interface) == 0))
+	      break;
+	  if (!tmp)
+	    send_ra(param.iface, interface, NULL); 
+	}
+    }      
   return next_event;
 }
-
+  
 static int iface_search(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int dad, void *vparam)
 {
