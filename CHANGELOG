@@ -58,6 +58,15 @@ version 2.64
 	    Check interface for outgoing unsolicited router 
 	    advertisements, rather than relying on interface address 
 	    configuration. Thanks to Gene Czarinski for the patch.
+
+	    Handle better attempts to transmit on interfaces which are
+	    still doing DAD, and specifically do not just transmit
+	    without setting source address and interface, since this
+	    can cause very puzzling effects when a router
+	    advertisement goes astray. Thanks again to Gene Czarinski.
+
+	    Get RA timers right when there is more than one
+	    dhcp-range on a subnet.
 	    
 
 version 2.63
