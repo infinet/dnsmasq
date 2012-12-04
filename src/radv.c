@@ -485,7 +485,7 @@ time_t periodic_ra(time_t now)
 	context->ra_time = 0;
       else if (param.iface != 0 &&
 	       indextoname(daemon->icmp6fd, param.iface, interface) &&
-	       iface_check(AF_LOCAL, NULL, interface))
+	       iface_check(AF_LOCAL, NULL, interface, NULL))
 	{
 	  struct iname *tmp;
 	  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
