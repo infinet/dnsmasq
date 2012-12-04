@@ -16,7 +16,7 @@
 
 #include "dnsmasq.h"
 
-static int filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u)
+static struct subnet *filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u)
 {
   struct subnet *subnet;
 
@@ -30,18 +30,18 @@ static int filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u
 	  struct in_addr addr = addr_u->addr.addr4;
 	  struct in_addr mask;
 	  
-	  mask.s_addr = (1 << (32 - subnet->prefixlen)) - 1;
+	  mask.s_addr = htonl(~((1 << (32 - subnet->prefixlen)) - 1));
 	  
 	  if  (is_same_net(addr, subnet->addr4, mask))
-	    return 1;
+	    return subnet;
 	}
 #ifdef HAVE_IPV6
       else if (is_same_net6(&(addr_u->addr.addr6), &subnet->addr6, subnet->prefixlen))
-	return 1;
+	return subnet;
 #endif
 
     }
-  return 0;
+  return NULL;
 }
 
 
@@ -54,8 +54,9 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   unsigned int nameoffset;
   int q, anscount = 0, authcount = 0;
   struct crec *crecp;
-  int  auth = 1, trunc = 0, nxdomain = 1, soa = 0;
+  int  auth = 1, trunc = 0, nxdomain = 1, soa = 0, ns = 0;
   struct auth_zone *zone = NULL;
+  struct subnet *subnet = NULL;
 
   if (ntohs(header->qdcount) == 0 || OPCODE(header) != QUERY )
     return 0;
@@ -94,12 +95,11 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
       
       if (qtype == T_PTR)
 	{
-	  
 	  if (!(flag = in_arpa_name_2_addr(name, &addr)))
 	    continue;
 
 	  for (zone = daemon->auth_zones; zone; zone = zone->next)
-	    if (filter_zone(zone, flag, &addr))
+	    if ((subnet = filter_zone(zone, flag, &addr)))
 	      break;
 
 	  if (!zone)
@@ -128,6 +128,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  if (namelen >= domainlen && hostname_isequal(zone->domain, &intr->name[namelen - domainlen]) &&
 		      (namelen == domainlen || intr->name[namelen - domainlen - 1] == '.'))
 		    {	
+		      found = 1;
 		      log_query(F_IPV4 | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					      daemon->auth_ttl, NULL,
@@ -344,26 +345,16 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  soa = 1; /* inhibits auth section */
 	  found = 1;
 	  log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<SOA>");
-	  if (add_resource_record(header, limit, &trunc, 0, &ansp, 
-				  daemon->auth_ttl, NULL, T_SOA, C_IN, "ddlllll",
-				  zone->domain, daemon->authserver,  daemon->hostmaster,
-				  daemon->soa_sn, daemon->soa_refresh, 
-				  daemon->soa_retry, daemon->soa_expiry, 
-				  daemon->auth_ttl))
-	    anscount++;
 	}
       
       if (qtype == T_NS && namelen == domainlen)
 	{
-	  soa = 1; /* inhibits auth section */
+	  ns = 1; /* inhibits auth section */
 	  found = 1;
 	  log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<NS>"); 
-	  if (add_resource_record(header, limit, &trunc, 0, &ansp, 
-				  daemon->auth_ttl, NULL, T_NS, C_IN, "d", zone->domain, daemon->authserver))
-	    anscount++;
 	}
       
-
+      
       if (!option_bool(OPT_DHCP_FQDN) && namelen > domainlen + 1)
 	{	  
 	  name[namelen - domainlen - 1] = 0; /* remove domain part */
@@ -413,23 +404,72 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	log_query(flag | F_NEG | (nxdomain ? F_NXDOMAIN : 0) | F_FORWARD | F_AUTH, name, NULL, NULL);
       
     }
-
+  
   /* Add auth section */
-  if (auth && !soa)
+  if (auth)
     {
-      if (anscount != 0 && add_resource_record(header, limit, &trunc, 0, &ansp, 
-					       daemon->auth_ttl, NULL, T_NS, C_IN, "d", zone->domain, daemon->authserver))
-	authcount++;
-
-      if (anscount == 0 && add_resource_record(header, limit, &trunc, 0, &ansp, 
-					       daemon->auth_ttl, NULL, T_SOA, C_IN, "ddlllll",
-					       zone->domain, daemon->authserver,  daemon->hostmaster,
-					       daemon->soa_sn, daemon->soa_refresh, 
-					       daemon->soa_retry, daemon->soa_expiry, 
-					       daemon->auth_ttl))
-	authcount++;
+      if (!subnet)
+	name = zone->domain;
+      else
+	{
+	  /* handle NS and SOA for PTR records */
+	  if (!subnet->is6)
+	    {
+	      in_addr_t a = ntohl(subnet->addr4.s_addr) >> 8;
+	      char *p = name;
+	      
+	      if (subnet->prefixlen == 24)
+		p += sprintf(p, "%d.", a & 0xff);
+	      a = a >> 8;
+	      if (subnet->prefixlen != 8)
+		p += sprintf(p, "%d.", a & 0xff);
+	      a = a >> 8;
+	      p += sprintf(p, "%d.in-addr.arpa", a & 0xff);
+	      
+	    }
+#ifdef HAVE_IPV6
+	  else
+	    {
+	      char *p = name;
+	      int i;
+	      
+	      for (i = subnet->prefixlen-1; i >= 0; i -= 4)
+		{ 
+		  int dig = ((unsigned char *)&subnet->addr6)[i>>3];
+		  p += sprintf(p, "%.1x.", (i>>2) & 1 ? dig & 15 : dig >> 4);
+		}
+	      p += sprintf(p, "ip6.arpa");
+	      
+	    }
+#endif
+	}
+      
+      /* handle NS and SOA in auth section or for explicit queries */
+      if ((anscount != 0 || ns) && 
+	  add_resource_record(header, limit, &trunc, 0, &ansp, 
+			      daemon->auth_ttl, NULL, T_NS, C_IN, "d", name, daemon->authserver))
+	{
+	  if (ns) 
+	    anscount++;
+	  else
+	    authcount++;
+	}
+      
+      if ((anscount == 0 || soa) &&
+	  add_resource_record(header, limit, &trunc, 0, &ansp, 
+			      daemon->auth_ttl, NULL, T_SOA, C_IN, "ddlllll",
+			      name, daemon->authserver,  daemon->hostmaster,
+			      daemon->soa_sn, daemon->soa_refresh, 
+			      daemon->soa_retry, daemon->soa_expiry, 
+			      daemon->auth_ttl))
+	{
+	  if (soa)
+	    anscount++;
+	  else
+	    authcount++;
+	}
     }
-    
+  
   /* done all questions, set up header and return length of result */
   /* clear authoritative and truncated flags, set QR flag */
   header->hb3 = (header->hb3 & ~(HB3_AA | HB3_TC)) | HB3_QR;
