@@ -1248,14 +1248,14 @@ char *record_source(int index)
   return "<unknown>";
 }
 
-void querystr(char *str, unsigned short type)
+void querystr(char *desc, char *str, unsigned short type)
 {
   unsigned int i;
   
-  sprintf(str, "query[type=%d]", type); 
+  sprintf(str, "%s[type=%d]", desc, type); 
   for (i = 0; i < (sizeof(typestr)/sizeof(typestr[0])); i++)
     if (typestr[i].type == type)
-      sprintf(str,"query[%s]", typestr[i].name);
+      sprintf(str,"%s[%s]", desc, typestr[i].name);
 }
 
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
@@ -1316,6 +1316,8 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
     source = arg;
   else if (flags & F_UPSTREAM)
     source = "reply";
+  else if (flags & F_AUTH)
+    source = "auth";
   else if (flags & F_SERVER)
     {
       source = "forwarded";

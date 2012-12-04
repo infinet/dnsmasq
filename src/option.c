@@ -121,6 +121,10 @@ struct myoption {
 #define LOPT_RR        310
 #define LOPT_CLVERBIND 311
 #define LOPT_MAXCTTL   312
+#define LOPT_AUTHZONE  313
+#define LOPT_AUTHSERV  314
+#define LOPT_AUTHTTL  315
+#define LOPT_AUTHSOA   316
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -247,6 +251,10 @@ static const struct myoption opts[] =
     { "dhcp-duid", 1, 0, LOPT_DUID },
     { "host-record", 1, 0, LOPT_HOST_REC },
     { "bind-dynamic", 0, 0, LOPT_CLVERBIND },
+    { "auth-zone", 1, 0, LOPT_AUTHZONE },
+    { "auth-server", 1, 0, LOPT_AUTHSERV },
+    { "auth-ttl", 1, 0, LOPT_AUTHTTL },
+    { "auth-soa", 1, 0, LOPT_AUTHSOA },
     { NULL, 0, 0, 0 }
   };
 
@@ -378,7 +386,11 @@ static struct {
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
-  { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL},
+  { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL },
+  { LOPT_AUTHSERV, ARG_ONE, "<NS>,<interface>", gettext_noop("Export local names to global DNS"), NULL },
+  { LOPT_AUTHZONE, ARG_DUP, "<domain>,<subnet>[,<subnet>]", gettext_noop("Domain to export to global DNS"), NULL },
+  { LOPT_AUTHTTL, ARG_ONE, "<integer>", gettext_noop("Set TTL for authoritative replies"), NULL },
+  { LOPT_AUTHSOA, ARG_ONE, "<serial>[,...]", gettext_noop("Set authoritive zone information"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -1521,6 +1533,99 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	break;
       }
       
+    case LOPT_AUTHSERV: /* --auth-server */
+      if (!(comma = split(arg)))
+	ret_err(gen_err);
+      
+      daemon->authserver = opt_string_alloc(arg);
+      daemon->authinterface = opt_string_alloc(comma);
+      
+      break;
+      
+    case LOPT_AUTHZONE: /* --auth-zone */
+      {
+	struct auth_zone *new;
+	
+	comma = split(arg);
+	if (!comma)
+	  ret_err(gen_err);
+	
+	new = safe_malloc(sizeof(struct auth_zone));
+	new->domain = opt_string_alloc(arg);
+	new->subnet = NULL;
+	new->next = daemon->auth_zones;
+	daemon->auth_zones = new;
+
+	while ((arg = comma))
+	  {
+	    int prefixlen = 0;
+	    char *prefix;
+	    struct subnet *subnet =  safe_malloc(sizeof(struct subnet));
+	    
+	    subnet->next = new->subnet;
+	    new->subnet = subnet;
+
+	    comma = split(arg);
+	    prefix = split_chr(arg, '/');
+	    
+	    if (prefix && !atoi_check(prefix, &prefixlen))
+	      ret_err(gen_err);
+	    
+	    if (inet_pton(AF_INET, arg, &subnet->addr4))
+	      {
+		if ((prefixlen & 0x07) != 0 || prefixlen > 24)
+		  ret_err(_("bad prefix"));
+		subnet->prefixlen = (prefixlen == 0) ? 24 : prefixlen;
+		subnet->is6 = 0;
+	      }
+#ifdef HAVE_IPV6
+	    else if (inet_pton(AF_INET6, arg, &subnet->addr6))
+	      {
+		subnet->prefixlen = (prefixlen == 0) ? 64 : prefixlen;
+		subnet->is6 = 1;
+	      }
+#endif
+	    else
+	        ret_err(gen_err);
+	  }
+	break;
+      }
+
+    case  LOPT_AUTHSOA: /* --auth-soa */
+      comma = split(arg);
+      atoi_check(arg, (int *)&daemon->soa_sn);
+      if (comma)
+	{
+	  char *cp;
+	  arg = comma;
+	  comma = split(arg);
+	  daemon->hostmaster = opt_string_alloc(arg);
+	  for (cp = daemon->hostmaster; *cp; cp++)
+	    if (*cp == '@')
+	      *cp = '.';
+
+	  if (comma)
+	    {
+	      arg = comma;
+	      comma = split(arg); 
+	      atoi_check(arg, (int *)&daemon->soa_refresh);
+	      if (comma)
+		{
+		  arg = comma;
+		  comma = split(arg); 
+		  atoi_check(arg, (int *)&daemon->soa_retry);
+		  if (comma)
+		    {
+		      arg = comma;
+		      comma = split(arg); 
+		      atoi_check(arg, (int *)&daemon->soa_expiry);
+		    }
+		}
+	    }
+	}
+
+      break;
+
     case 's': /* --domain */
       if (strcmp (arg, "#") == 0)
 	set_option_bool(OPT_RESOLV_DOMAIN);
@@ -1933,6 +2038,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_NEGTTL: /* --neg-ttl */
     case LOPT_MAXTTL: /* --max-ttl */
     case LOPT_MAXCTTL: /* --max-cache-ttl */
+    case LOPT_AUTHTTL: /* --auth-ttl */
       {
 	int ttl;
 	if (!atoi_check(arg, &ttl))
@@ -1943,6 +2049,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  daemon->max_ttl = (unsigned long)ttl;
 	else if (option == LOPT_MAXCTTL)
 	  daemon->max_cache_ttl = (unsigned long)ttl;
+	else if (option == LOPT_AUTHTTL)
+	  daemon->auth_ttl = (unsigned long)ttl;
 	else
 	  daemon->local_ttl = (unsigned long)ttl;
 	break;
@@ -3613,6 +3721,10 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->tftp_max = TFTP_MAX_CONNECTIONS;
   daemon->edns_pktsz = EDNS_PKTSZ;
   daemon->log_fac = -1;
+  daemon->auth_ttl = AUTH_TTL; 
+  daemon->soa_refresh = SOA_REFRESH;
+  daemon->soa_retry = SOA_RETRY;
+  daemon->soa_expiry = SOA_EXPIRY;
   add_txt("version.bind", "dnsmasq-" VERSION );
   add_txt("authors.bind", "Simon Kelley");
   add_txt("copyright.bind", COPYRIGHT);
@@ -3720,7 +3832,15 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	  tmp->addr.in6.sin6_port = htons(daemon->port);
 #endif /* IPv6 */
     }
-		      
+	
+  /* create default, if not specified */
+  if (daemon->authserver && !daemon->hostmaster)
+    {
+      strcpy(buff, "hostmaster.");
+      strcat(buff, daemon->authserver);
+      daemon->hostmaster = opt_string_alloc(buff);
+    }
+  
   /* only one of these need be specified: the other defaults to the host-name */
   if (option_bool(OPT_LOCALMX) || daemon->mxnames || daemon->mxtarget)
     {

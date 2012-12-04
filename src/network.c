@@ -107,13 +107,24 @@ int indextoname(int fd, int index, char *name)
 
 #endif
 
-int iface_check(int family, struct all_addr *addr, char *name)
+int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 {
   struct iname *tmp;
   int ret = 1;
 
   /* Note: have to check all and not bail out early, so that we set the
      "used" flags. */
+
+  if (auth)
+    {
+      if (daemon->authinterface && strcmp(daemon->authinterface, name) == 0)
+	{
+	  *auth = 1;
+	  return 1;
+	}
+      else 
+	*auth = 0;
+    }	
   
   if (daemon->if_names || daemon->if_addrs)
     {
@@ -153,6 +164,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
   struct ifreq ifr;
   int tftp_ok = !!option_bool(OPT_TFTP);
   int dhcp_ok = 1;
+  int auth_dns = 0;
 #ifdef HAVE_DHCP
   struct iname *tmp;
 #endif
@@ -210,25 +222,31 @@ static int iface_allowed(struct irec **irecp, int if_index,
     }
   
   if (addr->sa.sa_family == AF_INET &&
-      !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name))
+      !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name, &auth_dns))
     return 1;
-  
-#ifdef HAVE_DHCP
-  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
-      {
-	tftp_ok = 0;
-	dhcp_ok = 0;
-      }
-#endif
-  
+
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family == AF_INET6 &&
-      !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name))
+      !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name, &auth_dns))
     return 1;
 #endif
-  
-
+    
+#ifdef HAVE_DHCP
+  /* No DHCP where we're doing auth DNS. */
+  if (auth_dns)
+    {
+      tftp_ok = 0;
+      dhcp_ok = 0;
+    }
+  else
+    for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+      if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+	{
+	  tftp_ok = 0;
+	  dhcp_ok = 0;
+	}
+#endif
+ 
   /* add to list */
   if ((iface = whine_malloc(sizeof(struct irec))))
     {
@@ -236,6 +254,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
       iface->netmask = netmask;
       iface->tftp_ok = tftp_ok;
       iface->dhcp_ok = dhcp_ok;
+      iface->dns_auth = auth_dns;
       iface->mtu = mtu;
       iface->dad = dad;
       iface->done = 0;

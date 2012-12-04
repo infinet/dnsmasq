@@ -262,7 +262,7 @@ void dhcp_packet(time_t now, int pxe_fd)
   parm.current = NULL;
   parm.ind = iface_index;
 
-  if (!iface_check(AF_INET, (struct all_addr *)&iface_addr, ifr.ifr_name))
+  if (!iface_check(AF_INET, (struct all_addr *)&iface_addr, ifr.ifr_name, NULL))
     {
       /* If we failed to match the primary address of the interface, see if we've got a --listen-address
 	 for a secondary */

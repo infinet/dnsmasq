@@ -366,7 +366,7 @@ static int join_multicast_worker(struct in6_addr *local, int prefix,
   close(fd);
 
   /* Are we doing DHCP on this interface? */
-  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name))
+  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name, NULL))
     return 1;
  
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)

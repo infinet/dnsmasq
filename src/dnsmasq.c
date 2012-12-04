@@ -84,6 +84,7 @@ int main (int argc, char **argv)
 
   daemon->addrbuff = safe_malloc(ADDRSTRLEN);
 
+
 #ifdef HAVE_DHCP
   if (!daemon->lease_file)
     {
@@ -150,6 +151,14 @@ int main (int argc, char **argv)
   rand_init();
   
   now = dnsmasq_time();
+
+  /* Create a serial at startup is not configured. */
+  if (daemon->authinterface && daemon->soa_sn == 0)
+#ifdef HAVE_BROKEN_RTC
+    die(_("zone serial must be configured in --auth-soa"));
+#else
+  daemon->soa_sn = now;
+#endif
   
 #ifdef HAVE_DHCP
   if (daemon->dhcp || daemon->dhcp6)
@@ -1440,11 +1449,18 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      struct server *s; 
 	      int flags;
 	      struct in_addr netmask;
+	      int auth_dns;
 
 	      if (iface)
-		netmask = iface->netmask;
+		{
+		  netmask = iface->netmask;
+		  auth_dns = iface->dns_auth;
+		}
 	      else
-		netmask.s_addr = 0;
+		{
+		  netmask.s_addr = 0;
+		  auth_dns = 0;
+		}
 
 #ifndef NO_FORK
 	      /* Arrange for SIGALARM after CHILD_LIFETIME seconds to
@@ -1463,7 +1479,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	      if ((flags = fcntl(confd, F_GETFL, 0)) != -1)
 		fcntl(confd, F_SETFL, flags & ~O_NONBLOCK);
 	      
-	      buff = tcp_request(confd, now, &tcp_addr, netmask);
+	      buff = tcp_request(confd, now, &tcp_addr, netmask, auth_dns);
 	       
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);
