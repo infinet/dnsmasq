@@ -490,6 +490,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
     SET_RCODE(header, NOERROR); /* no error */
   header->ancount = htons(anscount);
   header->nscount = htons(authcount);
+  header->arcount = htons(0);
   return ansp - (unsigned char *)header;
 }
   
