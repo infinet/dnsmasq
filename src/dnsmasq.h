@@ -870,6 +870,7 @@ struct in_addr a_record_from_hosts(char *name, time_t now);
 void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
 char *cache_get_name(struct crec *crecp);
+struct crec *cache_enumerate(int init);
 char *get_domain(struct in_addr addr);
 #ifdef HAVE_IPV6
 char *get_domain6(struct in6_addr *addr);
@@ -899,7 +900,7 @@ size_t resize_packet(struct dns_header *header, size_t plen,
 		  unsigned char *pheader, size_t hlen);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 int add_resource_record(struct dns_header *header, char *limit, int *truncp,
-			unsigned int nameoffset, unsigned char **pp, unsigned long ttl, 
+			int nameoffset, unsigned char **pp, unsigned long ttl, 
 			unsigned int *offset, unsigned short type, unsigned short class, char *format, ...);
 unsigned char *skip_questions(struct dns_header *header, size_t plen);
 int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 

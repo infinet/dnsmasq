@@ -1185,7 +1185,7 @@ int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name,
   return 0;
 }
 
-int add_resource_record(struct dns_header *header, char *limit, int *truncp, unsigned int nameoffset, unsigned char **pp, 
+int add_resource_record(struct dns_header *header, char *limit, int *truncp, int nameoffset, unsigned char **pp, 
 			unsigned long ttl, unsigned int *offset, unsigned short type, unsigned short class, char *format, ...)
 {
   va_list ap;
@@ -1200,14 +1200,19 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, uns
  
   va_start(ap, format);   /* make ap point to 1st unamed argument */
   
-  if (nameoffset != 0)
+  if (nameoffset > 0)
     {
       PUTSHORT(nameoffset | 0xc000, p);
     }
   else
     {
       p = do_rfc1035_name(p, va_arg(ap, char *));
-      *p++ = 0;
+      if (nameoffset < 0)
+	{
+	  PUTSHORT(-nameoffset | 0xc000, p);
+	}
+      else
+	*p++ = 0;
     }
 
   PUTSHORT(type, p);
@@ -1312,7 +1317,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   unsigned char *p, *ansp, *pheader;
   int qtype, qclass;
   struct all_addr addr;
-  unsigned int nameoffset;
+  int nameoffset;
   unsigned short flag;
   int q, ans, anscount = 0, addncount = 0;
   int dryrun = 0, sec_reqd = 0;

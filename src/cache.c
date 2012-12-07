@@ -235,6 +235,29 @@ char *cache_get_name(struct crec *crecp)
   return crecp->name.sname;
 }
 
+struct crec *cache_enumerate(int init)
+{
+  static int bucket;
+  static struct crec *cache;
+
+  if (init)
+    {
+      bucket = 0;
+      cache = NULL;
+    }
+  else if (cache && cache->hash_next)
+    cache = cache->hash_next;
+  else
+    {
+       cache = NULL; 
+       while (bucket < hash_size)
+	 if ((cache = hash_table[bucket++]))
+	   break;
+    }
+  
+  return cache;
+}
+
 static int is_outdated_cname_pointer(struct crec *crecp)
 {
   if (!(crecp->flags & F_CNAME))

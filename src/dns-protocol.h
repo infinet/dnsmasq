@@ -52,6 +52,7 @@
 #define T_OPT		41
 #define	T_TKEY		249		
 #define	T_TSIG		250
+#define T_AXFR          252
 #define T_MAILB		253	
 #define T_ANY		255
 
