@@ -1,3 +1,8 @@
+version 2.65
+	    Fix regression which broke forwarding of queries sent via
+	    TCP which are not for A and AAAA and which were directed to
+	    non-default servers. Thanks to Niax for the bug report.
+
 version 2.64
             Handle DHCP FQDN options with all flag bits zero and
             --dhcp-client-update set. Thanks to Bernd Krumbroeck for

@@ -849,7 +849,8 @@ unsigned char *tcp_request(int confd, time_t now,
   int norebind = 0;
   int checking_disabled;
   size_t m;
-  unsigned short qtype, gotname;
+  unsigned short qtype;
+  unsigned int gotname;
   unsigned char c1, c2;
   /* Max TCP packet + slop */
   unsigned char *packet = whine_malloc(65536 + MAXDNAME + RRFIXEDSZ);
