@@ -123,8 +123,9 @@ struct myoption {
 #define LOPT_MAXCTTL   312
 #define LOPT_AUTHZONE  313
 #define LOPT_AUTHSERV  314
-#define LOPT_AUTHTTL  315
+#define LOPT_AUTHTTL   315
 #define LOPT_AUTHSOA   316
+#define LOPT_AUTHSFS   317
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -255,6 +256,7 @@ static const struct myoption opts[] =
     { "auth-server", 1, 0, LOPT_AUTHSERV },
     { "auth-ttl", 1, 0, LOPT_AUTHTTL },
     { "auth-soa", 1, 0, LOPT_AUTHSOA },
+    { "auth-sec-servers", 1, 0, LOPT_AUTHSFS },
     { NULL, 0, 0, 0 }
   };
 
@@ -391,6 +393,7 @@ static struct {
   { LOPT_AUTHZONE, ARG_DUP, "<domain>,<subnet>[,<subnet>]", gettext_noop("Domain to export to global DNS"), NULL },
   { LOPT_AUTHTTL, ARG_ONE, "<integer>", gettext_noop("Set TTL for authoritative replies"), NULL },
   { LOPT_AUTHSOA, ARG_ONE, "<serial>[,...]", gettext_noop("Set authoritive zone information"), NULL },
+  { LOPT_AUTHSFS, ARG_ONE, "<NS>[,<NS>...]", gettext_noop("Secondary authoritative nameservers for forward domains"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -1525,7 +1528,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    new->next = daemon->dhcp_hosts_file;
 	    daemon->dhcp_hosts_file = new;
 	  }
-	else if (option ==  LOPT_DHCP_OPTS)
+	else if (option == LOPT_DHCP_OPTS)
 	  {
 	    new->next = daemon->dhcp_opts_file;
 	    daemon->dhcp_opts_file = new;
@@ -1541,7 +1544,22 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       daemon->authinterface = opt_string_alloc(comma);
       
       break;
-      
+
+    case LOPT_AUTHSFS: /* --auth-sec-servers */
+      {
+	struct name_list *new;
+
+	do {
+	  comma = split(arg);
+	  new = safe_malloc(sizeof(struct name_list));
+	  new->name = opt_string_alloc(arg);
+	  new->next = daemon->secondary_forward_server;
+	  daemon->secondary_forward_server = new;
+	  arg = comma;
+	} while (arg);
+	break;
+      }
+	
     case LOPT_AUTHZONE: /* --auth-zone */
       {
 	struct auth_zone *new;

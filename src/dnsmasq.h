@@ -756,6 +756,7 @@ extern struct daemon {
   char *username, *groupname, *scriptuser;
   char *luascript;
   char *authserver, *authinterface, *hostmaster;
+  struct name_list *secondary_forward_server;
   int group_set, osport;
   char *domain_suffix;
   struct cond_domain *cond_domain;
@@ -901,7 +902,7 @@ size_t resize_packet(struct dns_header *header, size_t plen,
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 int add_resource_record(struct dns_header *header, char *limit, int *truncp,
 			int nameoffset, unsigned char **pp, unsigned long ttl, 
-			unsigned int *offset, unsigned short type, unsigned short class, char *format, ...);
+			int *offset, unsigned short type, unsigned short class, char *format, ...);
 unsigned char *skip_questions(struct dns_header *header, size_t plen);
 int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
 		 char *name, int isExtract, int extrabytes);

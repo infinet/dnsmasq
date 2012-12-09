@@ -420,6 +420,9 @@ void lease_update_dns(int force)
 
   if (daemon->port != 0 && (dns_dirty || force))
     {
+      /* force transfer to authoritative secondaries */
+      daemon->soa_sn++;
+      
       cache_unhash_dhcp();
 
       for (lease = leases; lease; lease = lease->next)

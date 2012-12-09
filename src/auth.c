@@ -84,7 +84,13 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   struct auth_zone *zone = NULL;
   struct subnet *subnet = NULL;
   char *cut;
-
+  struct mx_srv_record *rec, *move, **up;
+  struct txt_record *txt;
+  struct interface_name *intr;
+  struct naptr *na;
+  struct all_addr addr;
+  struct cname *a;
+  
   if (ntohs(header->qdcount) == 0 || OPCODE(header) != QUERY )
     return 0;
   
@@ -99,13 +105,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
     {
       unsigned short flag = 0;
       int found = 0;
-      struct mx_srv_record *rec, *move, **up;
-      struct txt_record *txt;
-      struct interface_name *intr;
-      struct naptr *na;
-      struct all_addr addr;
-      struct cname *a;
-
+  
       /* save pointer to name for copying into answers */
       nameoffset = p - (unsigned char *)header;
 
@@ -345,29 +345,32 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	flag = F_IPV6;
 #endif
 
-      if (qtype == T_SOA && !cut)
+      if (!cut)
 	{
-	  soa = 1; /* inhibits auth section */
-	  found = 1;
-	  log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<SOA>");
+	  nxdomain = 0;
+	  
+	  if (qtype == T_SOA)
+	    {
+	      soa = 1; /* inhibits auth section */
+	      found = 1;
+	      log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<SOA>");
+	    }
+      	  else if (qtype == T_AXFR)
+	    {
+	      soa = 1; /* inhibits auth section */
+	      ns = 1; /* ensure we include NS records! */
+	      axfr = 1;
+	      found = 1;
+	      axfroffset = nameoffset;
+	      log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<AXFR>");
+	    }
+      	  else if (qtype == T_NS)
+	    {
+	      ns = 1; /* inhibits auth section */
+	      found = 1;
+	      log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<NS>"); 
+	    }
 	}
-      
-      if (qtype == T_AXFR && !cut)
-	{
-	  soa = 1; /* inhibits auth section */
-	  axfr = 1;
-	  found = 1;
-	  axfroffset = nameoffset;
-	  log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<AXFR>");
-	}
-      
-      if (qtype == T_NS && !cut)
-	{
-	  ns = 1; /* inhibits auth section */
-	  found = 1;
-	  log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<NS>"); 
-	}
-      
       
       if (!option_bool(OPT_DHCP_FQDN) && cut)
 	{	  
@@ -423,7 +426,8 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   if (auth)
     {
       char *authname;
-      
+      int newoffset, offset = 0;
+
       if (!subnet)
 	authname = zone->domain;
       else
@@ -464,17 +468,8 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	}
       
       /* handle NS and SOA in auth section or for explicit queries */
-      if ((anscount != 0 || ns) && 
-	  add_resource_record(header, limit, &trunc, 0, &ansp, 
-			      daemon->auth_ttl, NULL, T_NS, C_IN, "d", authname, daemon->authserver))
-	{
-	  if (ns) 
-	    anscount++;
-	  else
-	    authcount++;
-	}
-      
-      if ((anscount == 0 || soa) &&
+       newoffset = ansp - (unsigned char *)header;
+       if (((anscount == 0 && !ns) || soa) &&
 	  add_resource_record(header, limit, &trunc, 0, &ansp, 
 			      daemon->auth_ttl, NULL, T_SOA, C_IN, "ddlllll",
 			      authname, daemon->authserver,  daemon->hostmaster,
@@ -482,14 +477,149 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 			      daemon->soa_retry, daemon->soa_expiry, 
 			      daemon->auth_ttl))
 	{
+	  offset = newoffset;
 	  if (soa)
 	    anscount++;
 	  else
 	    authcount++;
 	}
+      
+      if (anscount != 0 || ns)
+	{
+	  struct name_list *secondary;
+	  
+	  newoffset = ansp - (unsigned char *)header;
+	  if (add_resource_record(header, limit, &trunc, -offset, &ansp, 
+				  daemon->auth_ttl, NULL, T_NS, C_IN, "d", offset == 0 ? authname : NULL, daemon->authserver))
+	    {
+	      if (offset == 0) 
+		offset = newoffset;
+	      if (ns) 
+		anscount++;
+	      else
+		authcount++;
+	    }
 
+	  if (!subnet)
+	    for (secondary = daemon->secondary_forward_server; secondary; secondary = secondary->next)
+	      if (add_resource_record(header, limit, &trunc, offset, &ansp, 
+				      daemon->auth_ttl, NULL, T_NS, C_IN, "d", secondary->name))
+		{
+		  if (ns) 
+		    anscount++;
+		  else
+		    authcount++;
+		}
+	}
+      
       if (axfr)
 	{
+	  for (rec = daemon->mxnames; rec; rec = rec->next)
+	    if (in_zone(zone, rec->name, &cut))
+	      {
+		if (cut)
+		   *cut = 0;
+
+		if (rec->issrv)
+		  {
+		    if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, daemon->auth_ttl,
+					    NULL, T_SRV, C_IN, "sssd", cut ? rec->name : NULL,
+					    rec->priority, rec->weight, rec->srvport, rec->target))
+		      
+		      anscount++;
+		  }
+		else
+		  {
+		    if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, daemon->auth_ttl,
+					    NULL, T_MX, C_IN, "sd", cut ? rec->name : NULL, rec->weight, rec->target))
+		      anscount++;
+		  }
+		
+		/* restore config data */
+		if (cut)
+		  *cut = '.';
+	      }
+	      
+	  for (txt = daemon->rr; txt; txt = txt->next)
+	    if (in_zone(zone, txt->name, &cut))
+	      {
+		if (cut)
+		  *cut = 0;
+		
+		if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, daemon->auth_ttl,
+					NULL, txt->class, C_IN, "t",  cut ? txt->name : NULL, txt->len, txt->txt))
+		  anscount++;
+		
+		/* restore config data */
+		if (cut)
+		  *cut = '.';
+	      }
+	  
+	  for (txt = daemon->txt; txt; txt = txt->next)
+	    if (txt->class == C_IN && in_zone(zone, txt->name, &cut))
+	      {
+		if (cut)
+		  *cut = 0;
+		
+		if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, daemon->auth_ttl,
+					NULL, T_TXT, C_IN, "t", cut ? txt->name : NULL, txt->len, txt->txt))
+		  anscount++;
+		
+		/* restore config data */
+		if (cut)
+		  *cut = '.';
+	      }
+	  
+	  for (na = daemon->naptr; na; na = na->next)
+	    if (in_zone(zone, na->name, &cut))
+	      {
+		if (cut)
+		  *cut = 0;
+		
+		if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, daemon->auth_ttl, 
+					NULL, T_NAPTR, C_IN, "sszzzd", cut ? na->name : NULL,
+					na->order, na->pref, na->flags, na->services, na->regexp, na->replace))
+		  anscount++;
+		
+		/* restore config data */
+		if (cut)
+		  *cut = '.'; 
+	      }
+	  
+	  for (intr = daemon->int_names; intr; intr = intr->next)
+	    if (in_zone(zone, intr->name, &cut) && (addr.addr.addr4 = get_ifaddr(intr->intr)).s_addr != (in_addr_t) -1)
+	      {
+		if (cut)
+		  *cut = 0;
+		
+		if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
+					daemon->auth_ttl, NULL, T_A, C_IN, "4", cut ? intr->name : NULL, &addr))
+		  anscount++;
+		
+		/* restore config data */
+		if (cut)
+		  *cut = '.'; 
+	      }
+	  
+	  for (a = daemon->cnames; a; a = a->next)
+	    if (in_zone(zone, a->alias, &cut))
+	      {
+		strcpy(name, a->target);
+		if (!strchr(name, '.'))
+		  {
+		    strcat(name, ".");
+		    strcat(name, zone->domain);
+		  }
+		
+		if (cut)
+		  *cut = 0;
+		
+		if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
+					daemon->auth_ttl, NULL,
+					T_CNAME, C_IN, "d",  cut ? a->alias : NULL, name))
+		  anscount++;
+	      }
+	
 	  cache_enumerate(1);
 	  while ((crecp = cache_enumerate(0)))
 	    {
@@ -525,20 +655,12 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 			    qtype = T_AAAA;
 #endif
 			   if (cut)
-			     {
-			       *cut = 0;
-			       if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
-						       daemon->auth_ttl, NULL, qtype, C_IN, 
-						       (crecp->flags & F_IPV4) ? "4" : "6", name, &crecp->addr))
-				 anscount++;
-			     }
-			   else
-			     {
-			       if (add_resource_record(header, limit, &trunc, axfroffset, &ansp, 
-						       daemon->auth_ttl, NULL, qtype, C_IN, 
-						       (crecp->flags & F_IPV4) ? "4" : "6", &crecp->addr))
-				 anscount++;  
-			     }
+			     *cut = 0;
+
+			   if (add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
+						   daemon->auth_ttl, NULL, qtype, C_IN, 
+						   (crecp->flags & F_IPV4) ? "4" : "6", cut ? name : NULL, &crecp->addr))
+			     anscount++;
 			}
 		    }
 		}
@@ -555,7 +677,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	
 	}
   
-    }
+}
   
   /* done all questions, set up header and return length of result */
   /* clear authoritative and truncated flags, set QR flag */

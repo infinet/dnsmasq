@@ -1186,7 +1186,7 @@ int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name,
 }
 
 int add_resource_record(struct dns_header *header, char *limit, int *truncp, int nameoffset, unsigned char **pp, 
-			unsigned long ttl, unsigned int *offset, unsigned short type, unsigned short class, char *format, ...)
+			unsigned long ttl, int *offset, unsigned short type, unsigned short class, char *format, ...)
 {
   va_list ap;
   unsigned char *sav, *p = *pp;
@@ -1206,7 +1206,9 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
     }
   else
     {
-      p = do_rfc1035_name(p, va_arg(ap, char *));
+      char *name = va_arg(ap, char *);
+      if (name)
+	p = do_rfc1035_name(p, name);
       if (nameoffset < 0)
 	{
 	  PUTSHORT(-nameoffset | 0xc000, p);
@@ -1699,7 +1701,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		  ans = found = 1;
 		  if (!dryrun)
 		    {
-		      unsigned int offset;
+		      int offset;
 		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<MX>");
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl,
 					      &offset, T_MX, C_IN, "sd", rec->weight, rec->target))
@@ -1737,7 +1739,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    found = ans = 1;
 		    if (!dryrun)
 		      {
-			unsigned int offset;
+			int offset;
 			log_query(F_CONFIG | F_RRNAME, name, NULL, "<SRV>");
 			if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, daemon->local_ttl, 
 						&offset, T_SRV, C_IN, "sssd", 
