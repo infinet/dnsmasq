@@ -420,8 +420,10 @@ void lease_update_dns(int force)
 
   if (daemon->port != 0 && (dns_dirty || force))
     {
+#ifndef HAVE_BROKEN_RTC
       /* force transfer to authoritative secondaries */
       daemon->soa_sn++;
+#endif
       
       cache_unhash_dhcp();
 
