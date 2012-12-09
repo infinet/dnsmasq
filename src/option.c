@@ -126,6 +126,7 @@ struct myoption {
 #define LOPT_AUTHTTL   315
 #define LOPT_AUTHSOA   316
 #define LOPT_AUTHSFS   317
+#define LOPT_AUTHPEER  318
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -257,6 +258,7 @@ static const struct myoption opts[] =
     { "auth-ttl", 1, 0, LOPT_AUTHTTL },
     { "auth-soa", 1, 0, LOPT_AUTHSOA },
     { "auth-sec-servers", 1, 0, LOPT_AUTHSFS },
+    { "auth-peer", 1, 0, LOPT_AUTHPEER }, 
     { NULL, 0, 0, 0 }
   };
 
@@ -393,7 +395,8 @@ static struct {
   { LOPT_AUTHZONE, ARG_DUP, "<domain>,<subnet>[,<subnet>]", gettext_noop("Domain to export to global DNS"), NULL },
   { LOPT_AUTHTTL, ARG_ONE, "<integer>", gettext_noop("Set TTL for authoritative replies"), NULL },
   { LOPT_AUTHSOA, ARG_ONE, "<serial>[,...]", gettext_noop("Set authoritive zone information"), NULL },
-  { LOPT_AUTHSFS, ARG_ONE, "<NS>[,<NS>...]", gettext_noop("Secondary authoritative nameservers for forward domains"), NULL },
+  { LOPT_AUTHSFS, ARG_DUP, "<NS>[,<NS>...]", gettext_noop("Secondary authoritative nameservers for forward domains"), NULL },
+  { LOPT_AUTHPEER, ARG_DUP, "<ipaddr>[,<ipaddr>...]", gettext_noop("Peers which are allowed to do zone transfer"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -1871,14 +1874,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       }
       
     case 'a':  /* --listen-address */
+    case LOPT_AUTHPEER: /* --auth-peer */
       do {
 	struct iname *new = opt_malloc(sizeof(struct iname));
 	comma = split(arg);
 	unhide_metas(arg);
-	new->next = daemon->if_addrs;
 	if (arg && (new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
 	  {
 	    new->addr.sa.sa_family = AF_INET;
+	    new->addr.in.sin_port = 0;
 #ifdef HAVE_SOCKADDR_SA_LEN
 	    new->addr.in.sin_len = sizeof(new->addr.in);
 #endif
@@ -1889,6 +1893,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    new->addr.sa.sa_family = AF_INET6;
 	    new->addr.in6.sin6_flowinfo = 0;
 	    new->addr.in6.sin6_scope_id = 0;
+	    new->addr.in6.sin6_port = 0;
 #ifdef HAVE_SOCKADDR_SA_LEN
 	    new->addr.in6.sin6_len = sizeof(new->addr.in6);
 #endif
@@ -1898,7 +1903,16 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  ret_err(gen_err);
 
 	new->used = 0;
-	daemon->if_addrs = new;
+	if (option == 'a')
+	  {
+	    new->next = daemon->if_addrs;
+	    daemon->if_addrs = new;
+	  }
+	else
+	  {
+	    new->next = daemon->auth_peers;
+	    daemon->auth_peers = new;
+	  } 
 	arg = comma;
       } while (arg);
       break;

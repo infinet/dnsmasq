@@ -814,7 +814,7 @@ void receive_query(struct listener *listen, time_t now)
 
   if (auth_dns)
     {
-      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now);
+      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr);
       if (m >= 1)
 	send_from(listen->fd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND),
 		  (char *)header, m, &source_addr, &dst_addr, if_index);
@@ -904,7 +904,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	dst_addr_4.s_addr = 0;
       
       if (auth_dns)
-	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now);
+	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr);
       else
 	{
 	  /* m > 0 if answered from cache */
@@ -1043,7 +1043,8 @@ unsigned char *tcp_request(int confd, time_t now,
       
       c1 = m>>8;
       c2 = m;
-      if (!read_write(confd, &c1, 1, 0) ||
+      if (m == 0 ||
+	  !read_write(confd, &c1, 1, 0) ||
 	  !read_write(confd, &c2, 1, 0) || 
 	  !read_write(confd, packet, m, 0))
 	return packet;

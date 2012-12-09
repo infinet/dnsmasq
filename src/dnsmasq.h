@@ -762,7 +762,7 @@ extern struct daemon {
   struct cond_domain *cond_domain;
   char *runfile; 
   char *lease_change_command;
-  struct iname *if_names, *if_addrs, *if_except, *dhcp_except;
+  struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers;
   struct bogus_addr *bogus_addr;
   struct server *servers;
   int log_fac; /* log facility */
@@ -909,7 +909,7 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 int in_arpa_name_2_addr(char *namein, struct all_addr *addrp);
 
 /* auth.c */
-size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t now);
+size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t now, union mysockaddr *peer_addr);
 
 /* util.c */
 void rand_init(void);
