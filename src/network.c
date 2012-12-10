@@ -114,17 +114,9 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 
   /* Note: have to check all and not bail out early, so that we set the
      "used" flags. */
-
+  
   if (auth)
-    {
-      if (daemon->authinterface && strcmp(daemon->authinterface, name) == 0)
-	{
-	  *auth = 1;
-	  return 1;
-	}
-      else 
-	*auth = 0;
-    }	
+    *auth = 0;
   
   if (daemon->if_names || daemon->if_addrs)
     {
@@ -134,25 +126,48 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 	if (tmp->name && (strcmp(tmp->name, name) == 0))
 	  ret = tmp->used = 1;
 	        
-      for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
-	if (tmp->addr.sa.sa_family == family)
-	  {
-	    if (family == AF_INET &&
-		tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
-	      ret = tmp->used = 1;
+      if (addr)
+	for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
+	  if (tmp->addr.sa.sa_family == family)
+	    {
+	      if (family == AF_INET &&
+		  tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
+		ret = tmp->used = 1;
 #ifdef HAVE_IPV6
-	    else if (family == AF_INET6 &&
-		     IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, 
-					&addr->addr.addr6))
-	      ret = tmp->used = 1;
+	      else if (family == AF_INET6 &&
+		       IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, 
+					  &addr->addr.addr6))
+		ret = tmp->used = 1;
 #endif
-	  }          
+	    }          
     }
   
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
     if (tmp->name && (strcmp(tmp->name, name) == 0))
       ret = 0;
     
+
+  for (tmp = daemon->authinterface; tmp; tmp = tmp->next)
+    if (tmp->name)
+      {
+	if (strcmp(tmp->name, name) == 0)
+	  break;
+      }
+    else if (addr && tmp->addr.sa.sa_family == AF_INET && family == AF_INET &&
+	     tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
+      break;
+#ifdef HAVE_IPV6
+    else if (addr && tmp->addr.sa.sa_family == AF_INET6 && family == AF_INET6 &&
+	     IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, &addr->addr.addr6))
+      break;
+#endif      
+
+  if (tmp && auth) 
+    {
+      *auth = 1;
+      ret = 1;
+    }
+
   return ret; 
 }
       

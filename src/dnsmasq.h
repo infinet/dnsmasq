@@ -755,7 +755,8 @@ extern struct daemon {
   char *lease_file; 
   char *username, *groupname, *scriptuser;
   char *luascript;
-  char *authserver, *authinterface, *hostmaster;
+  char *authserver, *hostmaster;
+  struct iname *authinterface;
   struct name_list *secondary_forward_server;
   int group_set, osport;
   char *domain_suffix;

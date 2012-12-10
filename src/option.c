@@ -1544,8 +1544,27 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	ret_err(gen_err);
       
       daemon->authserver = opt_string_alloc(arg);
-      daemon->authinterface = opt_string_alloc(comma);
-      
+      arg = comma;
+      do {
+	struct iname *new = opt_malloc(sizeof(struct iname));
+	comma = split(arg);
+	new->name = NULL;
+	unhide_metas(arg);
+	if ((new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
+	  new->addr.sa.sa_family = AF_INET;
+#ifdef HAVE_IPV6
+	else if (inet_pton(AF_INET6, arg, &new->addr.in6.sin6_addr) > 0)
+	  new->addr.sa.sa_family = AF_INET6;
+#endif
+	else
+	  new->name = opt_string_alloc(arg);
+	
+	new->next = daemon->authinterface;
+	daemon->authinterface = new;
+	
+	arg = comma;
+      } while (arg);
+            
       break;
 
     case LOPT_AUTHSFS: /* --auth-sec-servers */
@@ -1554,7 +1573,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 
 	do {
 	  comma = split(arg);
-	  new = safe_malloc(sizeof(struct name_list));
+	  new = opt_malloc(sizeof(struct name_list));
 	  new->name = opt_string_alloc(arg);
 	  new->next = daemon->secondary_forward_server;
 	  daemon->secondary_forward_server = new;
@@ -1571,7 +1590,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	if (!comma)
 	  ret_err(gen_err);
 	
-	new = safe_malloc(sizeof(struct auth_zone));
+	new = opt_malloc(sizeof(struct auth_zone));
 	new->domain = opt_string_alloc(arg);
 	new->subnet = NULL;
 	new->next = daemon->auth_zones;
@@ -1581,7 +1600,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    int prefixlen = 0;
 	    char *prefix;
-	    struct subnet *subnet =  safe_malloc(sizeof(struct subnet));
+	    struct subnet *subnet =  opt_malloc(sizeof(struct subnet));
 	    
 	    subnet->next = new->subnet;
 	    new->subnet = subnet;
@@ -1660,7 +1679,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    {
 	      if (comma)
 		{
-		  struct cond_domain *new = safe_malloc(sizeof(struct cond_domain));
+		  struct cond_domain *new = opt_malloc(sizeof(struct cond_domain));
 		  char *netpart;
 
 		  unhide_metas(comma);
