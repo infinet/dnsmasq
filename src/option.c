@@ -623,24 +623,6 @@ static void do_usage(void)
 
 #define ret_err(x) do { strcpy(errstr, (x)); return 0; } while (0)
 
-#ifdef HAVE_DHCP
-
-static int is_tag_prefix(char *arg)
-{
-  if (arg && (strstr(arg, "net:") == arg || strstr(arg, "tag:") == arg))
-    return 1;
-  
-  return 0;
-}
-
-static char *set_prefix(char *arg)
-{
-   if (strstr(arg, "set:") == arg)
-     return arg+4;
-   
-   return arg;
-}
-
 char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_addr, char *interface, int *flags)
 {
   int source_port = 0, serv_port = NAMESERVER_PORT;
@@ -726,6 +708,24 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
     return _("bad address");
 
   return NULL;
+}
+
+#ifdef HAVE_DHCP
+
+static int is_tag_prefix(char *arg)
+{
+  if (arg && (strstr(arg, "net:") == arg || strstr(arg, "tag:") == arg))
+    return 1;
+  
+  return 0;
+}
+
+static char *set_prefix(char *arg)
+{
+   if (strstr(arg, "set:") == arg)
+     return arg+4;
+   
+   return arg;
 }
 
 /* This is too insanely large to keep in-line in the switch */
