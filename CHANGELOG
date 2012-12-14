@@ -5,6 +5,8 @@ version 2.65
 
 	    Fix failure to build with DHCP support excluded. Thanks to 
 	    Gustavo Zacarias for the patch.
+	    
+	    Fix nasty regression in 2.64 which completely broke cacheing.
 
 
 version 2.64
