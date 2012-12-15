@@ -117,7 +117,10 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
       GETSHORT(qclass, p);
       
       if (qclass != C_IN)
-	continue;
+	{
+	  auth = 0;
+	  continue;
+	}
 
       if (qtype == T_PTR)
 	{
