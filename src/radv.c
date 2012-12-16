@@ -102,11 +102,8 @@ void ra_start_unsolicted(time_t now, struct dhcp_context *context)
      context->ra_time = now;
   else
     for (context = daemon->dhcp6; context; context = context->next)
-      if (context->flags & CONTEXT_RA)
-	context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
-      else
-	context->ra_time = 0;
-  
+      context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
+        
    /* re-do frequently for a minute or so, in case the first gets lost. */
    ra_short_period_start = now;
 }

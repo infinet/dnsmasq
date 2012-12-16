@@ -596,7 +596,13 @@ void dhcp_construct_contexts(time_t now)
     }
   
   if (param.newone)
-    lease_update_file(now);
+    {
+      if (daemon->dhcp || daemon->doing_dhcp6)
+	lease_update_file(now);
+      else 
+	/* Not doing DHCP, so no lease system, manage alarms for ra only */
+	send_alarm(periodic_ra(now), now);
+    }
 }
       
 static int join_multicast_worker(struct in6_addr *local, int prefix, 
