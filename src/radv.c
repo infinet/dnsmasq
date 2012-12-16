@@ -97,15 +97,16 @@ void ra_start_unsolicted(time_t now, struct dhcp_context *context)
      if it's not appropriate to advertise those contexts.
      This gets re-called on a netlink route-change to re-do the advertisement
      and pick up new interfaces */
-
+  
   if (context)
-     context->ra_time = now;
+    context->ra_time = now;
   else
     for (context = daemon->dhcp6; context; context = context->next)
-      context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
-        
-   /* re-do frequently for a minute or so, in case the first gets lost. */
-   ra_short_period_start = now;
+      if (!(context->flags & CONTEXT_TEMPLATE))
+	context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
+  
+  /* re-do frequently for a minute or so, in case the first gets lost. */
+  ra_short_period_start = now;
 }
 
 void icmp6_packet(time_t now)
@@ -350,7 +351,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  struct dhcp_context *context;
 	  
 	  for (context = daemon->dhcp6; context; context = context->next)
-	    if (prefix == context->prefix &&
+	    if (!(context->flags & CONTEXT_TEMPLATE) &&
+		prefix == context->prefix &&
 		is_same_net6(local, &context->start6, prefix) &&
 		is_same_net6(local, &context->end6, prefix))
 	      {
@@ -536,35 +538,37 @@ static int iface_search(struct in6_addr *local,  int prefix,
   (void)valid;
  
   for (context = daemon->dhcp6; context; context = context->next)
-    if (prefix == context->prefix &&
+    if (!(context->flags & CONTEXT_TEMPLATE) &&
+	prefix == context->prefix &&
 	is_same_net6(local, &context->start6, prefix) &&
-	is_same_net6(local, &context->end6, prefix))
-      if (context->ra_time != 0 && difftime(context->ra_time, param->now) <= 0.0)
-	{
-	  /* found an interface that's overdue for RA determine new 
-	     timeout value and arrange for RA to be sent unless interface is
-	     still doing DAD.*/
-
-	  if (!dad)
-	    param->iface = if_index;
-	  
-	  if (difftime(param->now, ra_short_period_start) < 60.0)
-	    /* range 5 - 20 */
-	    context->ra_time = param->now + 5 + (rand16()/4400);
-	  else
-	    /* range 450 - 600 */
-	    context->ra_time = param->now + 450 + (rand16()/440);
-	  
-	  /* zero timers for other contexts on the same subnet, so they don't timeout 
-	     independently */
-	  for (context = context->next; context; context = context->next)
-	    if (prefix == context->prefix &&
-		is_same_net6(local, &context->start6, prefix) &&
-		is_same_net6(local, &context->end6, prefix))
-	      context->ra_time = 0;
-	  
-	  return 0; /* found, abort */
-	}
+	is_same_net6(local, &context->end6, prefix) &&
+	context->ra_time != 0 && 
+	difftime(context->ra_time, param->now) <= 0.0)
+      {
+	/* found an interface that's overdue for RA determine new 
+	   timeout value and arrange for RA to be sent unless interface is
+	   still doing DAD.*/
+	
+	if (!dad)
+	  param->iface = if_index;
+	
+	if (difftime(param->now, ra_short_period_start) < 60.0)
+	  /* range 5 - 20 */
+	  context->ra_time = param->now + 5 + (rand16()/4400);
+	else
+	  /* range 450 - 600 */
+	  context->ra_time = param->now + 450 + (rand16()/440);
+	
+	/* zero timers for other contexts on the same subnet, so they don't timeout 
+	   independently */
+	for (context = context->next; context; context = context->next)
+	  if (prefix == context->prefix &&
+	      is_same_net6(local, &context->start6, prefix) &&
+	      is_same_net6(local, &context->end6, prefix))
+	    context->ra_time = 0;
+	
+	return 0; /* found, abort */
+      }
   
   return 1; /* keep searching */
 }

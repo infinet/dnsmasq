@@ -214,7 +214,8 @@ static int complete_context6(struct in6_addr *local,  int prefix,
       
       for (context = daemon->dhcp6; context; context = context->next)
 	{
-	  if (prefix == context->prefix &&
+	  if (!(context->flags & CONTEXT_TEMPLATE) &&
+	      prefix == context->prefix &&
 	      is_same_net6(local, &context->start6, prefix) &&
 	      is_same_net6(local, &context->end6, prefix))
 	    {
