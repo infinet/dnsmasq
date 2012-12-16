@@ -51,6 +51,7 @@ int main (int argc, char **argv)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
 #endif 
+  struct dhcp_context *context;
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -167,40 +168,44 @@ int main (int argc, char **argv)
   
 #ifdef HAVE_DHCP
   if (daemon->dhcp || daemon->dhcp6)
-    {
+    { 
+      
+#  ifdef HAVE_DHCP6
+      if (daemon->dhcp6)
+	{
+	  daemon->doing_ra = option_bool(OPT_RA);
+	  
+	  for (context = daemon->dhcp6; context; context = context->next)
+	    {
+	      if (context->flags & CONTEXT_DHCP)
+		daemon->doing_dhcp6 = 1;
+	      if (context->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
+		daemon->doing_ra = 1;
+	    }
+	}
+#  endif
+
       /* Note that order matters here, we must call lease_init before
 	 creating any file descriptors which shouldn't be leaked
 	 to the lease-script init process. We need to call common_init
 	 before lease_init to allocate buffers it uses.*/
-      dhcp_common_init();
-      lease_init(now);
-  
+      if (daemon->dhcp || daemon->doing_dhcp6)
+	{
+	  dhcp_common_init();
+	  lease_init(now);
+	}
+
       if (daemon->dhcp)
 	dhcp_init();
-    }
-  
+ 
 #  ifdef HAVE_DHCP6
-  /* Start RA subsystem if --enable-ra OR dhcp-range=<subnet>, ra-only */
-  if (daemon->ra_contexts || option_bool(OPT_RA))
-    {
-      /* link the DHCP6 contexts to the ra-only ones so we can traverse them all 
-	 from ->ra_contexts, but only the non-ra-onlies from ->dhcp6 */
-      struct dhcp_context *context;
+      if (daemon->doing_ra)
+	ra_init(now);
       
-      if (!daemon->ra_contexts)
-	daemon->ra_contexts = daemon->dhcp6;
-      else
-	{
-	  for (context = daemon->ra_contexts; context->next; context = context->next);
-	  context->next = daemon->dhcp6;
-	}
-      ra_init(now);
-    }
-
-  if (daemon->dhcp6)
-    dhcp6_init();
-
+      if (daemon->doing_dhcp6)
+	dhcp6_init();
 #  endif
+    }
 
 #endif
 
@@ -214,13 +219,13 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_DHCP6
   /* after netlink_init */
-  if (daemon->ra_contexts || daemon->dhcp6)
+  if (daemon->doing_dhcp6 || daemon->doing_ra)
     join_multicast();
 #endif
 
 #ifdef HAVE_DHCP
   /* after netlink_init */
-  if (daemon->dhcp || daemon->dhcp6)
+  if (daemon->dhcp || daemon->doing_dhcp6)
     lease_find_interfaces(now);
 #endif
 
@@ -628,90 +633,24 @@ int main (int argc, char **argv)
 
   if (daemon->max_logs != 0)
     my_syslog(LOG_INFO, _("asynchronous logging enabled, queue limit is %d messages"), daemon->max_logs);
- 
-  if (daemon->ra_contexts)
-    my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
+  
 
 #ifdef HAVE_DHCP
-  if (daemon->dhcp || daemon->dhcp6 || daemon->ra_contexts)
-    {
-      struct dhcp_context *dhcp_tmp;
-      int family = AF_INET;
-      dhcp_tmp = daemon->dhcp;
-     
-#ifdef HAVE_DHCP6
-    again:
-#endif
-      for (; dhcp_tmp; dhcp_tmp = dhcp_tmp->next)
-	{
-	  void *start = &dhcp_tmp->start;
-	  void *end = &dhcp_tmp->end;
-	  	  
-#ifdef HAVE_DHCP6
-	  if (family == AF_INET6)
-	    {
-	      start = &dhcp_tmp->start6;
-	      end = &dhcp_tmp->end6;
-	      struct in6_addr subnet = dhcp_tmp->start6;
-	      setaddr6part(&subnet, 0);
-	      inet_ntop(AF_INET6, &subnet, daemon->dhcp_buff2, 256);
-	    }
-#endif
-	  
-	  if (family != AF_INET && (dhcp_tmp->flags & CONTEXT_DEPRECATE))
-	    strcpy(daemon->namebuff, _("prefix deprecated"));
-	  else
-	    {
-	      char *p = daemon->namebuff;
-	      p += sprintf(p, _("lease time "));
-	      prettyprint_time(p, dhcp_tmp->lease_time);
-	    }
-	  
-	  inet_ntop(family, start, daemon->dhcp_buff, 256);
-	  inet_ntop(family, end, daemon->dhcp_buff3, 256);
-	  if ((dhcp_tmp->flags & CONTEXT_DHCP) || family == AF_INET) 
-	    my_syslog(MS_DHCP | LOG_INFO, 
-		      (dhcp_tmp->flags & CONTEXT_RA_STATELESS) ? 
-		      _("%s stateless on %s%.0s%.0s") :
-		      (dhcp_tmp->flags & CONTEXT_STATIC) ? 
-		      _("%s, static leases only on %.0s%s, %s") :
-		      (dhcp_tmp->flags & CONTEXT_PROXY) ?
-		      _("%s, proxy on subnet %.0s%s%.0s") :
-		      _("%s, IP range %s -- %s, %s"),
-		      (family != AF_INET) ? "DHCPv6" : "DHCP",
-		      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
+  for (context = daemon->dhcp; context; context = context->next)
+    log_context(AF_INET, context);
 
-	  if (dhcp_tmp->flags & CONTEXT_RA_NAME)
-	    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s"), 
-		      daemon->dhcp_buff2);
-	  if (dhcp_tmp->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
-	    {
-	      if (!(dhcp_tmp->flags & CONTEXT_DEPRECATE))
-		{
-		  char *p = daemon->namebuff;
-		  p += sprintf(p, _("prefix valid "));
-		  prettyprint_time(p, dhcp_tmp->lease_time > 7200 ? dhcp_tmp->lease_time : 7200);
-		}
-	      my_syslog(MS_DHCP | LOG_INFO, _("SLAAC on %s %s"), 
-			daemon->dhcp_buff2, daemon->namebuff);
-	    }
-	}
-      
-#ifdef HAVE_DHCP6
-      if (family == AF_INET)
-	{
-	  family = AF_INET6;
-	  if (daemon->ra_contexts)
-	    dhcp_tmp = daemon->ra_contexts;
-	  else
-	    dhcp_tmp = daemon->dhcp6;
-	  goto again;
-	}
-#endif
+#  ifdef HAVE_DHCP6
+  for (context = daemon->dhcp6; context; context = context->next)
+    log_context(AF_INET6, context);
 
-    }
-#endif
+  if (daemon->doing_dhcp6 || daemon->doing_ra)
+    dhcp_construct_contexts(now);
+  
+  if (option_bool(OPT_RA))
+    my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
+#  endif
 
+#endif
 
 #ifdef HAVE_TFTP
 	if (option_bool(OPT_TFTP))
@@ -818,13 +757,13 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_DHCP6
-      if (daemon->dhcp6)
+      if (daemon->doing_dhcp6)
 	{
 	  FD_SET(daemon->dhcp6fd, &rset);
 	  bump_maxfd(daemon->dhcp6fd, &maxfd);
 	}
 
-      if (daemon->ra_contexts)
+      if (daemon->doing_ra)
 	{
 	  FD_SET(daemon->icmp6fd, &rset);
 	  bump_maxfd(daemon->icmp6fd, &maxfd); 
@@ -888,7 +827,7 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_LINUX_NETWORK
       if (FD_ISSET(daemon->netlinkfd, &rset))
-	netlink_multicast();
+	netlink_multicast(now);
 #endif
 
       /* Check for changes to resolv files once per second max. */
@@ -936,11 +875,11 @@ int main (int argc, char **argv)
 	}
 
 #ifdef HAVE_DHCP6
-      if (daemon->dhcp6 && FD_ISSET(daemon->dhcp6fd, &rset))
+      if (daemon->doing_dhcp6 && FD_ISSET(daemon->dhcp6fd, &rset))
 	dhcp6_packet(now);
 
-      if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
-	icmp6_packet();
+      if (daemon->doing_ra && FD_ISSET(daemon->icmp6fd, &rset))
+	icmp6_packet(now);
 #endif
 
 #  ifdef HAVE_SCRIPT
@@ -1120,13 +1059,13 @@ static void async_event(int pipe, time_t now)
 	
       case EVENT_ALARM:
 #ifdef HAVE_DHCP
-	if (daemon->dhcp || daemon->dhcp6)
+	if (daemon->dhcp || daemon->doing_dhcp6)
 	  {
 	    lease_prune(NULL, now);
 	    lease_update_file(now);
 	  }
 #ifdef HAVE_DHCP6
-	else if (daemon->ra_contexts)
+	else if (daemon->doing_ra)
 	  /* Not doing DHCP, so no lease system, manage alarms for ra only */
 	    send_alarm(periodic_ra(now), now);
 #endif
@@ -1283,7 +1222,7 @@ void clear_cache_and_reload(time_t now)
     cache_reload();
   
 #ifdef HAVE_DHCP
-  if (daemon->dhcp || daemon->dhcp6)
+  if (daemon->dhcp || daemon->doing_dhcp6)
     {
       if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
@@ -1294,7 +1233,7 @@ void clear_cache_and_reload(time_t now)
       lease_update_dns(1);
     }
 #ifdef HAVE_DHCP6
-  else if (daemon->ra_contexts)
+  else if (daemon->doing_ra)
     /* Not doing DHCP, so no lease system, manage 
        alarms for ra only */
     send_alarm(periodic_ra(now), now);
@@ -1597,7 +1536,7 @@ int icmp_ping(struct in_addr addr)
       set_log_writer(&wset, &maxfd);
       
 #ifdef HAVE_DHCP6
-      if (daemon->ra_contexts)
+      if (daemon->doing_ra)
 	{
 	  FD_SET(daemon->icmp6fd, &rset);
 	  bump_maxfd(daemon->icmp6fd, &maxfd); 
@@ -1616,8 +1555,8 @@ int icmp_ping(struct in_addr addr)
       check_dns_listeners(&rset, now);
 
 #ifdef HAVE_DHCP6
-      if (daemon->ra_contexts && FD_ISSET(daemon->icmp6fd, &rset))
-	icmp6_packet();
+      if (daemon->doing_ra && FD_ISSET(daemon->icmp6fd, &rset))
+	icmp6_packet(now);
 #endif
       
 #ifdef HAVE_TFTP

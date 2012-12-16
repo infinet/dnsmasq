@@ -147,7 +147,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		  addr->s6_addr[3] = 0;
 		}
 	      
-	      if (!((*callback)(addr, prefix, scope_id, iface_index, 0, parm)))
+	      if (!((*callback)(addr, prefix, scope_id, iface_index, 0, 0, 0, parm)))
 		goto err;
 	}
 #endif

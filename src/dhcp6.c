@@ -25,7 +25,8 @@ struct iface_param {
 };
 
 static int complete_context6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, void *vparam);
+			     int scope, int if_index, int dad, 
+			     int preferred, int valid, void *vparam);
 
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
 
@@ -181,7 +182,8 @@ void dhcp6_packet(time_t now)
 }
 
 static int complete_context6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, void *vparam)
+			     int scope, int if_index, int dad, int preferred, 
+			     int valid, void *vparam)
 {
   struct dhcp_context *context;
   struct iface_param *param = vparam;
@@ -189,6 +191,8 @@ static int complete_context6(struct in6_addr *local,  int prefix,
  
   (void)scope; /* warning */
   (void)dad;
+  (void)preferred;
+  (void)valid;
       
   if (if_index == param->ind &&
       !IN6_IS_ADDR_LOOPBACK(local) &&
@@ -467,6 +471,212 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
 
   return 0;
 }
+
+struct cparam {
+  time_t now;
+  int newone;
+};
+
+static int construct_worker(struct in6_addr *local, int prefix, 
+			    int scope, int if_index, int dad, 
+			    int preferred, int valid, void *vparam)
+{
+  char ifrn_name[IFNAMSIZ];
+  struct in6_addr start6, end6;
+  struct dhcp_context *template, *context;
+
+  (void)scope;
+  (void)dad;
+
+  struct cparam *param = vparam;
+
+  if (IN6_IS_ADDR_LOOPBACK(local) ||
+      IN6_IS_ADDR_LINKLOCAL(local) ||
+      IN6_IS_ADDR_MULTICAST(local))
+    return 1;
+
+  if (!indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, if_index, ifrn_name))
+    return 0;
+  
+  for (template = daemon->dhcp6; template; template = template->next)
+    if (!(template->flags & CONTEXT_TEMPLATE))
+      {
+	/* non-template entries, just fill in interface and local addresses */
+	if (prefix == template->prefix &&
+	    is_same_net6(local, &template->start6, prefix) &&
+	    is_same_net6(local, &template->end6, prefix))
+	  {
+	    template->if_index = if_index;
+	    template->local6 = *local;
+	  }
+	
+      }
+    else if (strcmp(ifrn_name, template->template_interface) == 0 &&
+	     addr6part(local) == addr6part(&template->start6))
+      {
+	start6 = *local;
+	setaddr6part(&start6, addr6part(&template->start6));
+	end6 = *local;
+	setaddr6part(&end6, addr6part(&template->end6));
+	
+	for (context = daemon->dhcp6; context; context = context->next)
+	  if ((context->flags & CONTEXT_CONSTRUCTED) &&
+	      IN6_ARE_ADDR_EQUAL(&start6, &context->start6) &&
+	      IN6_ARE_ADDR_EQUAL(&end6, &context->end6))
+	    {
+	      context->flags &= ~CONTEXT_GC;
+	      break;
+	    }
+	
+	if (!context && (context = whine_malloc(sizeof (struct dhcp_context))))
+	  {
+	    *context = *template;
+	    context->start6 = start6;
+	    context->end6 = end6;
+	    context->flags &= ~CONTEXT_TEMPLATE;
+	    context->flags |= CONTEXT_CONSTRUCTED;
+	    context->if_index = if_index;
+	    context->local6 = *local;
+	    context->lease_time = param->now + valid;
+	    
+	    context->next = daemon->dhcp6;
+	    daemon->dhcp6 = context;
+
+	    ra_start_unsolicted(dnsmasq_time(), context);
+	    /* we created a new one, need to call
+	       lease_update_file to get periodic functions called */
+	    param->newone = 1; 
+	    
+	    log_context(AF_INET6, context);
+	  } 
+
+	if (context)
+	  {
+	    if (valid == -1)
+	      context->valid = valid;
+	    else
+	      context->valid = valid + param->now;
+	    
+	    if (preferred == -1)
+	      context->preferred = preferred;
+	    else
+	      context->preferred = preferred + param->now;
+	  }
+      }
+  
+  return 1;
+}
+
+void dhcp_construct_contexts(time_t now)
+{ 
+  struct dhcp_context *tmp, *context, **up;
+  struct cparam param;
+  param.newone = 0;
+  param.now = now;
+
+  for (context = daemon->dhcp6; context; context = context->next)
+    if (context->flags & CONTEXT_CONSTRUCTED)
+      context->flags |= CONTEXT_GC;
+  
+  iface_enumerate(AF_INET6, &param, construct_worker);
+
+  for (up = &daemon->dhcp6, context = daemon->dhcp6; context; context = tmp)
+    {
+      tmp = context->next;
+      
+      if (context->flags & CONTEXT_GC)
+	{
+	  if (daemon->dhcp6 == context)
+	    daemon->dhcp6 = context->next;
+	  *up = context->next;
+	  free(context);
+	}
+      else
+	up = &context->next;
+    }
+  
+  if (param.newone)
+    lease_update_file(now);
+}
+      
+static int join_multicast_worker(struct in6_addr *local, int prefix, 
+				 int scope, int if_index, int dad, 
+				 int preferred, int valid, void *vparam)
+{
+  char ifrn_name[IFNAMSIZ];
+  struct ipv6_mreq mreq;
+  int fd, i, max = *((int *)vparam);
+  struct iname *tmp;
+
+  (void)prefix;
+  (void)scope;
+  (void)dad;
+  (void)preferred;
+  (void)valid;
+  
+  /* record which interfaces we join on, so that we do it at most one per 
+     interface, even when they have multiple addresses. Use outpacket
+     as an array of int, since it's always allocated here and easy
+     to expand for theoretical vast numbers of interfaces. */
+  for (i = 0; i < max; i++)
+    if (if_index == ((int *)daemon->outpacket.iov_base)[i])
+      return 1;
+  
+  if ((fd = socket(PF_INET6, SOCK_DGRAM, 0)) == -1)
+    return 0;
+  
+  if (!indextoname(fd, if_index, ifrn_name))
+    {
+      close(fd);
+      return 0;
+    }
+  
+  close(fd);
+
+  /* Are we doing DHCP on this interface? */
+  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name, NULL))
+    return 1;
+ 
+  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+    if (tmp->name && (strcmp(tmp->name, ifrn_name) == 0))
+      return 1;
+
+  mreq.ipv6mr_interface = if_index;
+  
+  inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->doing_dhcp6 &&
+      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+
+  inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->doing_dhcp6 && 
+      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+  
+  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
+  
+  if (daemon->doing_ra &&
+      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+    return 0;
+  
+  expand_buf(&daemon->outpacket, (max+1) * sizeof(int));
+  ((int *)daemon->outpacket.iov_base)[max++] = if_index;
+  
+  *((int *)vparam) = max;
+  
+  return 1;
+}
+
+void join_multicast(void)
+{
+  int count = 0;
+
+   if (!iface_enumerate(AF_INET6, &count, join_multicast_worker))
+     die(_("failed to join DHCPv6 multicast group: %s"), NULL, EC_BADNET);
+}
+
 #endif
 
 

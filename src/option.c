@@ -2180,7 +2180,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case 'F':  /* --dhcp-range */
       {
 	int k, leasepos = 2;
-	char *cp, *a[7] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+	char *cp, *a[8] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 	struct dhcp_context *new = opt_malloc(sizeof(struct dhcp_context));
 	
 	memset (new, 0, sizeof(*new));
@@ -2227,7 +2227,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      }
 	  }
 	
-	for (k = 1; k < 7; k++)
+	for (k = 1; k < 8; k++)
 	  if (!(a[k] = split(a[k-1])))
 	    break;
 	
@@ -2284,28 +2284,25 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		if (strcmp(a[leasepos], "static") == 0)
 		  new->flags |= CONTEXT_STATIC | CONTEXT_DHCP;
 		else if (strcmp(a[leasepos], "ra-only") == 0 || strcmp(a[leasepos], "slaac") == 0 )
-		  new->flags |= CONTEXT_RA_ONLY;
+		  new->flags |= CONTEXT_RA_ONLY | CONTEXT_RA;
 		else if (strcmp(a[leasepos], "ra-names") == 0)
-		  new->flags |= CONTEXT_RA_NAME;
+		  new->flags |= CONTEXT_RA_NAME | CONTEXT_RA;
 		else if (strcmp(a[leasepos], "ra-stateless") == 0)
-		  new->flags |= CONTEXT_RA_STATELESS | CONTEXT_DHCP;
+		  new->flags |= CONTEXT_RA_STATELESS | CONTEXT_DHCP | CONTEXT_RA;
 		else if (leasepos == 1 && inet_pton(AF_INET6, a[leasepos], &new->end6))
 		  new->flags |= CONTEXT_DHCP; 
+		else if (strstr(a[leasepos], "constructor:") == a[leasepos])
+		  {
+		    new->template_interface = opt_string_alloc(a[leasepos] + 12);
+		    new->flags |= CONTEXT_TEMPLATE;
+		  }
 		else  
 		  break;
 	      }
 	    
-	    if (new->flags & CONTEXT_DHCP)
-	      {
-		new->next = daemon->dhcp6;
-		daemon->dhcp6 = new;
-	      }
-	    else
-	      {
-		new->next = daemon->ra_contexts;
-		daemon->ra_contexts = new;
-	      }
-	     
+	    new->next = daemon->dhcp6;
+	    daemon->dhcp6 = new;
+	    	     
 	    /* bare integer < 128 is prefix value */
 	    if (leasepos < k)
 	      {
@@ -2317,10 +2314,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  {
 		    new->prefix = pref;
 		    leasepos++;
-		    if ((new->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)) && 
-			new->prefix != 64)
-		      ret_err(_("prefix must be exactly 64 for RA subnets"));
-		    else if (new->prefix < 64)
+		    if (new->prefix != 64)
+		      {
+			if ((new->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
+			  ret_err(_("prefix must be exactly 64 for RA subnets"));
+			else if (new->template_interface)
+			  ret_err(_("prefix must be exactly 64 for subnet constructors"));
+		      }
+		    if (new->prefix < 64)
 		      ret_err(_("prefix must be at least 64"));
 		  }
 	      }

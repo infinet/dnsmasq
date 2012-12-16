@@ -289,7 +289,8 @@ static int iface_allowed(struct irec **irecp, int if_index,
 
 #ifdef HAVE_IPV6
 static int iface_allowed_v6(struct in6_addr *local, int prefix, 
-			    int scope, int if_index, int dad, void *vparam)
+			    int scope, int if_index, int dad, 
+			    int preferred, int valid, void *vparam)
 {
   union mysockaddr addr;
   struct in_addr netmask; /* dummy */
@@ -297,6 +298,8 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
 
   (void)prefix; /* warning */
   (void)scope; /* warning */
+  (void)preferred;
+  (void)valid;
   
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN

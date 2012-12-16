@@ -333,83 +333,6 @@ void dhcp_update_configs(struct dhcp_config *configs)
 
 }
 
-#ifdef HAVE_DHCP6
-static int join_multicast_worker(struct in6_addr *local, int prefix, 
-				 int scope, int if_index, int dad, void *vparam)
-{
-  char ifrn_name[IFNAMSIZ];
-  struct ipv6_mreq mreq;
-  int fd, i, max = *((int *)vparam);
-  struct iname *tmp;
-
-  (void)prefix;
-  (void)scope;
-  (void)dad;
-  
-  /* record which interfaces we join on, so that we do it at most one per 
-     interface, even when they have multiple addresses. Use outpacket
-     as an array of int, since it's always allocated here and easy
-     to expand for theoretical vast numbers of interfaces. */
-  for (i = 0; i < max; i++)
-    if (if_index == ((int *)daemon->outpacket.iov_base)[i])
-      return 1;
-  
-  if ((fd = socket(PF_INET6, SOCK_DGRAM, 0)) == -1)
-    return 0;
-  
-  if (!indextoname(fd, if_index, ifrn_name))
-    {
-      close(fd);
-      return 0;
-    }
-  
-  close(fd);
-
-  /* Are we doing DHCP on this interface? */
-  if (!iface_check(AF_INET6, (struct all_addr *)local, ifrn_name, NULL))
-    return 1;
- 
-  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifrn_name) == 0))
-      return 1;
-
-  mreq.ipv6mr_interface = if_index;
-  
-  inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
-  
-  if (daemon->dhcp6 &&
-      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-
-  inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
-  
-  if (daemon->dhcp6 && 
-      setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-  
-  inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
-  
-  if (daemon->ra_contexts &&
-      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
-    return 0;
-  
-  expand_buf(&daemon->outpacket, (max+1) * sizeof(int));
-  ((int *)daemon->outpacket.iov_base)[max++] = if_index;
-  
-  *((int *)vparam) = max;
-  
-  return 1;
-}
-
-void join_multicast(void)
-{
-  int count = 0;
-
-   if (!iface_enumerate(AF_INET6, &count, join_multicast_worker))
-     die(_("failed to join DHCPv6 multicast group: %s"), NULL, EC_BADNET);
-}
-#endif
-
 #ifdef HAVE_LINUX_NETWORK 
 void bindtodevice(int fd)
 {
@@ -749,5 +672,76 @@ char *option_string(int prot, unsigned int opt, unsigned char *val, int opt_len,
   return ot[o].name ? ot[o].name : "";
 
 }
+
+void log_context(int family, struct dhcp_context *context)
+{
+  /* Cannot use dhcp_buff* for RA contexts */
+
+  void *start = &context->start;
+  void *end = &context->end;
+	  	  
+#ifdef HAVE_DHCP6
+  if (family == AF_INET6)
+    {
+      struct in6_addr subnet = context->start6;
+      if (!(context->flags & CONTEXT_TEMPLATE))
+	setaddr6part(&subnet, 0);
+      inet_ntop(AF_INET6, &subnet, daemon->addrbuff, ADDRSTRLEN); 
+      start = &context->start6;
+      end = &context->end6;
+    }
+#endif
+	
+  if (context->flags & CONTEXT_CONSTRUCTED)
+    sprintf(daemon->namebuff, "constructed for %s", context->template_interface);
+  else if (context->flags & CONTEXT_TEMPLATE)
+    sprintf(daemon->namebuff, "template for %s", context->template_interface);  
+  else
+    {
+      if (family != AF_INET && (context->flags & CONTEXT_DEPRECATE))
+	strcpy(daemon->namebuff, _("prefix deprecated"));
+      else
+	{
+	  char *p = daemon->namebuff;
+	  
+	  p += sprintf(p, _("lease time "));
+	  prettyprint_time(p, context->lease_time);
+	}
+    }
+	  
+  if ((context->flags & CONTEXT_DHCP) || family == AF_INET) 
+    {
+      inet_ntop(family, start, daemon->dhcp_buff, 256);
+      inet_ntop(family, end, daemon->dhcp_buff3, 256);
+      my_syslog(MS_DHCP | LOG_INFO, 
+	      (context->flags & CONTEXT_RA_STATELESS) ? 
+	      _("%s stateless on %s%.0s%.0s") :
+	      (context->flags & CONTEXT_STATIC) ? 
+	      _("%s, static leases only on %.0s%s, %s") :
+	      (context->flags & CONTEXT_PROXY) ?
+	      _("%s, proxy on subnet %.0s%s%.0s") :
+	      _("%s, IP range %s -- %s, %s"),
+	      (family != AF_INET) ? "DHCPv6" : "DHCP",
+	      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
+    }
+  
+  if (context->flags & CONTEXT_RA_NAME)
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s"), 
+	      daemon->addrbuff);
+  
+       
+  if (context->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
+    {
+      if (!(context->flags & (CONTEXT_DEPRECATE | CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)))
+	{
+	  char *p = daemon->namebuff;
+	  p += sprintf(p, _("prefix valid "));
+	  prettyprint_time(p, context->lease_time > 7200 ? context->lease_time : 7200);
+	}
+      my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s %s"), 
+		daemon->addrbuff, daemon->namebuff);
+    }
+}
+      
 
 #endif

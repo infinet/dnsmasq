@@ -667,7 +667,7 @@ struct cond_domain {
 #endif
   int is6;
   struct cond_domain *next;
-};
+}; 
 
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
@@ -679,6 +679,8 @@ struct dhcp_context {
   struct in6_addr local6;
   int prefix, if_index;
   time_t ra_time;
+  char *template_interface;
+  int valid, preferred; /* times from address for constructed contexts */
 #endif
   int flags;
   struct dhcp_netid netid, *filter;
@@ -695,6 +697,11 @@ struct dhcp_context {
 #define CONTEXT_RA_STATELESS 128
 #define CONTEXT_DHCP         256
 #define CONTEXT_DEPRECATE    512
+#define CONTEXT_TEMPLATE    1024    /* create contexts using addresses */
+#define CONTEXT_CONSTRUCTED 2048
+#define CONTEXT_GC          4096
+#define CONTEXT_RA          8192
+
 
 struct ping_result {
   struct in_addr addr;
@@ -773,7 +780,7 @@ extern struct daemon {
   int port, query_port, min_port;
   unsigned long local_ttl, neg_ttl, max_ttl, max_cache_ttl, auth_ttl;
   struct hostsfile *addn_hosts;
-  struct dhcp_context *dhcp, *dhcp6, *ra_contexts;
+  struct dhcp_context *dhcp, *dhcp6;
   struct dhcp_config *dhcp_conf;
   struct dhcp_opt *dhcp_opts, *dhcp_match, *dhcp_opts6, *dhcp_match6;
   struct dhcp_vendor *dhcp_vendors;
@@ -784,6 +791,7 @@ extern struct daemon {
   struct addr_list *override_relays;
   int override;
   int enable_pxe;
+  int doing_ra, doing_dhcp6;
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *dhcp_gen_names; 
   struct dhcp_netid_list *force_broadcast, *bootp_dynamic;
   struct hostsfile *dhcp_hosts_file, *dhcp_opts_file;
@@ -1074,7 +1082,7 @@ void poll_resolv(int force, int do_reload, time_t now);
 /* netlink.c */
 #ifdef HAVE_LINUX_NETWORK
 void netlink_init(void);
-void netlink_multicast(void);
+void netlink_multicast(time_t now);
 #endif
 
 /* bpf.c */
@@ -1142,6 +1150,8 @@ struct dhcp_config *find_config6(struct dhcp_config *configs,
 struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct in6_addr *net, 
 					    int prefix, u64 addr);
 void make_duid(time_t now);
+void dhcp_construct_contexts(time_t now);
+void join_multicast(void);
 #endif
 
 /* rfc3315.c */
@@ -1172,8 +1182,8 @@ void bindtodevice(int fd);
 #endif
 #  ifdef HAVE_DHCP6
 void display_opts6(void);
-void join_multicast(void);
 #  endif
+void log_context(int family, struct dhcp_context *context);
 #endif
 
 /* outpacket.c */
@@ -1192,16 +1202,14 @@ void put_opt6_string(char *s);
 /* radv.c */
 #ifdef HAVE_DHCP6
 void ra_init(time_t now);
-void icmp6_packet(void);
+void icmp6_packet(time_t now);
 time_t periodic_ra(time_t now);
 void ra_start_unsolicted(time_t now, struct dhcp_context *context);
 #endif
 
 /* slaac.c */ 
 #ifdef HAVE_DHCP6
-void build_subnet_map(void);
 void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force);
 time_t periodic_slaac(time_t now, struct dhcp_lease *leases);
 void slaac_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface, struct dhcp_lease *leases);
-void schedule_subnet_map(void);
 #endif

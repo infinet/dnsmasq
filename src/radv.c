@@ -27,6 +27,7 @@
 #include <netinet/icmp6.h>
 
 struct ra_param {
+  time_t now;
   int ind, managed, other, found_context, first;
   char *if_name;
   struct dhcp_netid *tags;
@@ -37,11 +38,13 @@ struct search_param {
   time_t now; int iface;
 };
 
-static void send_ra(int iface, char *iface_name, struct in6_addr *dest);
+static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest);
 static int add_prefixes(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, void *vparam);
+			int scope, int if_index, int dad, 
+			int preferred, int valid, void *vparam);
 static int iface_search(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, void *vparam);
+			int scope, int if_index, int dad, 
+			int prefered, int valid, void *vparam);
 static int add_lla(int index, unsigned int type, char *mac, size_t maclen, void *parm);
 
 static int hop_limit;
@@ -62,7 +65,7 @@ void ra_init(time_t now)
   expand_buf(&daemon->outpacket, sizeof(struct dhcp_packet));
  
   /* See if we're guessing SLAAC addresses, if so we need to recieve ping replies */
-  for (context = daemon->ra_contexts; context; context = context->next)
+  for (context = daemon->dhcp6; context; context = context->next)
     if ((context->flags & CONTEXT_RA_NAME))
       break;
   
@@ -98,14 +101,17 @@ void ra_start_unsolicted(time_t now, struct dhcp_context *context)
   if (context)
      context->ra_time = now;
   else
-    for (context = daemon->ra_contexts; context; context = context->next)
-      context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
-
+    for (context = daemon->dhcp6; context; context = context->next)
+      if (context->flags & CONTEXT_RA)
+	context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
+      else
+	context->ra_time = 0;
+  
    /* re-do frequently for a minute or so, in case the first gets lost. */
    ra_short_period_start = now;
 }
 
-void icmp6_packet(void)
+void icmp6_packet(time_t now)
 {
   char interface[IF_NAMESIZE+1];
   ssize_t sz; 
@@ -174,11 +180,11 @@ void icmp6_packet(void)
          
       my_syslog(MS_DHCP | LOG_INFO, "RTR-SOLICIT(%s) %s", interface, mac);
       /* source address may not be valid in solicit request. */
-      send_ra(if_index, interface, !IN6_IS_ADDR_UNSPECIFIED(&from.sin6_addr) ? &from.sin6_addr : NULL);
+      send_ra(now, if_index, interface, !IN6_IS_ADDR_UNSPECIFIED(&from.sin6_addr) ? &from.sin6_addr : NULL);
     }
 }
 
-static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
+static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest)
 {
   struct ra_packet *ra;
   struct ra_param parm;
@@ -206,13 +212,14 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
   parm.found_context = 0;
   parm.if_name = iface_name;
   parm.first = 1;
-
+  parm.now = now;
+  
   /* set tag with name == interface */
   iface_id.net = iface_name;
   iface_id.next = NULL;
   parm.tags = &iface_id; 
   
-  for (context = daemon->ra_contexts; context; context = context->next)
+  for (context = daemon->dhcp6; context; context = context->next)
     {
       context->flags &= ~CONTEXT_RA_DONE;
       context->netid.next = &context->netid;
@@ -320,28 +327,32 @@ static void send_ra(int iface, char *iface_name, struct in6_addr *dest)
 }
 
 static int add_prefixes(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, void *vparam)
+			int scope, int if_index, int dad, 
+			int preferred, int valid, void *vparam)
 {
   struct ra_param *param = vparam;
 
   (void)scope; /* warning */
   (void)dad;
+  (void)preferred;
+  (void)valid;
 
   if (if_index == param->ind)
     {
       if (IN6_IS_ADDR_LINKLOCAL(local))
 	param->link_local = *local;
       else if (!IN6_IS_ADDR_LOOPBACK(local) &&
-	       !IN6_IS_ADDR_LINKLOCAL(local) &&
 	       !IN6_IS_ADDR_MULTICAST(local))
 	{
 	  int do_prefix = 0;
 	  int do_slaac = 0;
 	  int deprecate  = 0;
+	  int found_constructed = 0;
 	  unsigned int time = 0xffffffff;
+	  int calc_valid = 0, calc_preferred = 0;
 	  struct dhcp_context *context;
 	  
-	  for (context = daemon->ra_contexts; context; context = context->next)
+	  for (context = daemon->dhcp6; context; context = context->next)
 	    if (prefix == context->prefix &&
 		is_same_net6(local, &context->start6, prefix) &&
 		is_same_net6(local, &context->end6, prefix))
@@ -365,7 +376,18 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    param->managed = 1;
 		    param->other = 1;
 		  }
-
+		
+		if (context->flags & CONTEXT_CONSTRUCTED)
+		  {
+		    found_constructed = 1;
+		    calc_valid = context->valid;
+		    calc_preferred = context->preferred;
+		    if (context->valid != -1)
+		      calc_valid -= (int)param->now;
+		    if (context->preferred != -1)
+		      calc_preferred -= (int)param->now;			
+		  }
+		
 		/* find floor time */
 		if (time > context->lease_time)
 		  time = context->lease_time;
@@ -395,6 +417,12 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		param->first = 0;	
 		param->found_context = 1;
 	      }
+
+	  if (!found_constructed)
+	    {
+	      calc_valid = time;
+	      calc_preferred = deprecate ? 0 : time;
+	    }
 	  
 	  if (do_prefix)
 	    {
@@ -414,8 +442,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  opt->prefix_len = prefix;
 		  /* autonomous only if we're not doing dhcp, always set "on-link" */
 		  opt->flags = do_slaac ? 0xC0 : 0x80;
-		  opt->valid_lifetime = htonl(time);
-		  opt->preferred_lifetime = htonl(deprecate ? 0 : time);
+		  opt->valid_lifetime = htonl(calc_valid);
+		  opt->preferred_lifetime = htonl(calc_preferred);
 		  opt->reserved = 0; 
 		  opt->prefix = *local;
 		  
@@ -462,7 +490,7 @@ time_t periodic_ra(time_t now)
   while (1)
     {
       /* find overdue events, and time of first future event */
-      for (next_event = 0, context = daemon->ra_contexts; context; context = context->next)
+      for (next_event = 0, context = daemon->dhcp6; context; context = context->next)
 	if (context->ra_time != 0)
 	  {
 	    if (difftime(context->ra_time, now) <= 0.0)
@@ -492,22 +520,25 @@ time_t periodic_ra(time_t now)
 	    if (tmp->name && (strcmp(tmp->name, interface) == 0))
 	      break;
 	  if (!tmp)
-	    send_ra(param.iface, interface, NULL); 
+	    send_ra(now, param.iface, interface, NULL); 
 	}
     }      
   return next_event;
 }
   
 static int iface_search(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, void *vparam)
+			int scope, int if_index, int dad, 
+			int preferred, int valid, void *vparam)
 {
   struct search_param *param = vparam;
   struct dhcp_context *context;
 
   (void)scope;
   (void)dad;
+  (void)preferred;
+  (void)valid;
  
-  for (context = daemon->ra_contexts; context; context = context->next)
+  for (context = daemon->dhcp6; context; context = context->next)
     if (prefix == context->prefix &&
 	is_same_net6(local, &context->start6, prefix) &&
 	is_same_net6(local, &context->end6, prefix))

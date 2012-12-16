@@ -308,7 +308,7 @@ void lease_update_file(time_t now)
 
 #ifdef HAVE_DHCP6
   /* do timed RAs and determine when the next is, also pings to potential SLAAC addresses */
-  if (daemon->ra_contexts)
+  if (daemon->doing_ra)
     {
       time_t event;
       
@@ -363,12 +363,15 @@ static int find_interface_v4(struct in_addr local, int if_index,
 
 #ifdef HAVE_DHCP6
 static int find_interface_v6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, void *vparam)
+			     int scope, int if_index, int dad, 
+			     int preferred, int valid, void *vparam)
 {
   struct dhcp_lease *lease;
   
   (void)scope;
   (void)dad;
+  (void)preferred;
+  (void)valid;
 
   for (lease = leases; lease; lease = lease->next)
     if ((lease->flags & (LEASE_TA | LEASE_NA)))
@@ -395,10 +398,6 @@ void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *inte
    start-time. */
 void lease_find_interfaces(time_t now)
 {
-#ifdef HAVE_DHCP6
-  build_subnet_map();
-#endif
-
   iface_enumerate(AF_INET, &now, find_interface_v4);
 #ifdef HAVE_DHCP6
   iface_enumerate(AF_INET6, &now, find_interface_v6);
