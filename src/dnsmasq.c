@@ -179,8 +179,12 @@ int main (int argc, char **argv)
 	    {
 	      if (context->flags & CONTEXT_DHCP)
 		daemon->doing_dhcp6 = 1;
-	      if (context->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
+	      if (context->flags & CONTEXT_RA)
 		daemon->doing_ra = 1;
+#ifndef  HAVE_LINUX_NETWORK
+	      if (context->flags & CONTEXT_TEMPLATE)
+		die (_("dhcp-range contructor not available on this platform"), NULL, EC_BADCONF);
+#endif 
 	    }
 	}
 #  endif
