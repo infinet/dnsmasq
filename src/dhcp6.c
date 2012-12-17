@@ -538,7 +538,6 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	    context->flags |= CONTEXT_CONSTRUCTED;
 	    context->if_index = if_index;
 	    context->local6 = *local;
-	    context->lease_time = param->now + valid;
 	    
 	    context->next = daemon->dhcp6;
 	    daemon->dhcp6 = context;

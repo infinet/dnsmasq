@@ -679,8 +679,10 @@ void log_context(int family, struct dhcp_context *context)
 
   void *start = &context->start;
   void *end = &context->end;
-  char *n = "";
-
+  char *n = "", *m = "", *p = daemon->namebuff;
+  
+  *p = 0;
+    
 #ifdef HAVE_DHCP6
   if (family == AF_INET6)
     {
@@ -693,29 +695,34 @@ void log_context(int family, struct dhcp_context *context)
     }
 #endif
 	
-  if (context->flags & CONTEXT_CONSTRUCTED)
-    {
-      n = daemon->namebuff;
-      sprintf(daemon->namebuff, ", constructed for %s", context->template_interface);
-    }
-  else if (context->flags & CONTEXT_TEMPLATE)
-    {
-      n = daemon->namebuff;
-      sprintf(daemon->namebuff, ", template for %s", context->template_interface);  
-    }
-  else
+  if ((context->flags & CONTEXT_DHCP) || 
+      !(context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)))
     {
       if (family != AF_INET && (context->flags & CONTEXT_DEPRECATE))
 	strcpy(daemon->namebuff, _(", prefix deprecated"));
       else
 	{
-	  char *p = daemon->namebuff;
-	  
 	  p += sprintf(p, _(", lease time "));
+	  m = p;
 	  prettyprint_time(p, context->lease_time);
+	  p += strlen(p);
 	}
     }
-	  
+    
+#ifdef HAVE_DHCP6
+  if (context->flags & CONTEXT_CONSTRUCTED)
+   {
+     n = p;
+     p += sprintf(p, ", constructed for %s", context->template_interface);
+   }
+
+ if (context->flags & CONTEXT_TEMPLATE)
+   {
+     n = p;
+     p += sprintf(p, ", template for %s", context->template_interface);  
+   }
+#endif
+
   if ((context->flags & CONTEXT_DHCP) || family == AF_INET) 
     {
       inet_ntop(family, start, daemon->dhcp_buff, 256);
@@ -732,22 +739,19 @@ void log_context(int family, struct dhcp_context *context)
 	      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
     }
   
+#ifdef HAVE_DHCP6
   if (context->flags & CONTEXT_RA_NAME)
     my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), 
 	      daemon->addrbuff, n);
   
        
-  if (context->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS))
-    {
-      if (!(context->flags & (CONTEXT_DEPRECATE | CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)))
-	{
-	  char *p = daemon->namebuff;
-	  p += sprintf(p, _(", prefix valid "));
-	  prettyprint_time(p, context->lease_time > 7200 ? context->lease_time : 7200);
-	}
-      my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s%s"), 
-		daemon->addrbuff, daemon->namebuff);
-    }
+  if (context->flags & CONTEXT_RA)
+    my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s%s%s"), 
+	      daemon->addrbuff,
+	      (context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)) ? "" : ", prefix valid ",
+	      (context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)) ? n : m);
+#endif
+
 }
       
 
