@@ -210,9 +210,8 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_LINUX_NETWORK
-  /* After lease_init */
   netlink_init();
-
+  
   if (option_bool(OPT_NOWILD) && option_bool(OPT_CLEVERBIND))
     die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
 #endif
@@ -222,13 +221,7 @@ int main (int argc, char **argv)
   if (daemon->doing_dhcp6 || daemon->doing_ra)
     join_multicast();
 #endif
-
-#ifdef HAVE_DHCP
-  /* after netlink_init */
-  if (daemon->dhcp || daemon->doing_dhcp6)
-    lease_find_interfaces(now);
-#endif
-
+  
   if (!enumerate_interfaces())
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
   
@@ -650,6 +643,9 @@ int main (int argc, char **argv)
     my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
 #  endif
 
+  /* after dhcp_contruct_contexts */
+  if (daemon->dhcp || daemon->doing_dhcp6)
+    lease_find_interfaces(now);
 #endif
 
 #ifdef HAVE_TFTP

@@ -2180,7 +2180,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case 'F':  /* --dhcp-range */
       {
 	int k, leasepos = 2;
-	char *cp, *a[8] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+	char *cp, *a[8] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 	struct dhcp_context *new = opt_malloc(sizeof(struct dhcp_context));
 	
 	memset (new, 0, sizeof(*new));

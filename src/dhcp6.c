@@ -577,8 +577,11 @@ void dhcp_construct_contexts(time_t now)
 
   for (context = daemon->dhcp6; context; context = context->next)
     if (context->flags & CONTEXT_CONSTRUCTED)
-      context->flags |= CONTEXT_GC;
-  
+      {
+	context->flags |= CONTEXT_GC;
+	context->if_index = 0;
+      }
+ 
   iface_enumerate(AF_INET6, &param, construct_worker);
 
   for (up = &daemon->dhcp6, context = daemon->dhcp6; context; context = tmp)

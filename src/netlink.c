@@ -200,13 +200,19 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	       after we complete as we're not re-entrant */
 	    if (newaddr) 
 	      {
+		time_t now = dnsmasq_time();
+		
 		if (option_bool(OPT_CLEVERBIND))
 		  {
 		    enumerate_interfaces();
 		    create_bound_listeners(0);
 		  }
 #ifdef HAVE_DHCP6
-		dhcp_construct_contexts(dnsmasq_time());
+		if (daemon->doing_dhcp6 || daemon->doing_ra)
+		  dhcp_construct_contexts(now);
+
+		if (daemon->doing_dhcp6)
+		  lease_find_interfaces(now);
 #endif
 	      }
 	    return callback_ok;
