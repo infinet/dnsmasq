@@ -542,7 +542,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	    context->next = daemon->dhcp6;
 	    daemon->dhcp6 = context;
 
-	    ra_start_unsolicted(dnsmasq_time(), context);
+	    ra_start_unsolicted(param->now, context);
 	    /* we created a new one, need to call
 	       lease_update_file to get periodic functions called */
 	    param->newone = 1; 

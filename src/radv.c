@@ -48,7 +48,6 @@ static int iface_search(struct in6_addr *local,  int prefix,
 static int add_lla(int index, unsigned int type, char *mac, size_t maclen, void *parm);
 
 static int hop_limit;
-static time_t ra_short_period_start;
 
 void ra_init(time_t now)
 {
@@ -99,14 +98,15 @@ void ra_start_unsolicted(time_t now, struct dhcp_context *context)
      and pick up new interfaces */
   
   if (context)
-    context->ra_time = now;
+    context->ra_short_period_start = context->ra_time = now;
   else
     for (context = daemon->dhcp6; context; context = context->next)
       if (!(context->flags & CONTEXT_TEMPLATE))
-	context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
-  
-  /* re-do frequently for a minute or so, in case the first gets lost. */
-  ra_short_period_start = now;
+	{
+	  context->ra_time = now + (rand16()/13000); /* range 0 - 5 */
+	  /* re-do frequently for a minute or so, in case the first gets lost. */
+	  context->ra_short_period_start = now;
+	}
 }
 
 void icmp6_packet(time_t now)
@@ -552,7 +552,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
 	if (!dad)
 	  param->iface = if_index;
 	
-	if (difftime(param->now, ra_short_period_start) < 60.0)
+	if (difftime(param->now, context->ra_short_period_start) < 60.0)
 	  /* range 5 - 20 */
 	  context->ra_time = param->now + 5 + (rand16()/4400);
 	else

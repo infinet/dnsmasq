@@ -678,7 +678,7 @@ struct dhcp_context {
   struct in6_addr start6, end6; /* range of available addresses */
   struct in6_addr local6;
   int prefix, if_index;
-  time_t ra_time;
+  time_t ra_time, ra_short_period_start;
   char *template_interface;
   int valid, preferred; /* times from address for constructed contexts */
 #endif
