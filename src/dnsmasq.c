@@ -183,7 +183,7 @@ int main (int argc, char **argv)
 		daemon->doing_ra = 1;
 #ifndef  HAVE_LINUX_NETWORK
 	      if (context->flags & CONTEXT_TEMPLATE)
-		die (_("dhcp-range contructor not available on this platform"), NULL, EC_BADCONF);
+		die (_("dhcp-range constructor not available on this platform"), NULL, EC_BADCONF);
 #endif 
 	    }
 	}
