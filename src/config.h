@@ -96,12 +96,18 @@ HAVE_CONNTRACK
    a build-dependency on libnetfilter_conntrack, but the resulting binary will
    still run happily on a kernel without conntrack support.
 
+HAVE_AUTH
+   define this to include the facility to act as an authoritative DNS
+   server for one or more zones.
+
+
 NO_IPV6
 NO_TFTP
 NO_DHCP
 NO_DHCP6
 NO_SCRIPT
 NO_LARGEFILE
+NO_AUTH
    these are avilable to explictly disable compile time options which would 
    otherwise be enabled automatically (HAVE_IPV6, >2Gb file sizes) or 
    which are enabled  by default in the distributed source tree. Building dnsmasq
@@ -123,6 +129,7 @@ RESOLVFILE
 #define HAVE_DHCP6 
 #define HAVE_TFTP
 #define HAVE_SCRIPT
+#define HAVE_AUTH
 /* #define HAVE_LUASCRIPT */
 /* #define HAVE_BROKEN_RTC */
 /* #define HAVE_DBUS */
@@ -311,6 +318,9 @@ HAVE_SOCKADDR_SA_LEN
 #define HAVE_SCRIPT
 #endif
 
+#ifdef NO_AUTH
+#undef HAVE_AUTH
+#endif
 
 /* Define a string indicating which options are in use.
    DNSMASQP_COMPILE_OPTS is only defined in dnsmasq.c */
@@ -369,7 +379,11 @@ static char *compile_opts =
 #ifndef HAVE_CONNTRACK
 "no-"
 #endif
-"conntrack";
+"conntrack "
+#ifndef HAVE_AUTH
+"no-"
+#endif
+  "auth";
 
 #endif
 

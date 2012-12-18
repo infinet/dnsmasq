@@ -812,6 +812,7 @@ void receive_query(struct listener *listen, time_t now)
 #endif
     }
 
+#ifdef HAVE_AUTH
   if (auth_dns)
     {
       m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr);
@@ -820,6 +821,7 @@ void receive_query(struct listener *listen, time_t now)
 		  (char *)header, m, &source_addr, &dst_addr, if_index);
     }
   else
+#endif
     {
       m = answer_request(header, ((char *) header) + PACKETSZ, (size_t)n, 
 			 dst_addr_4, netmask, now);
@@ -903,9 +905,11 @@ unsigned char *tcp_request(int confd, time_t now,
       else
 	dst_addr_4.s_addr = 0;
       
+#ifdef HAVE_AUTH
       if (auth_dns)
 	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr);
       else
+#endif
 	{
 	  /* m > 0 if answered from cache */
 	  m = answer_request(header, ((char *) header) + 65536, (size_t)size, 

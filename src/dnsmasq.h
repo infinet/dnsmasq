@@ -910,7 +910,9 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 int in_arpa_name_2_addr(char *namein, struct all_addr *addrp);
 
 /* auth.c */
+#ifdef HAVE_AUTH
 size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t now, union mysockaddr *peer_addr);
+#endif
 
 /* util.c */
 void rand_init(void);

@@ -148,6 +148,11 @@ int main (int argc, char **argv)
     die(_("asychronous logging is not available under Android"), NULL, EC_BADCONF);
 #endif
 
+#ifndef HAVE_AUTH
+  if (daemon->authserver)
+    die(_("authoritative DNS not available: set HAVE_AUTH in src/config.h"), NULL, EC_BADCONF);
+#endif
+
   rand_init();
   
   now = dnsmasq_time();

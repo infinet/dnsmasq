@@ -16,6 +16,7 @@
 
 #include "dnsmasq.h"
 
+#ifdef HAVE_AUTH
 
 static struct subnet *filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u)
 {
@@ -735,7 +736,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   return ansp - (unsigned char *)header;
 }
   
-  
+#endif  
   
 
 
