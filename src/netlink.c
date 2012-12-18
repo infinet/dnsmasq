@@ -207,6 +207,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		    enumerate_interfaces();
 		    create_bound_listeners(0);
 		  }
+
 #ifdef HAVE_DHCP6
 		if (daemon->doing_dhcp6 || daemon->doing_ra)
 		  dhcp_construct_contexts(now);
@@ -353,8 +354,13 @@ void netlink_multicast(time_t now)
 	  enumerate_interfaces();
 	  create_bound_listeners(0);
 	}
+
 #ifdef HAVE_DHCP6
-      dhcp_construct_contexts(now);
+      if (daemon->doing_dhcp6 || daemon->doing_ra)
+	dhcp_construct_contexts(now);	
+
+      if (daemon->doing_dhcp6)
+	lease_find_interfaces(now);
 #endif
     }
 }
