@@ -25,7 +25,7 @@ struct iface_param {
 };
 
 static int complete_context6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, 
+			     int scope, int if_index, int flags, 
 			     int preferred, int valid, void *vparam);
 
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
@@ -182,7 +182,7 @@ void dhcp6_packet(time_t now)
 }
 
 static int complete_context6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, int preferred, 
+			     int scope, int if_index, int flags, int preferred, 
 			     int valid, void *vparam)
 {
   struct dhcp_context *context;
@@ -190,7 +190,7 @@ static int complete_context6(struct in6_addr *local,  int prefix,
   struct iname *tmp;
  
   (void)scope; /* warning */
-  (void)dad;
+  (void)flags;
   (void)preferred;
   (void)valid;
       
@@ -479,7 +479,7 @@ struct cparam {
 };
 
 static int construct_worker(struct in6_addr *local, int prefix, 
-			    int scope, int if_index, int dad, 
+			    int scope, int if_index, int flags, 
 			    int preferred, int valid, void *vparam)
 {
   char ifrn_name[IFNAMSIZ];
@@ -487,7 +487,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
   struct dhcp_context *template, *context;
 
   (void)scope;
-  (void)dad;
+  (void)flags;
 
   struct cparam *param = vparam;
 

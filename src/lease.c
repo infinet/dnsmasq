@@ -363,13 +363,13 @@ static int find_interface_v4(struct in_addr local, int if_index,
 
 #ifdef HAVE_DHCP6
 static int find_interface_v6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int dad, 
+			     int scope, int if_index, int flags, 
 			     int preferred, int valid, void *vparam)
 {
   struct dhcp_lease *lease;
   
   (void)scope;
-  (void)dad;
+  (void)flags;
   (void)preferred;
   (void)valid;
 

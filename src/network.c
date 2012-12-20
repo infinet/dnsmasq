@@ -291,7 +291,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
 
 #ifdef HAVE_IPV6
 static int iface_allowed_v6(struct in6_addr *local, int prefix, 
-			    int scope, int if_index, int dad, 
+			    int scope, int if_index, int flags, 
 			    int preferred, int valid, void *vparam)
 {
   union mysockaddr addr;
@@ -312,7 +312,7 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_port = htons(daemon->port);
   addr.in6.sin6_scope_id = if_index;
   
-  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask, dad);
+  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask, !!(flags & IFACE_TENTATIVE));
 }
 #endif
 

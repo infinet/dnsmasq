@@ -40,10 +40,10 @@ struct search_param {
 
 static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest);
 static int add_prefixes(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, 
+			int scope, int if_index, int flags, 
 			int preferred, int valid, void *vparam);
 static int iface_search(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, 
+			int scope, int if_index, int flags, 
 			int prefered, int valid, void *vparam);
 static int add_lla(int index, unsigned int type, char *mac, size_t maclen, void *parm);
 
@@ -325,13 +325,13 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 }
 
 static int add_prefixes(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, 
+			int scope, int if_index, int flags, 
 			int preferred, int valid, void *vparam)
 {
   struct ra_param *param = vparam;
 
   (void)scope; /* warning */
-  (void)dad;
+  (void)flags;
   (void)preferred;
   (void)valid;
 
@@ -526,14 +526,13 @@ time_t periodic_ra(time_t now)
 }
   
 static int iface_search(struct in6_addr *local,  int prefix,
-			int scope, int if_index, int dad, 
+			int scope, int if_index, int flags, 
 			int preferred, int valid, void *vparam)
 {
   struct search_param *param = vparam;
   struct dhcp_context *context;
 
   (void)scope;
-  (void)dad;
   (void)preferred;
   (void)valid;
  
@@ -549,7 +548,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
 	   timeout value and arrange for RA to be sent unless interface is
 	   still doing DAD.*/
 	
-	if (!dad)
+	if (!(flags & IFACE_TENTATIVE))
 	  param->iface = if_index;
 	
 	if (difftime(param->now, context->ra_short_period_start) < 60.0)

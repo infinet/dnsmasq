@@ -239,6 +239,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		  {
 		    struct in6_addr *addrp = NULL;
 		    u32 valid = 0, preferred = 0;
+		    int flags = 0;
+		    
 		    while (RTA_OK(rta, len1))
 		      {
 			if (rta->rta_type == IFA_ADDRESS)
@@ -252,9 +254,15 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 			rta = RTA_NEXT(rta, len1);
 		      }
 		    
+		    if (ifa->ifa_flags & IFA_F_TENTATIVE)
+		      flags |= IFACE_TENTATIVE;
+		    
+		    if (ifa->ifa_flags & IFA_F_DEPRECATED)
+		      flags |= IFACE_DEPRECATED;
+		    
 		    if (addrp && callback_ok)
 		      if (!((*callback)(addrp, (int)(ifa->ifa_prefixlen), (int)(ifa->ifa_scope), 
-					(int)(ifa->ifa_index), (int)(ifa->ifa_flags & IFA_F_TENTATIVE), 
+					(int)(ifa->ifa_index), flags, 
 					(int) preferred, (int)valid, parm)))
 			callback_ok = 0;
 		  }
