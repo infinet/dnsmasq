@@ -428,8 +428,8 @@ struct server {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int tftp_ok, dhcp_ok, mtu, done, dad, dns_auth;
-  char *name;
+  int tftp_ok, dhcp_ok, mtu, done, dad, dns_auth, index, multicast_done;
+  char *name; 
   struct irec *next;
 };
 
@@ -1001,6 +1001,9 @@ struct in_addr get_ifaddr(char *intr);
 #ifdef HAVE_IPV6
 int set_ipv6pktinfo(int fd);
 #endif
+#ifdef HAVE_DHCP6
+void join_multicast(int dienow);
+#endif
 
 /* dhcp.c */
 #ifdef HAVE_DHCP
@@ -1151,7 +1154,6 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
 					    int prefix, u64 addr);
 void make_duid(time_t now);
 void dhcp_construct_contexts(time_t now);
-void join_multicast(void);
 #endif
 
 /* rfc3315.c */

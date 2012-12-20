@@ -272,7 +272,8 @@ static int iface_allowed(struct irec **irecp, int if_index,
       iface->dns_auth = auth_dns;
       iface->mtu = mtu;
       iface->dad = dad;
-      iface->done = 0;
+      iface->done = iface->multicast_done = 0;
+      iface->index = if_index;
       if ((iface->name = whine_malloc(strlen(ifr.ifr_name)+1)))
 	{
 	  strcpy(iface->name, ifr.ifr_name);
@@ -281,6 +282,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
 	  return 1;
 	}
       free(iface);
+
     }
   
   errno = ENOMEM; 
@@ -587,6 +589,61 @@ int is_dad_listeners(void)
   
   return 0;
 }
+
+#ifdef HAVE_DHCP6
+void join_multicast(int dienow)      
+{
+  struct irec *iface, *tmp;
+
+  for (iface = daemon->interfaces; iface; iface = iface->next)
+    if (iface->dhcp_ok && !iface->multicast_done)
+      {
+	/* There's an irec per address but we only want to join for multicast 
+	   once per interface. Weed out duplicates. */
+	for (tmp = daemon->interfaces; tmp; tmp = tmp->next)
+	  if (tmp->multicast_done && tmp->index == iface->index)
+	    break;
+	
+	iface->multicast_done = 1;
+	
+	if (!tmp)
+	  {
+	    struct ipv6_mreq mreq;
+	    int err = 0;
+
+	    mreq.ipv6mr_interface = iface->index;
+	    
+	    inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
+	    
+	    if (daemon->doing_dhcp6 &&
+		setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+	      err = 1;
+	    
+	    inet_pton(AF_INET6, ALL_SERVERS, &mreq.ipv6mr_multiaddr);
+	    
+	    if (daemon->doing_dhcp6 && 
+		setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+	      err = 1;
+	    
+	    inet_pton(AF_INET6, ALL_ROUTERS, &mreq.ipv6mr_multiaddr);
+	    
+	    if (daemon->doing_ra &&
+		setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
+	      err = 1;
+	    
+	    if (err)
+	      {
+		char *s = _("interface %s failed to join DHCPv6 multicast group: %s");
+		if (dienow)
+		  die(s, iface->name, EC_BADNET);
+		else
+		  my_syslog(LOG_ERR, s, iface->name, strerror(errno));
+	      }
+	  }
+      }
+}
+#endif
+
 /* return a UDP socket bound to a random port, have to cope with straying into
    occupied port nos and reserved ones. */
 int random_sock(int family)

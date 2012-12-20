@@ -220,12 +220,6 @@ int main (int argc, char **argv)
     die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
 #endif
 
-#ifdef HAVE_DHCP6
-  /* after netlink_init */
-  if (daemon->doing_dhcp6 || daemon->doing_ra)
-    join_multicast();
-#endif
-  
   if (!enumerate_interfaces())
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
   
@@ -255,6 +249,12 @@ int main (int argc, char **argv)
     }
   else 
     create_wildcard_listeners();
+ 
+#ifdef HAVE_DHCP6
+  /* after enumerate_interfaces() */
+  if (daemon->doing_dhcp6 || daemon->doing_ra)
+    join_multicast(1);
+#endif
   
   if (daemon->port != 0)
     cache_init();
