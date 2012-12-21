@@ -147,7 +147,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		  addr->s6_addr[3] = 0;
 		}
 	      
-	      if (!((*callback)(addr, prefix, scope_id, iface_index, 0, 0, 0, parm)))
+	      /* preferred and valid times == forever until we known how to dtermine them. */
+	      if (!((*callback)(addr, prefix, scope_id, iface_index, 0, -1, -1, parm)))
 		goto err;
 	}
 #endif
