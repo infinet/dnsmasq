@@ -31,7 +31,8 @@ struct ra_param {
   int ind, managed, other, found_context, first;
   char *if_name;
   struct dhcp_netid *tags;
-  struct in6_addr link_local;
+  struct in6_addr link_local, link_global;
+  unsigned int pref_time;
 };
 
 struct search_param {
@@ -41,7 +42,7 @@ struct search_param {
 static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest);
 static int add_prefixes(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
-			int preferred, int valid, void *vparam);
+			unsigned int preferred, unsigned int valid, void *vparam);
 static int iface_search(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
 			int prefered, int valid, void *vparam);
@@ -211,6 +212,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   parm.if_name = iface_name;
   parm.first = 1;
   parm.now = now;
+  parm.pref_time = 0;
   
   /* set tag with name == interface */
   iface_id.net = iface_name;
@@ -265,7 +267,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	  /* zero means "self" */
 	  for (i = 0; i < opt_cfg->len; i += IN6ADDRSZ, a++)
 	    if (IN6_IS_ADDR_UNSPECIFIED(a))
-	      put_opt6(&parm.link_local, IN6ADDRSZ);
+	      put_opt6(&parm.link_global, IN6ADDRSZ);
 	    else
 	      put_opt6(a, IN6ADDRSZ);
 	}
@@ -293,7 +295,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
       put_opt6_char(3);
       put_opt6_short(0);
       put_opt6_long(1800); /* lifetime - twice RA retransmit */
-      put_opt6(&parm.link_local, IN6ADDRSZ);
+      put_opt6(&parm.link_global, IN6ADDRSZ);
     }
 
   /* set managed bits unless we're providing only RA on this link */
@@ -326,7 +328,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 
 static int add_prefixes(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
-			int preferred, int valid, void *vparam)
+			unsigned int preferred, unsigned int valid, void *vparam)
 {
   struct ra_param *param = vparam;
 
@@ -402,7 +404,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	      }
 
 	  /* configured time is ceiling */
-	  if ((unsigned int)valid > time)
+	  if (valid > time)
 	    valid = time;
 	  
 	  if ((flags & IFACE_DEPRECATED) || deprecate)
@@ -410,8 +412,14 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  else 
 	    {
 	      /* configured time is ceiling */
-	      if ((unsigned int)preferred > time)
+	      if (preferred > time)
 		preferred = time;
+	    }
+	  
+	  if (preferred > param->pref_time)
+	    {
+	      param->pref_time = preferred;
+	      param->link_global = *local;
 	    }
 	  
 	  if (do_prefix)
@@ -422,10 +430,6 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		{
 		  /* zero net part of address */
 		  setaddr6part(local, addr6part(local) & ~((prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU));
-		  
-		  /* lifetimes must be min 2 hrs, by RFC 2462 */
-		  if (time < 7200)
-		    time = 7200;
 		  
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
