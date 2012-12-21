@@ -488,6 +488,8 @@ static int construct_worker(struct in6_addr *local, int prefix,
 
   (void)scope;
   (void)flags;
+  (void)valid;
+  (void)preferred;
 
   struct cparam *param = vparam;
 
@@ -549,19 +551,6 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	    
 	    log_context(AF_INET6, context);
 	  } 
-
-	if (context)
-	  {
-	    if (valid == -1)
-	      context->valid = valid;
-	    else
-	      context->valid = valid + param->now;
-	    
-	    if (preferred == -1)
-	      context->preferred = preferred;
-	    else
-	      context->preferred = preferred + param->now;
-	  }
       }
   
   return 1;

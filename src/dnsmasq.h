@@ -685,7 +685,6 @@ struct dhcp_context {
   int prefix, if_index;
   time_t ra_time, ra_short_period_start;
   char *template_interface;
-  int valid, preferred; /* times from address for constructed contexts */
 #endif
   int flags;
   struct dhcp_netid netid, *filter;

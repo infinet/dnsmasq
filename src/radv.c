@@ -331,10 +331,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
   struct ra_param *param = vparam;
 
   (void)scope; /* warning */
-  (void)flags;
-  (void)preferred;
-  (void)valid;
-
+  
   if (if_index == param->ind)
     {
       if (IN6_IS_ADDR_LINKLOCAL(local))
@@ -345,9 +342,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  int do_prefix = 0;
 	  int do_slaac = 0;
 	  int deprecate  = 0;
-	  int found_constructed = 0;
 	  unsigned int time = 0xffffffff;
-	  int calc_valid = 0, calc_preferred = 0;
 	  struct dhcp_context *context;
 	  
 	  for (context = daemon->dhcp6; context; context = context->next)
@@ -374,17 +369,6 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		      continue;
 		    param->managed = 1;
 		    param->other = 1;
-		  }
-		
-		if (context->flags & CONTEXT_CONSTRUCTED)
-		  {
-		    found_constructed = 1;
-		    calc_valid = context->valid;
-		    calc_preferred = context->preferred;
-		    if (context->valid != -1)
-		      calc_valid -= (int)param->now;
-		    if (context->preferred != -1)
-		      calc_preferred -= (int)param->now;			
 		  }
 		
 		/* find floor time */
@@ -417,10 +401,17 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		param->found_context = 1;
 	      }
 
-	  if (!found_constructed)
+	  /* configured time is ceiling */
+	  if ((unsigned int)valid > time)
+	    valid = time;
+	  
+	  if ((flags & IFACE_DEPRECATED) || deprecate)
+	    preferred = 0;
+	  else 
 	    {
-	      calc_valid = time;
-	      calc_preferred = deprecate ? 0 : time;
+	      /* configured time is ceiling */
+	      if ((unsigned int)preferred > time)
+		preferred = time;
 	    }
 	  
 	  if (do_prefix)
@@ -441,8 +432,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  opt->prefix_len = prefix;
 		  /* autonomous only if we're not doing dhcp, always set "on-link" */
 		  opt->flags = do_slaac ? 0xC0 : 0x80;
-		  opt->valid_lifetime = htonl(calc_valid);
-		  opt->preferred_lifetime = htonl(calc_preferred);
+		  opt->valid_lifetime = htonl(valid);
+		  opt->preferred_lifetime = htonl(preferred);
 		  opt->reserved = 0; 
 		  opt->prefix = *local;
 		  
