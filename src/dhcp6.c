@@ -475,7 +475,7 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
 
 struct cparam {
   time_t now;
-  int newone;
+  int newone, newname;
 };
 
 static int construct_worker(struct in6_addr *local, int prefix, 
@@ -548,6 +548,10 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	    /* we created a new one, need to call
 	       lease_update_file to get periodic functions called */
 	    param->newone = 1; 
+
+	    /* Will need to add new putative SLAAC addresses to existing leases */
+	    if (context->flags & CONTEXT_RA_NAME)
+	      param->newname = 1;
 	    
 	    log_context(AF_INET6, context);
 	  } 
@@ -561,6 +565,7 @@ void dhcp_construct_contexts(time_t now)
   struct dhcp_context *tmp, *context, **up;
   struct cparam param;
   param.newone = 0;
+  param.newname = 0;
   param.now = now;
 
   for (context = daemon->dhcp6; context; context = context->next)
@@ -578,10 +583,11 @@ void dhcp_construct_contexts(time_t now)
       
       if (context->flags & CONTEXT_GC)
 	{
-	  if (daemon->dhcp6 == context)
-	    daemon->dhcp6 = context->next;
 	  *up = context->next;
 	  free(context);
+	  param.newone = 1; /* include deletion */ 
+	  if (context->flags & CONTEXT_RA_NAME)
+	    param.newname = 1;
 	}
       else
 	up = &context->next;
@@ -590,7 +596,11 @@ void dhcp_construct_contexts(time_t now)
   if (param.newone)
     {
       if (daemon->dhcp || daemon->doing_dhcp6)
-	lease_update_file(now);
+	{
+	  if (param.newname)
+	    lease_update_slaac(now);
+	  lease_update_file(now);
+	}
       else 
 	/* Not doing DHCP, so no lease system, manage alarms for ra only */
 	send_alarm(periodic_ra(now), now);

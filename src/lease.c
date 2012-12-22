@@ -389,6 +389,18 @@ void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *inte
     slaac_ping_reply(sender, packet, interface, leases);
 }
 
+void lease_update_slaac(time_t now)
+{
+  /* Called when we contruct a new RA-names context, to add putative
+     new SLAAC addresses to existing leases. */
+
+  struct dhcp_lease *lease;
+  
+  if (daemon->dhcp)
+    for (lease = leases; lease; lease = lease->next)
+      slaac_add_addrs(lease, now, 0);
+}
+
 #endif
 
 
