@@ -393,17 +393,17 @@ static int nl_async(struct nlmsghdr *h)
   	
 static void nl_newinterface(time_t now)
 {
+  if (option_bool(OPT_CLEVERBIND) || daemon->doing_dhcp6 || daemon->doing_ra)
+    enumerate_interfaces();
+  
   if (option_bool(OPT_CLEVERBIND))
-    {
-      enumerate_interfaces();
-      create_bound_listeners(0);
-    }
+    create_bound_listeners(0);
   
 #ifdef HAVE_DHCP6
   if (daemon->doing_dhcp6 || daemon->doing_ra)
     {
-      dhcp_construct_contexts(now);
       join_multicast(0);
+      dhcp_construct_contexts(now);
     }
   
   if (daemon->doing_dhcp6)
