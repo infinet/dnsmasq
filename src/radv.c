@@ -373,10 +373,14 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    param->other = 1;
 		  }
 		
-		/* find floor time */
+		/* find floor time, don't reduce below RA interval. */
 		if (time > context->lease_time)
-		  time = context->lease_time;
-		
+		  {
+		    time = context->lease_time;
+		    if (time < 600u)
+		      time = 600;
+		  }
+
 		if (context->flags & CONTEXT_DEPRECATE)
 		  deprecate = 1;
 
