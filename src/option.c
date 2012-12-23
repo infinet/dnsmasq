@@ -2371,6 +2371,13 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 			a[leasepos][strlen(a[leasepos]) - 1] = 0;
 		      }
 		    
+		    for (cp = a[leasepos]; *cp; cp++)
+		      if (!(*cp >= '0' && *cp <= '9'))
+			break;
+
+		    if (!cp || (leasepos+1 < k))
+		      ret_err(_("bad dhcp-range"));
+		    
 		    new->lease_time = atoi(a[leasepos]) * fac;
 		    /* Leases of a minute or less confuse
 		       some clients, notably Apple's */
