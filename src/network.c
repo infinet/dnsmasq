@@ -596,7 +596,7 @@ void join_multicast(int dienow)
   struct irec *iface, *tmp;
 
   for (iface = daemon->interfaces; iface; iface = iface->next)
-    if (iface->dhcp_ok && !iface->multicast_done)
+    if (iface->addr.sa.sa_family == AF_INET6 && iface->dhcp_ok && !iface->multicast_done)
       {
 	/* There's an irec per address but we only want to join for multicast 
 	   once per interface. Weed out duplicates. */
