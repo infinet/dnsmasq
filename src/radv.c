@@ -344,6 +344,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  int do_prefix = 0;
 	  int do_slaac = 0;
 	  int deprecate  = 0;
+	  int constructed = 0;
 	  unsigned int time = 0xffffffff;
 	  struct dhcp_context *context;
 	  
@@ -383,6 +384,10 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 
 		if (context->flags & CONTEXT_DEPRECATE)
 		  deprecate = 1;
+		
+		if (context->flags & CONTEXT_CONSTRUCTED)
+		  constructed = 1;
+
 
 		/* collect dhcp-range tags */
 		if (context->netid.next == &context->netid && context->netid.net)
@@ -408,18 +413,19 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	      }
 
 	  /* configured time is ceiling */
-	  if (valid > time)
+	  if (!constructed || valid > time)
 	    valid = time;
 	  
-	  if ((flags & IFACE_DEPRECATED) || deprecate)
+	  if (flags & IFACE_DEPRECATED)
 	    preferred = 0;
-	  else 
-	    {
-	      /* configured time is ceiling */
-	      if (preferred > time)
-		preferred = time;
-	    }
 	  
+	  if (deprecate)
+	    time = 0;
+	  
+	  /* configured time is ceiling */
+	  if (!constructed || preferred > time)
+	    preferred = time;
+	    	  
 	  if (preferred > param->pref_time)
 	    {
 	      param->pref_time = preferred;

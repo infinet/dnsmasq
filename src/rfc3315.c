@@ -625,10 +625,16 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 				  hostname = NULL;
 			      }
 			  }
+		       	
+			if (have_config(valid_config, CONFIG_TIME))
+			  lease_time = valid_config->lease_time;
+			else
+			  lease_time = this_context->lease_time;
 			
-			lease_time = have_config(valid_config, CONFIG_TIME) ? valid_config->lease_time : this_context->lease_time;
+			 if (this_context->valid < lease_time)
+			   lease_time = this_context->valid;
 			
-			if (ia_option)
+			 if (ia_option)
 			  {
 			    if (requested_time < 120u )
 			      requested_time = 120u; /* sanity */
@@ -740,7 +746,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			    o1 =  new_opt6(OPTION6_IAADDR);
 			    put_opt6(addrp, sizeof(*addrp));
 			    /* preferred lifetime */
-			    put_opt6_long(this_context && (this_context->flags & CONTEXT_DEPRECATE) ? 0 : lease_time);
+			    put_opt6_long(this_context && (this_context->preferred < lease_time) ? 
+					  this_context->preferred : lease_time);
 			    put_opt6_long(lease_time); /* valid lifetime */
 			    end_opt6(o1);
 

@@ -26,7 +26,7 @@ struct iface_param {
 
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int flags, 
-			     int preferred, int valid, void *vparam);
+			     unsigned int preferred, unsigned int valid, void *vparam);
 
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
 
@@ -182,18 +182,15 @@ void dhcp6_packet(time_t now)
 }
 
 static int complete_context6(struct in6_addr *local,  int prefix,
-			     int scope, int if_index, int flags, int preferred, 
-			     int valid, void *vparam)
+			     int scope, int if_index, int flags, unsigned int preferred, 
+			     unsigned int valid, void *vparam)
 {
   struct dhcp_context *context;
   struct iface_param *param = vparam;
   struct iname *tmp;
  
   (void)scope; /* warning */
-  (void)flags;
-  (void)preferred;
-  (void)valid;
-      
+  
   if (if_index == param->ind &&
       !IN6_IS_ADDR_LOOPBACK(local) &&
       !IN6_IS_ADDR_LINKLOCAL(local) &&
@@ -219,12 +216,32 @@ static int complete_context6(struct in6_addr *local,  int prefix,
 	      is_same_net6(local, &context->start6, prefix) &&
 	      is_same_net6(local, &context->end6, prefix))
 	    {
+
+
 	      /* link it onto the current chain if we've not seen it before */
 	      if (context->current == context)
 		{
-		  context->current = param->current;
-		  param->current = context;
+		  struct dhcp_context *tmp, **up;
+		  
+		  /* use interface values only for contructed contexts */
+		  if (!(context->flags & CONTEXT_CONSTRUCTED))
+		    preferred = valid = 0xffffffff;
+		  else if (flags & IFACE_DEPRECATED)
+		    preferred = 0;
+
+		  if (context->flags & CONTEXT_DEPRECATE)
+		    preferred = 0;
+		  
+		  /* order chain, longest preferred time first */
+		  for (up = &param->current, tmp = param->current; tmp; tmp = tmp->current)
+		    if (tmp->preferred <= preferred)
+		      break;
+		  
+		  context->current = *up;
+		  *up = context;
 		  context->local6 = *local;
+		  context->preferred = preferred;
+		  context->valid = valid;
 		}
 	    }
 	}

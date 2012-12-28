@@ -683,6 +683,7 @@ struct dhcp_context {
   struct in6_addr start6, end6; /* range of available addresses */
   struct in6_addr local6;
   int prefix, if_index;
+  unsigned int valid, preferred;
   time_t ra_time, ra_short_period_start;
   char *template_interface;
 #endif
