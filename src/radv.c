@@ -193,7 +193,10 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   struct dhcp_netid iface_id;
   struct dhcp_opt *opt_cfg;
   int done_dns = 0;
- 
+#ifdef HAVE_LINUX_NETWORK
+  FILE *f;
+#endif
+
   save_counter(0);
   ra = expand(sizeof(struct ra_packet));
   
@@ -230,14 +233,23 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
     return;
 
   strncpy(ifr.ifr_name, iface_name, IF_NAMESIZE);
-  
-  if (ioctl(daemon->icmp6fd, SIOCGIFMTU, &ifr) != -1)
+
+#ifdef HAVE_LINUX_NETWORK
+  /* Note that IPv6 MTU is not necessarilly the same as the IPv4 MTU
+     available from SIOCGIFMTU */
+  sprintf(daemon->namebuff, "/proc/sys/net/ipv6/conf/%s/mtu", iface_name);
+  if ((f = fopen(daemon->namebuff, "r")))
     {
-      put_opt6_char(ICMP6_OPT_MTU);
-      put_opt6_char(1);
-      put_opt6_short(0);
-      put_opt6_long(ifr.ifr_mtu);
+      if (fgets(daemon->namebuff, MAXDNAME, f))
+	{
+	  put_opt6_char(ICMP6_OPT_MTU);
+	  put_opt6_char(1);
+	  put_opt6_short(0);
+	  put_opt6_long(atoi(daemon->namebuff));
+	}
+      fclose(f);
     }
+#endif
      
   iface_enumerate(AF_LOCAL, &iface, add_lla);
  
