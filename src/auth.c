@@ -46,6 +46,21 @@ static struct subnet *filter_zone(struct auth_zone *zone, int flag, struct all_a
   return NULL;
 }
 
+static int filter_constructed_dhcp(int flag, struct all_addr *addr_u)
+{
+#ifdef HAVE_DHCP6
+  struct dhcp_context *context;
+
+  if (flag | F_IPV6)
+    for (context = daemon->dhcp6; context; context = context->next)
+      if ((context->flags & CONTEXT_CONSTRUCTED) &&
+	  is_same_net6(&(addr_u->addr.addr6), &context->start6, context->prefix))
+	return 1;
+#endif
+  
+  return 0;
+}
+
 static int in_zone(struct auth_zone *zone, char *name, char **cut)
 {
   size_t namelen = strlen(name);
@@ -415,7 +430,8 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		do
 		  { 
 		    nxdomain = 0;
-		    if ((crecp->flags & flag) && filter_zone(zone, flag, &(crecp->addr.addr)))
+		    if ((crecp->flags & flag) && 
+			(filter_zone(zone, flag, &(crecp->addr.addr)) || filter_constructed_dhcp(flag, &(crecp->addr.addr))))
 		      {
 			*cut = '.'; /* restore domain part */
 			log_query(crecp->flags, name, &crecp->addr.addr, record_source(crecp->uid));
