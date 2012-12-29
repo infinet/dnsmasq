@@ -1587,9 +1587,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	struct auth_zone *new;
 	
 	comma = split(arg);
-	if (!comma)
-	  ret_err(gen_err);
-	
+		
 	new = opt_malloc(sizeof(struct auth_zone));
 	new->domain = opt_string_alloc(arg);
 	new->subnet = NULL;
