@@ -390,8 +390,8 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		if (time > context->lease_time)
 		  {
 		    time = context->lease_time;
-		    if (time < 600u)
-		      time = 600;
+		    if (time < ((unsigned int)RA_INTERVAL))
+		      time = RA_INTERVAL;
 		  }
 
 		if (context->flags & CONTEXT_DEPRECATE)
@@ -572,8 +572,8 @@ static int iface_search(struct in6_addr *local,  int prefix,
 	  /* range 5 - 20 */
 	  context->ra_time = param->now + 5 + (rand16()/4400);
 	else
-	  /* range 450 - 600 */
-	  context->ra_time = param->now + 450 + (rand16()/440);
+	  /* range 3/4 - 1 times RA_INTERVAL */
+	  context->ra_time = param->now + (3 * RA_INTERVAL)/4 + ((RA_INTERVAL * (unsigned int)rand16()) >> 18);
 	
 	/* zero timers for other contexts on the same subnet, so they don't timeout 
 	   independently */
