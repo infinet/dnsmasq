@@ -204,7 +204,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   ra->code = 0;
   ra->hop_limit = hop_limit;
   ra->flags = 0x00;
-  ra->lifetime = htons(1800); /* AdvDefaultLifetime*/
+  ra->lifetime = htons(RA_INTERVAL * 3); /* AdvDefaultLifetime * 3 */
   ra->reachable_time = 0;
   ra->retrans_time = 0;
 
@@ -275,7 +275,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	  put_opt6_char(ICMP6_OPT_RDNSS);
 	  put_opt6_char((opt_cfg->len/8) + 1);
 	  put_opt6_short(0);
-	  put_opt6_long(1800); /* lifetime - twice RA retransmit */
+	  put_opt6_long(RA_INTERVAL * 2); /* lifetime - twice RA retransmit */
 	  /* zero means "self" */
 	  for (i = 0; i < opt_cfg->len; i += IN6ADDRSZ, a++)
 	    if (IN6_IS_ADDR_UNSPECIFIED(a))
@@ -306,7 +306,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
       put_opt6_char(ICMP6_OPT_RDNSS);
       put_opt6_char(3);
       put_opt6_short(0);
-      put_opt6_long(1800); /* lifetime - twice RA retransmit */
+      put_opt6_long(RA_INTERVAL * 2); /* lifetime - twice RA retransmit */
       put_opt6(&parm.link_global, IN6ADDRSZ);
     }
 
