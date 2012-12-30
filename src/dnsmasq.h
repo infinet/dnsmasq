@@ -706,7 +706,7 @@ struct dhcp_context {
 #define CONTEXT_CONSTRUCTED 2048
 #define CONTEXT_GC          4096
 #define CONTEXT_RA          8192
-
+#define CONTEXT_WILDCARD   16384
 
 struct ping_result {
   struct in_addr addr;

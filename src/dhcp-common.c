@@ -712,14 +712,19 @@ void log_context(int family, struct dhcp_context *context)
 #ifdef HAVE_DHCP6
   if (context->flags & CONTEXT_CONSTRUCTED)
    {
-     n = p;
-     p += sprintf(p, ", constructed for %s", context->template_interface);
+     char ifrn_name[IFNAMSIZ];
+     if (indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, context->if_index, ifrn_name))
+       {
+	 n = p;
+	 p += sprintf(p, ", constructed for %s", ifrn_name);
+       }
    }
 
  if (context->flags & CONTEXT_TEMPLATE)
    {
      n = p;
-     p += sprintf(p, ", template for %s", context->template_interface);  
+     p += sprintf(p, ", template for %s%s", context->template_interface, 
+		  (context->flags & CONTEXT_WILDCARD) ? "*" : "");  
    }
 #endif
 

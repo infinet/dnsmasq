@@ -531,8 +531,9 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	  }
 	
       }
-    else if (strcmp(ifrn_name, template->template_interface) == 0 &&
-	     addr6part(local) == addr6part(&template->start6))
+    else if (addr6part(local) == addr6part(&template->start6) &&
+	     strncmp(template->template_interface, ifrn_name, strlen(template->template_interface)) == 0 &&
+	     (strlen(template->template_interface) == strlen(ifrn_name) || (template->flags & CONTEXT_WILDCARD)))
       {
 	start6 = *local;
 	setaddr6part(&start6, addr6part(&template->start6));
