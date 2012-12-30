@@ -46,7 +46,7 @@ static struct subnet *filter_zone(struct auth_zone *zone, int flag, struct all_a
   return NULL;
 }
 
-static int filter_constructed_dhcp(int flag, struct all_addr *addr_u)
+static int filter_constructed_dhcp(struct auth_zone *zone, int flag, struct all_addr *addr_u)
 {
 #ifdef HAVE_DHCP6
   struct dhcp_context *context;
@@ -58,7 +58,7 @@ static int filter_constructed_dhcp(int flag, struct all_addr *addr_u)
 	return 1;
 #endif
   
-  return 0;
+  return filter_zone(zone, flag, addr_u) != NULL;
 }
 
 static int in_zone(struct auth_zone *zone, char *name, char **cut)
@@ -431,7 +431,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  { 
 		    nxdomain = 0;
 		    if ((crecp->flags & flag) && 
-			(filter_zone(zone, flag, &(crecp->addr.addr)) || filter_constructed_dhcp(flag, &(crecp->addr.addr))))
+			(filter_constructed_dhcp(zone, flag, &(crecp->addr.addr))))
 		      {
 			*cut = '.'; /* restore domain part */
 			log_query(crecp->flags, name, &crecp->addr.addr, record_source(crecp->uid));
@@ -454,7 +454,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	    do
 	      { 
 		 nxdomain = 0;
-		 if ((crecp->flags & flag) && filter_zone(zone, flag, &(crecp->addr.addr)))
+		 if ((crecp->flags & flag) && filter_constructed_dhcp(zone, flag, &(crecp->addr.addr)))
 		   {
 		     log_query(crecp->flags, name, &crecp->addr.addr, record_source(crecp->uid));
 		     found = 1;
@@ -679,7 +679,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  if ((crecp->flags & F_DHCP) && !option_bool(OPT_DHCP_FQDN))
 		    {
 		      char *cache_name = cache_get_name(crecp);
-		      if (!strchr(cache_name, '.') && filter_zone(zone, (crecp->flags & (F_IPV6 | F_IPV4)), &(crecp->addr.addr)))
+		      if (!strchr(cache_name, '.') && filter_constructed_dhcp(zone, (crecp->flags & (F_IPV6 | F_IPV4)), &(crecp->addr.addr)))
 			{
 			  qtype = T_A;
 #ifdef HAVE_IPV6
@@ -696,7 +696,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  if ((crecp->flags & F_HOSTS) || (((crecp->flags & F_DHCP) && option_bool(OPT_DHCP_FQDN))))
 		    {
 		      strcpy(name, cache_get_name(crecp));
-		      if (in_zone(zone, name, &cut) && filter_zone(zone, (crecp->flags & (F_IPV6 | F_IPV4)), &(crecp->addr.addr)))
+		      if (in_zone(zone, name, &cut) && filter_constructed_dhcp(zone, (crecp->flags & (F_IPV6 | F_IPV4)), &(crecp->addr.addr)))
 			{
 			  qtype = T_A;
 #ifdef HAVE_IPV6
