@@ -236,6 +236,8 @@ static int complete_context6(struct in6_addr *local,  int prefix,
 		  for (up = &param->current, tmp = param->current; tmp; tmp = tmp->current)
 		    if (tmp->preferred <= preferred)
 		      break;
+		    else
+		      up = &tmp->current;
 		  
 		  context->current = *up;
 		  *up = context;
