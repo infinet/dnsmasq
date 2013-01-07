@@ -376,35 +376,33 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	    }
       	  else if (qtype == T_AXFR)
 	    {
-	      if (daemon->auth_peers)
+	      struct iname *peers;
+	      
+	      if (peer_addr->sa.sa_family == AF_INET)
+		peer_addr->in.sin_port = 0;
+#ifdef HAVE_IPV6
+	      else
+		peer_addr->in6.sin6_port = 0; 
+#endif
+	      
+	      for (peers = daemon->auth_peers; peers; peers = peers->next)
+		if (sockaddr_isequal(peer_addr, &peers->addr))
+		  break;
+	      
+	      /* Refuse all AXFR unless --auth-sec-servers is set */
+	      if ((!peers && daemon->auth_peers) || !daemon->secondary_forward_server)
 		{
-		  struct iname *peers;
-		  
 		  if (peer_addr->sa.sa_family == AF_INET)
-		    peer_addr->in.sin_port = 0;
+		    inet_ntop(AF_INET, &peer_addr->in.sin_addr, daemon->addrbuff, ADDRSTRLEN);
 #ifdef HAVE_IPV6
 		  else
-		    peer_addr->in6.sin6_port = 0; 
+		    inet_ntop(AF_INET6, &peer_addr->in6.sin6_addr, daemon->addrbuff, ADDRSTRLEN); 
 #endif
 		  
-		  for (peers = daemon->auth_peers; peers; peers = peers->next)
-		    if (sockaddr_isequal(peer_addr, &peers->addr))
-		      break;
-		  
-		  if (!peers)
-		    {
-		      if (peer_addr->sa.sa_family == AF_INET)
-			inet_ntop(AF_INET, &peer_addr->in.sin_addr, daemon->addrbuff, ADDRSTRLEN);
-#ifdef HAVE_IPV6
-		      else
-			inet_ntop(AF_INET6, &peer_addr->in6.sin6_addr, daemon->addrbuff, ADDRSTRLEN); 
-#endif
-		      
-		      my_syslog(LOG_WARNING, _("ignoring zone transfer request from %s"), daemon->addrbuff);
-		      return 0;
-		    }
+		  my_syslog(LOG_WARNING, _("ignoring zone transfer request from %s"), daemon->addrbuff);
+		  return 0;
 		}
-	      
+	       	      
 	      soa = 1; /* inhibits auth section */
 	      ns = 1; /* ensure we include NS records! */
 	      axfr = 1;
