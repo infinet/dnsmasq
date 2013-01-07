@@ -1,3 +1,21 @@
+version 2.66
+            Add the ability to act as an authoritative DNS
+            server. Dnsmasq can now answer queries from the wider 'net
+            with local data, as long as the correct NS records are set
+            up. Only local data is provided, to avoid creating an open
+            DNS relay. Zone transfer is supported, to allow secondary
+            servers to be configured.
+
+	    Add "constructed DHCP ranges" for DHCPv6. This is intended
+	    for IPv6 routers which get prefixes dynamically via prefix
+	    delegation. With suitable configuration, stateful DHCPv6
+	    and RA can happen automatically as prefixes are delegated
+	    and then deprecated, without having  to re-write the
+	    dnsmasq configuration file or restart the daemon. Thanks to
+	    Steven Barth for extensive testing and development work on
+	    this idea.
+  
+
 version 2.65
 	    Fix regression which broke forwarding of queries sent via
 	    TCP which are not for A and AAAA and which were directed to

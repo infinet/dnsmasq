@@ -75,6 +75,9 @@ the upstream DNS servers.
 .B --max-cache-ttl=<time>
 Set a maximum TTL value for entries in the cache.
 .TP
+.B --auth-ttl=<time>
+Set the TTL value returned in answers from the authoritative server.
+.TP
 .B \-k, --keep-in-foreground
 Do not go into the background at startup but otherwise run as
 normal. This is intended for use when dnsmasq is run under daemontools
@@ -541,8 +544,27 @@ needed for a client to do validation itself.
 .TP
 .B --auth-zone=<domain>[,<subnet>[,<subnet>.....]]
 Define a DNS zone for which dnsmasq acts as authoritative server. Locally defined DNS records which are in the domain
-will be served, except that A and AAAA records must be in one of the specified subnets, or in a subnet corresponding to a contructed DHCP range. The subnet(s) are also used to define in-addr.arpa and ipv6.arpa domains which are served for reverse-DNS queries.
-.TP  
+will be served, except that A and AAAA records must be in one of the
+specified subnets, or in a subnet corresponding to a contructed DHCP
+range. The subnet(s) are also used to define in-addr.arpa and
+ipv6.arpa domains which are served for reverse-DNS queries.
+.TP
+.B --auth-soa=<serial>[,<hostmaster>[,<refresh>[,<retry>[,<expiry>]]]]
+Specify fields in the SOA record associated with authoritative
+zones. Note that this is optional, all the values are set to sane defaults.
+.TP
+.B --auth-sec-servers=<domain>[,<domain>[,<domain>...]]
+Specify any secondary servers for a zone for which dnsmasq is
+authoritative. These servers must be configured to get zone data from
+dnsmasq by zone transfer, and answer queries for the same
+authoritative zones and dnsmasq.
+.TP
+.B --auth-peer=<ip-address>[,<ip-address>[,<ip-address>...]]
+Specify the addresses of secondary servers which are allowed to
+initiate zone transfer (AXFR) requests for zones for which dnsmasq is
+authoritative. If this option is not given, then AXFR requests wil be
+accepted from any secondary. 
+.TP 
 .B --conntrack
 Read the Linux connection track mark associated with incoming DNS
 queries and set the same mark value on upstream traffic used to answer
@@ -1670,6 +1692,153 @@ static address mappings.) The filename
 parameter in a BOOTP request is used as a tag,
 as is the tag "bootp", allowing some control over the options returned to
 different classes of hosts.
+
+.SH AUTHORITATIVE CONFIGURATION
+.PP 
+Configuring dnsmasq to act as an authoritative DNS server is
+complicated by the fact that it involves configuration of external DNS
+servers to provide delegation. We will walk through three scenarios of
+increasing complexity. Prerequisites for all of these scenarios
+are a globally accesible IP address, an A or AAAA record pointing to that address,
+and an external DNS server capable of doing delegation of the zone in
+question. For the first part of this explanation, we will call the A (or AAAA) record
+for the globally accessible address server.example.com, and the zone
+for which dnsmasq is authoritative our.zone.com.
+
+The simplest configuration consists of two lines of dnsmasq configuration; something like
+
+.nf
+.B auth-server=server.example.com,eth0
+.B auth=zone=our.zone.com,1.2.3.0/24
+.fi
+
+and two records in the external DNS
+
+.nf
+server.example.com       A    192.0.43.10
+our.zone.com            NS    server.example.com
+.fi
+
+eth0 is the external network interface on which dnsmasq is listening,
+and has (globally accessible) address 192.0.43.10. 
+
+Note that the external IP address may well be dynamic (ie assigned
+from an ISP by DHCP or PPP) If so, the A record must be linked to this
+dynamic assignment by one of the usual dynamic-DNS systems.
+
+A more complex, but practically useful configuration has the address
+record for the globally accessible IP address residing in the
+authoritative zone which dnsmasq is serving, typically at the root. Now
+we have
+
+.nf
+.B auth-server=our.zone.com,eth0
+.B auth=zone=our.zone.com,1.2.3.0/24
+.fi
+
+.nf
+our.zone.com             A    192.0.43.10
+our.zone.com            NS    our.zone.com
+.fi
+
+The A record for our.zone.com has now become a glue record, it solves
+the chicken-and-egg problem of finding the IP address of the
+nameserver for our.zone.com when the A record is within that
+zone. Note that this is the only role of this record: as dnsmasq is
+now authoritative from our.zone.com it too must provide this
+record. If the external address is static, this can be done with an
+.B /etc/hosts 
+entry or 
+.B --host-record.
+If the external address is dynamic,
+then it must be done using something like
+
+.nf
+.B --interface-name=our.zone.com,eth0
+.fi
+
+Our final configuration builds on that above, but also adds a
+secondary DNS server. This is another DNS server which learns the DNS data
+for the zone by doing zones transfer, and acts as a backup should
+the primary server become inaccessible. The configuration of the
+secondary is beyond the scope of this man-page, but the extra
+configuration of dnsmasq is simple:
+
+.nf
+.B auth-sec-servers=secondary.myisp.com
+.fi
+
+and
+
+.nf
+our.zone.com           NS    secondary.myisp.com
+.fi
+
+Adding auth-sec-servers enables zone transfer in dnsmasq, to allow the
+secondary to collect the DNS data. If you wish to restrict this data
+to particular hosts then
+
+.nf
+.B auth-peer=<IP address of secondary>
+.fi
+
+will do so.
+
+Dnsmasq acts as an authoritative server for  in-addr.arpa and
+ipv6.arpa domains associated with the subnets given in auth-zone
+declarations, so reverse (address to name) lookups can be simply
+configured with a suitable NS record, for instance in this example,
+where we allow 1.2.3.0/24 addresses.
+
+.nf
+ 3.2.1.in-addr.arpa  NS    our.zone.com
+.fi
+
+Note that at present, reverse (in-addr.arpa and ip6.arpa) zones are
+not available in zone transfers, so there is no point arranging
+secondary servers for reverse lookups.
+
+.PP
+When dnsmasq is configured to act as an authoritative server, the
+following data is used to populate the authoritative zone.
+.PP
+.B --mx-host, --srv-host, --dns-rr, --txt-record, --naptr-record
+, as long as the record names are in the authoritative domain.
+.PP
+.B --cname
+as long as the record name is in  the authoritative domain. If the
+target of the CNAME is unqualified, then it  is qualified with the
+authoritative zone name.
+.PP
+IPv4 and IPv6 addresses from /etc/hosts (and 
+.B --addn-hosts
+) and
+.B --host-record
+provided the address falls into one of the subnets specified in the
+.B --auth-zone.
+.PP
+Addresses specified by 
+.B --interface-name.
+In this case, the address is not contrained to a subnet from
+.B --auth-zone. 
+
+.PP
+Addresses of DHCP leases, provided the address falls into one of the subnets specified in the
+.B --auth-zone
+OR a constructed DHCP range. In the default mode, where a DHCP lease
+has an unqualified name, and possibly a qualified name constructed
+using 
+.B --domain
+then the name in the authoritative zone is constructed from the
+unqualified name and the zone's domain. This may or may not equal
+that specified by 
+.B --domain.
+If 
+.B --dhcp-fqdn
+is set, then the fully qualified names associated with DHCP leases are
+used, and must match the zone's domain.
+ 
+
 
 .SH EXIT CODES
 .PP
