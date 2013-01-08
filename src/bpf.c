@@ -111,7 +111,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	{
 	  int iface_index = if_nametoindex(addrs->ifa_name);
 
-	  if (iface_index == 0)
+	  if (iface_index == 0 || !addrs->ifa_addr || !addrs->ifa_netmask || !addrs->ifa_broadaddr)
 	    continue;
 
 	  if (family == AF_INET)
