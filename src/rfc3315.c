@@ -525,32 +525,38 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  {
 		    struct in6_addr *req_addr = opt6_ptr(ia_option, 0);
 		    requested_time = opt6_uint(ia_option, 16, 4);
-		    
-		    if (!address6_available(context, req_addr, tags) &&
-			(!have_config(config, CONFIG_ADDR6) || memcmp(&config->addr6, req_addr, IN6ADDRSZ) != 0))
+		    struct dhcp_context *dynamic;
+
+		    if ((dynamic = address6_available(context, req_addr, tags)) || address6_valid(context, req_addr, tags))
 		      {
-			if (msg_type == DHCP6REQUEST)
+			if (!dynamic && !(have_config(config, CONFIG_ADDR6) && memcmp(&config->addr6, req_addr, IN6ADDRSZ) == 0))
 			  {
-			    /* host has a lease, but it's not on the correct link */
+			    /* Static range, not configured. */
 			    o1 = new_opt6(OPTION6_STATUS_CODE);
-			    put_opt6_short(DHCP6NOTONLINK);
-			    put_opt6_string("Not on link");
+			    put_opt6_short(DHCP6UNSPEC);
+			    put_opt6_string("Address unavailable");
 			    end_opt6(o1);
 			  }
+			else if (lease6_find_by_addr(req_addr, 128, 0) &&
+				 !(lease = lease6_find(clid, clid_len, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, iaid, req_addr)))
+			  {
+			    /* Address leased to another DUID/IAID */
+			    o1 = new_opt6(OPTION6_STATUS_CODE);
+			    put_opt6_short(DHCP6UNSPEC);
+			    put_opt6_string("Address in use");
+			    end_opt6(o1);
+			  } 
+			else 
+			  addrp = req_addr;
 		      }
-		    else if ((lease = lease6_find(NULL, 0, ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA, 
-						  iaid, req_addr)) &&
-			     (clid_len != lease->clid_len ||
-			      memcmp(clid, lease->clid, clid_len) != 0))
+		    else if (msg_type == DHCP6REQUEST)
 		      {
-			/* Address leased to another DUID */
+			/* requested address not on the correct link */
 			o1 = new_opt6(OPTION6_STATUS_CODE);
-			put_opt6_short(DHCP6UNSPEC);
-			put_opt6_string("Address in use");
+			put_opt6_short(DHCP6NOTONLINK);
+			put_opt6_string("Not on link");
 			end_opt6(o1);
-		      } 
-		    else
-		      addrp = req_addr;
+		      }
 		  }
 		else
 		  {

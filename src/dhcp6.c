@@ -328,6 +328,7 @@ int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int cl
   return 0;
 }
 
+/* can dynamically allocate addr */
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
 					struct dhcp_netid *netids)
@@ -352,6 +353,22 @@ struct dhcp_context *address6_available(struct dhcp_context *context,
   return NULL;
 }
 
+/* address OK if configured */
+struct dhcp_context *address6_valid(struct dhcp_context *context, 
+					struct in6_addr *taddr,
+					struct dhcp_netid *netids)
+{
+  struct dhcp_context *tmp;
+ 
+  for (tmp = context; tmp; tmp = tmp->current)
+    if ((tmp->flags & CONTEXT_STATIC) &&
+	is_same_net6(&tmp->start6, taddr, tmp->prefix) &&
+	match_netid(tmp->filter, netids, 1))
+      return tmp;
+
+  return NULL;
+}
+
 struct dhcp_context *narrow_context6(struct dhcp_context *context, 
 				     struct in6_addr *taddr,
 				     struct dhcp_netid *netids)
@@ -366,21 +383,12 @@ struct dhcp_context *narrow_context6(struct dhcp_context *context,
   
   struct dhcp_context *tmp;
 
-  if (!(tmp = address6_available(context, taddr, netids)))
-    {
-      for (tmp = context; tmp; tmp = tmp->current)
-        if (match_netid(tmp->filter, netids, 1) &&
-            is_same_net6(taddr, &tmp->start6, tmp->prefix) && 
-            (tmp->flags & CONTEXT_STATIC))
-          break;
-      
-      if (!tmp)
-        for (tmp = context; tmp; tmp = tmp->current)
-          if (match_netid(tmp->filter, netids, 1) &&
-              is_same_net6(taddr, &tmp->start6, tmp->prefix) &&
-              !(tmp->flags & CONTEXT_PROXY))
-            break;
-    }
+  if (!(tmp = address6_available(context, taddr, netids)) &&
+      !(tmp = address6_valid(context, taddr, netids)))
+    for (tmp = context; tmp; tmp = tmp->current)
+      if (match_netid(tmp->filter, netids, 1) &&
+	  is_same_net6(taddr, &tmp->start6, tmp->prefix))
+	break;
   
   /* Only one context allowed now */
   if (tmp)

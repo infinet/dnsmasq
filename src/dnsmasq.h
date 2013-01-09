@@ -1149,6 +1149,9 @@ int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr);
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
 					struct dhcp_netid *netids);
+struct dhcp_context *address6_valid(struct dhcp_context *context, 
+				    struct in6_addr *taddr,
+				    struct dhcp_netid *netids);
 struct dhcp_context *narrow_context6(struct dhcp_context *context, 
 				     struct in6_addr *taddr,
 				     struct dhcp_netid *netids);
