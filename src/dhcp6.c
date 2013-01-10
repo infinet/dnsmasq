@@ -211,7 +211,8 @@ static int complete_context6(struct in6_addr *local,  int prefix,
       
       for (context = daemon->dhcp6; context; context = context->next)
 	{
-	  if (!(context->flags & CONTEXT_TEMPLATE) &&
+	  if ((context->flags & CONTEXT_DHCP) &&
+	      !(context->flags & CONTEXT_TEMPLATE) &&
 	      prefix == context->prefix &&
 	      is_same_net6(local, &context->start6, prefix) &&
 	      is_same_net6(local, &context->end6, prefix))
@@ -361,8 +362,7 @@ struct dhcp_context *address6_valid(struct dhcp_context *context,
   struct dhcp_context *tmp;
  
   for (tmp = context; tmp; tmp = tmp->current)
-    if ((tmp->flags & CONTEXT_STATIC) &&
-	is_same_net6(&tmp->start6, taddr, tmp->prefix) &&
+    if (is_same_net6(&tmp->start6, taddr, tmp->prefix) &&
 	match_netid(tmp->filter, netids, 1))
       return tmp;
 

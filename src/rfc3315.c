@@ -82,18 +82,20 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	{
 	  struct dhcp_context *c;
 	  context = NULL;
+	   
+	  if (!IN6_IS_ADDR_LOOPBACK(link_address) &&
+	      !IN6_IS_ADDR_LINKLOCAL(link_address) &&
+	      !IN6_IS_ADDR_MULTICAST(link_address))
+	    for (c = daemon->dhcp6; c; c = c->next)
+	      if ((c->flags & CONTEXT_DHCP) &&
+		  !(c->flags & CONTEXT_TEMPLATE) &&
+		  is_same_net6(link_address, &c->start6, c->prefix) &&
+		  is_same_net6(link_address, &c->end6, c->prefix))
+		{
+		  c->current = context;
+		  context = c;
+		}
 	  
-	  for (c = daemon->dhcp6; c; c = c->next)
-	    if (!IN6_IS_ADDR_LOOPBACK(link_address) &&
-		!IN6_IS_ADDR_LINKLOCAL(link_address) &&
-		!IN6_IS_ADDR_MULTICAST(link_address) &&
-		is_same_net6(link_address, &c->start6, c->prefix) &&
-		is_same_net6(link_address, &c->end6, c->prefix))
-	      {
-		c->current = context;
-		context = c;
-	      }
-
 	  if (!context)
 	    {
 	      inet_ntop(AF_INET6, link_address, daemon->addrbuff, ADDRSTRLEN); 
