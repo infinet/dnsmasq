@@ -679,7 +679,7 @@ void log_context(int family, struct dhcp_context *context)
 
   void *start = &context->start;
   void *end = &context->end;
-  char *n = "", *m = "", *p = daemon->namebuff;
+  char *template = "", *p = daemon->namebuff;
   
   *p = 0;
     
@@ -694,67 +694,59 @@ void log_context(int family, struct dhcp_context *context)
       end = &context->end6;
     }
 #endif
-	
-  if ((context->flags & CONTEXT_DHCP) || 
-      !(context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)))
+
+  if (family != AF_INET && (context->flags & CONTEXT_DEPRECATE))
+    strcpy(daemon->namebuff, _(", prefix deprecated"));
+  else
     {
-      if (family != AF_INET && (context->flags & CONTEXT_DEPRECATE))
-	strcpy(daemon->namebuff, _(", prefix deprecated"));
-      else
-	{
-	  p += sprintf(p, _(", lease time "));
-	  m = p;
-	  prettyprint_time(p, context->lease_time);
-	  p += strlen(p);
-	}
-    }
-    
+      p += sprintf(p, _(", lease time "));
+      prettyprint_time(p, context->lease_time);
+      p += strlen(p);
+    }	
+
 #ifdef HAVE_DHCP6
   if (context->flags & CONTEXT_CONSTRUCTED)
-   {
-     char ifrn_name[IFNAMSIZ];
-     if (indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, context->if_index, ifrn_name))
-       {
-	 n = p;
-	 p += sprintf(p, ", constructed for %s", ifrn_name);
-       }
-   }
-
- if (context->flags & CONTEXT_TEMPLATE)
-   {
-     n = p;
-     p += sprintf(p, ", template for %s%s", context->template_interface, 
-		  (context->flags & CONTEXT_WILDCARD) ? "*" : "");  
-   }
+    {
+      char ifrn_name[IFNAMSIZ];
+      
+      template = p;
+      p += sprintf(p, ", ");
+      
+      if (indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, context->if_index, ifrn_name))
+	sprintf(p, "constructed for %s", ifrn_name);
+    }
+  else if (context->flags & CONTEXT_TEMPLATE)
+    {
+      template = p;
+      p += sprintf(p, ", ");
+       
+      sprintf(p, "template for %s%s", context->template_interface, 
+	      (context->flags & CONTEXT_WILDCARD) ? "*" : "");  
+    }
 #endif
-
+     
   if ((context->flags & CONTEXT_DHCP) || family == AF_INET) 
     {
       inet_ntop(family, start, daemon->dhcp_buff, 256);
       inet_ntop(family, end, daemon->dhcp_buff3, 256);
       my_syslog(MS_DHCP | LOG_INFO, 
 	      (context->flags & CONTEXT_RA_STATELESS) ? 
-	      _("%s stateless on %s%.0s%.0s") :
+	      _("%s stateless on %s%.0s%.0s%s") :
 	      (context->flags & CONTEXT_STATIC) ? 
-	      _("%s, static leases only on %.0s%s%s") :
+	      _("%s, static leases only on %.0s%s%s%.0s") :
 	      (context->flags & CONTEXT_PROXY) ?
-	      _("%s, proxy on subnet %.0s%s%.0s") :
-	      _("%s, IP range %s -- %s%s"),
+	      _("%s, proxy on subnet %.0s%s%.0s%.0s") :
+	      _("%s, IP range %s -- %s%s%.0s"),
 	      (family != AF_INET) ? "DHCPv6" : "DHCP",
-	      daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff);
+		daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff, template);
     }
   
 #ifdef HAVE_DHCP6
   if (context->flags & CONTEXT_RA_NAME)
-    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), 
-	      daemon->addrbuff, n);
-  
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), daemon->addrbuff, template);
        
-  if (context->flags & CONTEXT_RA)
-    my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s%s%s"), 
-	      daemon->addrbuff,
-	      (context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)) ? "" : ", prefix valid ",
-	      (context->flags & (CONTEXT_CONSTRUCTED | CONTEXT_TEMPLATE)) ? n : m);
+  if ((context->flags & CONTEXT_RA) || (option_bool(OPT_RA) && (context->flags & CONTEXT_DHCP) && family == AF_INET6)) 
+    my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s%s"), daemon->addrbuff, template);
 #endif
 
 }
