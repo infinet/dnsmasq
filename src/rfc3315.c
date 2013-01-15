@@ -576,8 +576,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			
 			if (ltmp && ltmp->clid && 
 			    (ltmp->clid_len != clid_len || memcmp(ltmp->clid, clid, clid_len) != 0 || ltmp->hwaddr_type != iaid))
-			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it is leased to %s:%d"),
-				    daemon->addrbuff, print_mac(daemon->namebuff, ltmp->clid, ltmp->clid_len), lease->hwaddr_type);
+			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it is leased to %s#%d"),
+				    daemon->addrbuff, print_mac(daemon->namebuff, ltmp->clid, ltmp->clid_len), ltmp->hwaddr_type);
 			else if (have_config(config, CONFIG_DECLINED) &&
 				 difftime(now, config->decline_time) < (float)DECLINE_BACKOFF)
 			  my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it was previously declined"), 
