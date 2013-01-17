@@ -717,7 +717,13 @@ A single
 .B dhcp-host 
 may contain an IPv4 address or an IPv6 address, or both. IPv6 addresses must be bracketed by square brackets thus:
 .B --dhcp-host=laptop,[1234::56]
-Note that in IPv6 DHCP, the hardware address is not normally available, so a client must be identified by client-id (called client DUID in IPv6-land) or hostname.
+IPv6 addresses may contain only the host-identifier part:
+.B --dhcp-host=laptop,[::56]
+in which case thay act as wildcards in constructed dhcp ranges, with
+the appropriate network part inserted. 
+Note that in IPv6 DHCP, the hardware address is not normally
+available, so a client must be identified by client-id (called client
+DUID in IPv6-land) or hostname. 
 
 The special option id:* means "ignore any client-id 
 and use MAC addresses only." This is useful when a client presents a client-id sometimes 

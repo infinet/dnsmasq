@@ -593,6 +593,7 @@ struct dhcp_config {
 #define CONFIG_DECLINED       1024    /* address declined by client */
 #define CONFIG_BANK           2048    /* from dhcp hosts file */
 #define CONFIG_ADDR6          4096
+#define CONFIG_WILDCARD       8192
 
 struct dhcp_opt {
   int opt, len, flags;

@@ -2468,6 +2468,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  
 		  if (!inet_pton(AF_INET6, arg, &new->addr6))
 		    ret_err(_("bad IPv6 address"));
+
+		  for (i= 0; i < 8; i++)
+		    if (new->addr6.s6_addr[i] != 0)
+		      break;
+
+		  /* set WILDCARD if network part all zeros */
+		  if (i == 8)
+		    new->flags |= CONFIG_WILDCARD;
 		  
 		  new->flags |= CONFIG_ADDR6;
 		}

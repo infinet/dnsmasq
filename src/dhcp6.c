@@ -399,11 +399,19 @@ struct dhcp_context *narrow_context6(struct dhcp_context *context,
 
 static int is_config_in_context6(struct dhcp_context *context, struct dhcp_config *config)
 {
-  if (!context) /* called via find_config() from lease_update_from_configs() */
-    return 1; 
+  /* expand wildcard on contructed contexts */
+  if ((config->flags & CONFIG_WILDCARD) && 
+      (context->flags & CONTEXT_CONSTRUCTED))
+    {
+      u64 addrpart = addr6part(&config->addr6);
+      config->addr6 = context->start6;
+      setaddr6part(&config->addr6, addrpart);
+      return 1;
+    }
+  
   if (!(config->flags & CONFIG_ADDR6) || is_addr_in_context6(context, &config->addr6))
     return 1;
-  
+      
   return 0;
 }
 
