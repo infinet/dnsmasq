@@ -459,6 +459,77 @@ int set_ipv6pktinfo(int fd)
   return 0;
 }
 #endif
+
+
+/* Find the interface on which a TCP connection arrived, if possible, or zero otherwise. */
+int tcp_interface(int fd, int af)
+{ 
+  int if_index = 0;
+
+#ifdef HAVE_LINUX_NETWORK
+  int opt = 1;
+  struct cmsghdr *cmptr;
+  struct msghdr msg;
+  
+  /* use mshdr do that the CMSDG_* macros are available */
+  msg.msg_control = daemon->packet;
+  msg.msg_controllen = daemon->packet_buff_sz;
+  
+  /* we overwrote the buffer... */
+  daemon->srv_save = NULL;
+  
+  if (af == AF_INET)
+    {
+      if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt)) != -1 &&
+	  getsockopt(fd, IPPROTO_IP, IP_PKTOPTIONS, msg.msg_control, (socklen_t *)&msg.msg_controllen) != -1)
+	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	  if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
+            {
+              union {
+                unsigned char *c;
+                struct in_pktinfo *p;
+              } p;
+	      
+	      p.c = CMSG_DATA(cmptr);
+	      if_index = p.p->ipi_ifindex;
+	    }
+    }
+#ifdef HAVE_IPV6
+  else
+    {
+      /* Only the RFC-2292 API has the ability to find the interface for TCP connections,
+	 it was removed in RFC-3542 !!!! 
+
+	 Fortunately, Linux kept the 2292 ABI when it moved to 3542. The following code always
+	 uses the old ABI, and should work with pre- and post-3542 kernel headers */
+
+#ifdef IPV6_2292PKTOPTIONS   
+#  define PKTOPTIONS IPV6_2292PKTOPTIONS
+#else
+#  define PKTOPTIONS IPV6_PKTOPTIONS
+#endif
+
+      if (set_ipv6pktinfo(fd) &&
+	  getsockopt(fd, IPPROTO_IPV6, PKTOPTIONS, msg.msg_control, (socklen_t *)&msg.msg_controllen) != -1)
+	{
+          for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+            if (cmptr->cmsg_level == IPPROTO_IPV6 && cmptr->cmsg_type == daemon->v6pktinfo)
+              {
+                union {
+                  unsigned char *c;
+                  struct in6_pktinfo *p;
+                } p;
+                p.c = CMSG_DATA(cmptr);
+		
+		if_index = p.p->ipi6_ifindex;
+              }
+	}
+    }
+#endif /* IPV6 */
+#endif /* Linux */
+ 
+  return if_index;
+}
       
 static struct listener *create_listeners(union mysockaddr *addr, int do_tftp, int dienow)
 {

@@ -16,7 +16,16 @@ version 2.66
 	    this idea.
 
 	    Fix crash on startup on Solaris 11. Regression probably
-	    introduced in 2.61.  Thanks to Geoff Johnstone for the patch.
+	    introduced in 2.61.  Thanks to Geoff Johnstone for the
+	    patch.
+
+	    Add code to make behaviour for TCP DNS requests that same
+	    as for UDP requests, when a request arrives for an allowed 
+	    address, but via a banned interface. This change is only
+	    active on Linux, since the relevant API is missing (AFAIK)
+	    on other platforms. Many thanks to Tomas Hozza for
+	    spotting the problem, and doing invaluable discovery of
+	    the obscure and undocumented API required for the solution.
   
 
 version 2.65

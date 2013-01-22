@@ -1337,7 +1337,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 
       if (listener->tcpfd != -1 && FD_ISSET(listener->tcpfd, set))
 	{
-	  int confd;
+	  int confd, client_ok = 1;
 	  struct irec *iface = NULL;
 	  pid_t p;
 	  union mysockaddr tcp_addr;
@@ -1348,25 +1348,49 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	  if (confd == -1 ||
 	      getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1)
 	    continue;
-	  
-	  if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND))
+
+	   if (option_bool(OPT_NOWILD))
 	    iface = listener->iface; /* May be NULL */
-	  else
-	    {
-	      /* Check for allowed interfaces when binding the wildcard address:
-		 we do this by looking for an interface with the same address as 
-		 the local address of the TCP connection, then looking to see if that's
-		 an allowed interface. As a side effect, we get the netmask of the
-		 interface too, for localisation. */
-	      
-	      /* interface may be new since startup */
-	      if (enumerate_interfaces())
-		for (iface = daemon->interfaces; iface; iface = iface->next)
-		  if (sockaddr_isequal(&iface->addr, &tcp_addr))
-		    break;
-	    }
-	  
-	  if (!iface && !(option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND)))
+	   else 
+	     {
+	       int if_index;
+
+	       /* In full wildcard mode, need to refresh interface list.
+		  This happens automagically in CLEVERBIND */
+	        if (!option_bool(OPT_CLEVERBIND))
+		  enumerate_interfaces();
+
+		/* if we can find the arrival interface, check it's one that's allowed */
+		if ((if_index = tcp_interface(confd, tcp_addr.sa.sa_family)) != 0)
+		 {
+		   for (iface = daemon->interfaces; iface; iface = iface->next)
+		     if (iface->index == if_index)
+		       break;
+		   
+		   if (!iface)
+		     client_ok = 0;
+		 }
+	       
+	       if (option_bool(OPT_CLEVERBIND))
+		 iface = listener->iface; /* May be NULL */
+	       else
+		 {
+		   /* Check for allowed interfaces when binding the wildcard address:
+		      we do this by looking for an interface with the same address as 
+		      the local address of the TCP connection, then looking to see if that's
+		      an allowed interface. As a side effect, we get the netmask of the
+		      interface too, for localisation. */
+		   
+		   for (iface = daemon->interfaces; iface; iface = iface->next)
+		     if (sockaddr_isequal(&iface->addr, &tcp_addr))
+		       break;
+		   
+		   if (!iface)
+		     client_ok = 0;
+		 }
+	     }
+	  	  
+	  if (!client_ok)
 	    {
 	      shutdown(confd, SHUT_RDWR);
 	      close(confd);
