@@ -1715,7 +1715,7 @@ The simplest configuration consists of two lines of dnsmasq configuration; somet
 
 .nf
 .B auth-server=server.example.com,eth0
-.B auth=zone=our.zone.com,1.2.3.0/24
+.B auth-zone=our.zone.com,1.2.3.0/24
 .fi
 
 and two records in the external DNS
@@ -1739,7 +1739,7 @@ we have
 
 .nf
 .B auth-server=our.zone.com,eth0
-.B auth=zone=our.zone.com,1.2.3.0/24
+.B auth-zone=our.zone.com,1.2.3.0/24
 .fi
 
 .nf
