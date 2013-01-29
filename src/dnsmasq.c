@@ -1354,20 +1354,29 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	   else 
 	     {
 	       int if_index;
-
+	       char intr_name[IF_NAMESIZE];
+ 
 	       /* In full wildcard mode, need to refresh interface list.
 		  This happens automagically in CLEVERBIND */
-	        if (!option_bool(OPT_CLEVERBIND))
-		  enumerate_interfaces();
-
-		/* if we can find the arrival interface, check it's one that's allowed */
-		if ((if_index = tcp_interface(confd, tcp_addr.sa.sa_family)) != 0)
+	       if (!option_bool(OPT_CLEVERBIND))
+		 enumerate_interfaces();
+	       
+	       /* if we can find the arrival interface, check it's one that's allowed */
+	       if ((if_index = tcp_interface(confd, tcp_addr.sa.sa_family)) != 0 &&
+		   indextoname(listener->tcpfd, if_index, intr_name))
 		 {
+		   struct all_addr addr;
+		   addr.addr.addr4 = tcp_addr.in.sin_addr;
+#ifdef HAVE_IPV6
+		   if (tcp_addr.sa.sa_family == AF_INET6)
+		     addr.addr.addr6 = tcp_addr.in6.sin6_addr;
+#endif
+		   
 		   for (iface = daemon->interfaces; iface; iface = iface->next)
 		     if (iface->index == if_index)
 		       break;
 		   
-		   if (!iface)
+		   if (!iface && !loopback_exception(listener->tcpfd, tcp_addr.sa.sa_family, &addr, intr_name))
 		     client_ok = 0;
 		 }
 	       
@@ -1375,10 +1384,10 @@ static void check_dns_listeners(fd_set *set, time_t now)
 		 iface = listener->iface; /* May be NULL */
 	       else
 		 {
-		   /* Check for allowed interfaces when binding the wildcard address:
-		      we do this by looking for an interface with the same address as 
-		      the local address of the TCP connection, then looking to see if that's
-		      an allowed interface. As a side effect, we get the netmask of the
+		    /* Check for allowed interfaces when binding the wildcard address:
+		       we do this by looking for an interface with the same address as 
+		       the local address of the TCP connection, then looking to see if that's
+		       an allowed interface. As a side effect, we get the netmask of the
 		      interface too, for localisation. */
 		   
 		   for (iface = daemon->interfaces; iface; iface = iface->next)

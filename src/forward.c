@@ -763,10 +763,17 @@ void receive_query(struct listener *listen, time_t now)
       
       /* enforce available interface configuration */
       
-      if (!indextoname(listen->fd, if_index, ifr.ifr_name) ||
-	  !iface_check(listen->family, &dst_addr, ifr.ifr_name, &auth_dns))
+      if (!indextoname(listen->fd, if_index, ifr.ifr_name))
 	return;
       
+      if (!iface_check(listen->family, &dst_addr, ifr.ifr_name, &auth_dns))
+	{
+	   if (!option_bool(OPT_CLEVERBIND))
+	     enumerate_interfaces(); 
+	   if (!loopback_exception(listen->fd, listen->family, &dst_addr, ifr.ifr_name))
+	     return;
+	}
+
       if (listen->family == AF_INET && option_bool(OPT_LOCALISE))
 	{
 	  struct irec *iface;
@@ -780,7 +787,7 @@ void receive_query(struct listener *listen, time_t now)
 	      break;
 	  
 	  /* interface may be new */
-	  if (!iface)
+	  if (!iface && !option_bool(OPT_CLEVERBIND))
 	    enumerate_interfaces(); 
 	  
 	  for (iface = daemon->interfaces; iface; iface = iface->next)

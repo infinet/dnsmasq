@@ -61,6 +61,7 @@ void tftp_request(struct listener *listen, time_t now)
   char *name = NULL;
   char *prefix = daemon->tftp_prefix;
   struct tftp_prefix *pref;
+  struct all_addr addra;
 
   union {
     struct cmsghdr align; /* this ensures alignment */
@@ -189,18 +190,22 @@ void tftp_request(struct listener *listen, time_t now)
 	return;
 
       name = namebuff;
+      
+      addra.addr.addr4 = addr.in.sin_addr;
 
 #ifdef HAVE_IPV6
       if (listen->family == AF_INET6)
+	addra.addr.addr6 = addr.in6.sin6_addr;
+#endif
+
+      if (!iface_check(listen->family, &addra, name, NULL))
 	{
-	  if (!iface_check(AF_INET6, (struct all_addr *)&addr.in6.sin6_addr, name, NULL))
+	  if (!option_bool(OPT_CLEVERBIND))
+	    enumerate_interfaces(); 
+	  if (!loopback_exception(listen->tftpfd, listen->family, &addra, name))
 	    return;
 	}
-      else
-#endif
-        if (!iface_check(AF_INET, (struct all_addr *)&addr.in.sin_addr, name, NULL))
-	  return;
-
+      
 #ifdef HAVE_DHCP      
       /* allowed interfaces are the same as for DHCP */
       for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)

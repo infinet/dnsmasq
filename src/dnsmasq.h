@@ -1002,6 +1002,7 @@ void create_wildcard_listeners(void);
 void create_bound_listeners(int die);
 int is_dad_listeners(void);
 int iface_check(int family, struct all_addr *addr, char *name, int *auth_dns);
+int loopback_exception(int fd, int family, struct all_addr *addr, char *name);
 int fix_fd(int fd);
 int tcp_interface(int fd, int af);
 struct in_addr get_ifaddr(char *intr);

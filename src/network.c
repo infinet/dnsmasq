@@ -170,7 +170,40 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 
   return ret; 
 }
-      
+
+
+/* Fix for problem that the kernel sometimes reports the loopback inerface as the
+   arrival interface when a packet originates locally, even when sent to address of 
+   an interface other than the loopback. Accept packet if it arrived via a loopback 
+   interface, even when we're not accepting packets that way, as long as the destination
+   address is one we're believing. Interface list must be up-to-date before calling. */
+int loopback_exception(int fd, int family, struct all_addr *addr, char *name)    
+{
+  struct ifreq ifr;
+  struct irec *iface;
+
+  strncpy(ifr.ifr_name, name, IF_NAMESIZE);
+  if (ioctl(fd, SIOCGIFFLAGS, &ifr) != -1 &&
+      ifr.ifr_flags & IFF_LOOPBACK)
+    {
+      for (iface = daemon->interfaces; iface; iface = iface->next)
+	if (iface->addr.sa.sa_family == family)
+	  {
+	    if (family == AF_INET)
+	      {
+		if (iface->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
+		  return 1;
+	      }
+#ifdef HAVE_IPV6
+	    else if (IN6_ARE_ADDR_EQUAL(&iface->addr.in6.sin6_addr, &addr->addr.addr6))
+	      return 1;
+#endif
+	    
+	  }
+    }
+  return 0;
+}
+
 static int iface_allowed(struct irec **irecp, int if_index, 
 			 union mysockaddr *addr, struct in_addr netmask, int dad) 
 {
