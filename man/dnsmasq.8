@@ -1122,12 +1122,13 @@ create thousands of leases and use lots of memory in the dnsmasq
 process.
 .TP
 .B \-K, --dhcp-authoritative
-(IPv4 only) Should be set when dnsmasq is definitely the only DHCP server on a network.
-It changes the behaviour from strict RFC compliance so that DHCP requests on
+Should be set when dnsmasq is definitely the only DHCP server on a network.
+For DHCPv4, it changes the behaviour from strict RFC compliance so that DHCP requests on
 unknown leases from unknown hosts are not ignored. This allows new hosts
 to get a lease without a tedious timeout under all circumstances. It also 
 allows dnsmasq to rebuild its lease database without each client needing to 
-reacquire a lease, if the database is lost.
+reacquire a lease, if the database is lost. For DHCPv6 it sets the
+priority in replies to 255 (the maximum) instead of 0 (the minimum).
 .TP
 .B --dhcp-alternate-port[=<server port>[,<client port>]]
 (IPv4 only) Change the ports used for DHCP from the default. If this option is
