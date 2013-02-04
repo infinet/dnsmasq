@@ -340,9 +340,11 @@ static DBusMessage* dbus_read_servers_ex(DBusMessage *message, int strings)
 	    }
 	  
 	  /* dup the string because it gets modified during parsing */
+	  if (dup)
+	    free(dup);
 	  if (!(dup = str_domain = whine_malloc(strlen(str)+1)))
 	    break;
-
+	  
 	  strcpy(str_domain, str);
 
 	  /* point to address part of old string for error message */
@@ -400,9 +402,11 @@ static DBusMessage* dbus_read_servers_ex(DBusMessage *message, int strings)
 	    }
 	  
 	  /* dup the string because it gets modified during parsing */
+	  if (dup)
+	    free(dup);
 	  if (!(dup = str_addr = whine_malloc(strlen(str)+1)))
 	    break;
-	   
+	  
 	  strcpy(str_addr, str);
 	}
 
