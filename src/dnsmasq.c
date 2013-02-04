@@ -1345,9 +1345,14 @@ static void check_dns_listeners(fd_set *set, time_t now)
 
 	  while ((confd = accept(listener->tcpfd, NULL, NULL)) == -1 && errno == EINTR);
 	  
-	  if (confd == -1 ||
-	      getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1)
+	  if (confd == -1)
 	    continue;
+
+	  if (getsockname(confd, (struct sockaddr *)&tcp_addr, &tcp_len) == -1)
+	    {
+	      close(confd);
+	      continue;
+	    }
 
 	   if (option_bool(OPT_NOWILD))
 	    iface = listener->iface; /* May be NULL */
