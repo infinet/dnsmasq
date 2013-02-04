@@ -470,7 +470,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
     }
   
   /* Add auth section */
-  if (auth)
+  if (auth && zone)
     {
       char *authname;
       int newoffset, offset = 0;
