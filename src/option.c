@@ -2636,6 +2636,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		else 
 		  {
 		    new->set = NULL;
+		    free(newtag);
 		    break;
 		  }
 	      }
