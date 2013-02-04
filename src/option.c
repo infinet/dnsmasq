@@ -1369,14 +1369,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    strcat(path, "/");
 	    strcat(path, ent->d_name);
 
+	    /* files must be readable */
 	    if (stat(path, &buf) == -1)
 	      die(_("cannot access %s: %s"), path, EC_FILE);
-	    /* only reg files allowed. */
-	    if (!S_ISREG(buf.st_mode))
-	      continue;
 	    
-	    /* files must be readable */
-	    one_file(path, 0);
+	    /* only reg files allowed. */
+	    if (S_ISREG(buf.st_mode))
+	      one_file(path, 0);
+	    
 	    free(path);
 	  }
      
