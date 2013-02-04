@@ -51,7 +51,7 @@ static int filter_constructed_dhcp(struct auth_zone *zone, int flag, struct all_
 #ifdef HAVE_DHCP6
   struct dhcp_context *context;
 
-  if (flag | F_IPV6)
+  if (flag & F_IPV6)
     for (context = daemon->dhcp6; context; context = context->next)
       if ((context->flags & CONTEXT_CONSTRUCTED) &&
 	  is_same_net6(&(addr_u->addr.addr6), &context->start6, context->prefix))
