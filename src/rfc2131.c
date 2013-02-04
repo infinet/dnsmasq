@@ -1739,7 +1739,7 @@ static unsigned char *free_space(struct dhcp_packet *mess, unsigned char *end, i
 	      if (overload[2] & 2)
 		{
 		  p = dhcp_skip_opts(mess->sname);
-		  if (p + len + 3 >= mess->sname + sizeof(mess->file))
+		  if (p + len + 3 >= mess->sname + sizeof(mess->sname))
 		    p = NULL;
 		}
 	    }
