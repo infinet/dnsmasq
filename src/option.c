@@ -2378,7 +2378,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		      if (!(*cp >= '0' && *cp <= '9'))
 			break;
 
-		    if (!cp || (leasepos+1 < k))
+		    if (!*cp || (leasepos+1 < k))
 		      ret_err(_("bad dhcp-range"));
 		    
 		    new->lease_time = atoi(a[leasepos]) * fac;
