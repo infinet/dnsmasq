@@ -258,14 +258,17 @@ static int iface_allowed(struct irec **irecp, int if_index,
 	if (lo->name && strcmp(lo->name, ifr.ifr_name) == 0)
 	  break;
       
-      if (!lo && 
-	  (lo = whine_malloc(sizeof(struct iname))) &&
-	  (lo->name = whine_malloc(strlen(ifr.ifr_name)+1)))
+      if (!lo && (lo = whine_malloc(sizeof(struct iname)))) 
 	{
-	  strcpy(lo->name, ifr.ifr_name);
-	  lo->used = 1;
-	  lo->next = daemon->if_names;
-	  daemon->if_names = lo;
+	  if ((lo->name = whine_malloc(strlen(ifr.ifr_name)+1)))
+	    {
+	      strcpy(lo->name, ifr.ifr_name);
+	      lo->used = 1;
+	      lo->next = daemon->if_names;
+	      daemon->if_names = lo;
+	    }
+	  else
+	    free(lo);
 	}
     }
   
