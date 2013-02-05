@@ -620,10 +620,10 @@ void dhcp_construct_contexts(time_t now)
       if (context->flags & CONTEXT_GC)
 	{
 	  *up = context->next;
-	  free(context);
 	  param.newone = 1; /* include deletion */ 
 	  if (context->flags & CONTEXT_RA_NAME)
-	    param.newname = 1;
+	    param.newname = 1; 
+	  free(context);
 	}
       else
 	up = &context->next;
