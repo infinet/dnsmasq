@@ -91,16 +91,19 @@ static dbus_bool_t add_watch(DBusWatch *watch, void *data)
 
 static void remove_watch(DBusWatch *watch, void *data)
 {
-  struct watch **up, *w;  
+  struct watch **up, *w, *tmp;  
   
-  for (up = &(daemon->watches), w = daemon->watches; w; w = w->next)
-    if (w->watch == watch)
-      {
-        *up = w->next;
-        free(w);
-      }
-    else
-      up = &(w->next);
+  for (up = &(daemon->watches), w = daemon->watches; w; w = tmp)
+    {
+      tmp = w->next;
+      if (w->watch == watch)
+	{
+	  *up = tmp;
+	  free(w);
+	}
+      else
+	up = &(w->next);
+    }
 
   w = data; /* no warning */
 }
