@@ -158,10 +158,10 @@ int main (int argc, char **argv)
   
   now = dnsmasq_time();
 
-  /* Create a serial at startup is not configured. */
+  /* Create a serial at startup if not configured. */
   if (daemon->authinterface && daemon->soa_sn == 0)
 #ifdef HAVE_BROKEN_RTC
-    die(_("zone serial must be configured in --auth-soa"));
+    die(_("zone serial must be configured in --auth-soa"), NULL, EC_BADCONF);
 #else
   daemon->soa_sn = now;
 #endif
