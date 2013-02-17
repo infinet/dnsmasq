@@ -2234,7 +2234,8 @@ static void do_options(struct dhcp_context *context,
 	  !option_find2(OPTION_ROUTER))
 	option_put(mess, end, OPTION_ROUTER, INADDRSZ, ntohl(context->router.s_addr));
       
-      if (in_list(req_options, OPTION_DNSSERVER) &&
+      if (daemon->port == NAMESERVER_PORT &&
+	  in_list(req_options, OPTION_DNSSERVER) &&
 	  !option_find2(OPTION_DNSSERVER))
 	option_put(mess, end, OPTION_DNSSERVER, INADDRSZ, ntohl(context->local.s_addr));
     }

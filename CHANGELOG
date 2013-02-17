@@ -26,6 +26,10 @@ version 2.66
 	    on other platforms. Many thanks to Tomas Hozza for
 	    spotting the problem, and doing invaluable discovery of
 	    the obscure and undocumented API required for the solution.
+
+	    Don't send the default DHCP option advertising dnsmasq as
+	    the local DNS server if dnsmasq is configured to not act
+	    as DNS server, or it's configured to a non-standard port.
   
 
 version 2.65

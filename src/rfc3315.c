@@ -1265,7 +1265,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
       end_opt6(o);
     }
   
-  if (!done_dns && 
+  if (daemon->port == NAMESERVER_PORT && !done_dns && 
       (!IN6_IS_ADDR_UNSPECIFIED(&context->local6) ||
        !IN6_IS_ADDR_UNSPECIFIED(fallback)))
     {
