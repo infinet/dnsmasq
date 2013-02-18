@@ -1256,7 +1256,20 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  add_extradata_opt(lease, oui);
 		  add_extradata_opt(lease, serial);
 		  add_extradata_opt(lease, class);
-		  
+
+		  if ((opt = option_find(mess, sz, OPTION_AGENT_ID, 1)))
+		    {
+		      add_extradata_opt(lease, option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_CIRCUIT_ID, 1));
+		      add_extradata_opt(lease, option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_SUBSCR_ID, 1));
+		      add_extradata_opt(lease, option_find1(option_ptr(opt, 0), option_ptr(opt, option_len(opt)), SUBOPT_REMOTE_ID, 1));
+		    }
+		  else
+		    {
+		      add_extradata_opt(lease, NULL);
+		      add_extradata_opt(lease, NULL);
+		      add_extradata_opt(lease, NULL);
+		    }
+
 		  /* space-concat tag set */
 		  if (!tagif_netid)
 		    add_extradata_opt(lease, NULL);

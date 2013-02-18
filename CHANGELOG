@@ -30,7 +30,14 @@ version 2.66
 	    Don't send the default DHCP option advertising dnsmasq as
 	    the local DNS server if dnsmasq is configured to not act
 	    as DNS server, or it's configured to a non-standard port.
-  
+ 
+            Add DNSMASQ_CIRCUIT_ID, DNSMASQ_SUBCRIBER_ID,
+            DNSMASQ_REMOTE_ID variables to the environment of the
+            lease-change script (and the correponding Lua). These hold
+            information inserted into the DHCP request by a DHCP relay
+            agent. Thanks to Lakefield Communications for providing a
+            bounty for this addition.
+ 
 
 version 2.65
 	    Fix regression which broke forwarding of queries sent via

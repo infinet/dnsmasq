@@ -397,6 +397,9 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 		  buf = grab_extradata_lua(buf, end, "cpewan_oui");
 		  buf = grab_extradata_lua(buf, end, "cpewan_serial");   
 		  buf = grab_extradata_lua(buf, end, "cpewan_class");
+		  buf = grab_extradata_lua(buf, end, "circuit_id");
+		  buf = grab_extradata_lua(buf, end, "subscriber_id");
+		  buf = grab_extradata_lua(buf, end, "remote_id");
 		}
 	      
 	      buf = grab_extradata_lua(buf, end, "tags");
@@ -528,10 +531,13 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_OUI", &err);
 	      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_SERIAL", &err);   
 	      buf = grab_extradata(buf, end, "DNSMASQ_CPEWAN_CLASS", &err);
+	      buf = grab_extradata(buf, end, "DNSMASQ_CIRCUIT_ID", &err);
+	      buf = grab_extradata(buf, end, "DNSMASQ_SUBSCRIBER_ID", &err);
+	      buf = grab_extradata(buf, end, "DNSMASQ_REMOTE_ID", &err);
 	    }
 	  
 	  buf = grab_extradata(buf, end, "DNSMASQ_TAGS", &err);
-	  
+
 	  if (is6)
 	    buf = grab_extradata(buf, end, "DNSMASQ_RELAY_ADDRESS", &err);
 	  else if (data.giaddr.s_addr != 0)
