@@ -38,6 +38,11 @@ version 2.66
             agent. Thanks to Lakefield Communications for providing a
             bounty for this addition.
  
+	    Fixed crash, introduced in 2.64, whilst handling DHCPv6
+	    information-requests with some common configurations.
+	    Thanks to Robert M. Albrecht for the bug report and 
+	    chasing the problem.
+
 
 version 2.65
 	    Fix regression which broke forwarding of queries sent via
