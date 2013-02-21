@@ -229,13 +229,6 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	    }
 	}
        
-      /* expiry or length into dhcp_buff2 */
-#ifdef HAVE_BROKEN_RTC
-      sprintf(daemon->dhcp_buff2, "%u", data.length);
-#else
-      sprintf(daemon->dhcp_buff2, "%lu", (unsigned long)data.expires);
-#endif
-           
       /* supplied data may just exceed normal buffer (unlikely) */
       if ((data.hostname_len + data.ed_len + data.clid_len) > MAXDNAME && 
 	  !(alloc_buff = buf = malloc(data.hostname_len + data.ed_len + data.clid_len)))
@@ -496,8 +489,10 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	    my_setenv("DNSMASQ_INTERFACE", data.interface, &err);
 	  
 #ifdef HAVE_BROKEN_RTC
+	  sprintf(daemon->dhcp_buff2, "%u", data.length);
 	  my_setenv("DNSMASQ_LEASE_LENGTH", daemon->dhcp_buff2, &err);
 #else
+	  sprintf(daemon->dhcp_buff2, "%lu", (unsigned long)data.expires);
 	  my_setenv("DNSMASQ_LEASE_EXPIRES", daemon->dhcp_buff2, &err); 
 #endif
 	  
