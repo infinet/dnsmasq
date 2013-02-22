@@ -127,6 +127,7 @@ struct myoption {
 #define LOPT_AUTHSOA   316
 #define LOPT_AUTHSFS   317
 #define LOPT_AUTHPEER  318
+#define LOPT_IPSET     319
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -259,6 +260,7 @@ static const struct myoption opts[] =
     { "auth-soa", 1, 0, LOPT_AUTHSOA },
     { "auth-sec-servers", 1, 0, LOPT_AUTHSFS },
     { "auth-peer", 1, 0, LOPT_AUTHPEER }, 
+    { "ipset", 1, 0, LOPT_IPSET },
     { NULL, 0, 0, 0 }
   };
 
@@ -397,6 +399,7 @@ static struct {
   { LOPT_AUTHSOA, ARG_ONE, "<serial>[,...]", gettext_noop("Set authoritive zone information"), NULL },
   { LOPT_AUTHSFS, ARG_DUP, "<NS>[,<NS>...]", gettext_noop("Secondary authoritative nameservers for forward domains"), NULL },
   { LOPT_AUTHPEER, ARG_DUP, "<ipaddr>[,<ipaddr>...]", gettext_noop("Peers which are allowed to do zone transfer"), NULL },
+  { LOPT_IPSET, ARG_DUP, "/<domain>/<ipset>[,<ipset>...]", gettext_noop("Specify ipsets to which matching domains should be added"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -2021,6 +2024,74 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	daemon->servers = newlist;
 	break;
       }
+
+    case LOPT_IPSET: /* --ipset */
+#ifndef HAVE_IPSET
+      ret_err(_("recompile with HAVE_IPSET defined to enable ipset directives"));
+      break;
+#else
+      {
+	 struct ipsets ipsets_head;
+	 struct ipsets *ipsets = &ipsets_head;
+	 int size;
+	 char *end;
+	 char **sets, **sets_pos;
+	 memset(ipsets, 0, sizeof(struct ipsets));
+	 unhide_metas(arg);
+	 if (arg && *arg == '/') 
+	   {
+	     arg++;
+	     while ((end = split_chr(arg, '/'))) 
+	       {
+		 char *domain = NULL;
+		 /* elide leading dots - they are implied in the search algorithm */
+		 while (*arg == '.')
+		   arg++;
+		 /* # matches everything and becomes a zero length domain string */
+		 if (strcmp(arg, "#") == 0 || !*arg)
+		   domain = "";
+		 else if (strlen(arg) != 0 && !(domain = canonicalise_opt(arg)))
+		   option = '?';
+		 ipsets->next = opt_malloc(sizeof(struct ipsets));
+		 ipsets = ipsets->next;
+		 memset(ipsets, 0, sizeof(struct ipsets));
+		 ipsets->domain = domain;
+		 arg = end;
+	       }
+	   } 
+	 else 
+	   {
+	     ipsets->next = opt_malloc(sizeof(struct ipsets));
+	     ipsets = ipsets->next;
+	     memset(ipsets, 0, sizeof(struct ipsets));
+	     ipsets->domain = "";
+	   }
+	 if (!arg || !*arg)
+	   {
+	     option = '?';
+	     break;
+	   }
+	 size = 2;
+	 for (end = arg; *end; ++end) 
+	   if (*end == ',')
+	       ++size;
+     
+	 sets = sets_pos = opt_malloc(sizeof(char *) * size);
+	 
+	 do {
+	   end = split(arg);
+	   *sets_pos++ = opt_string_alloc(arg);
+	   arg = end;
+	 } while (end);
+	 *sets_pos = 0;
+	 for (ipsets = &ipsets_head; ipsets->next; ipsets = ipsets->next)
+	   ipsets->next->sets = sets;
+	 ipsets->next = daemon->ipsets;
+	 daemon->ipsets = ipsets_head.next;
+	 
+	 break;
+      }
+#endif
       
     case 'c':  /* --cache-size */
       {

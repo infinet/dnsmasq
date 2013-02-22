@@ -777,13 +777,18 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
 int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
-		      int is_sign, int check_rebind, int checking_disabled)
+		      char **ipsets, int is_sign, int check_rebind, int checking_disabled)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
   unsigned long ttl = 0;
   struct all_addr addr;
-
+#ifdef HAVE_IPSET
+  char **ipsets_cur;
+#else
+  (void)ipsets; /* unused */
+#endif
+  
   cache_start_insert();
 
   /* find_soa is needed for dns_doctor and logging side-effects, so don't call it lazily if there are any. */
@@ -966,6 +971,15 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			      (flags & F_IPV4) &&
 			      private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
 			    return 1;
+
+#ifdef HAVE_IPSET
+			  if (ipsets && (flags & (F_IPV4 | F_IPV6)))
+			    {
+			      ipsets_cur = ipsets;
+			      while (*ipsets_cur)
+				add_to_ipset(*ipsets_cur++, &addr, flags, 0);
+			    }
+#endif
 			  
 			  newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
 			  if (newc && cpp)

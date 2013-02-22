@@ -97,6 +97,10 @@ HAVE_CONNTRACK
    a build-dependency on libnetfilter_conntrack, but the resulting binary will
    still run happily on a kernel without conntrack support.
 
+HAVE_IPSET
+    define this to include the ability to selectively add resolved ip addresses
+    to given ipsets.
+
 HAVE_AUTH
    define this to include the facility to act as an authoritative DNS
    server for one or more zones.
@@ -136,7 +140,7 @@ RESOLVFILE
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
-
+/* #define HAVE_IPSET */
 
 
 /* Default locations for important system files. */
@@ -323,6 +327,10 @@ HAVE_SOCKADDR_SA_LEN
 #undef HAVE_AUTH
 #endif
 
+#ifndef HAVE_LINUX_NETWORK
+#undef HAVE_IPSET
+#endif
+
 /* Define a string indicating which options are in use.
    DNSMASQP_COMPILE_OPTS is only defined in dnsmasq.c */
 
@@ -381,6 +389,10 @@ static char *compile_opts =
 "no-"
 #endif
 "conntrack "
+#ifndef HAVE_IPSET
+"no-"
+#endif
+"ipset "
 #ifndef HAVE_AUTH
 "no-"
 #endif

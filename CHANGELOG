@@ -43,6 +43,9 @@ version 2.66
 	    Thanks to Robert M. Albrecht for the bug report and 
 	    chasing the problem.
 
+	    Add --ipset option. Thanks to Jason A. Donenfeld for the 
+	    patch.
+
 
 version 2.65
 	    Fix regression which broke forwarding of queries sent via

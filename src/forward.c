@@ -439,9 +439,28 @@ static size_t process_reply(struct dns_header *header, time_t now,
 			    struct server *server, size_t n, int check_rebind, int checking_disabled)
 {
   unsigned char *pheader, *sizep;
+  char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
 
+#ifdef HAVE_IPSET
+  /* Similar algorithm to search_servers. */
+  struct ipsets *ipset_pos;
+  unsigned int namelen = strlen(daemon->namebuff);
+  unsigned int matchlen = 0;
+  for (ipset_pos = daemon->ipsets; ipset_pos; ipset_pos = ipset_pos->next) 
+    {
+      unsigned int domainlen = strlen(ipset_pos->domain);
+      char *matchstart = daemon->namebuff + namelen - domainlen;
+      if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
+	  (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
+	  domainlen >= matchlen) {
+	matchlen = domainlen;
+	sets = ipset_pos->sets;
+      }
+    }
+#endif
+  
   /* If upstream is advertising a larger UDP packet size
      than we allow, trim it so that we don't get overlarge
      requests for the client. We can't do this for signed packets. */
@@ -494,7 +513,7 @@ static size_t process_reply(struct dns_header *header, time_t now,
 	  SET_RCODE(header, NOERROR);
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, is_sign, check_rebind, checking_disabled))
+      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, checking_disabled))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;

@@ -213,6 +213,11 @@ int main (int argc, char **argv)
 
 #endif
 
+#ifdef HAVE_IPSET
+  if (daemon->ipsets)
+    ipset_init();
+#endif
+
 #ifdef HAVE_LINUX_NETWORK
   netlink_init();
   

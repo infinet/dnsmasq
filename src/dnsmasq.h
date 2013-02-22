@@ -430,6 +430,12 @@ struct server {
   struct server *next; 
 };
 
+struct ipsets {
+  char **sets;
+  char *domain;
+  struct ipsets *next;
+};
+
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
@@ -779,6 +785,7 @@ extern struct daemon {
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers;
   struct bogus_addr *bogus_addr;
   struct server *servers;
+  struct ipsets *ipsets;
   int log_fac; /* log facility */
   char *log_file; /* optional log file */
   int max_logs;  /* queue limit */
@@ -903,7 +910,8 @@ size_t setup_reply(struct dns_header *header, size_t  qlen,
 		   struct all_addr *addrp, unsigned int flags,
 		   unsigned long local_ttl);
 int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff, 
-		      time_t now, int is_sign, int checkrebind, int checking_disabled);
+		      time_t now, char **ipsets, int is_sign, int checkrebind,
+		      int checking_disabled);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
@@ -1115,6 +1123,12 @@ void set_dbus_listeners(int *maxfdp, fd_set *rset, fd_set *wset, fd_set *eset);
 #  ifdef HAVE_DHCP
 void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname);
 #  endif
+#endif
+
+/* ipset.c */
+#ifdef HAVE_IPSET
+void ipset_init(void);
+int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, int remove);
 #endif
 
 /* helper.c */

@@ -412,6 +412,12 @@ additional facility that /#/ matches any domain. Thus
 answered from /etc/hosts or DHCP and not sent to an upstream
 nameserver by a more specific --server directive.
 .TP
+.B --ipset=/<domain>/[domain/]<ipset>[,<ipset>]
+Places the resolved IP addresses of queries for the specified domains
+in the specified netfilter ip sets. Domains and subdomains are matched
+in the same way as --address. These ip sets must already exist. See
+ipset(8) for more details.
+.TP
 .B \-m, --mx-host=<mx name>[[,<hostname>],<preference>]
 Return an MX record named <mx name> pointing to the given hostname (if
 given), or
