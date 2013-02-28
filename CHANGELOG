@@ -46,6 +46,9 @@ version 2.66
 	    Add --ipset option. Thanks to Jason A. Donenfeld for the 
 	    patch.
 
+	    Don't erroneously reject some option names in --dhcp-match
+	    options. Thnaks to Benedikt Hochstrasser for the bug report.
+
 
 version 2.65
 	    Fix regression which broke forwarding of queries sent via

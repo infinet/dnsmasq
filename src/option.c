@@ -768,6 +768,8 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	  new->opt = lookup_dhcp_opt(AF_INET, arg+7);
 	  opt_len = lookup_dhcp_len(AF_INET, new->opt);
 	  /* option:<optname> must follow tag and vendor string. */
+	  if ((opt_len & OT_INTERNAL) && flags != DHOPT_MATCH)
+	    new->opt = 0;
 	  break;
 	}
 #ifdef HAVE_DHCP6
@@ -786,6 +788,8 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	    {
 	      new->opt = lookup_dhcp_opt(AF_INET6, arg+8);
 	      opt_len = lookup_dhcp_len(AF_INET6, new->opt);
+	      if ((opt_len & OT_INTERNAL) && flags != DHOPT_MATCH)
+		new->opt = 0;
 	    }
 	  /* option6:<opt>|<optname> must follow tag and vendor string. */
 	  is6 = 1;
