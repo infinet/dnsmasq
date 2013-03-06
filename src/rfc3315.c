@@ -1044,7 +1044,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 
 struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, struct dhcp_context *context)  
 {
-  void *opt, *oro;
+  void *oro;
   /* filter options based on tags, those we want get DHOPT_TAGOK bit set */
   struct dhcp_netid *tagif = option_filter(state->tags, state->context_tags, daemon->dhcp_opts6);
   struct dhcp_opt *opt_cfg;
