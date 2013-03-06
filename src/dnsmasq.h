@@ -681,6 +681,14 @@ struct cond_domain {
   struct cond_domain *next;
 }; 
 
+#ifdef OPTION6_PREFIX_CLASS 
+struct prefix_class {
+  int class;
+  struct dhcp_netid netid;
+  struct prefix_class *next;
+};
+#endif
+
 struct dhcp_context {
   unsigned int lease_time, addr_epoch;
   struct in_addr netmask, broadcast;
@@ -714,6 +722,7 @@ struct dhcp_context {
 #define CONTEXT_GC          4096
 #define CONTEXT_RA          8192
 #define CONTEXT_WILDCARD   16384
+#define CONTEXT_USED       32768
 
 struct ping_result {
   struct in_addr addr;
@@ -1055,7 +1064,8 @@ struct dhcp_lease *lease4_allocate(struct in_addr addr);
 struct dhcp_lease *lease6_allocate(struct in6_addr *addrp, int lease_type);
 struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len, 
 			       int lease_type, int iaid, struct in6_addr *addr);
-void lease6_filter(int lease_type, int iaid, struct dhcp_context *context);
+void lease6_reset(void);
+struct dhcp_lease *lease6_find_by_client(struct dhcp_lease *first, int lease_type, unsigned char *clid, int clid_len, int iaid);
 struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr);
 u64 lease_find_max_addr6(struct dhcp_context *context);
 void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface);
@@ -1160,8 +1170,8 @@ int get_incoming_mark(union mysockaddr *peer_addr, struct all_addr *local_addr,
 #ifdef HAVE_DHCP6
 void dhcp6_init(void);
 void dhcp6_packet(time_t now);
-int address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
-		      int serial, struct dhcp_netid *netids, struct in6_addr *ans);
+struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
+				       int iaid, struct dhcp_netid *netids, struct in6_addr *ans);
 int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr);
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
@@ -1169,9 +1179,6 @@ struct dhcp_context *address6_available(struct dhcp_context *context,
 struct dhcp_context *address6_valid(struct dhcp_context *context, 
 				    struct in6_addr *taddr,
 				    struct dhcp_netid *netids);
-struct dhcp_context *narrow_context6(struct dhcp_context *context, 
-				     struct in6_addr *taddr,
-				     struct dhcp_netid *netids);
 struct dhcp_config *find_config6(struct dhcp_config *configs,
 				 struct dhcp_context *context,
 				 unsigned char *duid, int duid_len,

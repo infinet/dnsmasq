@@ -555,8 +555,7 @@ struct dhcp_lease *lease_find_by_addr(struct in_addr addr)
 }
 
 #ifdef HAVE_DHCP6
-/* addr or clid may be NULL for "don't care, both NULL resets "USED" flags both
-   set activates USED check */
+/* find address for {CLID, IAID, address} */
 struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len, 
 			       int lease_type, int iaid, struct in6_addr *addr)
 {
@@ -567,40 +566,52 @@ struct dhcp_lease *lease6_find(unsigned char *clid, int clid_len,
       if (!(lease->flags & lease_type) || lease->hwaddr_type != iaid)
 	continue;
 
-      if (clid && addr && (lease->flags & LEASE_USED))
+      if (memcmp(lease->hwaddr, addr, IN6ADDRSZ) != 0)
 	continue;
       
-      if (addr && memcmp(lease->hwaddr, addr, IN6ADDRSZ) != 0)
-	continue;
-      
-      if (clid &&
-	  (clid_len != lease->clid_len ||
+      if ((clid_len != lease->clid_len ||
 	   memcmp(clid, lease->clid, clid_len) != 0))
 	continue;
       
-      lease->flags |= LEASE_USED;
       return lease;
     }
   
   return NULL;
 }
 
-void lease6_filter(int lease_type, int iaid, struct dhcp_context *context)
+/* reset "USED flags */
+void lease6_reset(void)
 {
   struct dhcp_lease *lease;
   
   for (lease = leases; lease; lease = lease->next)
+    lease->flags &= ~LEASE_USED;
+}
+
+/* enumerate all leases belonging to {CLID, IAID} */
+struct dhcp_lease *lease6_find_by_client(struct dhcp_lease *first, int lease_type, unsigned char *clid, int clid_len, int iaid)
+{
+  struct dhcp_lease *lease;
+
+  if (!first)
+    first = leases;
+
+  for (lease = first; lease; lease = lease->next)
     {
-      /* reset "USED flag */
-      lease->flags &= ~LEASE_USED;
-      
+      if (lease->flags & LEASE_USED)
+	continue;
+
       if (!(lease->flags & lease_type) || lease->hwaddr_type != iaid)
 	continue;
-      
-      /* leases on the wrong interface get filtered out here */
-      if (!is_addr_in_context6(context, (struct in6_addr *)&lease->hwaddr))
-	lease->flags |= LEASE_USED;
+ 
+      if ((clid_len != lease->clid_len ||
+	   memcmp(clid, lease->clid, clid_len) != 0))
+	continue;
+
+      return lease;
     }
+  
+  return NULL;
 }
 
 struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 addr)
