@@ -511,6 +511,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	if (ignore)
 	  return 0;
 	
+	/* reset USED bits in leases */
+	lease6_reset();
+	
 	for (opt = state.packet_options; opt; opt = opt6_next(opt, state.end))
 	  {   
 	    void *ia_option, *ia_end;
@@ -539,8 +542,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  config_ok = 0; /* configured address leased elsewhere */
 	      }
 	      
-	    /* reset USED bits in leases */
-	    lease6_reset();
+	    /* reset USED bits in contexts - one address per prefix per IAID */
+	    for (c = context; c; c = c->current)
+	      c->flags &= ~CONTEXT_USED;
 	    
 	    o = build_ia(&state, &t1cntr);
 
@@ -550,10 +554,6 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		ltmp = lease6_find_by_addr(req_addr, 128, 0);
 		requested_time = opt6_uint(ia_option, 16, 4);
 
-		/* reset USED bits in contexts - one address per prefix per IAID */
-		for (c = context; c; c = c->current)
-		  c->flags &= ~CONTEXT_USED;
-		
 		if ((c = address6_valid(context, req_addr, tagif)))
 		  {
 		    lease_time = c->lease_time;
