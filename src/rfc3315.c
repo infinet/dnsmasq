@@ -798,8 +798,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  }
 		
 		
-		if ((this_context != address6_available(context, req_addr, tagif)) ||
-		    (this_context != address6_valid(context, req_addr, tagif)))
+		if ((this_context = address6_available(context, req_addr, tagif)) ||
+		    (this_context = address6_valid(context, req_addr, tagif)))
 		  {
 		    get_context_tag(&state, this_context);
 		    
