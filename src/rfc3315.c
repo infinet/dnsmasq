@@ -42,7 +42,7 @@ static void *opt6_find (void *opts, void *end, unsigned int search, unsigned int
 static void *opt6_next(void *opts, void *end);
 static unsigned int opt6_uint(unsigned char *opt, int offset, int size);
 static void get_context_tag(struct state *state, struct dhcp_context *context);
-static void *check_ia(struct state *state, void *opt, void **endp);
+static int check_ia(struct state *state, void *opt, void **endp, void **ia_option);
 static int build_ia(struct state *state, int *t1cntr);
 static void end_ia(int t1cntr, unsigned int min_time, int do_fuzz);
 static void add_address(struct state *state, struct dhcp_context *context, unsigned int lease_time, unsigned int requested_time, 
@@ -523,7 +523,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    struct in6_addr *req_addr;
 	    struct in6_addr addr;
 	    
-	    if (!(ia_option = check_ia(&state, opt, &ia_end)))
+	    if (!check_ia(&state, opt, &ia_end, &ia_option))
 	      continue;
 	    
 	    if (have_config(config, CONFIG_ADDR6))
@@ -608,7 +608,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	      }
 		 	   
 	    /* Return addresses for all valid contexts which don't yet have one */
-	    while ((c = address6_allocate(c, state.clid, state.clid_len, state.iaid, tagif, &addr)))
+	    while ((c = address6_allocate(context, state.clid, state.clid_len, state.iaid, tagif, &addr)))
 	      {
 		add_address(&state, c, c->lease_time, c->lease_time, &min_time, &addr, rapid_commit != NULL, now);
 		get_context_tag(&state, c);
@@ -631,6 +631,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    o = new_opt6(OPTION6_PREFERENCE);
 	    put_opt6_char(option_bool(OPT_AUTHORITATIVE) ? 255 : 0);
 	    end_opt6(o);
+	    tagif = add_options(&state, fallback, context);
 	  }
 	else
 	  { 
@@ -639,9 +640,9 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    put_opt6_short(DHCP6NOADDRS);
 	    put_opt6_string("No addresses available");
 	    end_opt6(o1);
+	    log6_packet(&state, "DHCPADVERTISE", NULL, _("No addresses available"));
 	  }
 
-	tagif = add_options(&state, fallback, context);
 	break;
       }
       
@@ -663,8 +664,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    unsigned int min_time = 0xffffffff;
 	    int t1cntr;
 	    
-	    if (!(ia_option = check_ia(&state, opt, &ia_end)))
-	      continue;
+	     if (!check_ia(&state, opt, &ia_end, &ia_option))
+	       continue;
 	    
 	    o = build_ia(&state, &t1cntr);
 	      
@@ -739,6 +740,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    put_opt6_short(DHCP6NOADDRS);
 	    put_opt6_string("No addresses available");
 	    end_opt6(o1);
+	    log6_packet(&state, "DHCPREPLY", NULL, _("No addresses available"));
 	  }
 
 	tagif = add_options(&state, fallback, context);
@@ -759,7 +761,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    unsigned int min_time = 0xffffffff;
 	    int t1cntr, iacntr;
 	    
-	    if (!(ia_option = check_ia(&state, opt, &ia_end)))
+	    if (!check_ia(&state, opt, &ia_end, &ia_option))
 	      continue;
 	    
 	    o = build_ia(&state, &t1cntr);
@@ -853,7 +855,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	  {
 	    void *ia_option, *ia_end;
 	    
-	    for (ia_option = check_ia(&state, opt, &ia_end);
+	    for (check_ia(&state, opt, &ia_end, &ia_option);
 		 ia_option;
 		 ia_option = opt6_find(opt6_next(ia_option, ia_end), ia_end, OPTION6_IAADDR, 24))
 	      {
@@ -909,7 +911,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    void *ia_option, *ia_end;
 	    int made_ia = 0;
 	    	    
-	    for (ia_option = check_ia(&state, opt, &ia_end);
+	    for (check_ia(&state, opt, &ia_end, &ia_option);
 		 ia_option;
 		 ia_option = opt6_find(opt6_next(ia_option, ia_end), ia_end, OPTION6_IAADDR, 24)) 
 	      {
@@ -971,7 +973,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    void *ia_option, *ia_end;
 	    int made_ia = 0;
 	    	    
-	    for (ia_option = check_ia(&state, opt, &ia_end);
+	    for (check_ia(&state, opt, &ia_end, &ia_option);
 		 ia_option;
 		 ia_option = opt6_find(opt6_next(ia_option, ia_end), ia_end, OPTION6_IAADDR, 24)) 
 	      {
@@ -1255,23 +1257,25 @@ static void get_context_tag(struct state *state, struct dhcp_context *context)
 	}
     }
 } 
-static void *check_ia(struct state *state, void *opt, void **endp)
+static int check_ia(struct state *state, void *opt, void **endp, void **ia_option)
 {
   state->ia_type = opt6_type(opt);
+  *ia_option = NULL;
 
   if (state->ia_type != OPTION6_IA_NA && state->ia_type != OPTION6_IA_TA)
-    return NULL;
+    return 0;
   
   if (state->ia_type == OPTION6_IA_NA && opt6_len(opt) < 12)
-    return NULL;
+    return 0;
 	    
   if (state->ia_type == OPTION6_IA_TA && opt6_len(opt) < 4)
-    return NULL;
+    return 0;
   
   *endp = opt6_ptr(opt, opt6_len(opt));
   state->iaid = opt6_uint(opt, 0, 4);
-  
-  return opt6_find(opt6_ptr(opt, state->ia_type == OPTION6_IA_NA ? 12 : 4), *endp, OPTION6_IAADDR, 24);
+  *ia_option = opt6_find(opt6_ptr(opt, state->ia_type == OPTION6_IA_NA ? 12 : 4), *endp, OPTION6_IAADDR, 24);
+
+  return 1;
 }
 
 
