@@ -59,6 +59,11 @@
 #define OPTION6_SUBSCRIBER_ID   38
 #define OPTION6_FQDN            39
 
+/* replace this with the real number when allocated.
+   defining this also enables the relevant code. */ 
+/* #define OPTION6_PREFIX_CLASS    99 */
+
+
 #define DHCP6SUCCESS     0
 #define DHCP6UNSPEC      1
 #define DHCP6NOADDRS     2

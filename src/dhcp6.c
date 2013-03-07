@@ -266,7 +266,7 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
 }
 
 struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
-				       int iaid, struct dhcp_netid *netids, struct in6_addr *ans)   
+				       int iaid, int serial, struct dhcp_netid *netids, int plain_range, struct in6_addr *ans)   
 {
   /* Find a free address: exclude anything in use and anything allocated to
      a particular hwaddr/clientid/hostname in our configuration.
@@ -286,7 +286,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
   for (j = iaid, i = 0; i < clid_len; i++)
     j += clid[i] + (j << 6) + (j << 16) - j;
   
-  for (pass = 0; pass <= 1; pass++)
+  for (pass = 0; pass <= plain_range ? 1 : 0; pass++)
     for (c = context; c; c = c->current)
       if (c->flags & (CONTEXT_DEPRECATE | CONTEXT_STATIC | CONTEXT_RA_STATELESS | CONTEXT_USED))
 	continue;
@@ -296,7 +296,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
 	{ 
 	  if (option_bool(OPT_CONSEC_ADDR))
 	    /* seed is largest extant lease addr in this context */
-	    start = lease_find_max_addr6(c);
+	    start = lease_find_max_addr6(c) + serial;
 	  else
 	    start = addr6part(&c->start6) + ((j + c->addr_epoch) % (1 + addr6part(&c->end6) - addr6part(&c->start6)));
 
@@ -332,7 +332,8 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
 /* can dynamically allocate addr */
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
-					struct dhcp_netid *netids)
+					struct dhcp_netid *netids,
+					int plain_range)
 {
   u64 start, end, addr = addr6part(taddr);
   struct dhcp_context *tmp;
@@ -347,7 +348,7 @@ struct dhcp_context *address6_available(struct dhcp_context *context,
 	  is_same_net6(&tmp->end6, taddr, tmp->prefix) &&
 	  addr >= start &&
           addr <= end &&
-          match_netid(tmp->filter, netids, 1))
+          match_netid(tmp->filter, netids, plain_range))
         return tmp;
     }
 
@@ -356,14 +357,15 @@ struct dhcp_context *address6_available(struct dhcp_context *context,
 
 /* address OK if configured */
 struct dhcp_context *address6_valid(struct dhcp_context *context, 
-					struct in6_addr *taddr,
-					struct dhcp_netid *netids)
+				    struct in6_addr *taddr,
+				    struct dhcp_netid *netids,
+				    int plain_range)
 {
   struct dhcp_context *tmp;
  
   for (tmp = context; tmp; tmp = tmp->current)
     if (is_same_net6(&tmp->start6, taddr, tmp->prefix) &&
-	match_netid(tmp->filter, netids, 1))
+	match_netid(tmp->filter, netids, plain_range))
       return tmp;
 
   return NULL;

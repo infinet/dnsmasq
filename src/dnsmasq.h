@@ -684,7 +684,7 @@ struct cond_domain {
 #ifdef OPTION6_PREFIX_CLASS 
 struct prefix_class {
   int class;
-  struct dhcp_netid netid;
+  struct dhcp_netid tag;
   struct prefix_class *next;
 };
 #endif
@@ -829,6 +829,9 @@ extern struct daemon {
   unsigned char *duid_config;
   char *dbus_name;
   unsigned long soa_sn, soa_refresh, soa_retry, soa_expiry;
+#ifdef OPTION6_PREFIX_CLASS 
+  struct prefix_class *prefix_classes;
+#endif
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
@@ -1171,14 +1174,16 @@ int get_incoming_mark(union mysockaddr *peer_addr, struct all_addr *local_addr,
 void dhcp6_init(void);
 void dhcp6_packet(time_t now);
 struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
-				       int iaid, struct dhcp_netid *netids, struct in6_addr *ans);
+				       int iaid, int serial, struct dhcp_netid *netids, int plain_range, struct in6_addr *ans);
 int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr);
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
-					struct dhcp_netid *netids);
+					struct dhcp_netid *netids,
+					int plain_range);
 struct dhcp_context *address6_valid(struct dhcp_context *context, 
 				    struct in6_addr *taddr,
-				    struct dhcp_netid *netids);
+				    struct dhcp_netid *netids,
+				    int plain_range);
 struct dhcp_config *find_config6(struct dhcp_config *configs,
 				 struct dhcp_context *context,
 				 unsigned char *duid, int duid_len,

@@ -128,6 +128,9 @@ struct myoption {
 #define LOPT_AUTHSFS   317
 #define LOPT_AUTHPEER  318
 #define LOPT_IPSET     319
+#ifdef OPTION6_PREFIX_CLASS 
+#define LOPT_PREF_CLSS 320
+#endif
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -261,6 +264,9 @@ static const struct myoption opts[] =
     { "auth-sec-servers", 1, 0, LOPT_AUTHSFS },
     { "auth-peer", 1, 0, LOPT_AUTHPEER }, 
     { "ipset", 1, 0, LOPT_IPSET },
+#ifdef OPTION6_PREFIX_CLASS 
+    { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
+#endif
     { NULL, 0, 0, 0 }
   };
 
@@ -400,6 +406,9 @@ static struct {
   { LOPT_AUTHSFS, ARG_DUP, "<NS>[,<NS>...]", gettext_noop("Secondary authoritative nameservers for forward domains"), NULL },
   { LOPT_AUTHPEER, ARG_DUP, "<ipaddr>[,<ipaddr>...]", gettext_noop("Peers which are allowed to do zone transfer"), NULL },
   { LOPT_IPSET, ARG_DUP, "/<domain>/<ipset>[,<ipset>...]", gettext_noop("Specify ipsets to which matching domains should be added"), NULL },
+#ifdef OPTION6_PREFIX_CLASS 
+  { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
+#endif
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -2943,7 +2952,25 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  }
       }
       break;
-      
+
+#ifdef OPTION6_PREFIX_CLASS 
+    case LOPT_PREF_CLSS: /* --dhcp-prefix-class */
+      {
+	struct prefix_class *new = opt_malloc(sizeof(struct prefix_class));
+	
+	if (!(comma = split(arg)) ||
+	    !atoi_check16(comma, &new->class))
+	  ret_err(gen_err);
+	
+	new->tag.net = opt_string_alloc(set_prefix(arg));
+	new->next = daemon->prefix_classes;
+	daemon->prefix_classes = new;
+	
+	break;
+      }
+#endif
+			      
+
     case 'U':           /* --dhcp-vendorclass */
     case 'j':           /* --dhcp-userclass */
     case LOPT_CIRCUIT:  /* --dhcp-circuitid */
