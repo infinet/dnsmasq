@@ -45,6 +45,7 @@ static void get_context_tag(struct state *state, struct dhcp_context *context);
 static int check_ia(struct state *state, void *opt, void **endp, void **ia_option);
 static int build_ia(struct state *state, int *t1cntr);
 static void end_ia(int t1cntr, unsigned int min_time, int do_fuzz);
+static void mark_context_used(struct dhcp_context *context, struct in6_addr *addr);
 static void add_address(struct state *state, struct dhcp_context *context, unsigned int lease_time, unsigned int requested_time, 
 			unsigned int *min_time, struct in6_addr *addr, int update_lease, time_t now);
 static void update_leases(struct state *state, struct dhcp_context *context, struct in6_addr *addr, unsigned int lease_time, time_t now);
@@ -577,6 +578,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    
 		    /* add address to output packet */
 		    add_address(&state, c, lease_time, requested_time, &min_time, req_addr, rapid_commit != NULL, now);
+		    mark_context_used(c, req_addr);
 		    get_context_tag(&state, c);
 		    address_assigned = 1;
 		  }
@@ -590,6 +592,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  lease_time = config->lease_time;
 		/* add address to output packet */
 		add_address(&state, c, lease_time, requested_time, &min_time, &config->addr6, rapid_commit != NULL, now);
+		mark_context_used(c, req_addr);
 		get_context_tag(&state, c);
 		address_assigned = 1;
 	      }
@@ -602,6 +605,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		if ((c = address6_available(context, req_addr, tagif)))
 		  {
 		    add_address(&state, c, c->lease_time, c->lease_time, &min_time, req_addr, rapid_commit != NULL, now);
+		    mark_context_used(c, req_addr);
 		    get_context_tag(&state, c);
 		    address_assigned = 1;
 		  }
@@ -610,6 +614,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    /* Return addresses for all valid contexts which don't yet have one */
 	    while ((c = address6_allocate(context, state.clid, state.clid_len, state.iaid, tagif, &addr)))
 	      {
+		mark_context_used(c, req_addr);
 		add_address(&state, c, c->lease_time, c->lease_time, &min_time, &addr, rapid_commit != NULL, now);
 		get_context_tag(&state, c);
 		address_assigned = 1;
@@ -1369,13 +1374,16 @@ static void add_address(struct state *state, struct dhcp_context *context, unsig
 	}
     }
 
-  /* Mark that we have an address for this prefix. */
-  for (context = state->context; context; context = context->current)
-    if (is_same_net6(addr, &context->start6, context->prefix))
-      context->flags |= CONTEXT_USED;
-
   log6_packet(state, do_update ? "DHCPREPLY" : "DHCPADVERTISE", addr, state->hostname);
 
+}
+
+static void mark_context_used(struct dhcp_context *context, struct in6_addr *addr)
+{
+  /* Mark that we have an address for this prefix. */
+  for (; context; context = context->current)
+    if (is_same_net6(addr, &context->start6, context->prefix))
+      context->flags |= CONTEXT_USED;
 }
  
 static void update_leases(struct state *state, struct dhcp_context *context, struct in6_addr *addr, unsigned int lease_time, time_t now)
