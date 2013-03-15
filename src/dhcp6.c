@@ -371,31 +371,38 @@ struct dhcp_context *address6_valid(struct dhcp_context *context,
   return NULL;
 }
 
-static int is_config_in_context6(struct dhcp_context *context, struct dhcp_config *config)
+int config_valid(struct dhcp_config *config, struct dhcp_context *context, struct in6_addr *addr)
 {
-  /* expand wildcard on contructed contexts */
-  if ((config->flags & CONFIG_WILDCARD) && 
-      (context->flags & CONTEXT_CONSTRUCTED))
+  if (!config || !(config->flags & CONFIG_ADDR6))
+    return 0;
+
+  if ((config->flags & CONFIG_WILDCARD) && context->prefix == 64)
     {
-      u64 addrpart = addr6part(&config->addr6);
-      config->addr6 = context->start6;
-      setaddr6part(&config->addr6, addrpart);
+      *addr = context->start6;
+      setaddr6part(addr, addr6part(&config->addr6));
       return 1;
     }
   
-  if (!(config->flags & CONFIG_ADDR6) || is_addr_in_context6(context, &config->addr6))
-    return 1;
-      
+  if (is_same_net6(&context->start6, &config->addr6, context->prefix))
+    {
+      *addr = config->addr6;
+      return 1;
+    }
+  
   return 0;
 }
 
-
-int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr)
+static int is_config_in_context6(struct dhcp_context *context, struct dhcp_config *config)
 {
-  for (; context; context = context->current)
-    if (is_same_net6(addr, &context->start6, context->prefix))
-      return 1;
+  if (!(config->flags & CONFIG_ADDR6) || 
+      (config->flags & CONFIG_WILDCARD))
+
+    return 1;
   
+  for (; context; context = context->current)
+    if (is_same_net6(&config->addr6, &context->start6, context->prefix))
+      return 1;
+      
   return 0;
 }
 

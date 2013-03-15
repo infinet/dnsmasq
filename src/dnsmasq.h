@@ -723,6 +723,7 @@ struct dhcp_context {
 #define CONTEXT_RA          8192
 #define CONTEXT_WILDCARD   16384
 #define CONTEXT_USED       32768
+#define CONTEXT_CONF_USED  65536
 
 struct ping_result {
   struct in_addr addr;
@@ -1175,7 +1176,7 @@ void dhcp6_init(void);
 void dhcp6_packet(time_t now);
 struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
 				       int iaid, int serial, struct dhcp_netid *netids, int plain_range, struct in6_addr *ans);
-int is_addr_in_context6(struct dhcp_context *context, struct in6_addr *addr);
+int config_valid(struct dhcp_config *config, struct dhcp_context *context, struct in6_addr *addr);
 struct dhcp_context *address6_available(struct dhcp_context *context, 
 					struct in6_addr *taddr,
 					struct dhcp_netid *netids,
