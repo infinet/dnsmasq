@@ -171,7 +171,12 @@ options. IP alias interfaces (eg "eth1:0") cannot be used with
 .B --interface
 or
 .B --except-interface
-options, use --listen-address instead. 
+options, use --listen-address instead. A simple wildcard, consisting
+of a trailing '*', can be used in 
+.B \--interface 
+and
+.B \--except-interface
+options. 
 .TP
 .B \-I, --except-interface=<interface name>
 Do not listen on the specified interface. Note that the order of

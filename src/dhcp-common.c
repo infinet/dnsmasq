@@ -714,8 +714,7 @@ void log_context(int family, struct dhcp_context *context)
       template = p;
       p += sprintf(p, ", ");
        
-      sprintf(p, "template for %s%s", context->template_interface, 
-	      (context->flags & CONTEXT_WILDCARD) ? "*" : "");  
+      sprintf(p, "template for %s", context->template_interface);  
     }
 #endif
      

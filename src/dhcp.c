@@ -252,7 +252,7 @@ void dhcp_packet(time_t now, int pxe_fd)
     }
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
       return;
   
   /* unlinked contexts are marked by context->current == context */

@@ -120,11 +120,11 @@ void dhcp6_packet(time_t now)
     return;
     
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
       return;
 
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
       return;
  
   parm.current = NULL;
@@ -153,7 +153,7 @@ void dhcp6_packet(time_t now)
     {
       
       for (tmp = daemon->if_names; tmp; tmp = tmp->next)
-	if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+	if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
 	  break;
 
       if (!tmp && !parm.addr_match)
@@ -530,9 +530,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	  }
 	
       }
-    else if (addr6part(local) == addr6part(&template->start6) &&
-	     strncmp(template->template_interface, ifrn_name, strlen(template->template_interface)) == 0 &&
-	     (strlen(template->template_interface) == strlen(ifrn_name) || (template->flags & CONTEXT_WILDCARD)))
+    else if (addr6part(local) == addr6part(&template->start6) && wildcard_match(template->template_interface, ifrn_name))
       {
 	start6 = *local;
 	setaddr6part(&start6, addr6part(&template->start6));

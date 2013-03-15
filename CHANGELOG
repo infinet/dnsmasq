@@ -48,8 +48,11 @@ version 2.66
 
 	    Don't erroneously reject some option names in --dhcp-match
 	    options. Thnaks to Benedikt Hochstrasser for the bug report.
+	    
+	    Allow a trailing '*' wildcard in all interface-name
+	    configurations. Thanks to Christian Parpart for the patch.
 
-
+  
 version 2.65
 	    Fix regression which broke forwarding of queries sent via
 	    TCP which are not for A and AAAA and which were directed to

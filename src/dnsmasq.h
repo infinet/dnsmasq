@@ -721,9 +721,8 @@ struct dhcp_context {
 #define CONTEXT_CONSTRUCTED 2048
 #define CONTEXT_GC          4096
 #define CONTEXT_RA          8192
-#define CONTEXT_WILDCARD   16384
+#define CONTEXT_CONF_USED  16384
 #define CONTEXT_USED       32768
-#define CONTEXT_CONF_USED  65536
 
 struct ping_result {
   struct in_addr addr;
@@ -979,6 +978,8 @@ int expand_buf(struct iovec *iov, size_t size);
 char *print_mac(char *buff, unsigned char *mac, int len);
 void bump_maxfd(int fd, int *max);
 int read_write(int fd, unsigned char *packet, int size, int rw);
+
+int wildcard_match(const char* wildcard, const char* match);
 
 /* log.c */
 void die(char *message, char *arg1, int exit_code);

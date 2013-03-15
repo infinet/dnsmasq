@@ -123,7 +123,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
       ret = 0;
 
       for (tmp = daemon->if_names; tmp; tmp = tmp->next)
-	if (tmp->name && (strcmp(tmp->name, name) == 0))
+	if (tmp->name && wildcard_match(tmp->name, name))
 	  ret = tmp->used = 1;
 	        
       if (addr)
@@ -143,7 +143,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
     }
   
   for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, name) == 0))
+    if (tmp->name && wildcard_match(tmp->name, name))
       ret = 0;
     
 
@@ -291,7 +291,7 @@ static int iface_allowed(struct irec **irecp, int if_index,
     }
   else
     for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-      if (tmp->name && (strcmp(tmp->name, ifr.ifr_name) == 0))
+      if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
 	{
 	  tftp_ok = 0;
 	  dhcp_ok = 0;

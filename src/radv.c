@@ -158,7 +158,7 @@ void icmp6_packet(time_t now)
     return;
   
   for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && (strcmp(tmp->name, interface) == 0))
+    if (tmp->name && wildcard_match(tmp->name, interface))
       return;
  
   if (packet[1] != 0)
@@ -533,7 +533,7 @@ time_t periodic_ra(time_t now)
 	{
 	  struct iname *tmp;
 	  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-	    if (tmp->name && (strcmp(tmp->name, interface) == 0))
+	    if (tmp->name && wildcard_match(tmp->name, interface))
 	      break;
 	  if (!tmp)
 	    send_ra(now, param.iface, interface, NULL); 

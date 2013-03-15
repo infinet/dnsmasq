@@ -2375,11 +2375,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  new->flags |= CONTEXT_DHCP; 
 		else if (strstr(a[leasepos], "constructor:") == a[leasepos])
 		  {
-		    if (a[leasepos][strlen(a[leasepos])-1] == '*')
-		      {
-			a[leasepos][strlen(a[leasepos])-1] = 0;
-			new->flags |= CONTEXT_WILDCARD;
-		      }
 		    new->template_interface = opt_string_alloc(a[leasepos] + 12);
 		    new->flags |= CONTEXT_TEMPLATE;
 		  }
