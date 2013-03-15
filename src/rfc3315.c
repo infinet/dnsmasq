@@ -677,11 +677,16 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    
 	    /* Suggest configured address(es) */
 	    for (c = context; c; c = c->current) 
-	      if (!(c->flags & CONTEXT_CONF_USED) && config_valid(config, c, &addr) && check_address(&state, &addr))
+	      if (!(c->flags & CONTEXT_CONF_USED) &&
+		  match_netid(c->filter, solicit_tags, plain_range) &&
+		  config_valid(config, c, &addr) && 
+		  check_address(&state, &addr))
 		{
 		  mark_config_used(context, &addr);
 		  if (have_config(config, CONFIG_TIME))
 		    lease_time = config->lease_time;
+		  else
+		    lease_time = c->lease_time;
 		  /* add address to output packet */
 #ifdef OPTION6_PREFIX_CLASS
 		  if (dump_all_prefix_classes)
