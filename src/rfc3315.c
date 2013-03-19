@@ -216,7 +216,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   unsigned int ignore = 0;
   struct state state;
 #ifdef OPTION6_PREFIX_CLASS
- struct prefix_class *p;
+  struct prefix_class *p;
+  int dump_all_prefix_classes = 0;
 #endif
 
   state.packet_options = inbuff + 4;
@@ -478,21 +479,32 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	ignore = 1;
     }
 
-  tagif = state.tags;
-
 #ifdef OPTION6_PREFIX_CLASS
-  /* Add the tags associated with prefix classes so we can use the DHCP ranges.
-     These are removed and added back one-at-time for SOLICITs
-     Neccessary to allow REQUEST or RENEW of addresses ADVERTISED under
-     specific classes. */
-  for (p = daemon->prefix_classes; p ; p = p->next)
+  /* OPTION_PREFIX_CLASS in ORO, send addresses in all prefix classes */
+  if (daemon->prefix_classes && (msg_type == DHCP6SOLICIT || msg_type == DHCP6REQUEST))
     {
-      p->tag.next = tagif;
-      tagif = &p->tag;
-    }	
+      void *oro;
+      
+      if ((oro = opt6_find(state.packet_options, state.end, OPTION6_ORO, 0)))
+	for (i = 0; i <  opt6_len(oro) - 1; i += 2)
+	  if (opt6_uint(oro, i, 2) == OPTION6_PREFIX_CLASS)
+	    {
+	      dump_all_prefix_classes = 1;
+	      break;
+	    }
+      
+      if (msg_type != DHCP6SOLICIT || dump_all_prefix_classes)
+	/* Add the tags associated with prefix classes so we can use the DHCP ranges.
+	   Not done for SOLICIT as we add them  one-at-time. */
+	for (p = daemon->prefix_classes; p ; p = p->next)
+	  {
+	    p->tag.next = state.tags;
+	    state.tags = &p->tag;
+	  }
+    }    
 #endif
 
-  tagif = run_tag_if(tagif);
+  tagif = run_tag_if(state.tags);
   
   /* if all the netids in the ignore list are present, ignore this client */
   if (daemon->dhcp_ignore)
@@ -528,7 +540,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	void *rapid_commit = opt6_find(state.packet_options, state.end, OPTION6_RAPID_COMMIT, 0);
       	int address_assigned = 0;
 	/* tags without all prefix-class tags */
-	struct dhcp_netid *solicit_tags = run_tag_if(state.tags);
+	struct dhcp_netid *solicit_tags = tagif;
 	struct dhcp_context *c;
 
 	if (rapid_commit)
@@ -565,9 +577,6 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    struct dhcp_lease *ltmp;
 	    struct in6_addr *req_addr;
 	    struct in6_addr addr;
-#ifdef OPTION6_PREFIX_CLASS
-	    int dump_all_prefix_classes = 0;
-#endif
 
 	    if (!check_ia(&state, opt, &ia_end, &ia_option))
 	      continue;
@@ -579,20 +588,12 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 #ifdef OPTION6_PREFIX_CLASS
 	    if (daemon->prefix_classes && state.ia_type == OPTION6_IA_NA)
 	      {
-		void *prefix_opt, *oro;
+		void *prefix_opt;
 		int prefix_class;
 		
-		if ((oro = opt6_find(state.packet_options, state.end, OPTION6_ORO, 0)))
-		  for (i = 0; i <  opt6_len(oro) - 1; i += 2)
-		    if (opt6_uint(oro, i, 2) == OPTION6_PREFIX_CLASS)
-		      break;
-		
-		if (oro && (i < opt6_len(oro) - 1))
-		  {
-		    /* OPTION_PREFIX_CLASS in ORO, send addresses in all prefix classes */
-		    plain_range = 0;
-		    dump_all_prefix_classes = 1;
-		  }
+		if (dump_all_prefix_classes)
+		  /* OPTION_PREFIX_CLASS in ORO, send addresses in all prefix classes */
+		  plain_range = 0;
 		else 
 		  { 
 		    if ((prefix_opt = opt6_find(opt6_ptr(opt, 12), ia_end, OPTION6_PREFIX_CLASS, 2)))
@@ -665,7 +666,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    
 		    /* add address to output packet */
 #ifdef OPTION6_PREFIX_CLASS
-		    if (dump_all_prefix_classes)
+		    if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		      state.send_prefix_class = prefix_class_from_context(c);
 #endif		    
 		    add_address(&state, c, lease_time, requested_time, &min_time, req_addr, rapid_commit != NULL, now);
@@ -689,7 +690,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    lease_time = c->lease_time;
 		  /* add address to output packet */
 #ifdef OPTION6_PREFIX_CLASS
-		  if (dump_all_prefix_classes)
+		  if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		    state.send_prefix_class = prefix_class_from_context(c);
 #endif
 		  add_address(&state, c, lease_time, requested_time, &min_time, &addr, rapid_commit != NULL, now);
@@ -706,7 +707,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		if ((c = address6_available(context, req_addr, solicit_tags, plain_range)))
 		  {
 #ifdef OPTION6_PREFIX_CLASS
-		    if (dump_all_prefix_classes)
+		    if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		      state.send_prefix_class = prefix_class_from_context(c);
 #endif
 		    add_address(&state, c, c->lease_time, c->lease_time, &min_time, req_addr, rapid_commit != NULL, now);
@@ -720,7 +721,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    while ((c = address6_allocate(context, state.clid, state.clid_len, state.iaid, ia_counter, solicit_tags, plain_range, &addr)))
 	      {
 #ifdef OPTION6_PREFIX_CLASS
-		if (dump_all_prefix_classes)
+		if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		  state.send_prefix_class = prefix_class_from_context(c);
 #endif
 		add_address(&state, c, c->lease_time, c->lease_time, &min_time, &addr, rapid_commit != NULL, now);
@@ -823,6 +824,10 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			if (config_ok && have_config(config, CONFIG_TIME))
 			  lease_time = config->lease_time;
 
+#ifdef OPTION6_PREFIX_CLASS
+			if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
+			  state.send_prefix_class = prefix_class_from_context(c);
+#endif
 			add_address(&state, dynamic, lease_time, requested_time, &min_time, req_addr, 1, now);
 			get_context_tag(&state, dynamic);
 			address_assigned = 1;
