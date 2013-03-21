@@ -135,12 +135,12 @@ RESOLVFILE
 #define HAVE_TFTP
 #define HAVE_SCRIPT
 #define HAVE_AUTH
+#define HAVE_IPSET 
 /* #define HAVE_LUASCRIPT */
 /* #define HAVE_BROKEN_RTC */
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
-/* #define HAVE_IPSET */
 
 
 /* Default locations for important system files. */
@@ -327,7 +327,7 @@ HAVE_SOCKADDR_SA_LEN
 #undef HAVE_AUTH
 #endif
 
-#ifndef HAVE_LINUX_NETWORK
+#if defined(NO_IPSET) || !defined(HAVE_LINUX_NETWORK)
 #undef HAVE_IPSET
 #endif
 
