@@ -33,7 +33,7 @@ version 2.66
  
             Add DNSMASQ_CIRCUIT_ID, DNSMASQ_SUBCRIBER_ID,
             DNSMASQ_REMOTE_ID variables to the environment of the
-            lease-change script (and the correponding Lua). These hold
+            lease-change script (and the corresponding Lua). These hold
             information inserted into the DHCP request by a DHCP relay
             agent. Thanks to Lakefield Communications for providing a
             bounty for this addition.
@@ -47,7 +47,7 @@ version 2.66
 	    patch.
 
 	    Don't erroneously reject some option names in --dhcp-match
-	    options. Thnaks to Benedikt Hochstrasser for the bug report.
+	    options. Thanks to Benedikt Hochstrasser for the bug report.
 	    
 	    Allow a trailing '*' wildcard in all interface-name
 	    configurations. Thanks to Christian Parpart for the patch.
