@@ -721,10 +721,10 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 				  daemon->soa_retry, daemon->soa_expiry, 
 				  daemon->auth_ttl))
 	    anscount++;
-	
+	  
 	}
-  
-}
+      
+    }
   
   /* done all questions, set up header and return length of result */
   /* clear authoritative and truncated flags, set QR flag */
