@@ -124,6 +124,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 		  is_same_net6(link_address, &c->start6, c->prefix) &&
 		  is_same_net6(link_address, &c->end6, c->prefix))
 		{
+		  c->preferred = c->valid = 0xffffffff;
 		  c->current = context;
 		  context = c;
 		}
@@ -693,7 +694,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		    state.send_prefix_class = prefix_class_from_context(c);
 #endif
-		  add_address(&state, c, lease_time, requested_time, &min_time, &addr, rapid_commit != NULL, now);
+		  add_address(&state, c, lease_time, lease_time, &min_time, &addr, rapid_commit != NULL, now);
 		  mark_context_used(&state, context, &addr);
 		  get_context_tag(&state, c);
 		  address_assigned = 1;
