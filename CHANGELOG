@@ -52,6 +52,11 @@ version 2.66
 	    Allow a trailing '*' wildcard in all interface-name
 	    configurations. Thanks to Christian Parpart for the patch.
 
+	    Handle the situation where libc headers define
+	    SO_REUSEPORT, but the kernel in use doesn't, to cope with
+	    the introduction of this option to Linux. Thanks to Rich
+	    Felker for the bug report.
+
   
 version 2.65
 	    Fix regression which broke forwarding of queries sent via
