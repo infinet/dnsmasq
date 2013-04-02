@@ -326,7 +326,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
 	  } while (addr != start);
 	}
 	   
-  return 0;
+  return NULL;
 }
 
 /* can dynamically allocate addr */
