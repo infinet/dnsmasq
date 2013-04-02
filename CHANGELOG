@@ -57,6 +57,8 @@ version 2.66
 	    the introduction of this option to Linux. Thanks to Rich
 	    Felker for the bug report.
 
+	    Update Polish translation. Thanks to Jan Psota.
+	    
   
 version 2.65
 	    Fix regression which broke forwarding of queries sent via

@@ -3,14 +3,14 @@
 # This file is put in the public domain.
 #
 # Tomasz Sochański <nerdhero@gmail.com>, 2005.
-# Jan Psota <jasiupsota@gmail.com>, 2008, 2009, 2010, 2011.
+# Jan Psota <jasiupsota@gmail.com>, 2008, 2009, 2010, 2011, 2013.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-10 20:57+0100\n"
-"PO-Revision-Date: 2012-03-04 01:45+0100\n"
+"PO-Revision-Date: 2013-04-02 01:44+0200\n"
 "Last-Translator: Jan Psota <jasiupsota@gmail.com>\n"
 "Language-Team: polski <>\n"
 "Language: \n"
@@ -475,7 +475,7 @@ msgstr "Wyłączenie możliwości negocjowania wielkości bloku dla przesyłów 
 
 #: option.c:373
 msgid "Convert TFTP filenames to lowercase"
-msgstr ""
+msgstr "Konwertowanie nazw plików żądanych przez TFTP do małych liter"
 
 #: option.c:374
 msgid "Ephemeral port range for use by TFTP transfers."
@@ -575,54 +575,51 @@ msgstr "Załączenie anonsowania (RA) na interfejsach serwujących DHCPv6"
 
 #: option.c:398
 msgid "Specify DUID_EN-type DHCPv6 server DUID"
-msgstr ""
+msgstr "Określenie DHCPv6 DUID"
 
 #: option.c:399
-#, fuzzy
 msgid "Specify host (A/AAAA and PTR) records"
-msgstr "Specyfikacja rekordu MX."
+msgstr "Określenie rekordów A/AAAA i PTR"
 
 #: option.c:400
-#, fuzzy
 msgid "Specify arbitrary DNS resource record"
-msgstr "Specyfikacja rekordu DNS TXT."
+msgstr "Określenie rekordu TXT"
 
 #: option.c:401
-#, fuzzy
 msgid "Bind to interfaces in use - check for new interfaces"
-msgstr "nieznany interfejs %s w bridge-u"
+msgstr "Dynamiczne podpinanie do interfejsów sieciowych"
 
 #: option.c:402
 msgid "Export local names to global DNS"
-msgstr ""
+msgstr "Eksportowanie lokalnych nazw hostów do globalnego DNS-a"
 
 #: option.c:403
 msgid "Domain to export to global DNS"
-msgstr ""
+msgstr "Domena pod którą będą eksportowane lokalne nazwy"
 
 #: option.c:404
 msgid "Set TTL for authoritative replies"
-msgstr ""
+msgstr "Określenie TTL dla odpowiedzi autorytatywnych"
 
 #: option.c:405
 msgid "Set authoritive zone information"
-msgstr ""
+msgstr "Określenie danych strefy autorytatywnej (SOA)"
 
 #: option.c:406
 msgid "Secondary authoritative nameservers for forward domains"
-msgstr ""
+msgstr "Pomocnicze serwery autorytatywne dla forwardowanych domen"
 
 #: option.c:407
 msgid "Peers which are allowed to do zone transfer"
-msgstr ""
+msgstr "Wskazanie serwerów uprawnionych do transferu stref"
 
 #: option.c:408
 msgid "Specify ipsets to which matching domains should be added"
-msgstr ""
+msgstr "Wyszczególnienie ipset-ów, do których będą dopisywane adresy IP leżące we wskazanych domenach"
 
 #: option.c:410
 msgid "Specify DHCPv6 prefix class"
-msgstr ""
+msgstr "Określenie prefiksu klasy DHCPv6"
 
 #: option.c:596
 #, c-format
@@ -656,9 +653,8 @@ msgid "bad interface name"
 msgstr "nieprawidłowa nazwa interfejsu"
 
 #: option.c:720
-#, fuzzy
 msgid "bad address"
-msgstr "zły adres IP"
+msgstr "zły adres"
 
 #: option.c:847
 msgid "unsupported encapsulation for IPv6 option"
@@ -739,14 +735,12 @@ msgid "recompile with HAVE_LUASCRIPT defined to enable Lua scripts"
 msgstr "używanie skryptów Lua, wymaga skompilowania dnsmasq-a z flagą HAVE_LUASCRIPT"
 
 #: option.c:1631
-#, fuzzy
 msgid "bad prefix"
-msgstr "nieprawidłowy numer portu"
+msgstr "zła maska"
 
 #: option.c:2043
-#, fuzzy
 msgid "recompile with HAVE_IPSET defined to enable ipset directives"
-msgstr "używanie skryptów Lua, wymaga skompilowania dnsmasq-a z flagą HAVE_LUASCRIPT"
+msgstr "chcąc korzystać z ipsets przekompiluj dnsmasq-a z HAVE_IPSET"
 
 #: option.c:2223
 msgid "bad port range"
@@ -769,13 +763,12 @@ msgid "inconsistent DHCP range"
 msgstr "niespójny zakres adresów DHCP"
 
 #: option.c:2402
-#, fuzzy
 msgid "prefix must be exactly 64 for RA subnets"
-msgstr "prefix musi mieć wartość >=64"
+msgstr "prefix musi mieć wartość =64 dla podsieci RA"
 
 #: option.c:2404
 msgid "prefix must be exactly 64 for subnet constructors"
-msgstr ""
+msgstr "prefix dla podsieci musi wynosić równo 64"
 
 #: option.c:2407
 msgid "prefix must be at least 64"
@@ -794,9 +787,9 @@ msgid "cannot match tags in --dhcp-host"
 msgstr "--dhcp-host nie dopuszcza dopasowywania na podstawie znaczników"
 
 #: option.c:2589
-#, fuzzy, c-format
+#, c-format
 msgid "duplicate dhcp-host IP address %s"
-msgstr "powtórzony adres IP (%s) w pliku %s"
+msgstr "powtórzony adres IP %s w specyfikacji dhcp-host"
 
 #: option.c:2645
 msgid "bad DHCP host name"
@@ -816,7 +809,7 @@ msgstr "zły adres dhcp-proxy"
 
 #: option.c:3124
 msgid "bad DUID"
-msgstr ""
+msgstr "zły DUID"
 
 #: option.c:3166
 msgid "invalid alias range"
@@ -839,9 +832,8 @@ msgid "bad NAPTR record"
 msgstr "nieprawidłowy zapis rekordu NAPTR"
 
 #: option.c:3295
-#, fuzzy
 msgid "bad RR record"
-msgstr "nieprawidłowy zapis rekordu PTR"
+msgstr "nieprawidłowy zapis rekordu RR"
 
 #: option.c:3324
 msgid "bad TXT record"
@@ -864,13 +856,12 @@ msgid "invalid weight"
 msgstr "nieprawidłowa waga"
 
 #: option.c:3417
-#, fuzzy
 msgid "Bad host-record"
-msgstr "nieprawidłowy zapis rekordu PTR"
+msgstr "nieprawidłowy zapis host-record"
 
 #: option.c:3434
 msgid "Bad name in host-record"
-msgstr ""
+msgstr "niedopuszczalna nazwa w host-record"
 
 #: option.c:3464
 msgid "unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)"
@@ -897,9 +888,9 @@ msgid "error"
 msgstr "błąd"
 
 #: option.c:3592
-#, fuzzy, c-format
+#, c-format
 msgid " at line %d of %s"
-msgstr "%s w linii %d pliku %%s"
+msgstr " w linii %d pliku %s"
 
 #: option.c:3656 tftp.c:648
 #, c-format
@@ -1009,9 +1000,9 @@ msgid "failed to create listening socket for %s: %s"
 msgstr "nie udało się otworzyć gniazda %s: %s"
 
 #: network.c:743
-#, fuzzy, c-format
+#, c-format
 msgid "interface %s failed to join DHCPv6 multicast group: %s"
-msgstr "nie udało się przyłączyć do grupy rozgłoszeniowej DHCPv6: %s"
+msgstr "interfejs %s nie pozwolił się przyłączyć do grupy rozgłoszeniowej DHCPv6: %s"
 
 #: network.c:937
 #, c-format
@@ -1090,21 +1081,20 @@ msgid "asychronous logging is not available under Android"
 msgstr "zapis do logów w trybie asynchronicznym nie jest dostępny w Androidzie"
 
 #: dnsmasq.c:154
-#, fuzzy
 msgid "authoritative DNS not available: set HAVE_AUTH in src/config.h"
-msgstr "Obsługa DBus nie została wkompilowana -- ustaw HAVE_DBUS w src/config.h"
+msgstr "tryb autorytatywny DNS-a niedostępny - ustaw HAVE_AUTH w src/config.h"
 
 #: dnsmasq.c:164
 msgid "zone serial must be configured in --auth-soa"
-msgstr ""
+msgstr "za pomocą --auth-soa musi zostać ustawiony numer seryjny strefy"
 
 #: dnsmasq.c:186
 msgid "dhcp-range constructor not available on this platform"
-msgstr ""
+msgstr "konstrukcja dhcp-range nie jest dostępna w tym systemie"
 
 #: dnsmasq.c:225
 msgid "cannot set --bind-interfaces and --bind-dynamic"
-msgstr ""
+msgstr "--bind-interfaces i --bind-dynamic wzajemnie się wykluczają"
 
 #: dnsmasq.c:229
 #, c-format
@@ -1258,7 +1248,7 @@ msgstr "nie udało się wczytać skryptu Lua: %s"
 #: dnsmasq.c:1031
 #, c-format
 msgid "TFTP directory %s inaccessible: %s"
-msgstr ""
+msgstr "katalog TFTP %s nie jest dostępny: %s"
 
 #: dnsmasq.c:1095
 #, c-format
@@ -1630,9 +1620,9 @@ msgid "cannot create DHCPv6 socket: %s"
 msgstr "nie udało się utworzyć gniazda dla DHCPv6: %s"
 
 #: dhcp6.c:62
-#, fuzzy, c-format
+#, c-format
 msgid "failed to set SO_REUSE{ADDR|PORT} on DHCPv6 socket: %s"
-msgstr "nie udało się ustawić SO_REUSE{ADDR|PORT} gniazda DHCP: %s"
+msgstr "nie udało się ustawić SO_REUSE{ADDR|PORT} gniazda DHCPv6: %s"
 
 #: dhcp6.c:74
 #, c-format
@@ -1655,58 +1645,54 @@ msgid "%u available DHCPv6 subnet: %s/%d"
 msgstr "%u dostępna podsieć DHCPv6: %s/%d"
 
 #: rfc3315.c:350
-#, fuzzy, c-format
+#, c-format
 msgid "%u vendor class: %u"
-msgstr "%u klasa dostawcy: %s"
+msgstr "%u klasa dostawcy: %u"
 
 #: rfc3315.c:609
-#, fuzzy, c-format
+#, c-format
 msgid "unknown prefix-class %d"
-msgstr "nieznana dzierżawa"
+msgstr "nieznana klasa sieci %d"
 
 #: rfc3315.c:741 rfc3315.c:854
 msgid "success"
-msgstr ""
+msgstr "udane"
 
 #: rfc3315.c:756 rfc3315.c:758 rfc3315.c:862 rfc3315.c:864
-#, fuzzy
 msgid "no addresses available"
-msgstr "brak dostępnego adresu"
+msgstr "brak wolnych adresów"
 
 #: rfc3315.c:806
-#, fuzzy
 msgid "address unavailable"
 msgstr "adres niedostępny"
 
 #: rfc3315.c:841
 msgid "not on link"
-msgstr ""
+msgstr "poza zasięgiem"
 
 #: rfc3315.c:915 rfc3315.c:1073 rfc3315.c:1150
 msgid "no binding found"
-msgstr ""
+msgstr "brak powiązania"
 
 #: rfc3315.c:948
 msgid "deprecated"
-msgstr ""
+msgstr "przestarzały"
 
 #: rfc3315.c:951
-#, fuzzy
 msgid "address invalid"
-msgstr "adres jest w użyciu"
+msgstr "niepoprawny adres"
 
 #: rfc3315.c:992
 msgid "confirm failed"
-msgstr ""
+msgstr "brak potwierdzenia"
 
 #: rfc3315.c:1003
-#, fuzzy
 msgid "all addresses still on link"
-msgstr "błędny adres w pliku %s, w linii %d"
+msgstr "wszystkie adresy ciągle w użyciu"
 
 #: rfc3315.c:1082
 msgid "release received"
-msgstr ""
+msgstr "adres został zwolniony"
 
 #: dhcp-common.c:145
 #, c-format
@@ -1729,9 +1715,9 @@ msgid "duplicate IP address %s (%s) in dhcp-config directive"
 msgstr "powtórzenie adresu IP %s (%s) w opcji dhcp-config"
 
 #: dhcp-common.c:367
-#, fuzzy, c-format
+#, c-format
 msgid "failed to set SO_BINDTODEVICE on DHCP socket: %s"
-msgstr "nie udało się ustawić SO_REUSE{ADDR|PORT} gniazda DHCP: %s"
+msgstr "nie udało się ustawić SO_BINDTODEVICE gniazda DHCP: %s"
 
 #: dhcp-common.c:489
 #, c-format
@@ -1745,42 +1731,42 @@ msgstr "Rozpoznawane opcje DHCPv6:\n"
 
 #: dhcp-common.c:693
 msgid ", prefix deprecated"
-msgstr ""
+msgstr ", przestarzały prefiks"
 
 #: dhcp-common.c:696
 #, c-format
 msgid ", lease time "
-msgstr ""
+msgstr ", czas dzierżawy"
 
 #: dhcp-common.c:727
 #, c-format
 msgid "%s stateless on %s%.0s%.0s%s"
-msgstr ""
+msgstr "%s bezstanowy na %s%.0s%.0s%s"
 
 #: dhcp-common.c:729
-#, fuzzy, c-format
+#, c-format
 msgid "%s, static leases only on %.0s%s%s%.0s"
-msgstr "DHCP: tylko statyczne dzierżawy na %.0s%s, czas dzierżawy %s"
+msgstr "%s, wyłącznie statyczne dzierżawy na %.0s%s%s%.0s"
 
 #: dhcp-common.c:731
-#, fuzzy, c-format
+#, c-format
 msgid "%s, proxy on subnet %.0s%s%.0s%.0s"
-msgstr "DHCP: pośrednik na podsieci %.0s%s%.0s"
+msgstr "%s, wykryto pośrednika na podsieci %.0s%s%.0s%.0s"
 
 #: dhcp-common.c:732
-#, fuzzy, c-format
+#, c-format
 msgid "%s, IP range %s -- %s%s%.0s"
-msgstr "DHCP: zakres IP %s -- %s, czas dzierżawy %s"
+msgstr "%s, zakres IP %s -- %s%s%.0s"
 
 #: dhcp-common.c:739
 #, c-format
 msgid "DHCPv4-derived IPv6 names on %s%s"
-msgstr ""
+msgstr "pochodzące z DHCPv4 nazwy IPv6 na %s%s"
 
 #: dhcp-common.c:742
-#, fuzzy, c-format
+#, c-format
 msgid "router advertisement on %s%s"
-msgstr "tylko anonsowanie routera na %.0s%s, czas życia %s"
+msgstr "anonsowanie routera na %s%s"
 
 #: radv.c:87
 #, c-format
@@ -1788,19 +1774,19 @@ msgid "cannot create ICMPv6 socket: %s"
 msgstr "nie udało się utworzyć gniazda dla ICMPv6: %s"
 
 #: auth.c:402
-#, fuzzy, c-format
+#, c-format
 msgid "ignoring zone transfer request from %s"
-msgstr "nieobsługiwane żądanie od komputera %s"
+msgstr "ignoruję żądanie transferu strefy od %s"
 
 #: ipset.c:71
-#, fuzzy, c-format
+#, c-format
 msgid "failed to find kernel version: %s"
-msgstr "błąd przy przyznawaniu nazwy gniazdu serwera DHCP: %s"
+msgstr "niezgodna wersja jądra: %s"
 
 #: ipset.c:90
-#, fuzzy, c-format
+#, c-format
 msgid "failed to create IPset control socket: %s"
-msgstr "nie powiodło się otwieranie gniazda dla usługi TFTP: %s"
+msgstr "nie powiodło się otwieranie gniazda sterującego IPset: %s"
 
 #~ msgid "no interface with address %s"
 #~ msgstr "brak interfejsu z adresem %s"
