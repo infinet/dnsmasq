@@ -595,6 +595,8 @@ struct dhcp_lease *lease6_find_by_client(struct dhcp_lease *first, int lease_typ
 
   if (!first)
     first = leases;
+  else
+    first = first->next;
 
   for (lease = first; lease; lease = lease->next)
     {
