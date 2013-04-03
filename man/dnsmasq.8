@@ -589,7 +589,7 @@ included and configured. This option cannot be combined with
 .TP
 .B \-F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag>,]<start-addr>[,<end-addr>][,<mode>][,<netmask>[,<broadcast>]][,<lease time>]
 .TP
-.B \-F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag>,]<start-IPv6addr>[,<end-IPv6addr>|constuctor:<interface>][,<mode>][,<prefix-len>][,<lease time>]
+.B \-F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag>,]<start-IPv6addr>[,<end-IPv6addr>|constructor:<interface>][,<mode>][,<prefix-len>][,<lease time>]
 
 Enable the DHCP server. Addresses will be given out from the range
 <start-addr> to <end-addr> and from statically defined addresses given
@@ -625,7 +625,7 @@ IPv6 (only) supports another type of range. In this, the start address and optio
 .B constructor:<interface>.
 This forms a template which describes how to create ranges, based on the addresses assigned to the interface. For instance
 
-.B --dhcp-range=::1,::4,constructor:eth0
+.B --dhcp-range=::1,::400,constructor:eth0
 
 will look for addreses of the form <network>::1 on eth0 and then create a range from <network>::1 to <network>::400. If the interface is assigned more than one network, then the corresponding ranges will be automatically created, and then deprecated and finally removed again as the address is deprecated and then deleted. The interface name may have a final "*" wildcard.
 
