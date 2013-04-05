@@ -680,7 +680,7 @@ void receive_query(struct listener *listen, time_t now)
   dst_addr_4.s_addr = 0;
   netmask.s_addr = 0;
   
-  if (listen->iface && option_bool(OPT_NOWILD))
+  if (option_bool(OPT_NOWILD) && listen->iface)
     {
       auth_dns = listen->iface->dns_auth;
      
