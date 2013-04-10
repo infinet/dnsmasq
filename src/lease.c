@@ -115,7 +115,7 @@ void lease_init(time_t now)
 		s++;
 	      }
 	    
-	    hw_type = atoi(s);
+	    hw_type = strtoul(s, NULL, 10);
 	    
 	    if ((lease = lease6_allocate(&addr.addr.addr6, lease_type)))
 	      {
