@@ -22,7 +22,10 @@ send any desired set of DHCP options, including vendor-encapsulated
 options. It includes a secure, read-only,
 TFTP server to allow net/PXE boot of DHCP hosts and also supports BOOTP. The PXE support is full featured, and includes a proxy mode which supplies PXE information to clients whilst DHCP address allocation is done by another server.
 .PP
-The dnsmasq DHCPv6 server provides the same set of features as the DHCPv4 server, and in addition, it includes router advertisements and a neat feature which allows nameing for clients which use DHCPv4 and RA only for IPv6 configuration. There is support for doing address allocation (both DHCPv6 and RA) from subnets which are dynamically delegated via DHCPv6 prefix delegation.
+The dnsmasq DHCPv6 server provides the same set of features as the
+DHCPv4 server, and in addition, it includes router advertisements and
+a neat feature which allows nameing for clients which use DHCPv4 and
+stateless autoconfigurtion only for IPv6 configuration. There is support for doing address allocation (both DHCPv6 and RA) from subnets which are dynamically delegated via DHCPv6 prefix delegation.
 .PP
 Dnsmasq is coded with small embedded systems in mind. It aims for the smallest possible memory footprint compatible with the supported functions,  and allows uneeded functions to be omitted from the compiled binary.  
 .SH OPTIONS
@@ -189,7 +192,7 @@ options does not matter and that
 options always override the others.
 .TP
 .B --auth-server=<domain>,<interface>|<ip-address>
-Enable DNS authoritative mode for queries arriving at an interface or address. Note that the the interface or address
+Enable DNS authoritative mode for queries arriving at an interface or address. Note that the interface or address
 need not be mentioned in 
 .B --interface
 or 
@@ -1721,7 +1724,7 @@ Configuring dnsmasq to act as an authoritative DNS server is
 complicated by the fact that it involves configuration of external DNS
 servers to provide delegation. We will walk through three scenarios of
 increasing complexity. Prerequisites for all of these scenarios
-are a globally accesible IP address, an A or AAAA record pointing to that address,
+are a globally accessible IP address, an A or AAAA record pointing to that address,
 and an external DNS server capable of doing delegation of the zone in
 question. For the first part of this explanation, we will call the A (or AAAA) record
 for the globally accessible address server.example.com, and the zone
