@@ -1609,12 +1609,12 @@ static void update_leases(struct state *state, struct dhcp_context *context, str
 	  free(lease->extradata);
 	  lease->extradata = NULL;
 	  lease->extradata_size = lease->extradata_len = 0;
-	  lease->hwaddr_len = 0; /* surrogate for no of vendor classes */
+	  lease->vendorclass_count = 0; 
 	  
 	  if ((class_opt = opt6_find(state->packet_options, state->end, OPTION6_VENDOR_CLASS, 4)))
 	    {
 	      void *enc_opt, *enc_end = opt6_ptr(class_opt, opt6_len(class_opt));
-	      lease->hwaddr_len++;
+	      lease->vendorclass_count++;
 	      /* send enterprise number first  */
 	      sprintf(daemon->dhcp_buff2, "%u", opt6_uint(class_opt, 0, 4));
 	      lease_add_extradata(lease, (unsigned char *)daemon->dhcp_buff2, strlen(daemon->dhcp_buff2), 0);
@@ -1622,7 +1622,7 @@ static void update_leases(struct state *state, struct dhcp_context *context, str
 	      if (opt6_len(class_opt) >= 6) 
 		for (enc_opt = opt6_ptr(class_opt, 4); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
 		  {
-		    lease->hwaddr_len++;
+		    lease->vendorclass_count++;
 		    lease_add_extradata(lease, opt6_ptr(enc_opt, 0), opt6_len(enc_opt), 0);
 		  }
 	    }

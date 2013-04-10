@@ -543,6 +543,7 @@ struct dhcp_lease {
     int backoff; /* zero -> confirmed */
     struct slaac_address *next;
   } *slaac_address;
+  int vendorclass_count;
 #endif
   struct dhcp_lease *next;
 };

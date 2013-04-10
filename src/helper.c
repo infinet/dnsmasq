@@ -655,8 +655,9 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
   unsigned char *p;
   unsigned int hostname_len = 0, clid_len = 0, ed_len = 0;
   int fd = daemon->dhcpfd;
+#ifdef HAVE_DHCP6 
+  int is6 = !!(lease->flags & (LEASE_TA | LEASE_NA));
 
-#ifdef HAVE_DHCP6
   if (!daemon->dhcp)
     fd = daemon->dhcp6fd;
 #endif
@@ -676,7 +677,12 @@ void queue_script(int action, struct dhcp_lease *lease, char *hostname, time_t n
 
   buf->action = action;
   buf->flags = lease->flags;
-  buf->hwaddr_len = lease->hwaddr_len;
+#ifdef HAVE_DHCP6 
+  if (is6)
+    buf->hwaddr_len = lease->vendorclass_count;
+  else
+#endif
+    buf->hwaddr_len = lease->hwaddr_len;
   buf->hwaddr_type = lease->hwaddr_type;
   buf->clid_len = clid_len;
   buf->ed_len = ed_len;
