@@ -58,6 +58,10 @@ version 2.66
 	    Felker for the bug report.
 
 	    Update Polish translation. Thanks to Jan Psota.
+
+	    Fix crash if the configured DHCP lease limit is
+	    reached. Regression occurred in 2.61. Thanks to Tsachi for
+	    the bug report. 
 	    
   
 version 2.65

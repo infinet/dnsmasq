@@ -703,8 +703,11 @@ static struct dhcp_lease *lease_allocate(void)
 struct dhcp_lease *lease4_allocate(struct in_addr addr)
 {
   struct dhcp_lease *lease = lease_allocate();
-  lease->addr = addr;
-  lease->hwaddr_len = 256; /* illegal value */
+  if (lease)
+    {
+      lease->addr = addr;
+      lease->hwaddr_len = 256; /* illegal value */
+    }
 
   return lease;
 }
@@ -713,8 +716,12 @@ struct dhcp_lease *lease4_allocate(struct in_addr addr)
 struct dhcp_lease *lease6_allocate(struct in6_addr *addrp, int lease_type)
 {
   struct dhcp_lease *lease = lease_allocate();
-  memcpy(lease->hwaddr, addrp, sizeof(*addrp)) ;
-  lease->flags |= lease_type;
+
+  if (lease)
+    {
+      memcpy(lease->hwaddr, addrp, sizeof(*addrp)) ;
+      lease->flags |= lease_type;
+    }
 
   return lease;
 }
