@@ -572,12 +572,12 @@ zones. Note that this is optional, all the values are set to sane defaults.
 Specify any secondary servers for a zone for which dnsmasq is
 authoritative. These servers must be configured to get zone data from
 dnsmasq by zone transfer, and answer queries for the same
-authoritative zones and dnsmasq.
+authoritative zones as dnsmasq.
 .TP
 .B --auth-peer=<ip-address>[,<ip-address>[,<ip-address>...]]
 Specify the addresses of secondary servers which are allowed to
 initiate zone transfer (AXFR) requests for zones for which dnsmasq is
-authoritative. If this option is not given, then AXFR requests wil be
+authoritative. If this option is not given, then AXFR requests will be
 accepted from any secondary. 
 .TP 
 .B --conntrack
@@ -630,7 +630,7 @@ This forms a template which describes how to create ranges, based on the address
 
 .B --dhcp-range=::1,::400,constructor:eth0
 
-will look for addreses of the form <network>::1 on eth0 and then create a range from <network>::1 to <network>::400. If the interface is assigned more than one network, then the corresponding ranges will be automatically created, and then deprecated and finally removed again as the address is deprecated and then deleted. The interface name may have a final "*" wildcard.
+will look for addresses of the form <network>::1 on eth0 and then create a range from <network>::1 to <network>::400. If the interface is assigned more than one network, then the corresponding ranges will be automatically created, and then deprecated and finally removed again as the address is deprecated and then deleted. The interface name may have a final "*" wildcard.
 
 The optional 
 .B set:<tag> 
@@ -734,7 +734,7 @@ may contain an IPv4 address or an IPv6 address, or both. IPv6 addresses must be 
 .B --dhcp-host=laptop,[1234::56]
 IPv6 addresses may contain only the host-identifier part:
 .B --dhcp-host=laptop,[::56]
-in which case thay act as wildcards in constructed dhcp ranges, with
+in which case they act as wildcards in constructed dhcp ranges, with
 the appropriate network part inserted. 
 Note that in IPv6 DHCP, the hardware address is not normally
 available, so a client must be identified by client-id (called client
@@ -1784,7 +1784,7 @@ entry or
 
 If the external address is dynamic, the address
 associated with our.zone.com must be derived from the address of the
-relvant interface. This is done using 
+relevant interface. This is done using 
 .B interface-name
 Something like:
 
