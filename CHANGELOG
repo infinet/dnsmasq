@@ -63,6 +63,8 @@ version 2.66
 	    reached. Regression occurred in 2.61. Thanks to Tsachi for
 	    the bug report. 
 	    
+	    Update the French translation. Thanks to Gildas le Nadan.
+
   
 version 2.65
 	    Fix regression which broke forwarding of queries sent via
