@@ -110,7 +110,7 @@ static int new_add_to_ipset(const char *setname, const struct all_addr *ipaddr, 
       return -1;
     }
   
-  memset(buffer, 0, sizeof(buffer));
+  memset(buffer, 0, BUFF_SZ);
 
   nlh = (struct nlmsghdr *)buffer;
   nlh->nlmsg_len = NL_ALIGN(sizeof(struct nlmsghdr));
