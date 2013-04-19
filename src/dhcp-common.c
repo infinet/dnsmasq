@@ -512,7 +512,7 @@ void display_opts6(void)
 }
 #endif
 
-u16 lookup_dhcp_opt(int prot, char *name)
+int lookup_dhcp_opt(int prot, char *name)
 {
   const struct opttab_t *t;
   int i;
@@ -528,10 +528,10 @@ u16 lookup_dhcp_opt(int prot, char *name)
     if (strcasecmp(t[i].name, name) == 0)
       return t[i].val;
   
-  return 0;
+  return -1;
 }
 
-u16 lookup_dhcp_len(int prot, u16 val)
+int lookup_dhcp_len(int prot, int val)
 {
   const struct opttab_t *t;
   int i;

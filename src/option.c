@@ -750,6 +750,7 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
   struct dhcp_netid *np = NULL;
   u16 opt_len = 0;
   int is6 = 0;
+  int option_ok = 0;
 
   new->len = 0;
   new->flags = flags;
@@ -769,16 +770,19 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	{
 	  new->opt = atoi(arg);
 	  opt_len = 0;
+	  option_ok = 1;
 	  break;
 	}
       
       if (strstr(arg, "option:") == arg)
 	{
-	  new->opt = lookup_dhcp_opt(AF_INET, arg+7);
-	  opt_len = lookup_dhcp_len(AF_INET, new->opt);
-	  /* option:<optname> must follow tag and vendor string. */
-	  if ((opt_len & OT_INTERNAL) && flags != DHOPT_MATCH)
-	    new->opt = 0;
+	  if ((new->opt = lookup_dhcp_opt(AF_INET, arg+7)) != -1)
+	    {
+	      opt_len = lookup_dhcp_len(AF_INET, new->opt);
+	      /* option:<optname> must follow tag and vendor string. */
+	      if (!(opt_len & OT_INTERNAL) || flags == DHOPT_MATCH)
+		option_ok = 1;
+	    }
 	  break;
 	}
 #ifdef HAVE_DHCP6
@@ -792,13 +796,16 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	    {
 	      new->opt = atoi(arg+8);
 	      opt_len = 0;
+	      option_ok = 1;
 	    }
 	  else
 	    {
-	      new->opt = lookup_dhcp_opt(AF_INET6, arg+8);
-	      opt_len = lookup_dhcp_len(AF_INET6, new->opt);
-	      if ((opt_len & OT_INTERNAL) && flags != DHOPT_MATCH)
-		new->opt = 0;
+	      if ((new->opt = lookup_dhcp_opt(AF_INET6, arg+8)) != -1)
+		{
+		  opt_len = lookup_dhcp_len(AF_INET6, new->opt);
+		  if (!(opt_len & OT_INTERNAL) || flags == DHOPT_MATCH)
+		    option_ok = 1;
+		}
 	    }
 	  /* option6:<opt>|<optname> must follow tag and vendor string. */
 	  is6 = 1;
@@ -821,7 +828,7 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	  new->flags |= DHOPT_RFC3925;
 	  if (flags == DHOPT_MATCH)
 	    {
-	      new->opt = 1; /* avoid error below */
+	      option_ok = 1;
 	      break;
 	    }
 	}
@@ -848,16 +855,16 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
       
       if (opt_len == 0 &&
 	  !(new->flags & DHOPT_RFC3925))
-	opt_len = lookup_dhcp_len(AF_INET6 ,new->opt);
+	opt_len = lookup_dhcp_len(AF_INET6, new->opt);
     }
   else
 #endif
     if (opt_len == 0 &&
 	!(new->flags & (DHOPT_VENDOR | DHOPT_ENCAPSULATE | DHOPT_RFC3925)))
-      opt_len = lookup_dhcp_len(AF_INET ,new->opt);
+      opt_len = lookup_dhcp_len(AF_INET, new->opt);
   
   /* option may be missing with rfc3925 match */
-  if (new->opt == 0)
+  if (!option_ok)
     ret_err(_("bad dhcp-option"));
   
   if (comma)

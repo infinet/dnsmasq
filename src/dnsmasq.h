@@ -1216,8 +1216,8 @@ void log_tags(struct dhcp_netid *netid, u32 xid);
 int match_bytes(struct dhcp_opt *o, unsigned char *p, int len);
 void dhcp_update_configs(struct dhcp_config *configs);
 void display_opts(void);
-u16 lookup_dhcp_opt(int prot, char *name);
-u16 lookup_dhcp_len(int prot, u16 val);
+int lookup_dhcp_opt(int prot, char *name);
+int lookup_dhcp_len(int prot, int val);
 char *option_string(int prot, unsigned int opt, unsigned char *val, 
 		    int opt_len, char *buf, int buf_len);
 #ifdef HAVE_LINUX_NETWORK
