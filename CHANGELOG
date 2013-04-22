@@ -1,3 +1,9 @@
+version 2.67
+	    Fix crash if upstream server returns SERVFAIL when
+	    --conntrack in use. Thanks to Giacomo Tazzari for finding
+	    this and supplying the patch. 
+	
+
 version 2.66
             Add the ability to act as an authoritative DNS
             server. Dnsmasq can now answer queries from the wider 'net

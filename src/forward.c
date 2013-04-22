@@ -328,8 +328,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       struct server *firstsentto = start;
       int forwarded = 0;
       
-      if (udpaddr && option_bool(OPT_ADD_MAC))
-	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, udpaddr);
+      if (option_bool(OPT_ADD_MAC))
+	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
       
       while (1)
 	{ 
@@ -372,7 +372,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		  if (option_bool(OPT_CONNTRACK))
 		    {
 		      unsigned int mark;
-		      if (get_incoming_mark(udpaddr, dst_addr, 0, &mark))
+		      if (get_incoming_mark(&forward->source, &forward->dest, 0, &mark))
 			setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
 		    }
 #endif
