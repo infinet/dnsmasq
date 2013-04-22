@@ -2,6 +2,15 @@ version 2.67
 	    Fix crash if upstream server returns SERVFAIL when
 	    --conntrack in use. Thanks to Giacomo Tazzari for finding
 	    this and supplying the patch. 
+
+	    Repair regression in 2.64. That release stopped sending
+	    lease-time information in the reply to DHCPINFORM
+	    requests, on the correct grounds that it was a standards
+	    violation. However, this broke the dnsmasq-specific
+	    dhcp_lease_time utility. Now, DHCPINFORM returns
+	    lease-time only if it's specifically requested
+	    (maintaining standards) and the dhcp_lease_time utility
+	    has been taught to ask for it (restoring functionality). 
 	
 
 version 2.66

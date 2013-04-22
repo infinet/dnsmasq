@@ -39,6 +39,7 @@ static unsigned char *option_find(struct dhcp_packet *mess, size_t size, int opt
 static unsigned char *option_find1(unsigned char *p, unsigned char *end, int opt, int minsize);
 static size_t dhcp_packet_size(struct dhcp_packet *mess, unsigned char *agent_id, unsigned char *real_end);
 static void clear_packet(struct dhcp_packet *mess, unsigned char *end);
+static int in_list(unsigned char *list, int opt);
 static void do_options(struct dhcp_context *context,
 		       struct dhcp_packet *mess,
 		       unsigned char *real_end, 
@@ -1410,7 +1411,21 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       clear_packet(mess, end);
       option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
       option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, ntohl(server_id(context, override, fallback).s_addr));
-      
+     
+      /* RFC 2131 says that DHCPINFORM shouldn't include lease-time parameters, but 
+	 we supply a utility which makes DHCPINFORM requests to get this information.
+	 Only include lease time if OPTION_LEASE_TIME is in the parameter request list,
+	 which won't be true for ordinary clients, but will be true for the 
+	 dhcp_lease_time utility. */
+      if (lease && in_list(req_options, OPTION_LEASE_TIME))
+	{
+	  if (lease->expires == 0)
+	    time = 0xffffffff;
+	  else
+	    time = (unsigned int)difftime(lease->expires, now);
+	  option_put(mess, end, OPTION_LEASE_TIME, 4, time);
+	}
+
       do_options(context, mess, end, req_options, hostname, get_domain(mess->ciaddr),
 		 netid, subnet_addr, fqdn_flags, borken_opt, pxearch, uuid, vendor_class_len, now);
       
