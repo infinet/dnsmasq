@@ -559,7 +559,7 @@ needed for a client to do validation itself.
 .B --auth-zone=<domain>[,<subnet>[,<subnet>.....]]
 Define a DNS zone for which dnsmasq acts as authoritative server. Locally defined DNS records which are in the domain
 will be served, except that A and AAAA records must be in one of the
-specified subnets, or in a subnet corresponding to a contructed DHCP
+specified subnets, or in a subnet corresponding to a constructed DHCP
 range. The subnet(s) are also used to define in-addr.arpa and
 ipv6.arpa domains which are served for reverse-DNS queries. For IPv4
 subnets, the prefix length is limited to the values 8, 16 or 24.
@@ -763,7 +763,7 @@ This is
 useful when there is another DHCP server on the network which should
 be used by some machines.
 
-The set:<tag> contruct sets the tag
+The set:<tag> construct sets the tag
 whenever this dhcp-host directive is in use. This can be used to 
 selectively send DHCP options just for this host. More than one tag
 can be set in a dhcp-host directive (but not in other places where
@@ -978,7 +978,7 @@ agent ID and one provided by a relay agent, the tag is set.
 (IPv4 only) A normal DHCP relay agent is only used to forward the initial parts of
 a DHCP interaction to the DHCP server. Once a client is configured, it
 communicates directly with the server. This is undesirable if the
-relay agent is addding extra information to the DHCP packets, such as
+relay agent is adding extra information to the DHCP packets, such as
 that used by
 .B dhcp-circuitid
 and
@@ -995,7 +995,7 @@ relays at those addresses are affected.
 Without a value, set the tag if the client sends a DHCP
 option of the given number or name. When a value is given, set the tag only if
 the option is sent and matches the value. The value may be of the form
-"01:ff:*:02" in which case the value must match (apart from widcards)
+"01:ff:*:02" in which case the value must match (apart from wildcards)
 but the option sent may have unmatched data past the end of the
 value. The value may also be of the same form as in 
 .B dhcp-option
@@ -1008,7 +1008,7 @@ will set the tag "efi-ia32" if the the number 6 appears in the list of
 architectures sent by the client in option 93. (See RFC 4578 for
 details.)  If the value is a string, substring matching is used.
 
-The special form with vi-encap:<enterpise number> matches against
+The special form with vi-encap:<enterprise number> matches against
 vendor-identifying vendor classes for the specified enterprise. Please
 see RFC 3925 for more details of these rare and interesting beasts.
 .TP
@@ -1036,7 +1036,7 @@ dhcp-host configuration in dnsmasq and the contents of /etc/hosts and
 .TP
 .B --dhcp-generate-names=tag:<tag>[,tag:<tag>]
 (IPv4 only) Generate a name for DHCP clients which do not otherwise have one,
-using the MAC address expressed in hex, seperated by dashes. Note that
+using the MAC address expressed in hex, separated by dashes. Note that
 if a host provides a name, it will be used by preference to this,
 unless 
 .B --dhcp-ignore-names 
@@ -1113,7 +1113,7 @@ timeout has elapsed with no keyboard input, the first available menu
 option will be automatically executed. If the timeout is zero then the first available menu
 item will be executed immediately. If 
 .B pxe-prompt
-is ommitted the system will wait for user input if there are multiple
+is omitted the system will wait for user input if there are multiple
 items in the menu, but boot immediately if
 there is only one. See
 .B pxe-service 
@@ -1412,7 +1412,7 @@ In the default mode, dnsmasq inserts the unqualified names of
 DHCP clients into the DNS. For this reason, the names must be unique,
 even if two clients which have the same name are in different
 domains. If a second DHCP client appears which has the same name as an
-existing client, the name is transfered to the new client. If 
+existing client, the name is transferred to the new client. If 
 .B --dhcp-fqdn
 is set, this behaviour changes: the unqualified name is no longer
 put in the DNS, only the qualified name. Two DHCP clients with the
@@ -1666,7 +1666,7 @@ used to allocate the address, one from any matching
 The tag "bootp" is set for BOOTP requests, and a tag whose name is the 
 name of the interface on which the request arrived is also set.
 
-Any configuration lines which includes one or more tag:<tag> contructs
+Any configuration lines which include one or more tag:<tag> constructs
 will only be valid if all that tags are matched in the set derived
 above. Typically this is dhcp-option.
 .B dhcp-option 
