@@ -355,6 +355,117 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		      ntohl(mess->xid), daemon->namebuff, inet_ntoa(context_tmp->end));
 	}
     }
+  
+  /* dhcp-match. If we have hex-and-wildcards, look for a left-anchored match.
+     Otherwise assume the option is an array, and look for a matching element. 
+     If no data given, existance of the option is enough. This code handles 
+     rfc3925 V-I classes too. */
+  for (o = daemon->dhcp_match; o; o = o->next)
+    {
+      unsigned int len, elen, match = 0;
+      size_t offset, o2;
+
+      if (o->flags & DHOPT_RFC3925)
+	{
+	  if (!(opt = option_find(mess, sz, OPTION_VENDOR_IDENT, 5)))
+	    continue;
+	  
+	  for (offset = 0; offset < (option_len(opt) - 5u); offset += len + 5)
+	    {
+	      len = option_uint(opt, offset + 4 , 1);
+	      /* Need to take care that bad data can't run us off the end of the packet */
+	      if ((offset + len + 5 <= (option_len(opt))) &&
+		  (option_uint(opt, offset, 4) == (unsigned int)o->u.encap))
+		for (o2 = offset + 5; o2 < offset + len + 5; o2 += elen + 1)
+		  { 
+		    elen = option_uint(opt, o2, 1);
+		    if ((o2 + elen + 1 <= option_len(opt)) &&
+			(match = match_bytes(o, option_ptr(opt, o2 + 1), elen)))
+		      break;
+		  }
+	      if (match) 
+		break;
+	    }	  
+	}
+      else
+	{
+	  if (!(opt = option_find(mess, sz, o->opt, 1)))
+	    continue;
+	  
+	  match = match_bytes(o, option_ptr(opt, 0), option_len(opt));
+	} 
+
+      if (match)
+	{
+	  o->netid->next = netid;
+	  netid = o->netid;
+	}
+    }
+	
+  /* user-class options are, according to RFC3004, supposed to contain
+     a set of counted strings. Here we check that this is so (by seeing
+     if the counts are consistent with the overall option length) and if
+     so zero the counts so that we don't get spurious matches between 
+     the vendor string and the counts. If the lengths don't add up, we
+     assume that the option is a single string and non RFC3004 compliant 
+     and just do the substring match. dhclient provides these broken options.
+     The code, later, which sends user-class data to the lease-change script
+     relies on the transformation done here.
+  */
+
+  if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
+    {
+      unsigned char *ucp = option_ptr(opt, 0);
+      int tmp, j;
+      for (j = 0; j < option_len(opt); j += ucp[j] + 1);
+      if (j == option_len(opt))
+	for (j = 0; j < option_len(opt); j = tmp)
+	  {
+	    tmp = j + ucp[j] + 1;
+	    ucp[j] = 0;
+	  }
+    }
+    
+  for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
+    {
+      int mopt;
+      
+      if (vendor->match_type == MATCH_VENDOR)
+	mopt = OPTION_VENDOR_ID;
+      else if (vendor->match_type == MATCH_USER)
+	mopt = OPTION_USER_CLASS; 
+      else
+	continue;
+
+      if ((opt = option_find(mess, sz, mopt, 1)))
+	{
+	  int i;
+	  for (i = 0; i <= (option_len(opt) - vendor->len); i++)
+	    if (memcmp(vendor->data, option_ptr(opt, i), vendor->len) == 0)
+	      {
+		vendor->netid.next = netid;
+		netid = &vendor->netid;
+		break;
+	      }
+	}
+    }
+
+  /* mark vendor-encapsulated options which match the client-supplied vendor class,
+     save client-supplied vendor class */
+  if ((opt = option_find(mess, sz, OPTION_VENDOR_ID, 1)))
+    {
+      memcpy(daemon->dhcp_buff3, option_ptr(opt, 0), option_len(opt));
+      vendor_class_len = option_len(opt);
+    }
+  match_vendor_opts(opt, daemon->dhcp_opts);
+  
+  if (option_bool(OPT_LOG_OPTS))
+    {
+      if (sanitise(opt, daemon->namebuff))
+	my_syslog(MS_DHCP | LOG_INFO, _("%u vendor class: %s"), ntohl(mess->xid), daemon->namebuff);
+      if (sanitise(option_find(mess, sz, OPTION_USER_CLASS, 1), daemon->namebuff))
+	my_syslog(MS_DHCP | LOG_INFO, _("%u user class: %s"), ntohl(mess->xid), daemon->namebuff);
+    }
 
   mess->op = BOOTREPLY;
   
@@ -494,9 +605,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      lease_set_interface(lease, int_index, now);
 	      
 	      clear_packet(mess, end);
-	      match_vendor_opts(NULL, daemon->dhcp_opts); /* clear flags */
 	      do_options(context, mess, end, NULL, hostname, get_domain(mess->yiaddr), 
-			 netid, subnet_addr, 0, 0, -1, NULL, 0, now);
+			 netid, subnet_addr, 0, 0, -1, NULL, vendor_class_len, now);
 	    }
 	}
       
@@ -623,119 +733,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	}
     }
   
-  /* dhcp-match. If we have hex-and-wildcards, look for a left-anchored match.
-     Otherwise assume the option is an array, and look for a matching element. 
-     If no data given, existance of the option is enough. This code handles 
-     rfc3925 V-I classes too. */
-  for (o = daemon->dhcp_match; o; o = o->next)
-    {
-      unsigned int len, elen, match = 0;
-      size_t offset, o2;
-
-      if (o->flags & DHOPT_RFC3925)
-	{
-	  if (!(opt = option_find(mess, sz, OPTION_VENDOR_IDENT, 5)))
-	    continue;
-	  
-	  for (offset = 0; offset < (option_len(opt) - 5u); offset += len + 5)
-	    {
-	      len = option_uint(opt, offset + 4 , 1);
-	      /* Need to take care that bad data can't run us off the end of the packet */
-	      if ((offset + len + 5 <= (option_len(opt))) &&
-		  (option_uint(opt, offset, 4) == (unsigned int)o->u.encap))
-		for (o2 = offset + 5; o2 < offset + len + 5; o2 += elen + 1)
-		  { 
-		    elen = option_uint(opt, o2, 1);
-		    if ((o2 + elen + 1 <= option_len(opt)) &&
-			(match = match_bytes(o, option_ptr(opt, o2 + 1), elen)))
-		      break;
-		  }
-	      if (match) 
-		break;
-	    }	  
-	}
-      else
-	{
-	  if (!(opt = option_find(mess, sz, o->opt, 1)))
-	    continue;
-	  
-	  match = match_bytes(o, option_ptr(opt, 0), option_len(opt));
-	} 
-
-      if (match)
-	{
-	  o->netid->next = netid;
-	  netid = o->netid;
-	}
-    }
-	
-  /* user-class options are, according to RFC3004, supposed to contain
-     a set of counted strings. Here we check that this is so (by seeing
-     if the counts are consistent with the overall option length) and if
-     so zero the counts so that we don't get spurious matches between 
-     the vendor string and the counts. If the lengths don't add up, we
-     assume that the option is a single string and non RFC3004 compliant 
-     and just do the substring match. dhclient provides these broken options.
-     The code, later, which sends user-class data to the lease-change script
-     relies on the transformation done here.
-  */
-
-  if ((opt = option_find(mess, sz, OPTION_USER_CLASS, 1)))
-    {
-      unsigned char *ucp = option_ptr(opt, 0);
-      int tmp, j;
-      for (j = 0; j < option_len(opt); j += ucp[j] + 1);
-      if (j == option_len(opt))
-	for (j = 0; j < option_len(opt); j = tmp)
-	  {
-	    tmp = j + ucp[j] + 1;
-	    ucp[j] = 0;
-	  }
-    }
-    
-  for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
-    {
-      int mopt;
-      
-      if (vendor->match_type == MATCH_VENDOR)
-	mopt = OPTION_VENDOR_ID;
-      else if (vendor->match_type == MATCH_USER)
-	mopt = OPTION_USER_CLASS; 
-      else
-	continue;
-
-      if ((opt = option_find(mess, sz, mopt, 1)))
-	{
-	  int i;
-	  for (i = 0; i <= (option_len(opt) - vendor->len); i++)
-	    if (memcmp(vendor->data, option_ptr(opt, i), vendor->len) == 0)
-	      {
-		vendor->netid.next = netid;
-		netid = &vendor->netid;
-		break;
-	      }
-	}
-    }
-
-  /* mark vendor-encapsulated options which match the client-supplied vendor class,
-     save client-supplied vendor class */
-  if ((opt = option_find(mess, sz, OPTION_VENDOR_ID, 1)))
-    {
-      memcpy(daemon->dhcp_buff3, option_ptr(opt, 0), option_len(opt));
-      vendor_class_len = option_len(opt);
-    }
-  match_vendor_opts(opt, daemon->dhcp_opts);
-  
-  if (option_bool(OPT_LOG_OPTS))
-    {
-      if (sanitise(opt, daemon->namebuff))
-	my_syslog(MS_DHCP | LOG_INFO, _("%u vendor class: %s"), ntohl(mess->xid), daemon->namebuff);
-      if (sanitise(option_find(mess, sz, OPTION_USER_CLASS, 1), daemon->namebuff))
-	my_syslog(MS_DHCP | LOG_INFO, _("%u user class: %s"), ntohl(mess->xid), daemon->namebuff);
-    }
-
   tagif_netid = run_tag_if(netid);
-
+  
   /* if all the netids in the ignore list are present, ignore this client */
   for (id_list = daemon->dhcp_ignore; id_list; id_list = id_list->next)
     if (match_netid(id_list->list, tagif_netid, 0))

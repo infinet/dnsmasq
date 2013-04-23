@@ -11,6 +11,10 @@ version 2.67
 	    lease-time only if it's specifically requested
 	    (maintaining standards) and the dhcp_lease_time utility
 	    has been taught to ask for it (restoring functionality). 
+
+	    Fix --dhcp-match, --dhcp-vendorclass and --dhcp-userclass
+	    to work with BOOTP and well as DHCP. Thanks to Peter
+	    Korsgaard for spotting the problem. 
 	
 
 version 2.66
