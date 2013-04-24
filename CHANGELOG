@@ -15,6 +15,9 @@ version 2.67
 	    Fix --dhcp-match, --dhcp-vendorclass and --dhcp-userclass
 	    to work with BOOTP and well as DHCP. Thanks to Peter
 	    Korsgaard for spotting the problem. 
+
+	    Add --synth-domain. Thanks to Vishvananda Ishaya for
+	    suggesting this.
 	
 
 version 2.66

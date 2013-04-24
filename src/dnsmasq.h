@@ -789,7 +789,7 @@ extern struct daemon {
   struct name_list *secondary_forward_server;
   int group_set, osport;
   char *domain_suffix;
-  struct cond_domain *cond_domain;
+  struct cond_domain *cond_domain, *synth_domains;
   char *runfile; 
   char *lease_change_command;
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers;
@@ -907,14 +907,18 @@ void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
 char *cache_get_name(struct crec *crecp);
 struct crec *cache_enumerate(int init);
-char *get_domain(struct in_addr addr);
-#ifdef HAVE_IPV6
-char *get_domain6(struct in6_addr *addr);
-#endif
 #ifdef HAVE_DNSSEC
 struct keydata *keydata_alloc(char *data, size_t len);
 void keydata_free(struct keydata *blocks);
 #endif
+
+/* domain.c */
+char *get_domain(struct in_addr addr);
+#ifdef HAVE_IPV6
+char *get_domain6(struct in6_addr *addr);
+#endif
+int is_name_synthetic(int flags, char *name, struct all_addr *addr);
+int is_rev_synth(int flag, struct all_addr *addr, char *name);
 
 /* rfc1035.c */
 unsigned int extract_request(struct dns_header *header, size_t qlen, 

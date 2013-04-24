@@ -1517,6 +1517,19 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  }
 		      }
 		  } while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
+	      else if (is_rev_synth(is_arpa, &addr, name))
+		{
+		  ans = 1;
+		  if (!dryrun)
+		    {
+		      log_query(F_CONFIG | F_REVERSE | is_arpa, name, &addr, NULL); 
+		      
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->local_ttl, NULL,
+					      T_PTR, C_IN, "d", name))
+			      anscount++;
+		    }
+		}
 	      else if (is_arpa == F_IPV4 && 
 		       option_bool(OPT_BOGUSPRIV) && 
 		       private_net(addr.addr.addr4, 1))
@@ -1686,6 +1699,17 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			    }
 			}
 		    } while ((crecp = cache_find_by_name(crecp, name, now, flag | F_CNAME)));
+		}
+	      else if (is_name_synthetic(flag, name, &addr))
+		{
+		  ans = 1;
+		  if (!dryrun)
+		    {
+		      log_query(F_FORWARD | F_CONFIG | flag, name, &addr, NULL);
+		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					      daemon->local_ttl, NULL, type, C_IN, type == T_A ? "4" : "6", &addr))
+			anscount++;
+		    }
 		}
 	    }
 
