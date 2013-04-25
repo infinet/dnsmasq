@@ -18,6 +18,9 @@ version 2.67
 
 	    Add --synth-domain. Thanks to Vishvananda Ishaya for
 	    suggesting this.
+
+	    Fix failure to compile ipset.c if old kernel headers are
+	    in use. Thanks to Eugene Rudoy for pointing this out.
 	
 
 version 2.66

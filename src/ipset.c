@@ -26,9 +26,12 @@
 #include <arpa/inet.h>
 #include <linux/version.h>
 #include <linux/netlink.h>
-#include <linux/netfilter/nfnetlink.h>
-#ifndef NFNL_SUBSYS_IPSET
+
+/* We want to be able to compile against old header files
+   Kernel version is handled at run-time. */
+
 #define NFNL_SUBSYS_IPSET 6
+
 #define IPSET_ATTR_DATA 7
 #define IPSET_ATTR_IP 1
 #define IPSET_ATTR_IPADDR_IPV4 1
@@ -39,9 +42,30 @@
 #define IPSET_CMD_DEL 10
 #define IPSET_MAXNAMELEN 32
 #define IPSET_PROTOCOL 6
-#else
-#include <linux/netfilter/ipset/ip_set.h>
+
+#ifndef NFNETLINK_V0
+#define NFNETLINK_V0    0
 #endif
+
+#ifndef NLA_F_NESTED
+#define NLA_F_NESTED		(1 << 15)
+#endif
+
+#ifndef NLA_F_NET_BYTEORDER
+#define NLA_F_NET_BYTEORDER	(1 << 14)
+#endif
+
+struct my_nlattr {
+        __u16           nla_len;
+        __u16           nla_type;
+};
+
+struct my_nfgenmsg {
+        __u8  nfgen_family;             /* AF_xxx */
+        __u8  version;          /* nfnetlink version */
+        __be16    res_id;               /* resource id */
+};
+
 
 /* data structure size in here is fixed */
 #define BUFF_SZ 256
@@ -53,11 +77,11 @@ static char *buffer;
 
 static inline void add_attr(struct nlmsghdr *nlh, uint16_t type, size_t len, const void *data)
 {
-  struct nlattr *attr = (void *)nlh + NL_ALIGN(nlh->nlmsg_len);
-  uint16_t payload_len = NL_ALIGN(sizeof(struct nlattr)) + len;
+  struct my_nlattr *attr = (void *)nlh + NL_ALIGN(nlh->nlmsg_len);
+  uint16_t payload_len = NL_ALIGN(sizeof(struct my_nlattr)) + len;
   attr->nla_type = type;
   attr->nla_len = payload_len;
-  memcpy((void *)attr + NL_ALIGN(sizeof(struct nlattr)), data, len);
+  memcpy((void *)attr + NL_ALIGN(sizeof(struct my_nlattr)), data, len);
   nlh->nlmsg_len += NL_ALIGN(payload_len);
 }
 
@@ -93,8 +117,8 @@ void ipset_init(void)
 static int new_add_to_ipset(const char *setname, const struct all_addr *ipaddr, int af, int remove)
 {
   struct nlmsghdr *nlh;
-  struct nfgenmsg *nfg;
-  struct nlattr *nested[2];
+  struct my_nfgenmsg *nfg;
+  struct my_nlattr *nested[2];
   uint8_t proto;
   int addrsz = INADDRSZ;
   ssize_t rc;
@@ -117,8 +141,8 @@ static int new_add_to_ipset(const char *setname, const struct all_addr *ipaddr, 
   nlh->nlmsg_type = (remove ? IPSET_CMD_DEL : IPSET_CMD_ADD) | (NFNL_SUBSYS_IPSET << 8);
   nlh->nlmsg_flags = NLM_F_REQUEST;
   
-  nfg = (struct nfgenmsg *)(buffer + nlh->nlmsg_len);
-  nlh->nlmsg_len += NL_ALIGN(sizeof(struct nfgenmsg));
+  nfg = (struct my_nfgenmsg *)(buffer + nlh->nlmsg_len);
+  nlh->nlmsg_len += NL_ALIGN(sizeof(struct my_nfgenmsg));
   nfg->nfgen_family = af;
   nfg->version = NFNETLINK_V0;
   nfg->res_id = htons(0);
@@ -126,11 +150,11 @@ static int new_add_to_ipset(const char *setname, const struct all_addr *ipaddr, 
   proto = IPSET_PROTOCOL;
   add_attr(nlh, IPSET_ATTR_PROTOCOL, sizeof(proto), &proto);
   add_attr(nlh, IPSET_ATTR_SETNAME, strlen(setname) + 1, setname);
-  nested[0] = (struct nlattr *)(buffer + NL_ALIGN(nlh->nlmsg_len));
-  nlh->nlmsg_len += NL_ALIGN(sizeof(struct nlattr));
+  nested[0] = (struct my_nlattr *)(buffer + NL_ALIGN(nlh->nlmsg_len));
+  nlh->nlmsg_len += NL_ALIGN(sizeof(struct my_nlattr));
   nested[0]->nla_type = NLA_F_NESTED | IPSET_ATTR_DATA;
-  nested[1] = (struct nlattr *)(buffer + NL_ALIGN(nlh->nlmsg_len));
-  nlh->nlmsg_len += NL_ALIGN(sizeof(struct nlattr));
+  nested[1] = (struct my_nlattr *)(buffer + NL_ALIGN(nlh->nlmsg_len));
+  nlh->nlmsg_len += NL_ALIGN(sizeof(struct my_nlattr));
   nested[1]->nla_type = NLA_F_NESTED | IPSET_ATTR_IP;
   add_attr(nlh, 
 	   (af == AF_INET ? IPSET_ATTR_IPADDR_IPV4 : IPSET_ATTR_IPADDR_IPV6) | NLA_F_NET_BYTEORDER,
