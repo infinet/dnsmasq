@@ -673,7 +673,7 @@ struct dhcp_bridge {
 };
 
 struct cond_domain {
-  char *domain;
+  char *domain, *prefix;
   struct in_addr start, end;
 #ifdef HAVE_IPV6
   struct in6_addr start6, end6;

@@ -519,17 +519,18 @@ the name. More than one name may be associated with an interface
 address by repeating the flag; in that case the first instance is used
 for the reverse address-to-name mapping.
 .TP
-.B --synth-domain=<domain>,<address range>
+.B --synth-domain=<domain>,<address range>[,<prefix>]
 Create artificial A/AAAA and PTR records for an address range. The
 records use the address, with periods (or colons for IPv6) replaced
 with dashes.
 
 An example should make this clearer.
-.B --synth-domain=thekelleys.org.uk,192.168.0.0/24 
-will result in a query for 192-168-0-56.thekelleys.org.uk returning
-192.168.0.56 and a reverse query vice versa. The same applies to IPv6, but IPv6 addresses may start with '::'
-but DNS labels may not start with '-' so in this case a zero is added
-in front of the label. ::1 becomes 0--1.
+.B --synth-domain=thekelleys.org.uk,192.168.0.0/24,internal-
+will result in a query for internal-192-168-0-56.thekelleys.org.uk returning
+192.168.0.56 and a reverse query vice versa. The same applies to IPv6,
+but IPv6 addresses may start with '::'
+but DNS labels may not start with '-' so in this case if no prefix is
+configured a zero is added in front of the label. ::1 becomes 0--1.
 
 The address range can be of the form
 <ip address>,<ip address> or <ip address>/<netmask>

@@ -34,48 +34,69 @@ int is_name_synthetic(int flags, char *name, struct all_addr *addr)
     prot = AF_INET6;
 #endif
 
-  /* NB, must not alter name if we return zero */
-  for (p = name; *p; p++)
+  for (c = daemon->synth_domains; c; c = c->next)
     {
-      char c = *p;
+      int found = 0;
+      char *tail, *pref;
       
-      if ((c >='0' && c <= '9') || c == '-')
+      for (tail = name, pref = c->prefix; *tail != 0 && pref && *pref != 0; tail++, pref++)
+	{
+	  unsigned int c1 = (unsigned char) *pref;
+	  unsigned int c2 = (unsigned char) *tail;
+	  
+	  if (c1 >= 'A' && c1 <= 'Z')
+	    c1 += 'a' - 'A';
+	  if (c2 >= 'A' && c2 <= 'Z')
+	    c2 += 'a' - 'A';
+	  
+	  if (c1 != c2)
+	    break;
+	}
+      
+      if (pref && *pref != 0)
+	continue; /* prefix match fail */
+      
+      /* NB, must not alter name if we return zero */
+      for (p = tail; *p; p++)
+	{
+	  char c = *p;
+	  
+	  if ((c >='0' && c <= '9') || c == '-')
+	    continue;
+	  
+#ifdef HAVE_IPV6
+	  if (prot == AF_INET6 && ((c >='A' && c <= 'F') || (c >='a' && c <= 'f'))) 
+	    continue;
+#endif
+	  
+	  break;
+	}
+      
+      if (*p != '.')
 	continue;
       
-#ifdef HAVE_IPV6
-      if (prot == AF_INET6 && ((c >='A' && c <= 'F') || (c >='a' && c <= 'f'))) 
-	continue;
-#endif
+      *p = 0;	
       
-      break;
-    }
-  
-  if (*p != '.')
-    return 0;
-  
-  *p = 0;	
-
-  for (p = name; *p; p++)
-    if (*p == '-')
-      {
-	if (prot == AF_INET)
-	  *p = '.';
+      /* swap . or : for - */
+      for (p = tail; *p; p++)
+	if (*p == '-')
+	  {
+	    if (prot == AF_INET)
+	      *p = '.';
 #ifdef HAVE_IPV6
-	else
-	  *p = ':';
+	    else
+	      *p = ':';
 #endif
-      }
- 
-  if (inet_pton(prot, name, addr))
-    for (c = daemon->synth_domains; c; c = c->next)
-      if (hostname_isequal(c->domain, p+1))
+	  }
+      
+      if (hostname_isequal(c->domain, p+1) && inet_pton(prot, tail, addr))
 	{
 	  if (prot == AF_INET)
 	    {
 	      if (!c->is6 &&
 		  ntohl(addr->addr.addr4.s_addr) >= ntohl(c->start.s_addr) &&
 		  ntohl(addr->addr.addr4.s_addr) <= ntohl(c->end.s_addr))
-		break;
+		found = 1;
 	    }
 #ifdef HAVE_IPV6
 	  else
@@ -86,20 +107,23 @@ int is_name_synthetic(int flags, char *name, struct all_addr *addr)
 		  is_same_net6(&addr->addr.addr6, &c->start6, 64) &&
 		  addrpart >= addr6part(&c->start6) &&
 		  addrpart <= addr6part(&c->end6))
-		break;
+		found = 1;
 	    }
 #endif
 	}
+      
+      /* restore name */
+      for (p = tail; *p; p++)
+	if (*p == '.' || *p == ':')
+	  *p = '-';
+      
+      *p = '.';
+
+      if (found)
+	return 1;
+    }
   
-  /* restore name */
-  for (p = name; *p; p++)
-    if (*p == '.' || *p == ':')
-      *p = '-';
-  
-  *p = '.';
-  
-  return (c != NULL);
-  
+  return 0;
 }
 
 
@@ -111,7 +135,11 @@ int is_rev_synth(int flag, struct all_addr *addr, char *name)
      {
        char *p;
        
-       inet_ntop(AF_INET, &addr->addr.addr4, name, ADDRSTRLEN);
+       *name = 0;
+       if (c->prefix)
+	 strncpy(name, c->prefix, MAXDNAME - ADDRSTRLEN);
+       
+       inet_ntop(AF_INET, &addr->addr.addr4, name + strlen(name), ADDRSTRLEN);
        for (p = name; *p; p++)
 	 if (*p == '.')
 	   *p = '-';
@@ -127,11 +155,15 @@ int is_rev_synth(int flag, struct all_addr *addr, char *name)
      {
        char *p;
        
-       inet_ntop(AF_INET6, &addr->addr.addr6, name, ADDRSTRLEN);
+       *name = 0;
+       if (c->prefix)
+	 strncpy(name, c->prefix, MAXDNAME - ADDRSTRLEN);
+       
+       inet_ntop(AF_INET6, &addr->addr.addr6, name + strlen(name), ADDRSTRLEN);
 
        /* IPv6 presentation address can start with ":", but valid domain names
 	  cannot start with "-" so prepend a zero in that case. */
-       if (*name == ':')
+       if (!c->prefix && *name == ':')
 	 {
 	   *name = '0';
 	   inet_ntop(AF_INET6, &addr->addr.addr6, name+1, ADDRSTRLEN);
