@@ -279,12 +279,12 @@ HAVE_SOCKADDR_SA_LEN
 #if defined(INET6_ADDRSTRLEN) && defined(IPV6_V6ONLY)
 #  define HAVE_IPV6
 #  define ADDRSTRLEN INET6_ADDRSTRLEN
-#elif defined(INET_ADDRSTRLEN)
+#else
+#  if !defined(INET_ADDRSTRLEN)
+#      define INET_ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
+#  endif
 #  undef HAVE_IPV6
 #  define ADDRSTRLEN INET_ADDRSTRLEN
-#else
-#  undef HAVE_IPV6
-#  define ADDRSTRLEN 16 /* 4*3 + 3 dots + NULL */
 #endif
 
 

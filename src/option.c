@@ -1726,7 +1726,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 			  if (arg)
 			    {
 			      if (option != 's')
-				new->prefix = canonicalise_opt(arg);
+				{
+				  if (!(new->prefix = canonicalise_opt(arg)) ||
+				      strlen(new->prefix) > MAXLABEL - INET_ADDRSTRLEN)
+				    ret_err(_("bad prefix"));
+				}
 			      else if (strcmp(arg, "local") != 0 ||
 				       (msize != 8 && msize != 16 && msize != 24))
 				ret_err(gen_err);
@@ -1783,7 +1787,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 			  else if (arg)
 			    {
 			      if (option != 's')
-				new->prefix = canonicalise_opt(arg);
+				{
+				  if (!(new->prefix = canonicalise_opt(arg)) ||
+				      strlen(new->prefix) > MAXLABEL - INET6_ADDRSTRLEN)
+				    ret_err(_("bad prefix"));
+				}	
 			      else if (strcmp(arg, "local") != 0 || ((msize & 4) != 0))
 				ret_err(gen_err);
 			      else 
