@@ -660,7 +660,7 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
   scope_id = split_chr(arg, '%');
 #endif
   
-  if ((addr->in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t) -1)
+  if (inet_pton(AF_INET, arg, &addr->in.sin_addr) > 0)
     {
       addr->in.sin_port = htons(serv_port);	
       addr->sa.sa_family = source_addr->sa.sa_family = AF_INET;
@@ -675,7 +675,7 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
 	  if (flags)
 	    *flags |= SERV_HAS_SOURCE;
 	  source_addr->in.sin_port = htons(source_port);
-	  if ((source_addr->in.sin_addr.s_addr = inet_addr(source)) == (in_addr_t) -1)
+	  if (!(inet_pton(AF_INET, source, &source_addr->in.sin_addr) > 0))
 	    {
 #if defined(SO_BINDTODEVICE)
 	      source_addr->in.sin_addr.s_addr = INADDR_ANY;
@@ -1031,7 +1031,7 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	      cp = comma;
 	      comma = split(cp);
 	      slash = split_chr(cp, '/');
-	      in.s_addr = inet_addr(cp);
+	      inet_pton(AF_INET, cp, &in);
 	      if (!slash)
 		{
 		  memcpy(op, &in, INADDRSZ);
@@ -1576,7 +1576,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	comma = split(arg);
 	new->name = NULL;
 	unhide_metas(arg);
-	if ((new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
+	if (inet_pton(AF_INET, arg, &new->addr.in.sin_addr) > 0)
 	  new->addr.sa.sa_family = AF_INET;
 #ifdef HAVE_IPV6
 	else if (inet_pton(AF_INET6, arg, &new->addr.in6.sin6_addr) > 0)
@@ -1927,7 +1927,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       {
 	struct in_addr addr;
 	unhide_metas(arg);
-	if (arg && (addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
+	if (arg && (inet_pton(AF_INET, arg, &addr) > 0))
 	  {
 	    struct bogus_addr *baddr = opt_malloc(sizeof(struct bogus_addr));
 	    baddr->next = daemon->bogus_addr;
@@ -1945,7 +1945,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	struct iname *new = opt_malloc(sizeof(struct iname));
 	comma = split(arg);
 	unhide_metas(arg);
-	if (arg && (new->addr.in.sin_addr.s_addr = inet_addr(arg)) != (in_addr_t)-1)
+	if (arg && (inet_pton(AF_INET, arg, &new->addr.in.sin_addr) > 0))
 	  {
 	    new->addr.sa.sa_family = AF_INET;
 	    new->addr.in.sin_port = 0;
@@ -2369,7 +2369,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      }
 	    
 	    if (k >= 3 && strchr(a[2], '.') &&  
-		((new->netmask.s_addr = inet_addr(a[2])) != (in_addr_t)-1))
+		(inet_pton(AF_INET, a[2], &new->netmask) > 0))
 	      {
 		new->flags |= CONTEXT_NETMASK;
 		leasepos = 3;
@@ -2378,7 +2378,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      }
 	    
 	    if (k >= 4 && strchr(a[3], '.') &&  
-		((new->broadcast.s_addr = inet_addr(a[3])) != (in_addr_t)-1))
+		(inet_pton(AF_INET, a[3], &new->broadcast) > 0))
 	      {
 		new->flags |= CONTEXT_BRDCAST;
 		leasepos = 4;
@@ -2608,7 +2608,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    }		    
 		}
 	    }
-	  else if (strchr(a[j], '.') && (in.s_addr = inet_addr(a[j])) != (in_addr_t)-1)
+	  else if (strchr(a[j], '.') && (inet_pton(AF_INET, a[j], &in) > 0))
 	    {
 	      struct dhcp_config *configs;
 	      
@@ -2805,17 +2805,17 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		if (comma)
 		  {
 		    unhide_metas(comma);
-		    if ((dhcp_next_server.s_addr = inet_addr(comma)) == (in_addr_t)-1) {
-
-		      /*
-		       * The user may have specified the tftp hostname here.
-		       * save it so that it can be resolved/looked up during
-		       * actual dhcp_reply().
-		       */	
-
-		      tftp_sname = opt_string_alloc(comma);
-		      dhcp_next_server.s_addr = 0;
-		    }
+		    if (!(inet_pton(AF_INET, comma, &dhcp_next_server) > 0))
+		      {
+			/*
+			 * The user may have specified the tftp hostname here.
+			 * save it so that it can be resolved/looked up during
+			 * actual dhcp_reply().
+			 */	
+			
+			tftp_sname = opt_string_alloc(comma);
+			dhcp_next_server.s_addr = 0;
+		      }
 		  }
 	      }
 	    
@@ -2828,7 +2828,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    new->next = daemon->boot_config;
 	    daemon->boot_config = new;
 	  }
-	
+      
 	break;
       }
 
@@ -3144,7 +3144,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       while (arg) {
 	struct addr_list *new = opt_malloc(sizeof(struct addr_list));
 	comma = split(arg);
-	if ((new->addr.s_addr = inet_addr(arg)) == (in_addr_t)-1)
+	if (!(inet_pton(AF_INET, arg, &new->addr) > 0))
 	  ret_err(_("bad dhcp-proxy address"));
 	new->next = daemon->override_relays;
 	daemon->override_relays = new;
@@ -3187,15 +3187,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	dash = split_chr(a[0], '-');
 
 	if ((k < 2) || 
-	    ((new->in.s_addr = inet_addr(a[0])) == (in_addr_t)-1) ||
-	    ((new->out.s_addr = inet_addr(a[1])) == (in_addr_t)-1))
+	    (!(inet_pton(AF_INET, a[0], &new->in) > 0)) ||
+	    (!(inet_pton(AF_INET, a[1], &new->out) > 0)))
 	  option = '?';
 	
 	if (k == 3)
-	  new->mask.s_addr = inet_addr(a[2]);
+	  inet_pton(AF_INET, a[2], &new->mask);
 	
 	if (dash && 
-	    ((new->end.s_addr = inet_addr(dash)) == (in_addr_t)-1 ||
+	    (!(inet_pton(AF_INET, dash, &new->end) > 0) ||
 	     !is_same_net(new->in, new->end, new->mask) ||
 	     ntohl(new->in.s_addr) > ntohl(new->end.s_addr)))
 	  ret_err(_("invalid alias range"));
