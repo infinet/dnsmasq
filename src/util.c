@@ -142,19 +142,23 @@ static int check_name(char *in)
 int legal_hostname(char *name)
 {
   char c;
+  int first;
 
   if (!check_name(name))
     return 0;
 
-  for (; (c = *name); name++)
+  for (first = 1; (c = *name); name++, first = 0)
     /* check for legal char a-z A-Z 0-9 - _ . */
     {
       if ((c >= 'A' && c <= 'Z') ||
-	  (c >= 'a' && c <= 'z') ||
-	  (c >= '0' && c <= '9') ||
-	  c == '-' || c == '_')
+	  (c >= 'a' && c <= 'z'))
 	continue;
-      
+
+      if (!first && 
+	  ((c >= '0' && c <= '9') ||
+	   c == '-' || c == '_'))
+	continue;
+
       /* end of hostname part */
       if (c == '.')
 	return 1;
