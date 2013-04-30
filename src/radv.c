@@ -300,9 +300,9 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	}
     }
 	
-  if (!done_dns)
+  if (daemon->port == NAMESERVER_PORT && !done_dns)
     {
-      /* default == us. */
+      /* default == us, as long as we are supplying DNS service. */
       put_opt6_char(ICMP6_OPT_RDNSS);
       put_opt6_char(3);
       put_opt6_short(0);
