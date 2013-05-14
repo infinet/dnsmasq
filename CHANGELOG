@@ -21,6 +21,15 @@ version 2.67
 
 	    Fix failure to compile ipset.c if old kernel headers are
 	    in use. Thanks to Eugene Rudoy for pointing this out.
+
+	    Handle IPv4 interface-address labels in Linux. These are
+	    often used to emulate the old IP-alias addresses. Before,
+	    using --interface=eth0 would service all the addresses of
+	    eth0, including ones configured as aliases, which appear
+	    in ifconfig as eth0:0. Now, only addresses with the label
+	    eth0 are active. This is not backwards compatible: if you
+	    want to continue to bind the aliases too, you need to add
+	    eg. --interface=eth0:0 to the config. 
 	
 
 version 2.66

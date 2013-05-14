@@ -28,9 +28,9 @@ struct match_param {
   struct in_addr netmask, broadcast, addr;
 };
 
-static int complete_context(struct in_addr local, int if_index, 
+static int complete_context(struct in_addr local, int if_index, char *label,
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam);
-static int check_listen_addrs(struct in_addr local, int if_index, 
+static int check_listen_addrs(struct in_addr local, int if_index, char *label,
 			      struct in_addr netmask, struct in_addr broadcast, void *vparam);
 
 static int make_fd(int port)
@@ -287,7 +287,7 @@ void dhcp_packet(time_t now, int pxe_fd)
       iface_addr = match.addr;
       /* make sure secondary address gets priority in case
 	 there is more than one address on the interface in the same subnet */
-      complete_context(match.addr, iface_index, match.netmask, match.broadcast, &parm);
+      complete_context(match.addr, iface_index, NULL, match.netmask, match.broadcast, &parm);
     }    
       
   if (!iface_enumerate(AF_INET, &parm, complete_context))
@@ -411,11 +411,13 @@ void dhcp_packet(time_t now, int pxe_fd)
 }
  
 /* check against secondary interface addresses */
-static int check_listen_addrs(struct in_addr local, int if_index, 
+static int check_listen_addrs(struct in_addr local, int if_index, char *label,
 			      struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   struct match_param *param = vparam;
   struct iname *tmp;
+
+  (void) label;
 
   if (if_index == param->ind)
     {
@@ -444,11 +446,13 @@ static int check_listen_addrs(struct in_addr local, int if_index,
 
    Note that the current chain may be superceded later for configured hosts or those coming via gateways. */
 
-static int complete_context(struct in_addr local, int if_index, 
+static int complete_context(struct in_addr local, int if_index, char *label,
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   struct dhcp_context *context;
   struct iface_param *param = vparam;
+
+  (void)label;
   
   for (context = daemon->dhcp; context; context = context->next)
     {

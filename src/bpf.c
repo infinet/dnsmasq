@@ -123,7 +123,7 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		broadcast = ((struct sockaddr_in *) addrs->ifa_broadaddr)->sin_addr; 
 	      else 
 		broadcast.s_addr = 0;	      
-	      if (!((*callback)(addr, iface_index, netmask, broadcast, parm)))
+	      if (!((*callback)(addr, iface_index, NULL, netmask, broadcast, parm)))
 		goto err;
 	    }
 #ifdef HAVE_IPV6

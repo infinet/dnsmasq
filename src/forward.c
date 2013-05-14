@@ -789,7 +789,8 @@ void receive_query(struct listener *listen, time_t now)
 	{
 	   if (!option_bool(OPT_CLEVERBIND))
 	     enumerate_interfaces(); 
-	   if (!loopback_exception(listen->fd, listen->family, &dst_addr, ifr.ifr_name))
+	   if (!loopback_exception(listen->fd, listen->family, &dst_addr, ifr.ifr_name) &&
+	       !label_exception(if_index, listen->family, &dst_addr))
 	     return;
 	}
 

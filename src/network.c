@@ -204,7 +204,27 @@ int loopback_exception(int fd, int family, struct all_addr *addr, char *name)
   return 0;
 }
 
-static int iface_allowed(struct irec **irecp, int if_index, 
+/* If we're configured with something like --interface=eth0:0 then we'll listen correctly
+   on the relevant address, but the name of the arrival interface, derived from the
+   index won't match the config. Check that we found an interface address for the arrival 
+   interface: daemon->interfaces must be up-to-date. */
+int label_exception(int index, int family, struct all_addr *addr)
+{
+  struct irec *iface;
+
+  /* labels only supported on IPv4 addresses. */
+  if (family != AF_INET)
+    return 0;
+
+  for (iface = daemon->interfaces; iface; iface = iface->next)
+    if (iface->index == index && iface->addr.sa.sa_family == AF_INET &&
+	iface->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
+      return 1;
+
+  return 0;
+}
+
+static int iface_allowed(struct irec **irecp, int if_index, char *label,
 			 union mysockaddr *addr, struct in_addr netmask, int dad) 
 {
   struct irec *iface;
@@ -242,8 +262,8 @@ static int iface_allowed(struct irec **irecp, int if_index,
   loopback = ifr.ifr_flags & IFF_LOOPBACK;
   
   if (loopback)
-     dhcp_ok = 0;
-
+    dhcp_ok = 0;
+  
   if (ioctl(fd, SIOCGIFMTU, &ifr) != -1)
     mtu = ifr.ifr_mtu;
   
@@ -272,13 +292,16 @@ static int iface_allowed(struct irec **irecp, int if_index,
 	}
     }
   
+  if (!label)
+    label = ifr.ifr_name;
+
   if (addr->sa.sa_family == AF_INET &&
-      !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, ifr.ifr_name, &auth_dns))
+      !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, label, &auth_dns))
     return 1;
 
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family == AF_INET6 &&
-      !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, ifr.ifr_name, &auth_dns))
+      !iface_check(AF_INET6, (struct all_addr *)&addr->in6.sin6_addr, label, &auth_dns))
     return 1;
 #endif
     
@@ -348,11 +371,11 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_port = htons(daemon->port);
   addr.in6.sin6_scope_id = if_index;
   
-  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask, !!(flags & IFACE_TENTATIVE));
+  return iface_allowed((struct irec **)vparam, if_index, NULL, &addr, netmask, !!(flags & IFACE_TENTATIVE));
 }
 #endif
 
-static int iface_allowed_v4(struct in_addr local, int if_index, 
+static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   union mysockaddr addr;
@@ -366,7 +389,7 @@ static int iface_allowed_v4(struct in_addr local, int if_index,
   addr.in.sin_addr = local;
   addr.in.sin_port = htons(daemon->port);
 
-  return iface_allowed((struct irec **)vparam, if_index, &addr, netmask, 0);
+  return iface_allowed((struct irec **)vparam, if_index, label, &addr, netmask, 0);
 }
    
 int enumerate_interfaces(void)
