@@ -31,7 +31,13 @@ version 2.67
 	    want to continue to bind the aliases too, you need to add
 	    eg. --interface=eth0:0 to the config. 
 	
+	    Fix "failed to set SO_BINDTODEVICE on DHCP socket: Socket 
+	    operation on non-socket" error on startup with
+	    configurations which have exactly one --interface option
+	    and do RA but _not_ DHCPv6. Thanks to Trever Adams for the
+	    bug report.
 
+		
 version 2.66
             Add the ability to act as an authoritative DNS
             server. Dnsmasq can now answer queries from the wider 'net

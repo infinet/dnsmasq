@@ -248,7 +248,7 @@ int main (int argc, char **argv)
 #endif
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP6)
-      if (daemon->dhcp6)
+      if (daemon->doing_dhcp6)
 	bindtodevice(daemon->dhcp6fd);
 #endif
     }
