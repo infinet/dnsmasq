@@ -3215,6 +3215,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	new = opt_malloc(sizeof(struct interface_name));
 	new->next = NULL;
+	new->addr4 = NULL;
+#ifdef HAVE_IPV6
+	new->addr6 = NULL;
+#endif
 	/* Add to the end of the list, so that first name
 	   of an interface is used for PTR lookups. */
 	for (up = &daemon->int_names; *up; up = &((*up)->next));

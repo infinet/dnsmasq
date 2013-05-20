@@ -1072,7 +1072,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 			 Have to set override to make sure we echo back the correct server-id */
 		      struct irec *intr;
 		      
-		      enumerate_interfaces();
+		      enumerate_interfaces(0);
 
 		      for (intr = daemon->interfaces; intr; intr = intr->next)
 			if (intr->addr.sa.sa_family == AF_INET &&

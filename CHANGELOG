@@ -37,6 +37,9 @@ version 2.67
 	    and do RA but _not_ DHCPv6. Thanks to Trever Adams for the
 	    bug report.
 
+	    Generalise --interface-name to cope with IPv6 addresses
+	    and multiple addresses per interface per address family.
+
 		
 version 2.66
             Add the ability to act as an authoritative DNS

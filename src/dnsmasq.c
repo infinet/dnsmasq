@@ -225,7 +225,7 @@ int main (int argc, char **argv)
     die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
 #endif
 
-  if (!enumerate_interfaces())
+  if (!enumerate_interfaces(1) || !enumerate_interfaces(0))
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
   
   if (option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND)) 
@@ -820,12 +820,15 @@ int main (int argc, char **argv)
       now = dnsmasq_time();
 
       check_log_writer(&wset);
-      
+
+      /* prime. */
+      enumerate_interfaces(1);
+
       /* Check the interfaces to see if any have exited DAD state
 	 and if so, bind the address. */
       if (is_dad_listeners())
 	{
-	  enumerate_interfaces();
+	  enumerate_interfaces(0);
 	  /* NB, is_dad_listeners() == 1 --> we're binding interfaces */
 	  create_bound_listeners(0);
 	}
@@ -1369,7 +1372,7 @@ static void check_dns_listeners(fd_set *set, time_t now)
 	       /* In full wildcard mode, need to refresh interface list.
 		  This happens automagically in CLEVERBIND */
 	       if (!option_bool(OPT_CLEVERBIND))
-		 enumerate_interfaces();
+		 enumerate_interfaces(0);
 	       
 	       /* if we can find the arrival interface, check it's one that's allowed */
 	       if ((if_index = tcp_interface(confd, tcp_addr.sa.sa_family)) != 0 &&

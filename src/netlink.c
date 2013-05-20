@@ -193,7 +193,10 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 	  {
 	    /* May be multicast arriving async */
 	    if (nl_async(h))
-	      newaddr = 1; 
+	      {
+		newaddr = 1; 
+		enumerate_interfaces(1); /* reset */
+	      }
 	  }
 	else if (h->nlmsg_type == NLMSG_DONE)
 	  {
@@ -397,7 +400,7 @@ static int nl_async(struct nlmsghdr *h)
 static void nl_newaddress(time_t now)
 {
   if (option_bool(OPT_CLEVERBIND) || daemon->doing_dhcp6 || daemon->doing_ra)
-    enumerate_interfaces();
+    enumerate_interfaces(0);
   
   if (option_bool(OPT_CLEVERBIND))
     create_bound_listeners(0);

@@ -1450,19 +1450,42 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	      if (is_arpa == F_IPV4)
 		for (intr = daemon->int_names; intr; intr = intr->next)
 		  {
-		    if (addr.addr.addr4.s_addr == get_ifaddr(intr->intr).s_addr)
+		    struct addrlist *addrlist;
+		    
+		    for (addrlist = intr->addr4; addrlist; addrlist = addrlist->next)
+		      if (addr.addr.addr4.s_addr == addrlist->addr.addr.addr4.s_addr)
+			break;
+		    
+		    if (addrlist)
 		      break;
 		    else
 		      while (intr->next && strcmp(intr->intr, intr->next->intr) == 0)
 			intr = intr->next;
 		  }
+#ifdef HAVE_IPV6
+	      else if (is_arpa == F_IPV6)
+		for (intr = daemon->int_names; intr; intr = intr->next)
+		  {
+		    struct addrlist *addrlist;
+		    
+		    for (addrlist = intr->addr6; addrlist; addrlist = addrlist->next)
+		      if (IN6_ARE_ADDR_EQUAL(&addr.addr.addr6, &addrlist->addr.addr.addr6))
+			break;
+		    
+		    if (addrlist)
+		      break;
+		    else
+		      while (intr->next && strcmp(intr->intr, intr->next->intr) == 0)
+			intr = intr->next;
+		  }
+#endif
 	      
 	      if (intr)
 		{
 		  ans = 1;
 		  if (!dryrun)
 		    {
-		      log_query(F_IPV4 | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
+		      log_query(is_arpa | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					      daemon->local_ttl, NULL,
 					      T_PTR, C_IN, "d", intr->name))
@@ -1546,7 +1569,8 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	  for (flag = F_IPV4; flag; flag = (flag == F_IPV4) ? F_IPV6 : 0)
 	    {
 	      unsigned short type = T_A;
-	      
+	      struct interface_name *intr;
+
 	      if (flag == F_IPV6)
 #ifdef HAVE_IPV6
 		type = T_AAAA;
@@ -1595,31 +1619,38 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		}
 
 	      /* interface name stuff */
-	      if (qtype == T_A)
+	      
+	      for (intr = daemon->int_names; intr; intr = intr->next)
+		if (hostname_isequal(name, intr->name))
+		  break;
+	      
+	      if (intr)
 		{
-		  struct interface_name *intr;
+		  struct addrlist *addrlist;
 
-		  for (intr = daemon->int_names; intr; intr = intr->next)
-		    if (hostname_isequal(name, intr->name))
-		      break;
+		  enumerate_interfaces(0);
 		  
-		  if (intr)
+		  addrlist = intr->addr4;
+#ifdef HAVE_IPV6
+		  if (type == T_AAAA)
+		    addrlist = intr->addr6;
+#endif		  
+		  ans = 1;
+		  if (!dryrun)
 		    {
-		      ans = 1;
-		      if (!dryrun)
-			{
-			  if ((addr.addr.addr4 = get_ifaddr(intr->intr)).s_addr == (in_addr_t) -1)
-			    log_query(F_FORWARD | F_CONFIG | F_IPV4 | F_NEG, name, NULL, NULL);
-			  else
-			    {
-			      log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, NULL);
-			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						      daemon->local_ttl, NULL, type, C_IN, "4", &addr))
-				anscount++;
-			    }
-			}
-		      continue;
+		      if (!addrlist)
+			log_query(F_FORWARD | F_CONFIG | flag | F_NEG, name, NULL, NULL);
+		      else 
+			for (; addrlist; addrlist = addrlist->next)
+			  {
+			    log_query(F_FORWARD | F_CONFIG | flag, name, &addrlist->addr, NULL);
+			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						    daemon->local_ttl, NULL, type, C_IN, 
+						    type == T_A ? "4" : "6", &addrlist->addr))
+			      anscount++;
+			  }
 		    }
+		  continue;
 		}
 
 	    cname_restart:

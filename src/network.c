@@ -99,6 +99,8 @@ int indextoname(int fd, int index, char *name)
 
 int indextoname(int fd, int index, char *name)
 { 
+  (void)fd;
+
   if (index == 0 || !if_indextoname(index, name))
     return 0;
 
@@ -224,11 +226,16 @@ int label_exception(int index, int family, struct all_addr *addr)
   return 0;
 }
 
-static int iface_allowed(struct irec **irecp, int if_index, char *label,
+struct iface_param {
+  struct addrlist *spare;
+  int fd;
+};
+
+static int iface_allowed(struct iface_param *param, int if_index, char *label,
 			 union mysockaddr *addr, struct in_addr netmask, int dad) 
 {
   struct irec *iface;
-  int fd, mtu = 0, loopback;
+  int mtu = 0, loopback;
   struct ifreq ifr;
   int tftp_ok = !!option_bool(OPT_TFTP);
   int dhcp_ok = 1;
@@ -237,39 +244,72 @@ static int iface_allowed(struct irec **irecp, int if_index, char *label,
   struct iname *tmp;
 #endif
 
-  /* check whether the interface IP has been added already 
-     we call this routine multiple times. */
-  for (iface = *irecp; iface; iface = iface->next) 
-    if (sockaddr_isequal(&iface->addr, addr))
-      {
-	iface->dad = dad;
-	return 1;
-      }
-
-  if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1 ||
-      !indextoname(fd, if_index, ifr.ifr_name) ||
-      ioctl(fd, SIOCGIFFLAGS, &ifr) == -1)
-    {
-      if (fd != -1)
-	{
-	  int errsave = errno;
-	  close(fd);
-	  errno = errsave;
-	}
-      return 0;
-    }
+  if (!indextoname(param->fd, if_index, ifr.ifr_name) ||
+      ioctl(param->fd, SIOCGIFFLAGS, &ifr) == -1)
+    return 0;
    
   loopback = ifr.ifr_flags & IFF_LOOPBACK;
   
   if (loopback)
     dhcp_ok = 0;
   
-  if (ioctl(fd, SIOCGIFMTU, &ifr) != -1)
+  if (ioctl(param->fd, SIOCGIFMTU, &ifr) != -1)
     mtu = ifr.ifr_mtu;
   
-  close(fd);
+  if (!label)
+    label = ifr.ifr_name;
+
   
-  /* If we are restricting the set of interfaces to use, make
+  /* Update addresses from interface_names. These are a set independent
+     of the set we're listening on. */  
+#ifdef HAVE_IPV6
+  if (addr->sa.sa_family != AF_INET6 || !IN6_IS_ADDR_LINKLOCAL(&addr->in6.sin6_addr))
+#endif
+    {
+      struct interface_name *int_name;
+      struct addrlist *al;
+
+      for (int_name = daemon->int_names; int_name; int_name = int_name->next)
+	if (strncmp(label, int_name->intr, IF_NAMESIZE) == 0)
+	  {
+	    if (param->spare)
+	      {
+		al = param->spare;
+		param->spare = al->next;
+	      }
+	    else
+	      al = whine_malloc(sizeof(struct addrlist));
+	    
+	    if (al)
+	      {
+		if (addr->sa.sa_family == AF_INET)
+		  {
+		    al->addr.addr.addr4 = addr->in.sin_addr;
+		    al->next = int_name->addr4;
+		    int_name->addr4 = al;
+		  }
+#ifdef HAVE_IPV6
+		else
+		 {
+		    al->addr.addr.addr6 = addr->in6.sin6_addr;
+		    al->next = int_name->addr6;
+		    int_name->addr6 = al;
+		 } 
+#endif
+	      }
+	  }
+    }
+ 
+  /* check whether the interface IP has been added already 
+     we call this routine multiple times. */
+  for (iface = daemon->interfaces; iface; iface = iface->next) 
+    if (sockaddr_isequal(&iface->addr, addr))
+      {
+	iface->dad = dad;
+	return 1;
+      }
+
+ /* If we are restricting the set of interfaces to use, make
      sure that loopback interfaces are in that set. */
   if (daemon->if_names && loopback)
     {
@@ -292,9 +332,6 @@ static int iface_allowed(struct irec **irecp, int if_index, char *label,
 	}
     }
   
-  if (!label)
-    label = ifr.ifr_name;
-
   if (addr->sa.sa_family == AF_INET &&
       !iface_check(AF_INET, (struct all_addr *)&addr->in.sin_addr, label, &auth_dns))
     return 1;
@@ -336,8 +373,8 @@ static int iface_allowed(struct irec **irecp, int if_index, char *label,
       if ((iface->name = whine_malloc(strlen(ifr.ifr_name)+1)))
 	{
 	  strcpy(iface->name, ifr.ifr_name);
-	  iface->next = *irecp;
-	  *irecp = iface;
+	  iface->next = daemon->interfaces;
+	  daemon->interfaces = iface;
 	  return 1;
 	}
       free(iface);
@@ -371,7 +408,7 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_port = htons(daemon->port);
   addr.in6.sin6_scope_id = if_index;
   
-  return iface_allowed((struct irec **)vparam, if_index, NULL, &addr, netmask, !!(flags & IFACE_TENTATIVE));
+  return iface_allowed((struct iface_param *)vparam, if_index, NULL, &addr, netmask, !!(flags & IFACE_TENTATIVE));
 }
 #endif
 
@@ -389,17 +426,73 @@ static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
   addr.in.sin_addr = local;
   addr.in.sin_port = htons(daemon->port);
 
-  return iface_allowed((struct irec **)vparam, if_index, label, &addr, netmask, 0);
+  return iface_allowed((struct iface_param *)vparam, if_index, label, &addr, netmask, 0);
 }
    
-int enumerate_interfaces(void)
+int enumerate_interfaces(int reset)
 {
+  static struct addrlist *spare = NULL;
+  static int done = 0;
+  struct iface_param param;
+  int errsave, ret = 1;
+  struct addrlist *addr, *tmp;
+  struct interface_name *intname;
+  
+  /* DO this max once per select cycle */
+  if (reset)
+    {
+      done = 0;
+      return 1;
+    }
+
+  if (done)
+    return 1;
+
+  done = 1;
+
+  if ((param.fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
+    return 0;
+ 
+  /* remove addresses stored against interface_names */
+  for (intname = daemon->int_names; intname; intname = intname->next)
+    {
+      for (addr = intname->addr4; addr; addr = tmp)
+	{
+	  tmp = addr->next;
+	  addr->next = spare;
+	  spare = addr;
+	}
+      
+      intname->addr4 = NULL;
+
 #ifdef HAVE_IPV6
-  if (!iface_enumerate(AF_INET6, &daemon->interfaces, iface_allowed_v6))
-    return 0; 
+      for (addr = intname->addr6; addr; addr = tmp)
+	{
+	  tmp = addr->next;
+	  addr->next = spare;
+	  spare = addr;
+	} 
+      
+      intname->addr6 = NULL;
+#endif
+    }
+  
+  param.spare = spare;
+  
+#ifdef HAVE_IPV6
+  ret = iface_enumerate(AF_INET6, &param, iface_allowed_v6);
 #endif
 
-  return iface_enumerate(AF_INET, &daemon->interfaces, iface_allowed_v4); 
+  if (ret)
+    ret = iface_enumerate(AF_INET, &param, iface_allowed_v4); 
+ 
+  errsave = errno;
+  close(param.fd);
+  errno = errsave;
+
+  spare = param.spare;
+    
+  return ret;
 }
 
 /* set NONBLOCK bit on fd: See Stevens 16.6 */
@@ -971,7 +1064,7 @@ void check_servers(void)
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
-    enumerate_interfaces();
+    enumerate_interfaces(0);
   
   for (new = daemon->servers; new; new = tmp)
     {
@@ -1179,27 +1272,7 @@ int reload_servers(char *fname)
 }
 
 
-/* Use an IPv4 listener socket for ioctling */
-struct in_addr get_ifaddr(char *intr)
-{
-  struct listener *l;
-  struct ifreq ifr;
-  struct sockaddr_in ret;
-  
-  ret.sin_addr.s_addr = -1;
 
-  for (l = daemon->listeners; 
-       l && (l->family != AF_INET || l->fd == -1);
-       l = l->next);
-  
-  strncpy(ifr.ifr_name, intr, IF_NAMESIZE);
-  ifr.ifr_addr.sa_family = AF_INET;
-  
-  if (l &&  ioctl(l->fd, SIOCGIFADDR, &ifr) != -1)
-    memcpy(&ret, &ifr.ifr_addr, sizeof(ret)); 
-  
-  return ret.sin_addr;
-}
 
 
 

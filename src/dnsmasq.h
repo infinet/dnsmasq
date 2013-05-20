@@ -307,6 +307,13 @@ struct host_record {
 struct interface_name {
   char *name; /* domain name */
   char *intr; /* interface name */
+  struct addrlist {
+    struct all_addr addr;
+    struct addrlist *next;
+  } *addr4;
+#ifdef HAVE_IPV6
+  struct addrlist *addr6;
+#endif
   struct interface_name *next;
 };
 
@@ -1024,7 +1031,7 @@ int random_sock(int family);
 void pre_allocate_sfds(void);
 int reload_servers(char *fname);
 void check_servers(void);
-int enumerate_interfaces();
+int enumerate_interfaces(int reset);
 void create_wildcard_listeners(void);
 void create_bound_listeners(int die);
 int is_dad_listeners(void);
@@ -1033,7 +1040,6 @@ int loopback_exception(int fd, int family, struct all_addr *addr, char *name);
 int label_exception(int index, int family, struct all_addr *addr);
 int fix_fd(int fd);
 int tcp_interface(int fd, int af);
-struct in_addr get_ifaddr(char *intr);
 #ifdef HAVE_IPV6
 int set_ipv6pktinfo(int fd);
 #endif

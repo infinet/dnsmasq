@@ -788,7 +788,7 @@ void receive_query(struct listener *listen, time_t now)
       if (!iface_check(listen->family, &dst_addr, ifr.ifr_name, &auth_dns))
 	{
 	   if (!option_bool(OPT_CLEVERBIND))
-	     enumerate_interfaces(); 
+	     enumerate_interfaces(0); 
 	   if (!loopback_exception(listen->fd, listen->family, &dst_addr, ifr.ifr_name) &&
 	       !label_exception(if_index, listen->family, &dst_addr))
 	     return;
@@ -808,7 +808,7 @@ void receive_query(struct listener *listen, time_t now)
 	  
 	  /* interface may be new */
 	  if (!iface && !option_bool(OPT_CLEVERBIND))
-	    enumerate_interfaces(); 
+	    enumerate_interfaces(0); 
 	  
 	  for (iface = daemon->interfaces; iface; iface = iface->next)
 	    if (iface->addr.sa.sa_family == AF_INET &&
