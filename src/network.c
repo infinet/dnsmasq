@@ -438,7 +438,9 @@ int enumerate_interfaces(int reset)
   struct addrlist *addr, *tmp;
   struct interface_name *intname;
   
-  /* DO this max once per select cycle */
+  /* Do this max once per select cycle  - also inhibits netlink socket use
+   in TCP child processes. */
+  
   if (reset)
     {
       done = 0;
