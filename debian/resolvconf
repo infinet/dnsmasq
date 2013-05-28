@@ -1,16 +1,14 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Script to update the resolver list for dnsmasq
 #
-# N.B. Resolvconf may run us even if dnsmasq is not running.
-# If dnsmasq is installed then we go ahead and update
-# the resolver list in case dnsmasq is started later.
+# N.B. Resolvconf may run us even if dnsmasq is not (yet) running.
+# If dnsmasq is installed then we go ahead and update the resolver list
+# in case dnsmasq is started later.
 #
-# Assumption: On entry, PWD contains the resolv.conf-type files
+# Assumption: On entry, PWD contains the resolv.conf-type files.
 #
-# Requires bash because it uses a non-POSIX printf extension.
-#
-# Licensed under the GNU GPL.  See /usr/share/common-licenses/GPL.
+# This file is part of the dnsmasq package.
 #
 
 set -e
@@ -18,6 +16,8 @@ set -e
 RUN_DIR="/var/run/dnsmasq"
 RSLVRLIST_FILE="${RUN_DIR}/resolv.conf"
 TMP_FILE="${RSLVRLIST_FILE}_new.$$"
+MY_RECORD_NAME="lo.dnsmasq"
+DNSCRYPT_RECORD_NAME="lo.dnscrypt"
 
 [ -x /usr/sbin/dnsmasq ] || exit 0
 [ -x /lib/resolvconf/list-records ] || exit 1
@@ -27,7 +27,7 @@ PATH=/bin:/sbin
 report_err() { echo "$0: Error: $*" >&2 ; }
 
 # Stores arguments (minus duplicates) in RSLT, separated by spaces
-# Doesn't work properly if an argument itself contain whitespace
+# Doesn't work properly if an argument itself contains whitespace
 uniquify()
 {
 	RSLT=""
@@ -45,7 +45,22 @@ if [ ! -d "$RUN_DIR" ] && ! mkdir --parents --mode=0755 "$RUN_DIR" ; then
 	exit 1
 fi
 
-RSLVCNFFILES="$(/lib/resolvconf/list-records | sed -e '/^lo.dnsmasq$/d')"
+RSLVCNFFILES=""
+for F in $(/lib/resolvconf/list-records) ; do
+	case "$F" in
+	  "$MY_RECORD_NAME")
+		# Omit
+		;;
+	  "$DNSCRYPT_RECORD_NAME")
+		# Dnscrypt, I only have eyes for you
+		RSLVCNFFILES="$DNSCRYPT_RECORD_NAME"
+		break
+		;;
+	  *)
+		RSLVCNFFILES="${RSLVCNFFILES:+$RSLVCNFFILES }$F"
+		;;
+	esac
+done
 
 NMSRVRS=""
 if [ "$RSLVCNFFILES" ] ; then
@@ -56,8 +71,8 @@ fi
 # Dnsmasq uses the mtime of $RSLVRLIST_FILE, with a resolution of one second,
 # to detect changes in the file. This means that if a resolvconf update occurs
 # within one second of the previous one then dnsmasq may fail to notice the
-# more recent change.  To work around this problem we sleep here to ensure
-# that the new mtime is different.
+# more recent change. To work around this problem we sleep one second here
+# if necessary in order to ensure that the new mtime is different.
 if [ -f "$RSLVRLIST_FILE" ] && [ "$(ls -go --time-style='+%s' "$RSLVRLIST_FILE" | { read p h s t n ; echo "$t" ; })" = "$(date +%s)" ] ; then
 	sleep 1
 fi

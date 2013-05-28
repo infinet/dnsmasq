@@ -2,7 +2,13 @@ dnsmasq (2.67-1) unstable; urgency=low
 
    * New upstream.
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Mon, 20 May 2013 11:50:22 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 28 May 2013 14:50:22 +0000
+
+dnsmasq (2.66-3) unstable; urgency=low
+
+   * Update resolvconf script for dnscrypt-proxy integration. (closes: #709179)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 28 May 2013 14:39:51 +0000
 
 dnsmasq (2.66-2) unstable; urgency=low
 
