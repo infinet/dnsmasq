@@ -520,10 +520,10 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	      in_addr_t a = ntohl(subnet->addr4.s_addr) >> 8;
 	      char *p = name;
 	      
-	      if (subnet->prefixlen == 24)
+	      if (subnet->prefixlen >= 24)
 		p += sprintf(p, "%d.", a & 0xff);
 	      a = a >> 8;
-	      if (subnet->prefixlen != 8)
+	      if (subnet->prefixlen >= 16 )
 		p += sprintf(p, "%d.", a & 0xff);
 	      a = a >> 8;
 	      p += sprintf(p, "%d.in-addr.arpa", a & 0xff);

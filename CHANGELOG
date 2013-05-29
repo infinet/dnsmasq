@@ -43,7 +43,10 @@ version 2.67
 	    Fix option parsing for --dhcp-host, which was generating a
 	    spurious error when all seven possible items were
 	    included. Thanks to Zhiqiang Wang for the bug report.
- 
+
+	    Remove restriction on prefix-length in --auth-zone. Thanks
+	    to Toke Hoiland-Jorgensen for suggesting this.
+
 		
 version 2.66
             Add the ability to act as an authoritative DNS

@@ -1637,8 +1637,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    
 	    if (inet_pton(AF_INET, arg, &subnet->addr4))
 	      {
-		if ((prefixlen & 0x07) != 0 || prefixlen > 24)
-		  ret_err(_("bad prefix"));
 		subnet->prefixlen = (prefixlen == 0) ? 24 : prefixlen;
 		subnet->is6 = 0;
 	      }
