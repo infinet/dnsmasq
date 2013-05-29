@@ -405,7 +405,6 @@ static struct {
   { LOPT_FAST_RA, OPT_FAST_RA, NULL, gettext_noop("Always send frequent router-advertisements"), NULL },
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
-<<<<<<< HEAD
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
   { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL },
   { LOPT_AUTHSERV, ARG_ONE, "<NS>,<interface>", gettext_noop("Export local names to global DNS"), NULL },
@@ -416,7 +415,6 @@ static struct {
   { LOPT_AUTHPEER, ARG_DUP, "<ipaddr>[,<ipaddr>...]", gettext_noop("Peers which are allowed to do zone transfer"), NULL },
   { LOPT_IPSET, ARG_DUP, "/<domain>/<ipset>[,<ipset>...]", gettext_noop("Specify ipsets to which matching domains should be added"), NULL },
   { LOPT_SYNTH, ARG_DUP, "<domain>,<range>,[<prefix>]", gettext_noop("Specify a domain and address range for sythesised names"), NULL },
-  { LOPT_SEC_VALID, OPT_DNSSEC_VALIDATE, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
 #ifdef HAVE_DNSSEC
   { LOPT_SEC_VALID, OPT_DNSSEC_VALIDATE, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
 #endif
