@@ -40,6 +40,10 @@ version 2.67
 	    Generalise --interface-name to cope with IPv6 addresses
 	    and multiple addresses per interface per address family.
 
+	    Fix option parsing for --dhcp-host, which was generating a
+	    spurious error when all seven possible items were
+	    included. Thanks to Zhiqiang Wang for the bug report.
+ 
 		
 version 2.66
             Add the ability to act as an authoritative DNS
