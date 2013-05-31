@@ -2409,6 +2409,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    new->template_interface = opt_string_alloc(a[leasepos] + 12);
 		    new->flags |= CONTEXT_TEMPLATE;
 		  }
+		else if (strstr(a[leasepos], "constructor-noauth:") == a[leasepos])
+		  {
+		    new->template_interface = opt_string_alloc(a[leasepos] + 19);
+		    new->flags |= CONTEXT_TEMPLATE | CONTEXT_NOAUTH;
+		  }
 		else  
 		  break;
 	      }

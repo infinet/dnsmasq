@@ -731,6 +731,7 @@ struct dhcp_context {
 #define CONTEXT_RA          8192
 #define CONTEXT_CONF_USED  16384
 #define CONTEXT_USED       32768
+#define CONTEXT_NOAUTH     65536
 
 struct ping_result {
   struct in_addr addr;
