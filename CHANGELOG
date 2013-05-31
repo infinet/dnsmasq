@@ -50,6 +50,12 @@ version 2.67
 	    Log when the maximum number of concurrent DNS queries is
 	    reached. Thanks to Marcelo Salhab Brogliato for the patch.
 
+	    If wildcards are used in --interface, don't assume that 
+	    there will only ever be one available interface for DHCP
+	    just because there is one at start-up. More may appear, so
+	    we can't use SO_BINDTODEVICE. Thanks to Natrio for the bug
+	    report. 
+
 		
 version 2.66
             Add the ability to act as an authoritative DNS
