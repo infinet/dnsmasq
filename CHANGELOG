@@ -47,6 +47,9 @@ version 2.67
 	    Remove restriction on prefix-length in --auth-zone. Thanks
 	    to Toke Hoiland-Jorgensen for suggesting this.
 
+	    Log when the maximum number of concurrent DNS queries is
+	    reached. Thanks to Marcelo Salhab Brogliato for the patch.
+
 		
 version 2.66
             Add the ability to act as an authoritative DNS

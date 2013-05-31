@@ -1205,8 +1205,17 @@ struct frec *get_new_frec(time_t now, int *wait)
   /* none available, calculate time 'till oldest record expires */
   if (count > daemon->ftabsize)
     {
+      static time_t last_log = 0;
+      
       if (oldest && wait)
 	*wait = oldest->time + (time_t)TIMEOUT - now;
+      
+      if ((int)difftime(now, last_log) > 5)
+	{
+	  last_log = now;
+	  my_syslog(LOG_WARNING, _("Maximum number of concurrent DNS queries reached (max: %d)"), daemon->ftabsize);
+	}
+
       return NULL;
     }
   
