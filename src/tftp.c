@@ -555,7 +555,7 @@ void check_tftp_listeners(fd_set *rset, time_t now)
 	    }
 	  /* don't complain about timeout when we're awaiting the last
 	     ACK, some clients never send it */
-	  else if (++transfer->backoff > 5 && len != 0)
+	  else if (++transfer->backoff > 7 && len != 0)
 	    {
 	      endcon = 1;
 	      len = 0;

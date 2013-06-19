@@ -56,7 +56,11 @@ version 2.67
 	    we can't use SO_BINDTODEVICE. Thanks to Natrio for the bug
 	    report. 
 
-		
+	    Increase timeout/number of retries in TFTP to accomodate
+	    AudioCodes Voice Gateways doing streaming writes to flash.
+	    Thanks to Damian Kaczkowski for spotting the problem.
+
+
 version 2.66
             Add the ability to act as an authoritative DNS
             server. Dnsmasq can now answer queries from the wider 'net
