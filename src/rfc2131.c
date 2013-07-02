@@ -1833,7 +1833,8 @@ static int do_opt(struct dhcp_opt *opt, unsigned char *p, struct dhcp_context *c
 	    }
 	}
       else
-	memcpy(p, opt->val, len);
+	/* empty string may be extended to "\0" by null_term */
+	memcpy(p, opt->val ? opt->val : (unsigned char *)"", len);
     }  
   return len;
 }
