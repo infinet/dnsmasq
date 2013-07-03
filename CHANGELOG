@@ -61,7 +61,7 @@ version 2.67
 	    Thanks to Damian Kaczkowski for spotting the problem.
 
 	    Fix crash with empty DHCP string options when adding zero
-	    terminator. Thanks to Patrick McClean for the bug report.
+	    terminator. Thanks to Patrick McLean for the bug report.
 
 
 version 2.66
