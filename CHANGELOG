@@ -60,6 +60,9 @@ version 2.67
 	    AudioCodes Voice Gateways doing streaming writes to flash.
 	    Thanks to Damian Kaczkowski for spotting the problem.
 
+	    Allow hostnames to start with a number, as allowed in
+	    RFC-1123. Thanks to Kyle Mestery for the patch. 
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
