@@ -615,7 +615,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       return message ? 0 : dhcp_packet_size(mess, agent_id, real_end);
     }
       
-  if ((opt = option_find(mess, sz, OPTION_CLIENT_FQDN, 4)))
+  if ((opt = option_find(mess, sz, OPTION_CLIENT_FQDN, 3)))
     {
       /* http://tools.ietf.org/wg/dhc/draft-ietf-dhc-fqdn-option/draft-ietf-dhc-fqdn-option-10.txt */
       int len = option_len(opt);
@@ -645,7 +645,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	}
       
       if (fqdn_flags & 0x04)
-	while (*op != 0 && ((op + (*op) + 1) - pp) < len)
+	while (*op != 0 && ((op + (*op)) - pp) < len)
 	  {
 	    memcpy(pq, op+1, *op);
 	    pq += *op;
@@ -2289,7 +2289,9 @@ static void do_options(struct dhcp_context *context,
 
 	  if (domain)
 	    len += strlen(domain) + 1;
-	  
+	  else if (fqdn_flags & 0x04)
+	    len--;
+
 	  if ((p = free_space(mess, end, OPTION_CLIENT_FQDN, len)))
 	    {
 	      *(p++) = fqdn_flags & 0x0f; /* MBZ bits to zero */ 
@@ -2300,8 +2302,10 @@ static void do_options(struct dhcp_context *context,
 		{
 		  p = do_rfc1035_name(p, hostname);
 		  if (domain)
-		    p = do_rfc1035_name(p, domain);
-		  *p++ = 0;
+		    {
+		      p = do_rfc1035_name(p, domain);
+		      *p++ = 0;
+		    }
 		}
 	      else
 		{

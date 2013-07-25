@@ -63,6 +63,11 @@ version 2.67
 	    Allow hostnames to start with a number, as allowed in
 	    RFC-1123. Thanks to Kyle Mestery for the patch. 
 
+	    Fixes to DHCP FQDN option handling: don't terminate FQDN
+	    if domain not known and allow a FQDN option with blank
+	    name to request that a FQDN option is returned in the
+	    reply. Thanks to Roy Marples for the patch.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
