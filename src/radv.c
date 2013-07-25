@@ -291,7 +291,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	  put_opt6_char(ICMP6_OPT_DNSSL);
 	  put_opt6_char(len + 1);
 	  put_opt6_short(0);
-	  put_opt6_long(1800); /* lifetime - twice RA retransmit */
+	  put_opt6_long(RA_INTERVAL * 2); /* lifetime - twice RA retransmit */
 	  put_opt6(opt_cfg->val, opt_cfg->len);
 	  
 	  /* pad */
@@ -386,12 +386,12 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    param->other = 1;
 		  }
 		
-		/* find floor time, don't reduce below RA interval. */
+		/* find floor time, don't reduce below 3 * RA interval. */
 		if (time > context->lease_time)
 		  {
 		    time = context->lease_time;
-		    if (time < ((unsigned int)RA_INTERVAL))
-		      time = RA_INTERVAL;
+		    if (time < ((unsigned int)(3 * RA_INTERVAL)))
+		      time = 3 * RA_INTERVAL;
 		  }
 
 		if (context->flags & CONTEXT_DEPRECATE)
