@@ -68,6 +68,9 @@ version 2.67
 	    name to request that a FQDN option is returned in the
 	    reply. Thanks to Roy Marples for the patch.
 
+	    Make --clear-on-reload apply to setting upstream servers
+	    via DBus too.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

@@ -338,7 +338,8 @@ by '/', like the --server syntax, eg.
 Don't poll /etc/resolv.conf for changes.
 .TP
 .B --clear-on-reload
-Whenever /etc/resolv.conf is re-read, clear the DNS cache.
+Whenever /etc/resolv.conf is re-read or the upstream servers are set
+via DBus, clear the DNS cache.
 This is useful when new nameservers may have different
 data than that held in cache.
 .TP
