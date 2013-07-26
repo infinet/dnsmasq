@@ -79,6 +79,9 @@ version 2.67
 	    deprecated first. Thanks to Uwe Schindler for persuasively
 	    arguing for this.
 
+	    Fix MAC address enumeration on *BSD. Thanks to Brad Smith
+	    for the bug report.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
