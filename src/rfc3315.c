@@ -120,7 +120,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	      !IN6_IS_ADDR_MULTICAST(link_address))
 	    for (c = daemon->dhcp6; c; c = c->next)
 	      if ((c->flags & CONTEXT_DHCP) &&
-		  !(c->flags & CONTEXT_TEMPLATE) &&
+		  !(c->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
 		  is_same_net6(link_address, &c->start6, c->prefix) &&
 		  is_same_net6(link_address, &c->end6, c->prefix))
 		{

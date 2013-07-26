@@ -706,8 +706,8 @@ struct dhcp_context {
   struct in6_addr start6, end6; /* range of available addresses */
   struct in6_addr local6;
   int prefix, if_index;
-  unsigned int valid, preferred;
-  time_t ra_time, ra_short_period_start;
+  unsigned int valid, preferred, saved_valid;
+  time_t ra_time, ra_short_period_start, address_lost_time;
   char *template_interface;
 #endif
   int flags;
@@ -732,6 +732,8 @@ struct dhcp_context {
 #define CONTEXT_CONF_USED  16384
 #define CONTEXT_USED       32768
 #define CONTEXT_NOAUTH     65536
+#define CONTEXT_OLD       131072
+
 
 struct ping_result {
   struct in_addr addr;

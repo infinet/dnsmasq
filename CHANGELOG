@@ -71,6 +71,14 @@ version 2.67
 	    Make --clear-on-reload apply to setting upstream servers
 	    via DBus too.
 
+	    When the address which triggered the construction of an
+	    advertised IPv6 prefix disappears, continue to advertise 
+	    the prefix for up to 2 hours, with the preferred lifetime
+	    set to zero. This satisfies RFC 6204 4.3 L-13 and makes
+	    things work better if a prefix disappears without being
+	    deprecated first. Thanks to Uwe Schindler for persuasively
+	    arguing for this.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

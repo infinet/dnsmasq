@@ -720,7 +720,7 @@ void log_context(int family, struct dhcp_context *context)
       p += sprintf(p, ", ");
       
       if (indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, context->if_index, ifrn_name))
-	sprintf(p, "constructed for %s", ifrn_name);
+	sprintf(p, "%s for %s", (context->flags & CONTEXT_OLD) ? "old prefix" : "constructed", ifrn_name);
     }
   else if (context->flags & CONTEXT_TEMPLATE)
     {
@@ -731,7 +731,8 @@ void log_context(int family, struct dhcp_context *context)
     }
 #endif
      
-  if ((context->flags & CONTEXT_DHCP) || family == AF_INET) 
+  if (!(context->flags & CONTEXT_OLD) &&
+      ((context->flags & CONTEXT_DHCP) || family == AF_INET)) 
     {
       inet_ntop(family, start, daemon->dhcp_buff, 256);
       inet_ntop(family, end, daemon->dhcp_buff3, 256);
@@ -748,9 +749,9 @@ void log_context(int family, struct dhcp_context *context)
     }
   
 #ifdef HAVE_DHCP6
-  if (context->flags & CONTEXT_RA_NAME)
+  if ((context->flags & CONTEXT_RA_NAME) && !(context->flags & CONTEXT_OLD))
     my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), daemon->addrbuff, template);
-       
+  
   if ((context->flags & CONTEXT_RA) || (option_bool(OPT_RA) && (context->flags & CONTEXT_DHCP) && family == AF_INET6)) 
     my_syslog(MS_DHCP | LOG_INFO, _("router advertisement on %s%s"), daemon->addrbuff, template);
 #endif
