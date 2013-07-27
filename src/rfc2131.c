@@ -1385,8 +1385,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  lease->hostname)
 	hostname = lease->hostname;
       
-      if (!hostname && (hostname = host_from_dns(mess->ciaddr)))
-	domain = get_domain(mess->ciaddr);
+      if (!hostname)
+	hostname = host_from_dns(mess->ciaddr);
       
       if (context && context->netid.net)
 	{
