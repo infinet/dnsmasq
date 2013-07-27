@@ -555,7 +555,15 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	      int flags = context->flags;
 	      context->flags &= ~(CONTEXT_GC | CONTEXT_OLD);
 	      if (flags & CONTEXT_OLD)
-		log_context(AF_INET6, context);
+		{
+		  /* address went, now it's back */
+		  log_context(AF_INET6, context); 
+		  /* fast RAs for a while */
+		  ra_start_unsolicted(param->now, context);
+		  /* Add address to name again */
+		  if (context->flags & CONTEXT_RA_NAME)
+		    param->newname = 1;
+		}
 	      break;
 	    }
 	
