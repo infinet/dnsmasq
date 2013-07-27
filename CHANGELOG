@@ -85,6 +85,12 @@ version 2.67
 	    Fix MAC address enumeration on *BSD. Thanks to Brad Smith
 	    for the bug report.
 
+	    Support RFC-4242 information-refresh-time options in the 
+	    reply to DHCPv6 information-request. The lease time of the
+            smallest valid dhcp-range is sent. Thanks to Uwe Schindler 
+	    for suggesting this.
+
+
 version 2.66
             Add the ability to act as an authoritative DNS
             server. Dnsmasq can now answer queries from the wider 'net

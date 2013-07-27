@@ -58,7 +58,7 @@ static void add_address(struct state *state, struct dhcp_context *context, unsig
 			unsigned int *min_time, struct in6_addr *addr, int update_lease, time_t now);
 static void update_leases(struct state *state, struct dhcp_context *context, struct in6_addr *addr, unsigned int lease_time, time_t now);
 static int add_local_addrs(struct dhcp_context *context);
-struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, struct dhcp_context *context);
+static struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, struct dhcp_context *context, int do_refresh);
 static void calculate_times(struct dhcp_context *context, unsigned int *min_time, unsigned int *valid_timep, 
 			    unsigned int *preferred_timep, unsigned int lease_time, unsigned int requested_time);
 
@@ -747,7 +747,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    o = new_opt6(OPTION6_PREFERENCE);
 	    put_opt6_char(option_bool(OPT_AUTHORITATIVE) ? 255 : 0);
 	    end_opt6(o);
-	    tagif = add_options(&state, fallback, context);
+	    tagif = add_options(&state, fallback, context, 0);
 	  }
 	else
 	  { 
@@ -865,7 +865,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    log6_packet(&state, "DHCPREPLY", NULL, _("no addresses available"));
 	  }
 
-	tagif = add_options(&state, fallback, context);
+	tagif = add_options(&state, fallback, context, 0);
 	break;
       }
       
@@ -964,7 +964,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    end_opt6(o);
 	  }
 	
-	tagif = add_options(&state, fallback, context);
+	tagif = add_options(&state, fallback, context, 0);
 	break;
 	
       }
@@ -1028,7 +1028,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	if (ignore)
 	  return 0;
 	*outmsgtypep = DHCP6REPLY;
-	tagif = add_options(&state, fallback, context);
+	tagif = add_options(&state, fallback, context, 1);
 	break;
       }
       
@@ -1178,13 +1178,16 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 
 }
 
-struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, struct dhcp_context *context)  
+static struct dhcp_netid *add_options(struct state *state, 
+				      struct in6_addr *fallback, 
+				      struct dhcp_context *context, 
+				      int do_refresh)  
 {
   void *oro;
   /* filter options based on tags, those we want get DHOPT_TAGOK bit set */
   struct dhcp_netid *tagif = option_filter(state->tags, state->context_tags, daemon->dhcp_opts6);
   struct dhcp_opt *opt_cfg;
-  int done_dns = 0, do_encap = 0;
+  int done_dns = 0, done_refresh = !do_refresh, do_encap = 0;
   int i, o, o1;
 
   oro = opt6_find(state->packet_options, state->end, OPTION6_ORO, 0);
@@ -1212,6 +1215,9 @@ struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, s
 	  if (opt_cfg->len == 0)
 	    continue;
 	}
+
+      if (opt_cfg->opt == OPTION6_REFRESH_TIME)
+	done_refresh = 1;
       
       o = new_opt6(opt_cfg->opt);
       if (opt_cfg->flags & DHOPT_ADDR6)
@@ -1235,13 +1241,33 @@ struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, s
       end_opt6(o);
     }
   
-  if (daemon->port == NAMESERVER_PORT && !done_dns && 
-      (!IN6_IS_ADDR_UNSPECIFIED(&context->local6) ||
-       !IN6_IS_ADDR_UNSPECIFIED(fallback)))
+  if (daemon->port == NAMESERVER_PORT && !done_dns)
     {
       o = new_opt6(OPTION6_DNS_SERVER);
       if (!add_local_addrs(context))
 	put_opt6(fallback, IN6ADDRSZ);
+      end_opt6(o); 
+    }
+
+  if (context && !done_refresh)
+    {
+      struct dhcp_context *c;
+      unsigned int lease_time = 0xffffffff;
+      
+      /* Find the smallest lease tie of all contexts,
+	 subjext to the RFC-4242 stipulation that this must not 
+	 be less than 600. */
+      for (c = context; c; c = c->next)
+	if (c->lease_time < lease_time)
+	  {
+	    if (c->lease_time < 600)
+	      lease_time = 600;
+	    else
+	      lease_time = c->lease_time;
+	  }
+
+      o = new_opt6(OPTION6_REFRESH_TIME);
+      put_opt6_long(lease_time);
       end_opt6(o); 
     }
    
