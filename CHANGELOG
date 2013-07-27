@@ -63,6 +63,27 @@ version 2.67
 	    Fix crash with empty DHCP string options when adding zero
 	    terminator. Thanks to Patrick McLean for the bug report.
 
+	    Allow hostnames to start with a number, as allowed in
+	    RFC-1123. Thanks to Kyle Mestery for the patch. 
+
+	    Fixes to DHCP FQDN option handling: don't terminate FQDN
+	    if domain not known and allow a FQDN option with blank
+	    name to request that a FQDN option is returned in the
+	    reply. Thanks to Roy Marples for the patch.
+
+	    Make --clear-on-reload apply to setting upstream servers
+	    via DBus too.
+
+	    When the address which triggered the construction of an
+	    advertised IPv6 prefix disappears, continue to advertise 
+	    the prefix for up to 2 hours, with the preferred lifetime
+	    set to zero. This satisfies RFC 6204 4.3 L-13 and makes
+	    things work better if a prefix disappears without being
+	    deprecated first. Thanks to Uwe Schindler for persuasively
+	    arguing for this.
+
+	    Fix MAC address enumeration on *BSD. Thanks to Brad Smith
+	    for the bug report.
 
 version 2.66
             Add the ability to act as an authoritative DNS

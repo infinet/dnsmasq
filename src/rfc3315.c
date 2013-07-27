@@ -120,7 +120,7 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
 	      !IN6_IS_ADDR_MULTICAST(link_address))
 	    for (c = daemon->dhcp6; c; c = c->next)
 	      if ((c->flags & CONTEXT_DHCP) &&
-		  !(c->flags & CONTEXT_TEMPLATE) &&
+		  !(c->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
 		  is_same_net6(link_address, &c->start6, c->prefix) &&
 		  is_same_net6(link_address, &c->end6, c->prefix))
 		{
@@ -1299,16 +1299,18 @@ struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, s
       size_t len = strlen(state->hostname);
       
       if (state->send_domain)
-	len += strlen(state->send_domain) + 1;
+	len += strlen(state->send_domain) + 2;
 
       o = new_opt6(OPTION6_FQDN);
-      if ((p = expand(len + 3)))
+      if ((p = expand(len + 2)))
 	{
 	  *(p++) = state->fqdn_flags;
 	  p = do_rfc1035_name(p, state->hostname);
 	  if (state->send_domain)
-	    p = do_rfc1035_name(p, state->send_domain);
-	  *p = 0;
+	    {
+	      p = do_rfc1035_name(p, state->send_domain);
+	      *p = 0;
+	    }
 	}
       end_opt6(o);
     }

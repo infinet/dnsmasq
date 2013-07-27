@@ -220,7 +220,7 @@ static int complete_context6(struct in6_addr *local,  int prefix,
       for (context = daemon->dhcp6; context; context = context->next)
 	{
 	  if ((context->flags & CONTEXT_DHCP) &&
-	      !(context->flags & CONTEXT_TEMPLATE) &&
+	      !(context->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
 	      prefix == context->prefix &&
 	      is_same_net6(local, &context->start6, prefix) &&
 	      is_same_net6(local, &context->end6, prefix))
@@ -552,7 +552,10 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	      IN6_ARE_ADDR_EQUAL(&start6, &context->start6) &&
 	      IN6_ARE_ADDR_EQUAL(&end6, &context->end6))
 	    {
-	      context->flags &= ~CONTEXT_GC;
+	      int flags = context->flags;
+	      context->flags &= ~(CONTEXT_GC | CONTEXT_OLD);
+	      if (flags & CONTEXT_OLD)
+		log_context(AF_INET6, context);
 	      break;
 	    }
 	
@@ -565,6 +568,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	    context->flags |= CONTEXT_CONSTRUCTED;
 	    context->if_index = if_index;
 	    context->local6 = *local;
+	    context->saved_valid = 0;
 	    
 	    context->next = daemon->dhcp6;
 	    daemon->dhcp6 = context;
@@ -587,35 +591,53 @@ static int construct_worker(struct in6_addr *local, int prefix,
 
 void dhcp_construct_contexts(time_t now)
 { 
-  struct dhcp_context *tmp, *context, **up;
+  struct dhcp_context *context, *tmp, **up;
   struct cparam param;
   param.newone = 0;
   param.newname = 0;
   param.now = now;
 
   for (context = daemon->dhcp6; context; context = context->next)
-    {
-      context->if_index = 0;
-      if (context->flags & CONTEXT_CONSTRUCTED)
-      	context->flags |= CONTEXT_GC;
-    }
- 
+    if (context->flags & CONTEXT_CONSTRUCTED)
+      context->flags |= CONTEXT_GC;
+   
   iface_enumerate(AF_INET6, &param, construct_worker);
 
   for (up = &daemon->dhcp6, context = daemon->dhcp6; context; context = tmp)
     {
-      tmp = context->next;
       
-      if (context->flags & CONTEXT_GC)
+      tmp = context->next; 
+     
+      if (context->flags & CONTEXT_GC && !(context->flags & CONTEXT_OLD))
 	{
-	  *up = context->next;
-	  param.newone = 1; /* include deletion */ 
-	  if (context->flags & CONTEXT_RA_NAME)
-	    param.newname = 1; 
-	  free(context);
+	  
+	  if ((context->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)) ||
+	      option_bool(OPT_RA))
+	    {
+	      /* previously constructed context has gone. advertise it's demise */
+	      context->flags |= CONTEXT_OLD;
+	      context->address_lost_time = now;
+	      if (context->saved_valid > 7200) /* 2 hours */
+		context->saved_valid = 7200;
+	      ra_start_unsolicted(now, context);
+	      param.newone = 1; /* include deletion */ 
+	      
+	      if (context->flags & CONTEXT_RA_NAME)
+		param.newname = 1; 
+			      
+	      log_context(AF_INET6, context);
+	      
+	      up = &context->next;
+	    }
+	  else
+	    {
+	      /* we were never doing RA for this, so free now */
+	      *up = context->next;
+	      free(context);
+	    }
 	}
       else
-	up = &context->next;
+	 up = &context->next;
     }
   
   if (param.newone)
