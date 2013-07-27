@@ -224,7 +224,7 @@ char *get_domain6(struct in6_addr *addr)
 {
   struct cond_domain *c;
 
-  if ((c = search_domain6(addr, daemon->cond_domain)))
+  if (addr && (c = search_domain6(addr, daemon->cond_domain)))
     return c->domain;
 
   return daemon->domain_suffix;

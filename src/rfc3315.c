@@ -1015,6 +1015,15 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    context->netid.next = NULL;
 	    state.context_tags =  &context->netid;
 	  }
+
+	/* Similarly, we can't determine domain from address, but if the FQDN is
+	   given in --dhcp-host, we can use that, and failing that we can use the 
+	   unqualified configured domain, if any. */
+	if (state.hostname_auth)
+	  state.send_domain = state.domain;
+	else
+	  state.send_domain = get_domain6(NULL);
+
 	log6_packet(&state, "DHCPINFORMATION-REQUEST", NULL, ignore ? _("ignored") : state.hostname);
 	if (ignore)
 	  return 0;
