@@ -625,6 +625,10 @@ void dhcp_construct_contexts(time_t now)
 	      /* previously constructed context has gone. advertise it's demise */
 	      context->flags |= CONTEXT_OLD;
 	      context->address_lost_time = now;
+	      /* Apply same ceiling of configured lease time as in radv.c */
+	      if (context->saved_valid > context->lease_time)
+		context->saved_valid = context->lease_time;
+	      /* maximum time is 2 hours, from RFC */
 	      if (context->saved_valid > 7200) /* 2 hours */
 		context->saved_valid = 7200;
 	      ra_start_unsolicted(now, context);
