@@ -112,7 +112,7 @@ int indextoname(int fd, int index, char *name)
 int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 {
   struct iname *tmp;
-  int ret = 1;
+  int ret = 1, match_addr = 0;
 
   /* Note: have to check all and not bail out early, so that we set the
      "used" flags. */
@@ -134,19 +134,20 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 	    {
 	      if (family == AF_INET &&
 		  tmp->addr.in.sin_addr.s_addr == addr->addr.addr4.s_addr)
-		ret = tmp->used = 1;
+		ret = match_addr = tmp->used = 1;
 #ifdef HAVE_IPV6
 	      else if (family == AF_INET6 &&
 		       IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, 
 					  &addr->addr.addr6))
-		ret = tmp->used = 1;
+		ret = match_addr = tmp->used = 1;
 #endif
 	    }          
     }
   
-  for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && wildcard_match(tmp->name, name))
-      ret = 0;
+  if (!match_addr)
+    for (tmp = daemon->if_except; tmp; tmp = tmp->next)
+      if (tmp->name && wildcard_match(tmp->name, name))
+	ret = 0;
     
 
   for (tmp = daemon->authinterface; tmp; tmp = tmp->next)

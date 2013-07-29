@@ -92,6 +92,9 @@ version 2.67
 
 	    Add --force-fast-ra option. Another thanks to Uwe Schindler.  
 
+	    Make --listen-address higher priority than --except-interface
+	    in all circumstances. Thanks to Thomas Hood for the bugreport.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
