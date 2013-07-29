@@ -1487,6 +1487,12 @@ the relevant link-local address of the machine running dnsmasq is sent
 as recursive DNS server. If provided, the DHCPv6 options dns-server and
 domain-search are used for RDNSS and DNSSL.
 .TP
+.B --force-fast-ra
+Normally, dnsmasq advertises a new IPv6 prefix frequently (every 10 seconds or so) for the first minute, and then
+drops back to sending "maintenance" advertisements every 10 minutes or so. This option forces dnsmasq to be always in 
+frequent RA mode. It's a bug workaround for mobile devices which go deaf to RAs during sleep and therefore 
+lose conectivity; with frequent RAs they recover in a reasonable time after wakeup.
+.TP
 .B --enable-tftp
 Enable the TFTP server function. This is deliberately limited to that
 needed to net-boot a client. Only reading is allowed; the tsize and

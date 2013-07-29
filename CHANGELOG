@@ -90,6 +90,8 @@ version 2.67
             smallest valid dhcp-range is sent. Thanks to Uwe Schindler 
 	    for suggesting this.
 
+	    Add --force-fast-ra option. Another thanks to Uwe Schindler.  
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

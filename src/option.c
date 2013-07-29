@@ -132,6 +132,7 @@ struct myoption {
 #ifdef OPTION6_PREFIX_CLASS 
 #define LOPT_PREF_CLSS 321
 #endif
+#define LOPT_FAST_RA   322
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -269,6 +270,7 @@ static const struct myoption opts[] =
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
+    { "force-fast-ra", 0, 0, LOPT_FAST_RA },
     { NULL, 0, 0, 0 }
   };
 
@@ -397,6 +399,7 @@ static struct {
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
   { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
+  { LOPT_FAST_RA, OPT_FAST_RA, NULL, gettext_noop("Always send frequent router-advertisements"), NULL },
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },

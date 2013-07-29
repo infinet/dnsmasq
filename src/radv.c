@@ -652,7 +652,7 @@ static int iface_search(struct in6_addr *local,  int prefix,
  
 static void new_timeout(struct dhcp_context *context, time_t now)
 {
-  if (difftime(now, context->ra_short_period_start) < 60.0)
+  if (difftime(now, context->ra_short_period_start) < 60.0 || option_bool(OPT_FAST_RA))
     /* range 5 - 20 */
     context->ra_time = now + 5 + (rand16()/4400);
   else
