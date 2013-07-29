@@ -1493,11 +1493,12 @@ drops back to sending "maintenance" advertisements every 10 minutes or so. This 
 frequent RA mode. It's a bug workaround for mobile devices which go deaf to RAs during sleep and therefore 
 lose conectivity; with frequent RAs they recover in a reasonable time after wakeup.
 .TP
-.B --enable-tftp
+.B --enable-tftp[=<interface>[,<interface>]]
 Enable the TFTP server function. This is deliberately limited to that
 needed to net-boot a client. Only reading is allowed; the tsize and
 blksize extensions are supported (tsize is only supported in octet
-mode). 
+mode). Without an argument, the TFTP service is provided to the same set of interfaces as DHCP service. 
+If the list of interfaces is provided, that defines which interfaces recieve TFTP service.
 .TP
 .B --tftp-root=<directory>[,<interface>]
 Look for files to transfer using TFTP relative to the given

@@ -95,6 +95,12 @@ version 2.67
 	    Make --listen-address higher priority than --except-interface
 	    in all circumstances. Thanks to Thomas Hood for the bugreport.
 
+	    Provide independent control over which interfaces get TFTP 
+	    service. If enable-tftp is given a list of interfaces, then TFTP 
+	    is provided on those. Without the list, the previous behaviour
+	    (provide TFTP to the same interfaces we provide DHCP to) 
+	    is retained. Thanks to Lonnie Abelbeck for the suggestion.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

@@ -208,7 +208,7 @@ static const struct myoption opts[] =
     { "dns-forward-max", 1, 0, '0' },
     { "clear-on-reload", 0, 0, LOPT_RELOAD },
     { "dhcp-ignore-names", 2, 0, LOPT_NO_NAMES },
-    { "enable-tftp", 0, 0, LOPT_TFTP },
+    { "enable-tftp", 2, 0, LOPT_TFTP },
     { "tftp-secure", 0, 0, LOPT_SECURE },
     { "tftp-unique-root", 0, 0, LOPT_APREF },
     { "tftp-root", 1, 0, LOPT_PREFIX },
@@ -368,7 +368,7 @@ static struct {
   { LOPT_RELOAD, OPT_RELOAD, NULL, gettext_noop("Clear DNS cache when reloading %s."), RESOLVFILE },
   { LOPT_NO_NAMES, ARG_DUP, "[=tag:<tag>]...", gettext_noop("Ignore hostnames provided by DHCP clients."), NULL },
   { LOPT_OVERRIDE, OPT_NO_OVERRIDE, NULL, gettext_noop("Do NOT reuse filename and server fields for extra DHCP options."), NULL },
-  { LOPT_TFTP, OPT_TFTP, NULL, gettext_noop("Enable integrated read-only TFTP server."), NULL },
+  { LOPT_TFTP, ARG_DUP, "[=<intr>[,<intr>]]", gettext_noop("Enable integrated read-only TFTP server."), NULL },
   { LOPT_PREFIX, ARG_DUP, "<dir>[,<iface>]", gettext_noop("Export files by TFTP only from the specified subtree."), NULL },
   { LOPT_APREF, OPT_TFTP_APREF, NULL, gettext_noop("Add client IP address to tftp-root."), NULL },
   { LOPT_SECURE, OPT_TFTP_SECURE, NULL, gettext_noop("Allow access only to files owned by the user running dnsmasq."), NULL },
@@ -1904,6 +1904,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       } while (arg);
       break;
       
+    case LOPT_TFTP: /* --enable-tftp */
+      set_option_bool(OPT_TFTP);
+      if (!arg)
+	break;
+      /* fall through */
+
     case 'I':  /* --except-interface */
     case '2':  /* --no-dhcp-interface */
       do {
@@ -1914,6 +1920,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    new->next = daemon->if_except;
 	    daemon->if_except = new;
+	  }
+	else if (option == LOPT_TFTP)
+	   {
+	    new->next = daemon->tftp_interfaces;
+	    daemon->tftp_interfaces = new;
 	  }
 	else
 	  {

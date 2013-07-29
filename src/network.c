@@ -359,6 +359,16 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
 	}
 #endif
  
+  
+  if (daemon->tftp_interfaces)
+    {
+      /* dedicated tftp interface list */
+      tftp_ok = 0;
+      for (tmp = daemon->tftp_interfaces; tmp; tmp = tmp->next)
+	if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
+	  tftp_ok = 1;
+    }
+  
   /* add to list */
   if ((iface = whine_malloc(sizeof(struct irec))))
     {

@@ -803,7 +803,7 @@ extern struct daemon {
   struct cond_domain *cond_domain, *synth_domains;
   char *runfile; 
   char *lease_change_command;
-  struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers;
+  struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers, *tftp_interfaces;
   struct bogus_addr *bogus_addr;
   struct server *servers;
   struct ipsets *ipsets;
