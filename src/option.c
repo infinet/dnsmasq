@@ -2460,6 +2460,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    
 	    if (!is_same_net6(&new->start6, &new->end6, new->prefix))
 	      ret_err(_("inconsistent DHCPv6 range"));
+	    
+	    if (new->flags & CONTEXT_TEMPLATE)
+	      {
+		struct in6_addr zero;
+		memset(&zero, 0, sizeof(zero));
+		if (!is_same_net6(&zero, &new->start6, new->prefix))
+		  ret_err(_("prefix must be zero with \"constructor:\" argument"));
+	      }
+	    
 	    if (addr6part(&new->start6) > addr6part(&new->end6))
 	      {
 		struct in6_addr tmp = new->start6;
