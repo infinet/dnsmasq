@@ -46,7 +46,7 @@ if [ ! -d "$RUN_DIR" ] && ! mkdir --parents --mode=0755 "$RUN_DIR" ; then
 fi
 
 RSLVCNFFILES=""
-for F in $(/lib/resolvconf/list-records) ; do
+for F in $(/lib/resolvconf/list-records --after "$MY_RECORD_NAME") ; do
 	case "$F" in
 	  "$MY_RECORD_NAME")
 		# Omit
