@@ -400,6 +400,7 @@ union mysockaddr {
 /* bits in flag param to IPv6 callbacks from iface_enumerate() */
 #define IFACE_TENTATIVE   1
 #define IFACE_DEPRECATED  2
+#define IFACE_PERMANENT   4
 
 
 #define SERV_FROM_RESOLV       1  /* 1 for servers from resolv, 0 for command line. */
