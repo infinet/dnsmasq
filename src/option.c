@@ -1658,7 +1658,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 
     case  LOPT_AUTHSOA: /* --auth-soa */
       comma = split(arg);
-      atoi_check(arg, (int *)&daemon->soa_sn);
+      daemon->soa_sn = (u32)atoi(arg);
       if (comma)
 	{
 	  char *cp;
@@ -1673,17 +1673,17 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    {
 	      arg = comma;
 	      comma = split(arg); 
-	      atoi_check(arg, (int *)&daemon->soa_refresh);
+	      daemon->soa_refresh = (u32)atoi(arg);
 	      if (comma)
 		{
 		  arg = comma;
 		  comma = split(arg); 
-		  atoi_check(arg, (int *)&daemon->soa_retry);
+		  daemon->soa_retry = (u32)atoi(arg);
 		  if (comma)
 		    {
 		      arg = comma;
 		      comma = split(arg); 
-		      atoi_check(arg, (int *)&daemon->soa_expiry);
+		      daemon->soa_expiry = (u32)atoi(arg);
 		    }
 		}
 	    }
