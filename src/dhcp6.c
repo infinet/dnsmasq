@@ -539,7 +539,9 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	
       }
     else if ((addr6part(local) == addr6part(&template->start6) ||
-	      addr6part(local) == addr6part(&template->end6)) && 
+	      addr6part(local) == addr6part(&template->end6) ||
+	      (IN6_IS_ADDR_UNSPECIFIED(&template->start6) &&
+	       IFACE_PERMANENT == (flags & (IFACE_PERMANENT | IFACE_DEPRECATED)))) && 
 	     wildcard_match(template->template_interface, ifrn_name))
       {
 	start6 = *local;

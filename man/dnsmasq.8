@@ -663,6 +663,14 @@ equal either the start or end address given in the dhcp-range. This is
 to prevent prefixes becoming perpetual if the interface 
 gains a SLAAC address for the prefix when it is advertised by dnsmasq.
 
+If a dhcp-range is only being used for stateless DHCP and/or SLAAC,
+then the address can be simply ::
+
+.B --dhcp-range=::,constructor:eth0
+
+This removes the condition above, and will pick up the prefix from any address on eth0 which is NOT 
+autoconfigured, slaac, temporary or deprecated.
+
 There is a variant of the constructor: syntax using the keyword
 .B constructor-noauth.
 See 
