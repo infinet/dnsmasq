@@ -848,8 +848,16 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      
 	      if (tmp)
 		{
-		  struct dhcp_boot *boot = find_boot(tagif_netid);
-		
+		  struct dhcp_boot *boot;
+		  
+		  if (tmp->netid.net)
+		    {
+		      tmp->netid.next = netid;
+		      tagif_netid = run_tag_if(&tmp->netid);
+		    }
+		  
+		  boot = find_boot(tagif_netid);
+		  
 		  mess->yiaddr.s_addr = 0;
 		  if  (mess_type == DHCPDISCOVER || mess->ciaddr.s_addr == 0)
 		    {
