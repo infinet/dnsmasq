@@ -2401,11 +2401,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    new->prefix = 64; /* default */
 	    new->end6 = new->start6;
-	    
-	    /* dhcp-range=:: enables DHCP stateless on any interface */
-	    if (IN6_IS_ADDR_UNSPECIFIED(&new->start6))
-	      new->prefix = 0;
-	    
+	    new->next = daemon->dhcp6;
+	    daemon->dhcp6 = new;
+
 	    for (leasepos = 1; leasepos < k; leasepos++)
 	      {
 		if (strcmp(a[leasepos], "static") == 0)
@@ -2431,10 +2429,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		else  
 		  break;
 	      }
-	    
-	    new->next = daemon->dhcp6;
-	    daemon->dhcp6 = new;
-	    	     
+	   	    	     
 	    /* bare integer < 128 is prefix value */
 	    if (leasepos < k)
 	      {
@@ -2446,20 +2441,26 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  {
 		    new->prefix = pref;
 		    leasepos++;
-		    if (new->prefix != 64)
-		      {
-			if ((new->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
-			  ret_err(_("prefix must be exactly 64 for RA subnets"));
-			else if (new->template_interface)
-			  ret_err(_("prefix must be exactly 64 for subnet constructors"));
-		      }
-		    if (new->prefix < 64)
-		      ret_err(_("prefix must be at least 64"));
 		  }
 	      }
 	    
+	    if (new->prefix != 64)
+	      {
+		if ((new->flags & (CONTEXT_RA_ONLY | CONTEXT_RA_NAME | CONTEXT_RA_STATELESS)))
+		  ret_err(_("prefix length must be exactly 64 for RA subnets"));
+		else if (new->flags & CONTEXT_TEMPLATE)
+		  ret_err(_("prefix length must be exactly 64 for subnet constructors"));
+	      }
+
+	    if (new->prefix < 64)
+	      ret_err(_("prefix length must be at least 64"));
+	    
 	    if (!is_same_net6(&new->start6, &new->end6, new->prefix))
 	      ret_err(_("inconsistent DHCPv6 range"));
+
+	    /* dhcp-range=:: enables DHCP stateless on any interface */
+	    if (IN6_IS_ADDR_UNSPECIFIED(&new->start6) && !(new->flags & CONTEXT_TEMPLATE))
+	      new->prefix = 0;
 	    
 	    if (new->flags & CONTEXT_TEMPLATE)
 	      {
