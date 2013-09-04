@@ -757,6 +757,16 @@ void log_context(int family, struct dhcp_context *context)
 #endif
 
 }
-      
 
+void log_relay(int family, struct dhcp_relay *relay)
+{
+  inet_ntop(family, &relay->local, daemon->addrbuff, ADDRSTRLEN);
+  inet_ntop(family, &relay->server, daemon->namebuff, ADDRSTRLEN); 
+
+  if (relay->interface)
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCP relay from %s to %s via %s"), daemon->addrbuff, daemon->namebuff, relay->interface);
+  else
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCP relay from %s to %s"), daemon->addrbuff, daemon->namebuff);
+}
+   
 #endif

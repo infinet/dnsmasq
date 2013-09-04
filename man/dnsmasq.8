@@ -973,6 +973,38 @@ DHCP options. This make extra space available in the DHCP packet for
 options but can, rarely, confuse old or broken clients. This flag
 forces "simple and safe" behaviour to avoid problems in such a case.
 .TP
+.B --dhcp-relay=<local address>,<server address>[,<interface]
+Configure dnsmasq to do DHCP relay. The local address is an address
+allocated to an interface on the host running dnsmasq. All DHCP
+requests arriving on that interface will we relayed to a remote DHCP
+server at the server address. It is possible to relay from a single local
+address to multiple remote servers by using multiple dhcp-relay
+configs with the same local address and different server
+addresses. A server address must be an IP literal address, not a
+domain name. In the case of DHCPv6, the server address may be the
+ALL_SERVERS multicast address, ff05::1:3. In this case the interface
+must be given, not be wildcard, and is used to direct the multicast to the
+correct interface to reach the DHCP server. 
+
+Access control for DHCP clients has the same rules as for the DHCP
+server, see --interface, --except-interface, etc. The optional
+interface name in the dhcp-relay config has a different function: it
+controls on which interface DHCP replies from the server will be
+accepted. This is intended for configurations which have three
+interfaces: one being relayed from, a second connecting the DHCP
+server, and a third untrusted network, typically the wider
+internet. It avoids the possibility of spoof replies arriving via this
+third interface.
+
+It is allowed to have dnsmasq act as a DHCP server on one set of
+interfaces and relay from a disjoint set of interfaces. Note that
+whilst it is quite possible to write configurations which appear to
+act as a server and a relay on the same interface, this is not
+supported: the relay function will take precedence.
+
+Both DHCPv4 and DHCPv6 relay is supported. It's not possible to relay
+DHCPv4 to a DHCPv6 server or vice-versa.
+.TP
 .B \-U, --dhcp-vendorclass=set:<tag>,[enterprise:<IANA-enterprise number>,]<vendor-class>
 Map from a vendor-class string to a tag. Most DHCP clients provide a 
 "vendor class" which represents, in some sense, the type of host. This option 

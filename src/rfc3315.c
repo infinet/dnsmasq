@@ -155,7 +155,8 @@ static int dhcp6_maybe_relay(struct in6_addr *link_address, struct dhcp_netid **
     return 0;
   
   /* copy header stuff into reply message and set type to reply */
-  outmsgtypep = put_opt6(inbuff, 34);
+  if (!(outmsgtypep = put_opt6(inbuff, 34)))
+    return 0;
   *outmsgtypep = DHCP6RELAYREPL;
 
   /* look for relay options and set tags if found. */
@@ -252,7 +253,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   state.tags = &v6_id;
 
   /* copy over transaction-id, and save pointer to message type */
-  outmsgtypep = put_opt6(inbuff, 4);
+  if (!(outmsgtypep = put_opt6(inbuff, 4)))
+    return 0;
   start_opts = save_counter(-1);
   state.xid = outmsgtypep[3] | outmsgtypep[2] << 8 | outmsgtypep[1] << 16;
    
@@ -1911,5 +1913,119 @@ static unsigned int opt6_uint(unsigned char *opt, int offset, int size)
   
   return ret;
 } 
+
+void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id)
+{
+  /* ->local is same value for all relays on ->current chain */
+  
+  struct all_addr from;
+  unsigned char *header;
+  unsigned char *inbuff = daemon->dhcp_packet.iov_base;
+  int msg_type = *inbuff;
+  int hopcount;
+  struct in6_addr multicast;
+
+  inet_pton(AF_INET6, ALL_SERVERS, &multicast);
+   
+  /* source address == relay address */
+  from.addr.addr6 = relay->local.addr.addr6;
+    
+  /* Get hop count from nested relayed message */ 
+  if (msg_type == DHCP6RELAYFORW)
+    hopcount = *((unsigned char *)inbuff+1) + 1;
+  else
+    hopcount = 0;
+
+  /* RFC 3315 HOP_COUNT_LIMIT */
+  if (hopcount > 32)
+    return;
+
+  save_counter(0);
+
+  if ((header = put_opt6(NULL, 34)))
+    {
+      int o;
+
+      header[0] = DHCP6RELAYFORW;
+      header[1] = hopcount;
+      memcpy(&header[2],  &relay->local.addr.addr6, IN6ADDRSZ);
+      memcpy(&header[18], peer_address, IN6ADDRSZ);
+      
+      o = new_opt6(OPTION6_RELAY_MSG);
+      put_opt6(inbuff, sz);
+      end_opt6(o);
+      
+      for (; relay; relay = relay->current)
+	{
+	  union mysockaddr to;
+	  
+	  to.sa.sa_family = AF_INET6;
+	  to.in6.sin6_addr = relay->server.addr.addr6;
+	  to.in6.sin6_port = htons(DHCPV6_SERVER_PORT);
+	  to.in6.sin6_flowinfo = 0;
+	  to.in6.sin6_scope_id = 0;
+
+	  if (IN6_ARE_ADDR_EQUAL(&relay->server.addr.addr6, &multicast))
+	    {
+	      int multicast_iface;
+	      if (!relay->interface || strchr(relay->interface, '*') ||
+		  (multicast_iface = if_nametoindex(relay->interface)) == 0 ||
+		  setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &multicast_iface, sizeof(multicast_iface)) == -1)
+		my_syslog(MS_DHCP | LOG_ERR, _("Cannot multicast to DHCPv6 server without correct interface"));
+	    }
+		
+	  send_from(daemon->dhcp6fd, 0, daemon->outpacket.iov_base, save_counter(0), &to, &from, 0);
+	  
+	  if (option_bool(OPT_LOG_OPTS))
+	    {
+	      inet_ntop(AF_INET6, &relay->local, daemon->addrbuff, ADDRSTRLEN);
+	      inet_ntop(AF_INET6, &relay->server, daemon->namebuff, ADDRSTRLEN);
+	      my_syslog(MS_DHCP | LOG_INFO, _("DHCP relay %s -> %s"), daemon->addrbuff, daemon->namebuff);
+	    }
+
+	  /* Save this for replies */
+	  relay->iface_index = scope_id;
+	}
+    }
+}
+
+unsigned short relay_reply6(struct sockaddr_in6 *peer, ssize_t sz, char *arrival_interface)
+{
+  struct dhcp_relay *relay;
+  struct in6_addr link;
+  unsigned char *inbuff = daemon->dhcp_packet.iov_base;
+  
+  /* must have at least msg_type+hopcount+link_address+peer_address+minimal size option
+     which is               1   +    1   +    16      +     16     + 2 + 2 = 38 */
+  
+  if (sz < 38 || *inbuff != DHCP6RELAYREPL)
+    return 0;
+  
+  memcpy(&link, &inbuff[2], IN6ADDRSZ); 
+  
+  for (relay = daemon->relay6; relay; relay = relay->next)
+    if (IN6_ARE_ADDR_EQUAL(&link, &relay->local.addr.addr6) &&
+	(!relay->interface || wildcard_match(relay->interface, arrival_interface)))
+      break;
+      
+  save_counter(0);
+
+  if (relay)
+    {
+      void *opt, *opts = inbuff + 34;
+      void *end = inbuff + sz;
+      for (opt = opts; opt; opt = opt6_next(opt, end))
+	if (opt6_type(opt) == OPTION6_RELAY_MSG && opt6_len(opt) > 0)
+	  {
+	    int encap_type = *((unsigned char *)opt6_ptr(opt, 0));
+	    put_opt6(opt6_ptr(opt, 0), opt6_len(opt));
+	    memcpy(&peer->sin6_addr, &inbuff[18], IN6ADDRSZ); 
+	    peer->sin6_scope_id = relay->iface_index;
+	    return encap_type == DHCP6RELAYREPL ? DHCPV6_SERVER_PORT : DHCPV6_CLIENT_PORT;
+	  }
+    }
+
+  return 0;
+}
 
 #endif

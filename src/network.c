@@ -851,7 +851,7 @@ void join_multicast(int dienow)
 	    
 	    inet_pton(AF_INET6, ALL_RELAY_AGENTS_AND_SERVERS, &mreq.ipv6mr_multiaddr);
 	    
-	    if (daemon->doing_dhcp6 &&
+	    if ((daemon->doing_dhcp6 || daemon->relay6) &&
 		setsockopt(daemon->dhcp6fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) == -1)
 	      err = 1;
 	    

@@ -775,6 +775,12 @@ struct tftp_prefix {
   struct tftp_prefix *next;
 };
 
+struct dhcp_relay {
+  struct all_addr local, server;
+  char *interface; /* Allowable interface for replies from server, and dest for IPv6 multicast */
+  int iface_index; /* working - interface in which requests arrived, for return */
+  struct dhcp_relay *current, *next;
+};
 
 extern struct daemon {
   /* datastuctures representing the command-line and 
@@ -824,6 +830,7 @@ extern struct daemon {
   struct pxe_service *pxe_services;
   struct tag_if *tag_if; 
   struct addr_list *override_relays;
+  struct dhcp_relay *relay4, *relay6;
   int override;
   int enable_pxe;
   int doing_ra, doing_dhcp6;
@@ -1217,6 +1224,9 @@ void dhcp_construct_contexts(time_t now);
 #ifdef HAVE_DHCP6
 unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
 			   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now);
+void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id);
+
+unsigned short relay_reply6( struct sockaddr_in6 *peer, ssize_t sz, char *arrival_interface);
 #endif
 
 /* dhcp-common.c */
@@ -1243,6 +1253,7 @@ void bindtodevice(int fd);
 void display_opts6(void);
 #  endif
 void log_context(int family, struct dhcp_context *context);
+void log_relay(int family, struct dhcp_relay *relay);
 #endif
 
 /* outpacket.c */

@@ -101,6 +101,8 @@ version 2.67
 	    (provide TFTP to the same interfaces we provide DHCP to) 
 	    is retained. Thanks to Lonnie Abelbeck for the suggestion.
 
+	    Add --dhcp-relay config option.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

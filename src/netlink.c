@@ -402,18 +402,18 @@ static int nl_async(struct nlmsghdr *h)
   	
 static void nl_newaddress(time_t now)
 {
-  if (option_bool(OPT_CLEVERBIND) || daemon->doing_dhcp6 || daemon->doing_ra)
+  if (option_bool(OPT_CLEVERBIND) || daemon->doing_dhcp6 || daemon->relay6 || daemon->doing_ra)
     enumerate_interfaces(0);
   
   if (option_bool(OPT_CLEVERBIND))
     create_bound_listeners(0);
   
 #ifdef HAVE_DHCP6
+  if (daemon->doing_dhcp6 || daemon->relay6 || daemon->doing_ra)
+    join_multicast(0);
+  
   if (daemon->doing_dhcp6 || daemon->doing_ra)
-    {
-      join_multicast(0);
-      dhcp_construct_contexts(now);
-    }
+    dhcp_construct_contexts(now);
   
   if (daemon->doing_dhcp6)
     lease_find_interfaces(now);
