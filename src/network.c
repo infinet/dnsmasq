@@ -443,7 +443,7 @@ static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
 int enumerate_interfaces(int reset)
 {
   static struct addrlist *spare = NULL;
-  static int done = 0;
+  static int done = 0, active = 0;
   struct iface_param param;
   int errsave, ret = 1;
   struct addrlist *addr, *tmp;
@@ -451,17 +451,20 @@ int enumerate_interfaces(int reset)
   
   /* Do this max once per select cycle  - also inhibits netlink socket use
    in TCP child processes. */
-  
+
   if (reset)
     {
       done = 0;
       return 1;
     }
 
-  if (done)
+  if (done || active)
     return 1;
 
   done = 1;
+
+  /* protect against recusive calls from iface_enumerate(); */
+  active = 1;
 
   if ((param.fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
     return 0;
@@ -504,7 +507,8 @@ int enumerate_interfaces(int reset)
   errno = errsave;
 
   spare = param.spare;
-    
+  active = 0;
+
   return ret;
 }
 
