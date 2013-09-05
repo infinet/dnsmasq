@@ -103,6 +103,9 @@ version 2.67
 
 	    Add --dhcp-relay config option.
 
+	    Fix crash with empty tag: in --dhcp-range. Thanks to
+	    Kaspar Schleiser for the bug report.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
