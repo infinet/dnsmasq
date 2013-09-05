@@ -237,16 +237,17 @@ int main (int argc, char **argv)
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP)
       /* after enumerate_interfaces()  */
-      if (daemon->dhcp || daemon->relay4)
+      if (daemon->dhcp)
 	{
-	  bindtodevice(daemon->dhcpfd);
+	  if (!daemon->relay4)
+	    bindtodevice(daemon->dhcpfd);
 	  if (daemon->enable_pxe)
 	    bindtodevice(daemon->pxefd);
 	}
 #endif
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP6)
-      if (daemon->doing_dhcp6 || daemon->relay6)
+      if (daemon->doing_dhcp6 && !daemon->relay6)
 	bindtodevice(daemon->dhcp6fd);
 #endif
     }
