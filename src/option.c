@@ -2337,7 +2337,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    struct dhcp_netid *tt = opt_malloc(sizeof (struct dhcp_netid));
 		    tt->net = opt_string_alloc(arg+4);
 		    tt->next = new->filter;
-		    new->filter = tt;
+		    /* ignore empty tag */
+		    if (tt->net)
+		      new->filter = tt;
 		  }
 		else
 		  {
