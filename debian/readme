@@ -64,7 +64,9 @@ Notes on configuring dnsmasq as packaged for Debian.
       noi18n      : omit translations and internationalisation support.
       noidn       : omit international domain name support, must be
                     combined with noi18n to be effective.
-      
+      gitversion  : set the version of the produced packages from the
+                    git-derived versioning information on the source,
+                    rather the the debian changelog. 
 
 (9) Dnsmasq comes as three packages - dnsmasq-utils, dnsmasq-base and
     dnsmasq. Dnsmasq-base provides the dnsmasq executable and
