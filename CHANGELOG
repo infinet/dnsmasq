@@ -101,7 +101,8 @@ version 2.67
 	    (provide TFTP to the same interfaces we provide DHCP to) 
 	    is retained. Thanks to Lonnie Abelbeck for the suggestion.
 
-	    Add --dhcp-relay config option.
+	    Add --dhcp-relay config option. Many thanks to vtsl.net
+	    for sponsoring this development.
 
 	    Fix crash with empty tag: in --dhcp-range. Thanks to
 	    Kaspar Schleiser for the bug report.
