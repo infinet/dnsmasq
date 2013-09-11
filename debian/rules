@@ -108,7 +108,7 @@ binary-indep:	checkroot
 	install -m 644 debian/insserv debian/daemon/etc/insserv.conf.d/dnsmasq
 	ln -s $(package) debian/daemon/usr/share/doc/dnsmasq
 	cd debian/daemon && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums	
-	dpkg-gencontrol $(PACKAGE_VERSION) -pdnsmasq -Pdebian/daemon
+	dpkg-gencontrol $(PACKAGE_VERSION) -T -pdnsmasq -Pdebian/daemon
 	chown -R root.root debian/daemon
 	chmod -R g-ws debian/daemon
 	dpkg --build debian/daemon ..
@@ -155,7 +155,7 @@ ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 	strip -R .note -R .comment debian/base/usr/sbin/dnsmasq
 endif
 	cd debian/base && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums
-	dpkg-shlibdeps debian/base/usr/sbin/dnsmasq
+	dpkg-shlibdeps --warnings=1 debian/base/usr/sbin/dnsmasq
 	dpkg-gencontrol $(PACKAGE_VERSION) -pdnsmasq-base -Pdebian/base
 	chown -R root.root debian/base
 	chmod -R g-ws debian/base 
