@@ -107,6 +107,10 @@ version 2.67
 	    Fix crash with empty tag: in --dhcp-range. Thanks to
 	    Kaspar Schleiser for the bug report.
 
+	    Add "baseline" and "bloatcheck" makefile targets, for 
+	    revealing size changes during development. Thanks to
+	    Vladislav Grishenko for the patch. 
+
 
 version 2.66
             Add the ability to act as an authoritative DNS
