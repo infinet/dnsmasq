@@ -111,6 +111,9 @@ version 2.67
 	    revealing size changes during development. Thanks to
 	    Vladislav Grishenko for the patch. 
 
+	    Cope with DHCPv6 clients which send REQUESTs without
+	    address options - treat them as SOLICIT with rapid commit.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

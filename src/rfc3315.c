@@ -21,7 +21,7 @@
 
 struct state {
   unsigned char *clid;
-  int clid_len, iaid, ia_type, interface, hostname_auth;
+  int clid_len, iaid, ia_type, interface, hostname_auth, lease_allocate;
   char *client_hostname, *hostname, *domain, *send_domain;
   struct dhcp_context *context;
   struct in6_addr *link_address;
@@ -55,7 +55,7 @@ static void mark_context_used(struct state *state, struct dhcp_context *context,
 static void mark_config_used(struct dhcp_context *context, struct in6_addr *addr);
 static int check_address(struct state *state, struct in6_addr *addr);
 static void add_address(struct state *state, struct dhcp_context *context, unsigned int lease_time, void *ia_option, 
-			unsigned int *min_time, struct in6_addr *addr, int update_lease, time_t now);
+			unsigned int *min_time, struct in6_addr *addr, time_t now);
 static void update_leases(struct state *state, struct dhcp_context *context, struct in6_addr *addr, unsigned int lease_time, time_t now);
 static int add_local_addrs(struct dhcp_context *context);
 static struct dhcp_netid *add_options(struct state *state, struct in6_addr *fallback, struct dhcp_context *context, int do_refresh);
@@ -226,6 +226,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   state.end = inbuff + sz;
   state.clid = NULL;
   state.clid_len = 0;
+  state.lease_allocate = 0;
   state.context_tags = NULL;
   state.tags = tags;
   state.link_address = link_address;
@@ -536,27 +537,29 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
     {
     default:
       return 0;
-
-
+      
+      
     case DHCP6SOLICIT:
       {
-	void *rapid_commit = opt6_find(state.packet_options, state.end, OPTION6_RAPID_COMMIT, 0);
       	int address_assigned = 0;
 	/* tags without all prefix-class tags */
 	struct dhcp_netid *solicit_tags = tagif;
 	struct dhcp_context *c;
-
-	if (rapid_commit)
+	
+	*outmsgtypep = DHCP6ADVERTISE;
+	
+	if (opt6_find(state.packet_options, state.end, OPTION6_RAPID_COMMIT, 0))
 	  {
+	    *outmsgtypep = DHCP6REPLY;
+	    state.lease_allocate = 1;
 	    o = new_opt6(OPTION6_RAPID_COMMIT);
 	    end_opt6(o);
 	  }
-
-	/* set reply message type */
-	*outmsgtypep = rapid_commit ? DHCP6REPLY : DHCP6ADVERTISE;
-
-	log6_packet(&state, "DHCPSOLICIT", NULL, ignore ? _("ignored") : NULL);
 	
+  	log6_packet(&state, "DHCPSOLICIT", NULL, ignore ? _("ignored") : NULL);
+
+      request_no_address:
+
 	if (ignore)
 	  return 0;
 	
@@ -671,7 +674,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		      state.send_prefix_class = prefix_class_from_context(c);
 #endif		    
-		    add_address(&state, c, lease_time, ia_option, &min_time, req_addr, rapid_commit != NULL, now);
+		    add_address(&state, c, lease_time, ia_option, &min_time, req_addr, now);
 		    mark_context_used(&state, context, req_addr);
 		    get_context_tag(&state, c);
 		    address_assigned = 1;
@@ -695,7 +698,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		  if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		    state.send_prefix_class = prefix_class_from_context(c);
 #endif
-		  add_address(&state, c, lease_time, NULL, &min_time, &addr, rapid_commit != NULL, now);
+		  add_address(&state, c, lease_time, NULL, &min_time, &addr, now);
 		  mark_context_used(&state, context, &addr);
 		  get_context_tag(&state, c);
 		  address_assigned = 1;
@@ -712,7 +715,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		    if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		      state.send_prefix_class = prefix_class_from_context(c);
 #endif
-		    add_address(&state, c, c->lease_time, NULL, &min_time, req_addr, rapid_commit != NULL, now);
+		    add_address(&state, c, c->lease_time, NULL, &min_time, req_addr, now);
 		    mark_context_used(&state, context, req_addr);
 		    get_context_tag(&state, c);
 		    address_assigned = 1;
@@ -726,7 +729,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 		if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 		  state.send_prefix_class = prefix_class_from_context(c);
 #endif
-		add_address(&state, c, c->lease_time, NULL, &min_time, &addr, rapid_commit != NULL, now);
+		add_address(&state, c, c->lease_time, NULL, &min_time, &addr, now);
 		mark_context_used(&state, context, &addr);
 		get_context_tag(&state, c);
 		address_assigned = 1;
@@ -766,9 +769,11 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
     case DHCP6REQUEST:
       {
 	int address_assigned = 0;
-	
+	int start = save_counter(-1);
+
 	/* set reply message type */
 	*outmsgtypep = DHCP6REPLY;
+	state.lease_allocate = 1;
 
 	log6_packet(&state, "DHCPREQUEST", NULL, ignore ? _("ignored") : NULL);
 	
@@ -783,7 +788,15 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 	    
 	     if (!check_ia(&state, opt, &ia_end, &ia_option))
 	       continue;
-	    
+
+	     if (!ia_option)
+	       {
+		 /* If we get a request with a IA_*A without addresses, treat it exactly like
+		    a SOLICT with rapid commit set. */
+		 save_counter(start);
+		 goto request_no_address; 
+	       }
+
 	    o = build_ia(&state, &t1cntr);
 	      
 	    for (; ia_option; ia_option = opt6_find(opt6_next(ia_option, ia_end), ia_end, OPTION6_IAADDR, 24))
@@ -829,7 +842,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
 			if (dump_all_prefix_classes && state.ia_type == OPTION6_IA_NA)
 			  state.send_prefix_class = prefix_class_from_context(c);
 #endif
-			add_address(&state, dynamic, lease_time, ia_option, &min_time, req_addr, 1, now);
+			add_address(&state, dynamic, lease_time, ia_option, &min_time, req_addr, now);
 			get_context_tag(&state, dynamic);
 			address_assigned = 1;
 		      }
@@ -1505,7 +1518,7 @@ static void end_ia(int t1cntr, unsigned int min_time, int do_fuzz)
 }
 
 static void add_address(struct state *state, struct dhcp_context *context, unsigned int lease_time, void *ia_option, 
-			unsigned int *min_time, struct in6_addr *addr, int do_update, time_t now)
+			unsigned int *min_time, struct in6_addr *addr, time_t now)
 {
   unsigned int valid_time = 0, preferred_time = 0;
   int o = new_opt6(OPTION6_IAADDR);
@@ -1535,7 +1548,7 @@ static void add_address(struct state *state, struct dhcp_context *context, unsig
 
   end_opt6(o);
   
-  if (do_update)
+  if (state->lease_allocate)
     update_leases(state, context, addr, valid_time, now);
 
   if ((lease = lease6_find_by_addr(addr, 128, 0)))
@@ -1559,7 +1572,7 @@ static void add_address(struct state *state, struct dhcp_context *context, unsig
 	}
     }
 
-  log6_packet(state, do_update ? "DHCPREPLY" : "DHCPADVERTISE", addr, state->hostname);
+  log6_packet(state, state->lease_allocate ? "DHCPREPLY" : "DHCPADVERTISE", addr, state->hostname);
 
 }
 
