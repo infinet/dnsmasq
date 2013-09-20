@@ -115,7 +115,9 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
   int ret = 1, match_addr = 0;
 
   /* Note: have to check all and not bail out early, so that we set the
-     "used" flags. */
+     "used" flags.
+
+     May be called with family == AF_LOCALto check interface by name only. */
   
   if (auth)
     *auth = 0;

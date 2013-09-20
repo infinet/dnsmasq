@@ -70,10 +70,15 @@ void ra_init(time_t now)
     if ((context->flags & CONTEXT_RA_NAME))
       break;
   
+  /* Need ICMP6 socket for transmission for DHCPv6 even when not doing RA. */
+
   ICMP6_FILTER_SETBLOCKALL(&filter);
-  ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
-  if (context)
-    ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
+  if (daemon->doing_ra)
+    {
+      ICMP6_FILTER_SETPASS(ND_ROUTER_SOLICIT, &filter);
+      if (context)
+	ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filter);
+    }
   
   if ((fd = socket(PF_INET6, SOCK_RAW, IPPROTO_ICMPV6)) == -1 ||
       getsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &hop_limit, &len) ||
@@ -89,7 +94,8 @@ void ra_init(time_t now)
   
    daemon->icmp6fd = fd;
    
-   ra_start_unsolicted(now, NULL);
+   if (daemon->doing_ra)
+     ra_start_unsolicted(now, NULL);
 }
 
 void ra_start_unsolicted(time_t now, struct dhcp_context *context)

@@ -539,13 +539,15 @@ struct dhcp_lease {
 #ifdef HAVE_BROKEN_RTC
   unsigned int length;
 #endif
-  int hwaddr_len, hwaddr_type; /* hw_type used for iaid in v6 */
-  unsigned char hwaddr[DHCP_CHADDR_MAX]; /* also IPv6 address */
+  int hwaddr_len, hwaddr_type;
+  unsigned char hwaddr[DHCP_CHADDR_MAX]; 
   struct in_addr addr, override, giaddr;
   unsigned char *extradata;
   unsigned int extradata_len, extradata_size;
   int last_interface;
 #ifdef HAVE_DHCP6
+  struct in6_addr addr6;
+  int iaid;
   struct slaac_address {
     struct in6_addr addr, local;
     time_t ping_time;
@@ -717,24 +719,25 @@ struct dhcp_context {
   struct dhcp_context *next, *current;
 };
 
-#define CONTEXT_STATIC         1
-#define CONTEXT_NETMASK        2
-#define CONTEXT_BRDCAST        4
-#define CONTEXT_PROXY          8
-#define CONTEXT_RA_ONLY       16
-#define CONTEXT_RA_DONE       32
-#define CONTEXT_RA_NAME       64
-#define CONTEXT_RA_STATELESS 128
-#define CONTEXT_DHCP         256
-#define CONTEXT_DEPRECATE    512
-#define CONTEXT_TEMPLATE    1024    /* create contexts using addresses */
-#define CONTEXT_CONSTRUCTED 2048
-#define CONTEXT_GC          4096
-#define CONTEXT_RA          8192
-#define CONTEXT_CONF_USED  16384
-#define CONTEXT_USED       32768
-#define CONTEXT_NOAUTH     65536
-#define CONTEXT_OLD       131072
+#define CONTEXT_STATIC         (1u<<0)
+#define CONTEXT_NETMASK        (1u<<1)
+#define CONTEXT_BRDCAST        (1u<<2)
+#define CONTEXT_PROXY          (1u<<3)
+#define CONTEXT_RA_ONLY        (1u<<4)
+#define CONTEXT_RA_DONE        (1u<<5)
+#define CONTEXT_RA_NAME        (1u<<6)
+#define CONTEXT_RA_STATELESS   (1u<<7)
+#define CONTEXT_DHCP           (1u<<8)
+#define CONTEXT_DEPRECATE      (1u<<9)
+#define CONTEXT_TEMPLATE       (1u<<10)    /* create contexts using addresses */
+#define CONTEXT_CONSTRUCTED    (1u<<11)
+#define CONTEXT_GC             (1u<<12)
+#define CONTEXT_RA             (1u<<13)
+#define CONTEXT_CONF_USED      (1u<<14)
+#define CONTEXT_USED           (1u<<15)
+#define CONTEXT_NOAUTH         (1u<<16)
+#define CONTEXT_OLD            (1u<<17)
+#define CONTEXT_V6             (1u<<18)
 
 
 struct ping_result {
@@ -1072,12 +1075,6 @@ struct dhcp_context *narrow_context(struct dhcp_context *context,
 int address_allocate(struct dhcp_context *context,
 		     struct in_addr *addrp, unsigned char *hwaddr, int hw_len,
 		     struct dhcp_netid *netids, time_t now);
-int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type);
-struct dhcp_config *find_config(struct dhcp_config *configs,
-				struct dhcp_context *context,
-				unsigned char *clid, int clid_len,
-				unsigned char *hwaddr, int hw_len, 
-				int hw_type, char *hostname);
 void dhcp_read_ethers(void);
 struct dhcp_config *config_find_by_address(struct dhcp_config *configs, struct in_addr addr);
 char *host_from_dns(struct in_addr addr);
@@ -1099,6 +1096,7 @@ struct dhcp_lease *lease6_find_by_addr(struct in6_addr *net, int prefix, u64 add
 u64 lease_find_max_addr6(struct dhcp_context *context);
 void lease_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface);
 void lease_update_slaac(time_t now);
+void lease_set_iaid(struct dhcp_lease *lease, int iaid);
 #endif
 void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 		      unsigned char *clid, int hw_len, int hw_type, int clid_len, time_t now, int force);
@@ -1210,10 +1208,6 @@ struct dhcp_context *address6_valid(struct dhcp_context *context,
 				    struct in6_addr *taddr,
 				    struct dhcp_netid *netids,
 				    int plain_range);
-struct dhcp_config *find_config6(struct dhcp_config *configs,
-				 struct dhcp_context *context,
-				 unsigned char *duid, int duid_len,
-				 char *hostname);
 struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct in6_addr *net, 
 					    int prefix, u64 addr);
 void make_duid(time_t now);
@@ -1223,8 +1217,10 @@ void dhcp_construct_contexts(time_t now);
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
 unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
-			   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now);
-void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id);
+			   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now,
+			   unsigned char *mac, unsigned int mac_len, unsigned int mac_type);
+void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id,
+		     unsigned char *mac, unsigned int mac_len, unsigned int mac_type);
 
 unsigned short relay_reply6( struct sockaddr_in6 *peer, ssize_t sz, char *arrival_interface);
 #endif
@@ -1246,6 +1242,12 @@ int lookup_dhcp_opt(int prot, char *name);
 int lookup_dhcp_len(int prot, int val);
 char *option_string(int prot, unsigned int opt, unsigned char *val, 
 		    int opt_len, char *buf, int buf_len);
+struct dhcp_config *find_config(struct dhcp_config *configs,
+				struct dhcp_context *context,
+				unsigned char *clid, int clid_len,
+				unsigned char *hwaddr, int hw_len, 
+				int hw_type, char *hostname);
+int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type);
 #ifdef HAVE_LINUX_NETWORK
 void bindtodevice(int fd);
 #endif

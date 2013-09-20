@@ -253,6 +253,110 @@ int match_bytes(struct dhcp_opt *o, unsigned char *p, int len)
   return 0;
 }
 
+int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type)
+{
+  struct hwaddr_config *conf_addr;
+  
+  for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
+    if (conf_addr->wildcard_mask == 0 &&
+	conf_addr->hwaddr_len == len &&
+	(conf_addr->hwaddr_type == type || conf_addr->hwaddr_type == 0) &&
+	memcmp(conf_addr->hwaddr, hwaddr, len) == 0)
+      return 1;
+  
+  return 0;
+}
+
+static int is_config_in_context(struct dhcp_context *context, struct dhcp_config *config)
+{
+  if (!context) /* called via find_config() from lease_update_from_configs() */
+    return 1; 
+
+  if (!(context->flags & CONTEXT_V6))
+    {
+      if (!(config->flags & CONFIG_ADDR))
+	return 1;
+
+      for (; context; context = context->current)
+	if (is_same_net(config->addr, context->start, context->netmask))
+	  return 1;
+    }
+#ifdef HAVE_DHCP6
+  else 
+    {
+      if (!(config->flags & CONFIG_ADDR6) || (config->flags & CONFIG_WILDCARD))
+	return 1;
+      
+      for (; context; context = context->current)
+	if (is_same_net6(&config->addr6, &context->start6, context->prefix))
+      return 1;
+    }
+#endif
+  
+  return 0;
+}
+
+struct dhcp_config *find_config(struct dhcp_config *configs,
+				struct dhcp_context *context,
+				unsigned char *clid, int clid_len,
+				unsigned char *hwaddr, int hw_len, 
+				int hw_type, char *hostname)
+{
+  int count, new;
+  struct dhcp_config *config, *candidate; 
+  struct hwaddr_config *conf_addr;
+
+  if (clid)
+    for (config = configs; config; config = config->next)
+      if (config->flags & CONFIG_CLID)
+	{
+	  if (config->clid_len == clid_len && 
+	      memcmp(config->clid, clid, clid_len) == 0 &&
+	      is_config_in_context(context, config))
+	    return config;
+	  
+	  /* dhcpcd prefixes ASCII client IDs by zero which is wrong, but we try and
+	     cope with that here */
+	  if (!(context->flags & CONTEXT_V6) && *clid == 0 && config->clid_len == clid_len-1  &&
+	      memcmp(config->clid, clid+1, clid_len-1) == 0 &&
+	      is_config_in_context(context, config))
+	    return config;
+	}
+  
+
+  if (hwaddr)
+    for (config = configs; config; config = config->next)
+      if (config_has_mac(config, hwaddr, hw_len, hw_type) &&
+	  is_config_in_context(context, config))
+	return config;
+  
+  if (hostname && context)
+    for (config = configs; config; config = config->next)
+      if ((config->flags & CONFIG_NAME) && 
+	  hostname_isequal(config->hostname, hostname) &&
+	  is_config_in_context(context, config))
+	return config;
+
+  
+  if (!hwaddr)
+    return NULL;
+
+  /* use match with fewest wildcard octets */
+  for (candidate = NULL, count = 0, config = configs; config; config = config->next)
+    if (is_config_in_context(context, config))
+      for (conf_addr = config->hwaddr; conf_addr; conf_addr = conf_addr->next)
+	if (conf_addr->wildcard_mask != 0 &&
+	    conf_addr->hwaddr_len == hw_len &&	
+	    (conf_addr->hwaddr_type == hw_type || conf_addr->hwaddr_type == 0) &&
+	    (new = memcmp_masked(conf_addr->hwaddr, hwaddr, hw_len, conf_addr->wildcard_mask)) > count)
+	  {
+	      count = new;
+	      candidate = config;
+	  }
+  
+  return candidate;
+}
+
 void dhcp_update_configs(struct dhcp_config *configs)
 {
   /* Some people like to keep all static IP addresses in /etc/hosts.

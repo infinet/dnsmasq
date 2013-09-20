@@ -114,6 +114,12 @@ version 2.67
 	    Cope with DHCPv6 clients which send REQUESTs without
 	    address options - treat them as SOLICIT with rapid commit.
 
+	    Support identification of clients by MAC address in
+	    DHCPv6. When using a relay, the relay must support RFC
+	    6939 for this to work. It always works for directly
+	    connected clients. Thanks to Vladislav Grishenko
+	    for prompting this feature.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

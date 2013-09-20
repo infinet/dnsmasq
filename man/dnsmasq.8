@@ -766,7 +766,8 @@ the same subnet as some valid dhcp-range.  For
 subnets which don't need a pool of dynamically allocated addresses,
 use the "static" keyword in the dhcp-range declaration.
 
-It is allowed to use client identifiers rather than
+It is allowed to use client identifiers (called client
+DUID in IPv6-land rather than
 hardware addresses to identify hosts by prefixing with 'id:'. Thus: 
 .B --dhcp-host=id:01:02:03:04,..... 
 refers to the host with client identifier 01:02:03:04. It is also
@@ -781,11 +782,12 @@ IPv6 addresses may contain only the host-identifier part:
 .B --dhcp-host=laptop,[::56]
 in which case they act as wildcards in constructed dhcp ranges, with
 the appropriate network part inserted. 
-Note that in IPv6 DHCP, the hardware address is not normally
-available, so a client must be identified by client-id (called client
-DUID in IPv6-land) or hostname. 
+Note that in IPv6 DHCP, the hardware address may not be
+available, though it normally is for direct-connected clients, or
+clients using DHCP relays which support RFC 6939.
 
-The special option id:* means "ignore any client-id 
+
+For DHCPv4, the  special option id:* means "ignore any client-id 
 and use MAC addresses only." This is useful when a client presents a client-id sometimes 
 but not others.
 
@@ -1033,7 +1035,7 @@ this to set a different printer server for hosts in the class
 "accounts" than for hosts in the class "engineering".
 .TP
 .B \-4, --dhcp-mac=set:<tag>,<MAC address>
-(IPv4 only) Map from a MAC address to a tag. The MAC address may include
+Map from a MAC address to a tag. The MAC address may include
 wildcards. For example
 .B --dhcp-mac=set:3com,01:34:23:*:*:*
 will set the tag "3com" for any host whose MAC address matches the pattern.
@@ -1339,7 +1341,7 @@ every call to the script.
 DNSMASQ_IAID containing the IAID for the lease. If the lease is a
 temporary allocation, this is prefixed to 'T'.
 
-
+DNSMASQ_MAC containing the MAC address of the client, if known.
 
 Note that the supplied hostname, vendorclass and userclass data is
 only  supplied for

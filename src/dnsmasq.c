@@ -202,7 +202,7 @@ int main (int argc, char **argv)
     dhcp_init();
   
 #  ifdef HAVE_DHCP6
-  if (daemon->doing_ra)
+  if (daemon->doing_ra || daemon->doing_dhcp6 || daemon->relay6)
     ra_init(now);
   
   if (daemon->doing_dhcp6 || daemon->relay6)
