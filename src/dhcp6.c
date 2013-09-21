@@ -114,6 +114,8 @@ void dhcp6_packet(time_t now)
   unsigned short port;
   struct in6_addr dst_addr;
 
+  memset(&dst_addr, 0, sizeof(dst_addr));
+
   msg.msg_control = control_u.control6;
   msg.msg_controllen = sizeof(control_u);
   msg.msg_flags = 0;
