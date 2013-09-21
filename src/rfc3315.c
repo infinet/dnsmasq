@@ -577,7 +577,7 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
       {
       	int address_assigned = 0;
 	/* tags without all prefix-class tags */
-	struct dhcp_netid *solicit_tags = tagif;
+	struct dhcp_netid *solicit_tags;
 	struct dhcp_context *c;
 	
 	*outmsgtypep = DHCP6ADVERTISE;
@@ -593,7 +593,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
   	log6_packet(&state, "DHCPSOLICIT", NULL, ignore ? _("ignored") : NULL);
 
       request_no_address:
-
+	solicit_tags = tagif;
+	
 	if (ignore)
 	  return 0;
 	
