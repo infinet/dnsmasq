@@ -243,7 +243,7 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
   int tftp_ok = !!option_bool(OPT_TFTP);
   int dhcp_ok = 1;
   int auth_dns = 0;
-#ifdef HAVE_DHCP
+#if defined(HAVE_DHCP) || defined(HAVE_TFTP)
   struct iname *tmp;
 #endif
 
@@ -362,6 +362,7 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
 #endif
  
   
+#ifdef HAVE_TFTP
   if (daemon->tftp_interfaces)
     {
       /* dedicated tftp interface list */
@@ -370,6 +371,7 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
 	if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
 	  tftp_ok = 1;
     }
+#endif
   
   /* add to list */
   if ((iface = whine_malloc(sizeof(struct irec))))

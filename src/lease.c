@@ -462,7 +462,6 @@ void lease_update_dns(int force)
 		      cache_add_dhcp_entry(lease->hostname, AF_INET6, (struct all_addr *)&slaac->addr, lease->expires);
 		  }
 	    }
-#endif
 	  
 	  if (lease->fqdn)
 	    cache_add_dhcp_entry(lease->fqdn, prot, 
@@ -473,6 +472,14 @@ void lease_update_dns(int force)
 	    cache_add_dhcp_entry(lease->hostname, prot, 
 				 prot == AF_INET ? (struct all_addr *)&lease->addr : (struct all_addr *)&lease->addr6, 
 				 lease->expires);
+       
+#else
+	  if (lease->fqdn)
+	    cache_add_dhcp_entry(lease->fqdn, prot, (struct all_addr *)&lease->addr, lease->expires);
+	  
+	  if (!option_bool(OPT_DHCP_FQDN) && lease->hostname)
+	    cache_add_dhcp_entry(lease->hostname, prot, (struct all_addr *)&lease->addr, lease->expires);
+#endif
 	}
       
       dns_dirty = 0;
