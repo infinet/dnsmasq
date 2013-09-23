@@ -183,13 +183,13 @@ void dhcp6_packet(time_t now)
 	return;
 
       /* Recieving a packet from a host does not populate the neighbour
-	 cache, so we send a ping to prompt neighbour discovery if we can't 
+	 cache, so we send a neighbour discovery request if we can't 
 	 find the sender. Repeat a few times in case of packet loss. */
       
       for (i = 0; i < 5; i++)
 	{
 	  struct timespec ts;
-	  struct ping_packet *ping;
+	  struct neigh_packet *neigh;
 	  struct sockaddr_in6 addr;
 	  
 	  mac_param.target = &from.sin6_addr;
@@ -201,12 +201,12 @@ void dhcp6_packet(time_t now)
 	    break;
 	 
 	  save_counter(0);
-	  ping = expand(sizeof(struct ping_packet));
-	  ping->type = ICMP6_ECHO_REQUEST;
-	  ping->code = 0;
-	  ping->identifier = 1;
-	  ping->sequence_no = 1;
-            
+	  neigh = expand(sizeof(struct neigh_packet));
+	  neigh->type = ND_NEIGHBOR_SOLICIT;
+	  neigh->code = 0;
+	  neigh->reserved = 0;
+	  neigh->target = from.sin6_addr;
+
 	  memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
 	  addr.sin6_len = sizeof(struct sockaddr_in6);
@@ -214,6 +214,7 @@ void dhcp6_packet(time_t now)
 	  addr.sin6_family = AF_INET6;
 	  addr.sin6_port = htons(IPPROTO_ICMPV6);
 	  addr.sin6_addr = from.sin6_addr;
+	  addr.sin6_scope_id = from.sin6_scope_id;
           
 	  sendto(daemon->icmp6fd, daemon->outpacket.iov_base, save_counter(0), 0,
 		 (struct sockaddr *)&addr,  sizeof(addr));

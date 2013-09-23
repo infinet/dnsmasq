@@ -419,14 +419,22 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
     }
 
   if (mac_len != 0)
-    for (mac_opt = daemon->dhcp_macs; mac_opt; mac_opt = mac_opt->next)
-      if ((unsigned)mac_opt->hwaddr_len == mac_len &&
-	  ((unsigned)mac_opt->hwaddr_type == mac_type || mac_opt->hwaddr_type == 0) &&
-	  memcmp_masked(mac_opt->hwaddr, mac, mac_len, mac_opt->mask))
+    {
+      if (option_bool(OPT_LOG_OPTS))
 	{
-	  mac_opt->netid.next = state.tags;
-	  state.tags = &mac_opt->netid;
+	  print_mac(daemon->dhcp_buff, mac, mac_len);
+	  my_syslog(MS_DHCP | LOG_INFO, _("%u client MAC address: %s"), state.xid, daemon->dhcp_buff);
 	}
+
+      for (mac_opt = daemon->dhcp_macs; mac_opt; mac_opt = mac_opt->next)
+	if ((unsigned)mac_opt->hwaddr_len == mac_len &&
+	    ((unsigned)mac_opt->hwaddr_type == mac_type || mac_opt->hwaddr_type == 0) &&
+	    memcmp_masked(mac_opt->hwaddr, mac, mac_len, mac_opt->mask))
+	  {
+	    mac_opt->netid.next = state.tags;
+	    state.tags = &mac_opt->netid;
+	  }
+    }
   
   if ((opt = opt6_find(state.packet_options, state.end, OPTION6_FQDN, 1)))
     {
@@ -1225,18 +1233,8 @@ static int dhcp6_no_relay(int msg_type, struct in6_addr *link_address, struct dh
     }
   
   log_tags(tagif, state.xid);
+  log6_opts(0, state.xid, daemon->outpacket.iov_base + start_opts, daemon->outpacket.iov_base + save_counter(-1));
   
-  if (option_bool(OPT_LOG_OPTS))
-    {
-      if (mac_len != 0)
-	{
-	  print_mac(daemon->dhcp_buff, mac, mac_len);
-	  my_syslog(MS_DHCP | LOG_INFO, _("%u client MAC address: %s"), state.xid, daemon->dhcp_buff);
-	}
-      
-      log6_opts(0, state.xid, daemon->outpacket.iov_base + start_opts, daemon->outpacket.iov_base + save_counter(-1));
-    }
-
   return 1;
 
 }
@@ -1824,7 +1822,7 @@ static void log6_opts(int nest, unsigned int xid, void *start_opts, void *end_op
   void *opt;
   char *desc = nest ? "nest" : "sent";
   
-  if (start_opts == end_opts)
+  if (!option_bool(OPT_LOG_OPTS) || start_opts == end_opts)
     return;
   
   for (opt = start_opts; opt; opt = opt6_next(opt, end_opts))
