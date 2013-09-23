@@ -280,7 +280,7 @@ static int find_mac(int family, char *addrp, char *mac, size_t maclen, void *par
 {
   struct mac_param *parm = parmv;
   
-  if (family == AF_INET6 && IN6_ARE_ADDR_EQUAL(parm->target, addrp))
+  if (family == AF_INET6 && IN6_ARE_ADDR_EQUAL(parm->target, (struct in6_addr *)addrp))
     {
       if (maclen <= DHCP_CHADDR_MAX)
 	{
