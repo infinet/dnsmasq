@@ -1711,7 +1711,11 @@ static void calculate_times(struct dhcp_context *context, unsigned int *min_time
 static void update_leases(struct state *state, struct dhcp_context *context, struct in6_addr *addr, unsigned int lease_time, time_t now)
 {
   struct dhcp_lease *lease = lease6_find_by_addr(addr, 128, 0);
+#ifdef HAVE_SCRIPT
   struct dhcp_netid *tagif = run_tag_if(state->tags);
+#endif
+
+  (void)context;
 
   if (!lease)
     lease = lease6_allocate(addr, state->ia_type == OPTION6_IA_NA ? LEASE_NA : LEASE_TA);

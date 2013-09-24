@@ -709,6 +709,8 @@ static struct listener *create_listeners(union mysockaddr *addr, int do_tftp, in
   struct listener *l = NULL;
   int fd = -1, tcpfd = -1, tftpfd = -1;
 
+  (void)do_tftp;
+
   if (daemon->port != 0)
     {
       fd = make_sock(addr, SOCK_DGRAM, dienow);

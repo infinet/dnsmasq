@@ -51,8 +51,10 @@ int main (int argc, char **argv)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
 #endif 
+#if defined(HAVE_DHCP) || defined(HAVE_DHCP6)
   struct dhcp_context *context;
   struct dhcp_relay *relay;
+#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -1231,6 +1233,8 @@ void poll_resolv(int force, int do_reload, time_t now)
 
 void clear_cache_and_reload(time_t now)
 {
+  (void)now;
+
   if (daemon->port != 0)
     cache_reload();
   

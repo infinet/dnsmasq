@@ -788,6 +788,7 @@ void lease_set_hwaddr(struct dhcp_lease *lease, unsigned char *hwaddr,
 #endif
 
   (void)force;
+  (void)now;
 
   if (hw_len != lease->hwaddr_len ||
       hw_type != lease->hwaddr_type || 
@@ -956,6 +957,8 @@ void lease_set_hostname(struct dhcp_lease *lease, char *name, int auth, char *do
 
 void lease_set_interface(struct dhcp_lease *lease, int interface, time_t now)
 {
+  (void)now;
+
   if (lease->last_interface == interface)
     return;
 
@@ -983,6 +986,8 @@ void rerun_scripts(void)
 int do_script_run(time_t now)
 {
   struct dhcp_lease *lease;
+
+  (void)now;
 
 #ifdef HAVE_DBUS
   /* If we're going to be sending DBus signals, but the connection is not yet up,

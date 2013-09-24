@@ -552,6 +552,7 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
   
   unsigned char *p;
   (void)index;
+  (void)parm;
 
   if (type >= 256)
     return 1;
