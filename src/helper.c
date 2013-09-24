@@ -291,7 +291,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 
       /* file length */
       if (data.action == ACTION_TFTP)
-	sprintf(daemon->dhcp_buff, "%u", data.hwaddr_len);
+	sprintf(is6 ? daemon->packet : daemon->dhcp_buff, "%u", data.iaid);
       
 #ifdef HAVE_LUASCRIPT
       if (daemon->luascript)
@@ -309,7 +309,7 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 		  lua_setfield(lua, -2, "destination_address");
 		  lua_pushstring(lua, hostname);
 		  lua_setfield(lua, -2, "file_name"); 
-		  lua_pushstring(lua, daemon->dhcp_buff);
+		  lua_pushstring(lua, is6 ? daemon->packet : daemon->dhcp_buff);
 		  lua_setfield(lua, -2, "file_size");
 		  lua_call(lua, 2, 0);	/* pass 2 values, expect 0 */
 		}
@@ -739,13 +739,13 @@ void queue_tftp(off_t file_len, char *filename, union mysockaddr *peer)
 
   buf->action = ACTION_TFTP;
   buf->hostname_len = filename_len;
-  buf->hwaddr_len = file_len;
+  buf->iaid = file_len;
 
   if ((buf->flags = peer->sa.sa_family) == AF_INET)
     buf->addr = peer->in.sin_addr;
 #ifdef HAVE_IPV6
   else
-    memcpy(buf->hwaddr, &peer->in6.sin6_addr, IN6ADDRSZ);
+    buf->addr6 = peer->in6.sin6_addr;
 #endif
 
   memcpy((unsigned char *)(buf+1), filename, filename_len);
