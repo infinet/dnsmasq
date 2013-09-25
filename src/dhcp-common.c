@@ -827,7 +827,7 @@ void log_context(int family, struct dhcp_context *context)
       template = p;
       p += sprintf(p, ", ");
       
-      if (indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, context->if_index, ifrn_name))
+      if (indextoname(daemon->icmp6fd, context->if_index, ifrn_name))
 	sprintf(p, "%s for %s", (context->flags & CONTEXT_OLD) ? "old prefix" : "constructed", ifrn_name);
     }
   else if (context->flags & CONTEXT_TEMPLATE)

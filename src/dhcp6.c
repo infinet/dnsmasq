@@ -608,7 +608,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
   if (flags & IFACE_DEPRECATED)
     return 1;
 
-  if (!indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, if_index, ifrn_name))
+  if (!indextoname(daemon->icmp6fd, if_index, ifrn_name))
     return 0;
   
   for (template = daemon->dhcp6; template; template = template->next)
