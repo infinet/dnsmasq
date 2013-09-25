@@ -1212,15 +1212,15 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
 					    int prefix, u64 addr);
 void make_duid(time_t now);
 void dhcp_construct_contexts(time_t now);
+void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, 
+		    unsigned int *maclenp, unsigned int *mactypep);
 #endif
-
+  
 /* rfc3315.c */
 #ifdef HAVE_DHCP6
 unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
-			   struct in6_addr *fallback, size_t sz, int is_multicast, time_t now,
-			   unsigned char *mac, unsigned int mac_len, unsigned int mac_type);
-void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id,
-		     unsigned char *mac, unsigned int mac_len, unsigned int mac_type);
+			   struct in6_addr *fallback, size_t sz, struct in6_addr *client_addr, time_t now);
+void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id);
 
 unsigned short relay_reply6( struct sockaddr_in6 *peer, ssize_t sz, char *arrival_interface);
 #endif
