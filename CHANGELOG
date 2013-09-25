@@ -119,6 +119,11 @@ version 2.67
 	    6939 for this to work. It always works for directly
 	    connected clients. Thanks to Vladislav Grishenko
 	    for prompting this feature.
+	    
+	    Remove the rule for constructed DHCP ranges that the local
+	    address must be either the first or last address in the
+	    range. This was originally to avoid SLAAC addresses, but
+	    we now explicitly autoconfig and privacy addresses instead.  
 
 
 version 2.66

@@ -602,6 +602,12 @@ static int construct_worker(struct in6_addr *local, int prefix,
       IN6_IS_ADDR_MULTICAST(local))
     return 1;
 
+  if (!(flags & IFACE_PERMANENT))
+    return 1;
+
+  if (flags & IFACE_DEPRECATED)
+    return 1;
+
   if (!indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, if_index, ifrn_name))
     return 0;
   
@@ -618,11 +624,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	  }
 	
       }
-    else if ((addr6part(local) == addr6part(&template->start6) ||
-	      addr6part(local) == addr6part(&template->end6) ||
-	      (IN6_IS_ADDR_UNSPECIFIED(&template->start6) &&
-	       IFACE_PERMANENT == (flags & (IFACE_PERMANENT | IFACE_DEPRECATED)))) && 
-	     wildcard_match(template->template_interface, ifrn_name))
+    else if (wildcard_match(template->template_interface, ifrn_name))
       {
 	start6 = *local;
 	setaddr6part(&start6, addr6part(&template->start6));
