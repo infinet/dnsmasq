@@ -61,6 +61,9 @@ struct script_data
 #else
   time_t expires;
 #endif
+#ifdef HAVE_TFTP
+  off_t file_len;
+#endif
 #ifdef HAVE_DHCP6
   struct in6_addr addr6;
   int iaid, vendorclass_count;
@@ -289,10 +292,12 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	inet_ntop(AF_INET6, &data.addr6, daemon->addrbuff, ADDRSTRLEN);
 #endif
 
+#ifdef HAVE_TFTP
       /* file length */
       if (data.action == ACTION_TFTP)
-	sprintf(is6 ? daemon->packet : daemon->dhcp_buff, "%u", data.iaid);
-      
+	sprintf(is6 ? daemon->packet : daemon->dhcp_buff, "%lu", (unsigned long)data.file_len);
+#endif
+
 #ifdef HAVE_LUASCRIPT
       if (daemon->luascript)
 	{
@@ -739,7 +744,7 @@ void queue_tftp(off_t file_len, char *filename, union mysockaddr *peer)
 
   buf->action = ACTION_TFTP;
   buf->hostname_len = filename_len;
-  buf->iaid = file_len;
+  buf->file_len = file_len;
 
   if ((buf->flags = peer->sa.sa_family) == AF_INET)
     buf->addr = peer->in.sin_addr;
