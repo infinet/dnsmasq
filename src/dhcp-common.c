@@ -857,6 +857,11 @@ void log_context(int family, struct dhcp_context *context)
     }
   
 #ifdef HAVE_DHCP6
+  if (context->flags & CONTEXT_TEMPLATE)
+    {
+      strcpy(daemon->addrbuff, context->template_interface);
+      template = "";
+    }
   if ((context->flags & CONTEXT_RA_NAME) && !(context->flags & CONTEXT_OLD))
     my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), daemon->addrbuff, template);
   
