@@ -25,7 +25,7 @@ DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 
 # Force package version based on git tags.
 ifneq (,$(filter gitversion,$(DEB_BUILD_OPTIONS)))
-     PACKAGE_VERSION = $(shell bld/get-version `pwd` |  sed 's/[a-z]/~&/;  s/-/./g; s/$$/-1/; s/^/-v/';)
+     PACKAGE_VERSION = $(shell bld/get-version `pwd` |  sed 's/test/~&/; s/[a-z]/~&/;  s/-/./g; s/$$/-1/; s/^/-v/';)
 endif
 
 ifeq (,$(filter nodbus,$(DEB_BUILD_OPTIONS)))
