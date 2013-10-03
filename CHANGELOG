@@ -127,6 +127,9 @@ version 2.67
 
 	    Update Polish translation. Thanks to Jan Psota.
 
+	    Fix problem in DHCPv6 vendorclass/userclass matching
+	    code. Thanks to Tanguy Bouzeloc for the patch.
+
 
 version 2.66
             Add the ability to act as an authoritative DNS

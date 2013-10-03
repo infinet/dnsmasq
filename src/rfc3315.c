@@ -66,6 +66,10 @@ static void calculate_times(struct dhcp_context *context, unsigned int *min_time
 #define opt6_type(opt) (opt6_uint(opt, -4, 2))
 #define opt6_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[4+(i)]))
 
+#define opt6_user_vendor_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[2+(i)]))
+#define opt6_user_vendor_len(opt) ((int)(opt6_uint(opt, -4, 2)))
+#define opt6_user_vendor_next(opt, end) (opt6_next(((void *) opt) - 2, end))
+ 
 
 unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,
 			   struct in6_addr *fallback, size_t sz, struct in6_addr *client_addr, time_t now)
@@ -355,9 +359,10 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
 	      offset = 4;
 	    }
  
-	  for (enc_opt = opt6_ptr(opt, offset); enc_opt; enc_opt = opt6_next(enc_opt, enc_end))
-	    for (i = 0; i <= (opt6_len(enc_opt) - vendor->len); i++)
-	      if (memcmp(vendor->data, opt6_ptr(enc_opt, i), vendor->len) == 0)
+	  /* Note that format if user/vendor classes is different to DHCP options - no option types. */
+	  for (enc_opt = opt6_ptr(opt, offset); enc_opt; enc_opt = opt6_user_vendor_next(enc_opt, enc_end))
+	    for (i = 0; i <= (opt6_user_vendor_len(enc_opt) - vendor->len); i++)
+	      if (memcmp(vendor->data, opt6_user_vendor_ptr(enc_opt, i), vendor->len) == 0)
 		{
 		  vendor->netid.next = state->tags;
 		  state->tags = &vendor->netid;
