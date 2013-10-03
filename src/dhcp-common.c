@@ -830,11 +830,11 @@ void log_context(int family, struct dhcp_context *context)
       if (indextoname(daemon->icmp6fd, context->if_index, ifrn_name))
 	sprintf(p, "%s for %s", (context->flags & CONTEXT_OLD) ? "old prefix" : "constructed", ifrn_name);
     }
-  else if (context->flags & CONTEXT_TEMPLATE)
+  else if (context->flags & CONTEXT_TEMPLATE && !(context->flags & CONTEXT_RA_STATELESS))
     {
       template = p;
       p += sprintf(p, ", ");
-       
+      
       sprintf(p, "template for %s", context->template_interface);  
     }
 #endif
@@ -842,17 +842,27 @@ void log_context(int family, struct dhcp_context *context)
   if (!(context->flags & CONTEXT_OLD) &&
       ((context->flags & CONTEXT_DHCP) || family == AF_INET)) 
     {
-      inet_ntop(family, start, daemon->dhcp_buff, 256);
+#ifdef HAVE_DHCP6
+      if (context->flags & CONTEXT_RA_STATELESS)
+	{
+	  if (context->flags & CONTEXT_TEMPLATE)
+	    strncpy(daemon->dhcp_buff, context->template_interface, 256);
+	  else
+	    strcpy(daemon->dhcp_buff, daemon->addrbuff);
+	}
+      else 
+#endif
+	inet_ntop(family, start, daemon->dhcp_buff, 256);
       inet_ntop(family, end, daemon->dhcp_buff3, 256);
       my_syslog(MS_DHCP | LOG_INFO, 
-	      (context->flags & CONTEXT_RA_STATELESS) ? 
-	      _("%s stateless on %s%.0s%.0s%s") :
-	      (context->flags & CONTEXT_STATIC) ? 
-	      _("%s, static leases only on %.0s%s%s%.0s") :
-	      (context->flags & CONTEXT_PROXY) ?
-	      _("%s, proxy on subnet %.0s%s%.0s%.0s") :
-	      _("%s, IP range %s -- %s%s%.0s"),
-	      (family != AF_INET) ? "DHCPv6" : "DHCP",
+		(context->flags & CONTEXT_RA_STATELESS) ? 
+		_("%s stateless on %s%.0s%.0s%s") :
+		(context->flags & CONTEXT_STATIC) ? 
+		_("%s, static leases only on %.0s%s%s%.0s") :
+		(context->flags & CONTEXT_PROXY) ?
+		_("%s, proxy on subnet %.0s%s%.0s%.0s") :
+		_("%s, IP range %s -- %s%s%.0s"),
+		(family != AF_INET) ? "DHCPv6" : "DHCP",
 		daemon->dhcp_buff, daemon->dhcp_buff3, daemon->namebuff, template);
     }
   
@@ -862,6 +872,7 @@ void log_context(int family, struct dhcp_context *context)
       strcpy(daemon->addrbuff, context->template_interface);
       template = "";
     }
+
   if ((context->flags & CONTEXT_RA_NAME) && !(context->flags & CONTEXT_OLD))
     my_syslog(MS_DHCP | LOG_INFO, _("DHCPv4-derived IPv6 names on %s%s"), daemon->addrbuff, template);
   

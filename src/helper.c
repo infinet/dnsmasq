@@ -64,8 +64,10 @@ struct script_data
 #ifdef HAVE_TFTP
   off_t file_len;
 #endif
-#ifdef HAVE_DHCP6
+#ifdef HAVE_IPV6
   struct in6_addr addr6;
+#endif
+#ifdef HAVE_DHCP6
   int iaid, vendorclass_count;
 #endif
   unsigned char hwaddr[DHCP_CHADDR_MAX];
