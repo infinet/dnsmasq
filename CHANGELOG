@@ -130,7 +130,9 @@ version 2.67
 	    Fix problem in DHCPv6 vendorclass/userclass matching
 	    code. Thanks to Tanguy Bouzeloc for the patch.
 
+ 	    Update Spanish transalation. Thanks to Vicente Soriano.
 
+ 
 version 2.66
             Add the ability to act as an authoritative DNS
             server. Dnsmasq can now answer queries from the wider 'net
