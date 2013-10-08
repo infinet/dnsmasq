@@ -543,7 +543,20 @@ server. The MAC address can only be added if the requestor is on the same
 subnet as the dnsmasq server. Note that the mechanism used to achieve this (an EDNS0 option)
 is not yet standardised, so this should be considered
 experimental. Also note that exposing MAC addresses in this way may
-have security and privacy implications. 
+have security and privacy implications. The warning about caching
+given for --add-subnet applies to --add-mac too.
+.TP 
+.B --add-subnet[[=<IPv4 prefix length>],<IPv6 prefix length>]
+Add the subnet address of the requestor to the DNS queries which are
+forwarded upstream. The amount of the address forwarded depends on the
+prefix length parameter: 32 (128 for IPv6) forwards the whole address,
+zero forwards none of it but still marks the request so that no
+upstream nameserver will add client address information either. The
+default is zero for both IPv4 and IPv6. Note that upstream nameservers
+may be configured to return different results based on this
+information, but the dnsmasq cache does not take account. If a dnsmasq
+instance is configured such that different results may be encountered,
+caching should be disabled.
 .TP
 .B \-c, --cache-size=<cachesize>
 Set the size of dnsmasq's cache. The default is 150 names. Setting the cache size to zero disables caching.

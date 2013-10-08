@@ -513,15 +513,81 @@ struct macparm {
   size_t plen;
   union mysockaddr *l3;
 };
+ 
+static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
+			       int optno, unsigned char *opt, size_t optlen)
+{ 
+  unsigned char *lenp, *datap, *p;
+  int rdlen;
+  
+  if (ntohs(header->arcount) == 0)
+    {
+      /* We are adding the pseudoheader */
+      if (!(p = skip_questions(header, plen)) ||
+	  !(p = skip_section(p, 
+			     ntohs(header->ancount) + ntohs(header->nscount), 
+			     header, plen)))
+	return plen;
+      *p++ = 0; /* empty name */
+      PUTSHORT(T_OPT, p);
+      PUTSHORT(daemon->edns_pktsz, p); /* max packet length */
+      PUTLONG(0, p);    /* extended RCODE */
+      lenp = p;
+      PUTSHORT(0, p);    /* RDLEN */
+      rdlen = 0;
+      if (((ssize_t)optlen) > (limit - (p + 4)))
+	return plen; /* Too big */
+      header->arcount = htons(1);
+      datap = p;
+    }
+  else
+    {
+      int i, is_sign;
+      unsigned short code, len;
+      
+      if (ntohs(header->arcount) != 1 ||
+	  !(p = find_pseudoheader(header, plen, NULL, NULL, &is_sign)) ||
+	  is_sign ||
+	  (!(p = skip_name(p, header, plen, 10))))
+	return plen;
+      
+      p += 8; /* skip UDP length and RCODE */
+      
+      lenp = p;
+      GETSHORT(rdlen, p);
+      if (!CHECK_LEN(header, p, plen, rdlen))
+	return plen; /* bad packet */
+      datap = p;
+
+      /* check if option already there */
+      for (i = 0; i + 4 < rdlen; i += len + 4)
+	{
+	  GETSHORT(code, p);
+	  GETSHORT(len, p);
+	  if (code == optno)
+	    return plen;
+	  p += len;
+	}
+      
+      if (((ssize_t)optlen) > (limit - (p + 4)))
+	return plen; /* Too big */
+    }
+  
+  PUTSHORT(optno, p);
+  PUTSHORT(optlen, p);
+  memcpy(p, opt, optlen);
+  p += optlen;  
+
+  PUTSHORT(p - datap, lenp);
+  return p - (unsigned char *)header;
+  
+}
 
 static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
 {
   struct macparm *parm = parmv;
   int match = 0;
-  unsigned short rdlen;
-  struct dns_header *header = parm->header;
-  unsigned char *lenp, *datap, *p;
-  
+    
   if (family == parm->l3->sa.sa_family)
     {
       if (family == AF_INET && memcmp (&parm->l3->in.sin_addr, addrp, INADDRSZ) == 0)
@@ -535,72 +601,12 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
  
   if (!match)
     return 1; /* continue */
-  
-  if (ntohs(header->arcount) == 0)
-    {
-      /* We are adding the pseudoheader */
-      if (!(p = skip_questions(header, parm->plen)) ||
-	  !(p = skip_section(p, 
-			     ntohs(header->ancount) + ntohs(header->nscount), 
-			     header, parm->plen)))
-	return 0;
-      *p++ = 0; /* empty name */
-      PUTSHORT(T_OPT, p);
-      PUTSHORT(PACKETSZ, p); /* max packet length - is 512 suitable default for non-EDNS0 resolvers? */
-      PUTLONG(0, p);    /* extended RCODE */
-      lenp = p;
-      PUTSHORT(0, p);    /* RDLEN */
-      rdlen = 0;
-      if (((ssize_t)maclen) > (parm->limit - (p + 4)))
-	return 0; /* Too big */
-      header->arcount = htons(1);
-      datap = p;
-    }
-  else
-    {
-      int i, is_sign;
-      unsigned short code, len;
-      
-      if (ntohs(header->arcount) != 1 ||
-	  !(p = find_pseudoheader(header, parm->plen, NULL, NULL, &is_sign)) ||
-	  is_sign ||
-	  (!(p = skip_name(p, header, parm->plen, 10))))
-	return 0;
-      
-      p += 8; /* skip UDP length and RCODE */
-      
-      lenp = p;
-      GETSHORT(rdlen, p);
-      if (!CHECK_LEN(header, p, parm->plen, rdlen))
-	return 0; /* bad packet */
-      datap = p;
 
-      /* check if option already there */
-      for (i = 0; i + 4 < rdlen; i += len + 4)
-	{
-	  GETSHORT(code, p);
-	  GETSHORT(len, p);
-	  if (code == EDNS0_OPTION_MAC)
-	    return 0;
-	  p += len;
-	}
-      
-      if (((ssize_t)maclen) > (parm->limit - (p + 4)))
-	return 0; /* Too big */
-    }
-  
-  PUTSHORT(EDNS0_OPTION_MAC, p);
-  PUTSHORT(maclen, p);
-  memcpy(p, mac, maclen);
-  p += maclen;  
-
-  PUTSHORT(p - datap, lenp);
-  parm->plen = p - (unsigned char *)header;
+  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit,  EDNS0_OPTION_MAC, (unsigned char *)mac, maclen);
   
   return 0; /* done */
 }	      
      
-
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3)
 {
   struct macparm parm;
@@ -621,7 +627,102 @@ size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysock
   return parm.plen; 
 }
 
-    
+struct subnet_opt {
+  u16 family;
+  u8 source_netmask, scope_netmask;
+#ifdef HAVE_IPV6 
+  u8 addr[IN6ADDRSZ];
+#else
+  u8 addr[INADDRSZ];
+#endif
+};
+
+size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
+{
+  /* http://tools.ietf.org/html/draft-vandergaast-edns-client-subnet-02 */
+  
+  int len;
+  void *addrp;
+
+  if (source->sa.sa_family == AF_INET)
+    {
+      opt->family = htons(1);
+      opt->source_netmask = daemon->addr4_netmask;
+      addrp = &source->in.sin_addr;
+    }
+#ifdef HAVE_IPV6
+  else
+    {
+      opt->family = htons(2);
+      opt->source_netmask = daemon->addr6_netmask;
+      addrp = &source->in6.sin6_addr;
+    }
+#endif
+  
+  opt->scope_netmask = 0;
+  len = 0;
+  
+  if (opt->source_netmask != 0)
+    {
+      len = ((opt->source_netmask - 1) >> 3) + 1;
+      memcpy(opt->addr, addrp, len);
+      if (opt->source_netmask & 7)
+	opt->addr[len-1] &= 0xff << (8 - (opt->source_netmask & 7));
+    }
+
+  return len + 4;
+}
+ 
+size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source)
+{
+  /* http://tools.ietf.org/html/draft-vandergaast-edns-client-subnet-02 */
+  
+  int len;
+  struct subnet_opt opt;
+  
+  len = calc_subnet_opt(&opt, source);
+  return add_pseudoheader(header, plen, (unsigned char *)limit, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len);
+}
+  
+int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer)
+{
+  /* Section 9.2, Check that subnet option in reply matches. */
+
+
+ int len, calc_len;
+  struct subnet_opt opt;
+  unsigned char *p;
+  int code, i, rdlen;
+  
+   calc_len = calc_subnet_opt(&opt, peer);
+   
+   if (!(p = skip_name(pseudoheader, header, plen, 10)))
+     return 1;
+   
+   p += 8; /* skip UDP length and RCODE */
+   
+   GETSHORT(rdlen, p);
+   if (!CHECK_LEN(header, p, plen, rdlen))
+     return 1; /* bad packet */
+   
+   /* check if option there */
+   for (i = 0; i + 4 < rdlen; i += len + 4)
+     {
+       GETSHORT(code, p);
+       GETSHORT(len, p);
+       if (code == EDNS0_OPTION_CLIENT_SUBNET)
+	 {
+	   /* make sure this doesn't mismatch. */
+	   opt.scope_netmask = p[3];
+	   if (len != calc_len || memcmp(p, &opt, len) != 0)
+	     return 0;
+	 }
+       p += len;
+     }
+   
+   return 1;
+}
+
 /* is addr in the non-globally-routed IP space? */ 
 static int private_net(struct in_addr addr, int ban_localhost) 
 {

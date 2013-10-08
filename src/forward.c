@@ -284,6 +284,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  forward->fd = udpfd;
 	  forward->crc = crc;
 	  forward->forwardall = 0;
+	  forward->flags = 0;
 	  if (norebind)
 	    forward->flags |= FREC_NOREBIND;
 	  if (header->hb4 & HB4_CD)
@@ -331,6 +332,16 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       if (option_bool(OPT_ADD_MAC))
 	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
       
+      if (option_bool(OPT_CLIENT_SUBNET))
+	{
+	  size_t new = add_source_addr(header, plen, ((char *) header) + PACKETSZ, &forward->source); 
+	  if (new != plen)
+	    {
+	      plen = new;
+	      forward->flags |= FREC_HAS_SUBNET;
+	    }
+	}
+
       while (1)
 	{ 
 	  /* only send to servers dealing with our domain.
@@ -435,8 +446,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   return 0;
 }
 
-static size_t process_reply(struct dns_header *header, time_t now, 
-			    struct server *server, size_t n, int check_rebind, int checking_disabled)
+static size_t process_reply(struct dns_header *header, time_t now, struct server *server, size_t n, int check_rebind, 
+			    int checking_disabled, int check_subnet, union mysockaddr *query_source)
 {
   unsigned char *pheader, *sizep;
   char **sets = 0;
@@ -465,19 +476,29 @@ static size_t process_reply(struct dns_header *header, time_t now,
      than we allow, trim it so that we don't get overlarge
      requests for the client. We can't do this for signed packets. */
 
-  if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)) && !is_sign)
+  if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)))
     {
-      unsigned short udpsz;
-      unsigned char *psave = sizep;
+      if (!is_sign)
+	{
+	  unsigned short udpsz;
+	  unsigned char *psave = sizep;
+	  
+	  GETSHORT(udpsz, sizep);
+	  if (udpsz > daemon->edns_pktsz)
+	    PUTSHORT(daemon->edns_pktsz, psave);
+	}
       
-      GETSHORT(udpsz, sizep);
-      if (udpsz > daemon->edns_pktsz)
-	PUTSHORT(daemon->edns_pktsz, psave);
+      if (check_subnet && !check_source(header, plen, pheader, query_source))
+	{
+	  my_syslog(LOG_WARNING, _("discarding DNS reply: subnet option mismatch"));
+	  return 0;
+	}
     }
+      
 
   /* RFC 4035 sect 4.6 para 3 */
   if (!is_sign && !option_bool(OPT_DNSSEC))
-     header->hb4 &= ~HB4_AD;
+    header->hb4 &= ~HB4_AD;
 
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
     return n;
@@ -632,7 +653,8 @@ void reply_query(int fd, int family, time_t now)
       if (!option_bool(OPT_NO_REBIND))
 	check_rebind = 0;
       
-      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, forward->flags & FREC_CHECKING_DISABLED)))
+      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, forward->flags & FREC_CHECKING_DISABLED,
+			      forward->flags & FREC_HAS_SUBNET, &forward->source)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
@@ -876,7 +898,7 @@ unsigned char *tcp_request(int confd, time_t now,
 {
   size_t size = 0;
   int norebind = 0;
-  int checking_disabled;
+  int checking_disabled, check_subnet;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -906,6 +928,8 @@ unsigned char *tcp_request(int confd, time_t now,
       if (size < (int)sizeof(struct dns_header))
 	continue;
       
+      check_subnet = 0;
+
       /* save state of "cd" flag in query */
       checking_disabled = header->hb4 & HB4_CD;
        
@@ -955,7 +979,17 @@ unsigned char *tcp_request(int confd, time_t now,
 	      
 	      if (option_bool(OPT_ADD_MAC))
 		size = add_mac(header, size, ((char *) header) + 65536, &peer_addr);
-	      
+	      	
+	      if (option_bool(OPT_CLIENT_SUBNET))
+		{
+		  size_t new = add_source_addr(header, size, ((char *) header) + 65536, &peer_addr);
+		  if (size != new)
+		    {
+		      size = new;
+		      check_subnet = 1;
+		    }
+		}
+
 	      if (gotname)
 		flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	      
@@ -1056,7 +1090,8 @@ unsigned char *tcp_request(int confd, time_t now,
 			 sending replies containing questions and bogus answers. */
 		      if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
 			m = process_reply(header, now, last_server, (unsigned int)m, 
-					  option_bool(OPT_NO_REBIND) && !norebind, checking_disabled);
+					  option_bool(OPT_NO_REBIND) && !norebind, checking_disabled,
+					  check_subnet, &peer_addr);
 		      
 		      break;
 		    }

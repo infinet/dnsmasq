@@ -132,6 +132,9 @@ version 2.67
 
  	    Update Spanish transalation. Thanks to Vicente Soriano.
 
+	    Add --add-subnet configuration, to tell upstream DNS
+	    servers where the original client is. 
+
  
 version 2.66
             Add the ability to act as an authoritative DNS
