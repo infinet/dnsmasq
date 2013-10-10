@@ -1525,11 +1525,19 @@ the relevant link-local address of the machine running dnsmasq is sent
 as recursive DNS server. If provided, the DHCPv6 options dns-server and
 domain-search are used for RDNSS and DNSSL.
 .TP
-.B --force-fast-ra
-Normally, dnsmasq advertises a new IPv6 prefix frequently (every 10 seconds or so) for the first minute, and then
-drops back to sending "maintenance" advertisements every 10 minutes or so. This option forces dnsmasq to be always in 
-frequent RA mode. It's a bug workaround for mobile devices which go deaf to RAs during sleep and therefore 
-lose conectivity; with frequent RAs they recover in a reasonable time after wakeup.
+.B --ra-param=<interface>,[high|low],[[<ra-interval>],<router lifetime>]
+Set non-default values for router advertisements sent via an
+interface. The priority field for the router may be altered from the
+default of medium with eg
+.B --ra-param=eth0,high.
+The interval between router advertisements may be set (in seconds) with 
+.B --ra-param=eth0,60.
+The lifetime of the route may be changed or set to zero, which allows
+a router to advertise prefixes but not a route via itself. 
+.B --ra-parm=eth0,0,0
+(A value of zero for the interval means the default value.) All three parameters may be set at once.
+.B --ra-param=low,60,1200
+The interface field may include a wildcard.
 .TP
 .B --enable-tftp[=<interface>[,<interface>]]
 Enable the TFTP server function. This is deliberately limited to that

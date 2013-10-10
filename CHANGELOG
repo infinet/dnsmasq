@@ -90,8 +90,6 @@ version 2.67
             smallest valid dhcp-range is sent. Thanks to Uwe Schindler 
 	    for suggesting this.
 
-	    Add --force-fast-ra option. Another thanks to Uwe Schindler.  
-
 	    Make --listen-address higher priority than --except-interface
 	    in all circumstances. Thanks to Thomas Hood for the bugreport.
 
@@ -131,6 +129,9 @@ version 2.67
 	    code. Thanks to Tanguy Bouzeloc for the patch.
 
  	    Update Spanish transalation. Thanks to Vicente Soriano.
+
+	    Add --ra-param option. Thanks to Vladislav Grishenko for
+	    inspiration on this.
 
  
 version 2.66

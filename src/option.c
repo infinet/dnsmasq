@@ -132,8 +132,8 @@ struct myoption {
 #ifdef OPTION6_PREFIX_CLASS 
 #define LOPT_PREF_CLSS 321
 #endif
-#define LOPT_FAST_RA   322
 #define LOPT_RELAY     323
+#define LOPT_RA_PARAM  324
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -271,8 +271,8 @@ static const struct myoption opts[] =
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
-    { "force-fast-ra", 0, 0, LOPT_FAST_RA },
     { "dhcp-relay", 1, 0, LOPT_RELAY },
+    { "ra-param", 1, 0, LOPT_RA_PARAM },
     { NULL, 0, 0, 0 }
   };
 
@@ -402,7 +402,6 @@ static struct {
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
   { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
-  { LOPT_FAST_RA, OPT_FAST_RA, NULL, gettext_noop("Always send frequent router-advertisements"), NULL },
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
   { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
@@ -418,6 +417,7 @@ static struct {
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
 #endif
+  { LOPT_RA_PARAM, ARG_DUP, "<interface>,[high,|low,]<interval>[,<lifetime>]", gettext_noop("Set priority, resend-interval and router-lifetime"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -3215,6 +3215,31 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 #endif
       
 #ifdef HAVE_DHCP6
+    case LOPT_RA_PARAM: /* --ra-param */
+      if ((comma = split(arg)))
+	{
+	  struct ra_interface *new = opt_malloc(sizeof(struct ra_interface));
+	  new->lifetime = -1;
+	  new->prio = 0;
+	  new->name = opt_string_alloc(arg);
+	  if (strcasestr(comma, "high") == comma || strcasestr(comma, "low") == comma)
+	    {
+	      if (*comma == 'l' || *comma == 'L')
+		new->prio = 0x18;
+	      else
+		new->prio = 0x08;
+	      comma = split(comma);
+	    }
+	   arg = split(comma);
+	   if (!atoi_check(comma, &new->interval) || 
+	      (arg && !atoi_check(arg, &new->lifetime)))
+	    ret_err(_("bad RA-params"));
+	  
+	  new->next = daemon->ra_interfaces;
+	  daemon->ra_interfaces = new;
+	}
+      break;
+      
     case LOPT_DUID: /* --dhcp-duid */
       if (!(comma = split(arg)) || !atoi_check(arg, (int *)&daemon->duid_enterprise))
 	ret_err(_("bad DUID"));
