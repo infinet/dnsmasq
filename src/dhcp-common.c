@@ -453,13 +453,16 @@ void bindtodevice(int fd)
      individual processes don't always see the packets they should.
      SO_BINDTODEVICE is only available Linux. 
 
-     Note that if wildcards are used in --interface, or a configured interface doesn't
-     yet exist, then more interfaces may arrive later, so we can't safely assert there
-     is only one interface and proceed.
+     Note that if wildcards are used in --interface, or --interface is not used at all,
+     or a configured interface doesn't yet exist, then more interfaces may arrive later, 
+     so we can't safely assert there is only one interface and proceed.
 */
   
   struct irec *iface, *found;
   struct iname *if_tmp;
+
+  if (!daemon->if_names)
+    return;
 
   for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
     if (if_tmp->name && (!if_tmp->used || strchr(if_tmp->name, '*')))
