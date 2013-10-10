@@ -57,7 +57,7 @@
 #define T_ANY		255
 
 #define EDNS0_OPTION_MAC            65001 /* dyndns.org temporary assignment */
-#define EDNS0_OPTION_CLIENT_SUBNET  5     /* IANA */
+#define EDNS0_OPTION_CLIENT_SUBNET  8     /* IANA */
 
 
 struct dns_header {
