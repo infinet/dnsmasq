@@ -272,27 +272,26 @@ static int is_config_in_context(struct dhcp_context *context, struct dhcp_config
   if (!context) /* called via find_config() from lease_update_from_configs() */
     return 1; 
 
-  if (!(context->flags & CONTEXT_V6))
-    {
-      if (!(config->flags & CONFIG_ADDR))
+  if (!(config->flags & (CONFIG_ADDR | CONFIG_ADDR6)))
+    return 1;
+  
+#ifdef HAVE_DHCP6
+  if ((context->flags & CONTEXT_V6) && (config->flags & CONFIG_WILDCARD))
+    return 1;
+#endif
+
+  for (; context; context = context->current)
+#ifdef HAVE_DHCP6
+    if (context->flags & CONTEXT_V6) 
+      {
+	if ((config->flags & CONFIG_ADDR6) && is_same_net6(&config->addr6, &context->start6, context->prefix))
+	  return 1;
+      }
+    else 
+#endif
+      if ((config->flags & CONFIG_ADDR) && is_same_net(config->addr, context->start, context->netmask))
 	return 1;
 
-      for (; context; context = context->current)
-	if (is_same_net(config->addr, context->start, context->netmask))
-	  return 1;
-    }
-#ifdef HAVE_DHCP6
-  else 
-    {
-      if (!(config->flags & CONFIG_ADDR6) || (config->flags & CONFIG_WILDCARD))
-	return 1;
-      
-      for (; context; context = context->current)
-	if (is_same_net6(&config->addr6, &context->start6, context->prefix))
-      return 1;
-    }
-#endif
-  
   return 0;
 }
 

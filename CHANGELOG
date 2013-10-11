@@ -144,6 +144,11 @@ version 2.67
 	    target of --cname. Thanks to Hadmut Danisch for the
 	    suggestion. 
 
+	    Avoid treating a --dhcp-host which has an IPv6 address
+	    as eligable for use with DHCPv4 on the grounds that it has
+	    no address, and vice-versa. Thanks to Yury Konovalov for
+	    spotting the problem.
+
  
 version 2.66
             Add the ability to act as an authoritative DNS
