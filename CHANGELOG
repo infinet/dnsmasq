@@ -133,7 +133,8 @@ version 2.67
  	    Update Spanish transalation. Thanks to Vicente Soriano.
 
 	    Add --add-subnet configuration, to tell upstream DNS
-	    servers where the original client is. 
+	    servers where the original client is. Thanks to DNSthingy
+	    for sponsoring this feature.
 
  
 version 2.66
