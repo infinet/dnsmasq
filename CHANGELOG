@@ -137,6 +137,9 @@ version 2.67
 	    servers where the original client is. Thanks to DNSthingy
 	    for sponsoring this feature.
 
+	    Add --quiet-dhcp, --quiet-dhcp6 and --quiet-ra. Thanks to
+	    Kevin Darbyshire-Bryant for the initial patch.
+
  
 version 2.66
             Add the ability to act as an authoritative DNS

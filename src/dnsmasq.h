@@ -222,7 +222,10 @@ struct event_desc {
 #define OPT_CLEVERBIND     39
 #define OPT_TFTP           40
 #define OPT_CLIENT_SUBNET  41
-#define OPT_LAST           42
+#define OPT_QUIET_DHCP     42
+#define OPT_QUIET_DHCP6    43
+#define OPT_QUIET_RA	   44
+#define OPT_LAST           45
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
