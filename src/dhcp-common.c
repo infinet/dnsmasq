@@ -444,7 +444,7 @@ void dhcp_update_configs(struct dhcp_config *configs)
 }
 
 #ifdef HAVE_LINUX_NETWORK 
-void bindtodevice(int fd)
+char *whichdevice(void)
 {
   /* If we are doing DHCP on exactly one interface, and running linux, do SO_BINDTODEVICE
      to that device. This is for the use case of  (eg) OpenStack, which runs a new
@@ -459,13 +459,13 @@ void bindtodevice(int fd)
   
   struct irec *iface, *found;
   struct iname *if_tmp;
-
+  
   if (!daemon->if_names)
-    return;
-
+    return NULL;
+  
   for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
     if (if_tmp->name && (!if_tmp->used || strchr(if_tmp->name, '*')))
-      return;
+      return NULL;
 
   for (found = NULL, iface = daemon->interfaces; iface; iface = iface->next)
     if (iface->dhcp_ok)
@@ -473,18 +473,24 @@ void bindtodevice(int fd)
 	if (!found)
 	  found = iface;
 	else if (strcmp(found->name, iface->name) != 0) 
-	  return; /* more than one. */
+	  return NULL; /* more than one. */
       }
-  
+
   if (found)
-    {
-      struct ifreq ifr;
-      strcpy(ifr.ifr_name, found->name);
-      /* only allowed by root. */
-      if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) == -1 &&
-	  errno != EPERM)
-	die(_("failed to set SO_BINDTODEVICE on DHCP socket: %s"), NULL, EC_BADNET);
-    }
+    return found->name;
+
+  return NULL;
+}
+ 
+void  bindtodevice(char *device, int fd)
+{
+  struct ifreq ifr;
+  
+  strcpy(ifr.ifr_name, device);
+  /* only allowed by root. */
+  if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) == -1 &&
+      errno != EPERM)
+    die(_("failed to set SO_BINDTODEVICE on DHCP socket: %s"), NULL, EC_BADNET);
 }
 #endif
 

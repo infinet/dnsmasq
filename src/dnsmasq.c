@@ -50,6 +50,8 @@ int main (int argc, char **argv)
 #if defined(HAVE_LINUX_NETWORK)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
+  char *bound_device = NULL;
+  int did_bind = 0;
 #endif 
 #if defined(HAVE_DHCP) || defined(HAVE_DHCP6)
   struct dhcp_context *context;
@@ -239,18 +241,29 @@ int main (int argc, char **argv)
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP)
       /* after enumerate_interfaces()  */
+      bound_device = whichdevice();
+      
       if (daemon->dhcp)
 	{
-	  if (!daemon->relay4)
-	    bindtodevice(daemon->dhcpfd);
-	  if (daemon->enable_pxe)
-	    bindtodevice(daemon->pxefd);
+	  if (!daemon->relay4 && bound_device)
+	    {
+	      bindtodevice(bound_device, daemon->dhcpfd);
+	      did_bind = 1;
+	    }
+	  if (daemon->enable_pxe && bound_device)
+	    {
+	      bindtodevice(bound_device, daemon->pxefd);
+	      did_bind = 1;
+	    }
 	}
 #endif
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP6)
-      if (daemon->doing_dhcp6 && !daemon->relay6)
-	bindtodevice(daemon->dhcp6fd);
+      if (daemon->doing_dhcp6 && !daemon->relay6 && bound_device)
+	{
+	  bindtodevice(bound_device, daemon->dhcp6fd);
+	  did_bind = 1;
+	}
 #endif
     }
   else 
@@ -657,6 +670,11 @@ int main (int argc, char **argv)
   
   if (option_bool(OPT_RA))
     my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
+#  endif
+
+#  ifdef HAVE_LINUX_NETWORK
+  if (did_bind)
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCP, sockets bound exclusively to interface %s"), bound_device);
 #  endif
 
   /* after dhcp_contruct_contexts */

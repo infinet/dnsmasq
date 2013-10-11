@@ -1268,7 +1268,8 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 				int hw_type, char *hostname);
 int config_has_mac(struct dhcp_config *config, unsigned char *hwaddr, int len, int type);
 #ifdef HAVE_LINUX_NETWORK
-void bindtodevice(int fd);
+char *whichdevice(void);
+void bindtodevice(char *device, int fd);
 #endif
 #  ifdef HAVE_DHCP6
 void display_opts6(void);
