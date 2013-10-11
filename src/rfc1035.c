@@ -1042,10 +1042,10 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			  newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
 			  if (newc)
 			    {
-			      newc->addr.cname.cache = NULL;
+			      newc->addr.cname.target.cache = NULL;
 			      if (cpp)
 				{
-				  cpp->addr.cname.cache = newc;
+				  cpp->addr.cname.target.cache = newc;
 				  cpp->addr.cname.uid = newc->uid;
 				}
 			    }
@@ -1085,7 +1085,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			  newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
 			  if (newc && cpp)
 			    {
-			      cpp->addr.cname.cache = newc;
+			      cpp->addr.cname.target.cache = newc;
 			      cpp->addr.cname.uid = newc->uid;
 			    }
 			  cpp = NULL;
@@ -1112,7 +1112,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		  newc = cache_insert(name, NULL, now, ttl ? ttl : cttl, F_FORWARD | F_NEG | flags);	
 		  if (newc && cpp)
 		    {
-		      cpp->addr.cname.cache = newc;
+		      cpp->addr.cname.target.cache = newc;
 		      cpp->addr.cname.uid = newc->uid;
 		    }
 		}
@@ -1720,7 +1720,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		}
 
 	      /* interface name stuff */
-	      
+	    intname_restart:
 	      for (intr = daemon->int_names; intr; intr = intr->next)
 		if (hostname_isequal(name, intr->name))
 		  break;
@@ -1784,17 +1784,23 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      
 		      if (crecp->flags & F_CNAME)
 			{
+			  char *cname_target = cache_get_cname_target(crecp);
+			  
 			  if (!dryrun)
 			    {
 			      log_query(crecp->flags, name, NULL, record_source(crecp->uid));
 			      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 						      crec_ttl(crecp, now), &nameoffset,
-						      T_CNAME, C_IN, "d", cache_get_name(crecp->addr.cname.cache)))
+						      T_CNAME, C_IN, "d", cname_target))
 				anscount++;
 			    }
 			  
-			  strcpy(name, cache_get_name(crecp->addr.cname.cache));
-			  goto cname_restart;
+			  strcpy(name, cname_target);
+			  /* check if target interface_name */
+			  if (crecp->addr.cname.uid == -1)
+			    goto intname_restart;
+			  else
+			    goto cname_restart;
 			}
 		      
 		      if (crecp->flags & F_NEG)
@@ -1856,7 +1862,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      log_query(crecp->flags, name, NULL, record_source(crecp->uid));
 		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					      crec_ttl(crecp, now), &nameoffset,
-					      T_CNAME, C_IN, "d", cache_get_name(crecp->addr.cname.cache)))
+					      T_CNAME, C_IN, "d", cache_get_cname_target(crecp)))
 			anscount++;
 		    }
 		}

@@ -140,6 +140,10 @@ version 2.67
 	    Add --quiet-dhcp, --quiet-dhcp6 and --quiet-ra. Thanks to
 	    Kevin Darbyshire-Bryant for the initial patch.
 
+	    Allow A/AAAA records created by --interface-name to be the
+	    target of --cname. Thanks to Hadmut Danisch for the
+	    suggestion. 
+
  
 version 2.66
             Add the ability to act as an authoritative DNS

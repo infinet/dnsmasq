@@ -337,8 +337,11 @@ struct crec {
   union {
     struct all_addr addr;
     struct {
-      struct crec *cache;
-      int uid;
+      union {
+	struct crec *cache;
+	struct interface_name *int_name;
+      } target;
+      int uid; /* -1 if union is interface-name */
     } cname;
     struct {
       struct keydata *keydata;
@@ -941,6 +944,7 @@ struct in_addr a_record_from_hosts(char *name, time_t now);
 void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
 char *cache_get_name(struct crec *crecp);
+char *cache_get_cname_target(struct crec *crecp);
 struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
 struct keydata *keydata_alloc(char *data, size_t len);
