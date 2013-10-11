@@ -221,7 +221,8 @@ struct event_desc {
 #define OPT_TFTP_LC        38
 #define OPT_CLEVERBIND     39
 #define OPT_TFTP           40
-#define OPT_LAST           41
+#define OPT_CLIENT_SUBNET  41
+#define OPT_LAST           42
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -486,6 +487,7 @@ struct hostsfile {
 
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
+#define FREC_HAS_SUBNET         4
 
 struct frec {
   union mysockaddr source;
@@ -807,6 +809,8 @@ extern struct daemon {
   struct auth_zone *auth_zones;
   struct interface_name *int_names;
   char *mxtarget;
+  int addr4_netmask;
+  int addr6_netmask;
   char *lease_file; 
   char *username, *groupname, *scriptuser;
   char *luascript;
@@ -968,6 +972,8 @@ unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
 size_t resize_packet(struct dns_header *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
+size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
+int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
 int add_resource_record(struct dns_header *header, char *limit, int *truncp,
 			int nameoffset, unsigned char **pp, unsigned long ttl, 
 			int *offset, unsigned short type, unsigned short class, char *format, ...);

@@ -133,6 +133,10 @@ version 2.67
 	    Add --ra-param option. Thanks to Vladislav Grishenko for
 	    inspiration on this.
 
+	    Add --add-subnet configuration, to tell upstream DNS
+	    servers where the original client is. Thanks to DNSthingy
+	    for sponsoring this feature.
+
  
 version 2.66
             Add the ability to act as an authoritative DNS
