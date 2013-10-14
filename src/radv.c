@@ -336,15 +336,15 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
       if (opt_cfg->opt == OPTION6_DNS_SERVER)
         {
 	  struct in6_addr *a = (struct in6_addr *)opt_cfg->val;
-
+	  
 	  done_dns = 1;
-          if (opt_cfg->len == 0)
-            continue;
+          if (opt_cfg->len == 0 || (IN6_IS_ADDR_UNSPECIFIED(a) && parm.pref_time != 0))
+	    continue;
 	  
 	  put_opt6_char(ICMP6_OPT_RDNSS);
 	  put_opt6_char((opt_cfg->len/8) + 1);
 	  put_opt6_short(0);
-	  put_opt6_long(parm.adv_interval * 2); /* lifetime - twice RA retransmit */
+	  put_opt6_long(parm.pref_time);
 	  /* zero means "self" */
 	  for (i = 0; i < opt_cfg->len; i += IN6ADDRSZ, a++)
 	    if (IN6_IS_ADDR_UNSPECIFIED(a))
@@ -360,7 +360,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	  put_opt6_char(ICMP6_OPT_DNSSL);
 	  put_opt6_char(len + 1);
 	  put_opt6_short(0);
-	  put_opt6_long(parm.adv_interval * 2); /* lifetime - twice RA retransmit */
+	  put_opt6_long(parm.pref_time); 
 	  put_opt6(opt_cfg->val, opt_cfg->len);
 	  
 	  /* pad */
@@ -369,14 +369,14 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	}
     }
 	
-  if (daemon->port == NAMESERVER_PORT && !done_dns)
+  if (daemon->port == NAMESERVER_PORT && !done_dns && parm.pref_time != 0)
     {
       /* default == us, as long as we are supplying DNS service. */
       put_opt6_char(ICMP6_OPT_RDNSS);
       put_opt6_char(3);
       put_opt6_short(0);
-      put_opt6_long(parm.adv_interval * 2); /* lifetime - twice RA retransmit */
-      put_opt6(&parm.link_global, IN6ADDRSZ);
+      put_opt6_long(parm.pref_time); 
+      put_opt6(&parm.link_local, IN6ADDRSZ);
     }
 
   /* set managed bits unless we're providing only RA on this link */
