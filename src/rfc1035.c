@@ -1779,7 +1779,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    { 
 		      /* don't answer wildcard queries with data not from /etc/hosts
 			 or DHCP leases */
-		      if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
+		      if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)))
 			break;
 		      
 		      if (crecp->flags & F_CNAME)
