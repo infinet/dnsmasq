@@ -1011,91 +1011,88 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	  else 
 	    continue;
 	    
-	  if (!(flags & F_NXDOMAIN))
+	cname_loop1:
+	  if (!(p1 = skip_questions(header, qlen)))
+	    return 0;
+	  
+	  for (j = ntohs(header->ancount); j != 0; j--) 
 	    {
-	    cname_loop1:
-	      if (!(p1 = skip_questions(header, qlen)))
-		return 0;
+	      if (!(res = extract_name(header, qlen, &p1, name, 0, 10)))
+		return 0; /* bad packet */
 	      
-	      for (j = ntohs(header->ancount); j != 0; j--) 
+	      GETSHORT(aqtype, p1); 
+	      GETSHORT(aqclass, p1);
+	      GETLONG(attl, p1);
+	      if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
 		{
-		  if (!(res = extract_name(header, qlen, &p1, name, 0, 10)))
-		    return 0; /* bad packet */
-		  
-		  GETSHORT(aqtype, p1); 
-		  GETSHORT(aqclass, p1);
-		  GETLONG(attl, p1);
-		  if ((daemon->max_ttl != 0) && (attl > daemon->max_ttl) && !is_sign)
+		  (p1) -= 4;
+		  PUTLONG(daemon->max_ttl, p1);
+		}
+	      GETSHORT(ardlen, p1);
+	      endrr = p1+ardlen;
+	      
+	      if (aqclass == C_IN && res != 2 && (aqtype == T_CNAME || aqtype == qtype))
+		{
+		  if (aqtype == T_CNAME)
 		    {
-		      (p1) -= 4;
-		      PUTLONG(daemon->max_ttl, p1);
-		    }
-		  GETSHORT(ardlen, p1);
-		  endrr = p1+ardlen;
-		  
-		  if (aqclass == C_IN && res != 2 && (aqtype == T_CNAME || aqtype == qtype))
-		    {
-		      if (aqtype == T_CNAME)
+		      if (!cname_count--)
+			return 0; /* looped CNAMES */
+		      newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
+		      if (newc)
 			{
-			  if (!cname_count--)
-			    return 0; /* looped CNAMES */
-			  newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
-			  if (newc)
-			    {
-			      newc->addr.cname.target.cache = NULL;
-			      if (cpp)
-				{
-				  cpp->addr.cname.target.cache = newc;
-				  cpp->addr.cname.uid = newc->uid;
-				}
-			    }
-
-			  cpp = newc;
-			  if (attl < cttl)
-			    cttl = attl;
-			  
-			  if (!extract_name(header, qlen, &p1, name, 1, 0))
-			    return 0;
-			  goto cname_loop1;
-			}
-		      else
-			{
-			  found = 1;
-			  
-			  /* copy address into aligned storage */
-			  if (!CHECK_LEN(header, p1, qlen, addrlen))
-			    return 0; /* bad packet */
-			  memcpy(&addr, p1, addrlen);
-			  
-			  /* check for returned address in private space */
-			  if (check_rebind &&
-			      (flags & F_IPV4) &&
-			      private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
-			    return 1;
-
-#ifdef HAVE_IPSET
-			  if (ipsets && (flags & (F_IPV4 | F_IPV6)))
-			    {
-			      ipsets_cur = ipsets;
-			      while (*ipsets_cur)
-				add_to_ipset(*ipsets_cur++, &addr, flags, 0);
-			    }
-#endif
-			  
-			  newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
-			  if (newc && cpp)
+			  newc->addr.cname.target.cache = NULL;
+			  if (cpp)
 			    {
 			      cpp->addr.cname.target.cache = newc;
 			      cpp->addr.cname.uid = newc->uid;
 			    }
-			  cpp = NULL;
 			}
+		      
+		      cpp = newc;
+		      if (attl < cttl)
+			cttl = attl;
+		      
+		      if (!extract_name(header, qlen, &p1, name, 1, 0))
+			return 0;
+		      goto cname_loop1;
 		    }
-		  
-		  p1 = endrr;
-		  if (!CHECK_LEN(header, p1, qlen, 0))
-		    return 0; /* bad packet */
+		  else if (!(flags & F_NXDOMAIN))
+		    {
+		      found = 1;
+		      
+		      /* copy address into aligned storage */
+		      if (!CHECK_LEN(header, p1, qlen, addrlen))
+			return 0; /* bad packet */
+		      memcpy(&addr, p1, addrlen);
+		      
+		      /* check for returned address in private space */
+		      if (check_rebind &&
+			  (flags & F_IPV4) &&
+			  private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
+			return 1;
+		      
+#ifdef HAVE_IPSET
+		      if (ipsets && (flags & (F_IPV4 | F_IPV6)))
+			{
+			  ipsets_cur = ipsets;
+			  while (*ipsets_cur)
+			    add_to_ipset(*ipsets_cur++, &addr, flags, 0);
+			}
+#endif
+		      
+		      newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
+		      if (newc && cpp)
+			{
+			  cpp->addr.cname.target.cache = newc;
+			  cpp->addr.cname.uid = newc->uid;
+			}
+		      cpp = NULL;
+		    }
 		}
+	      
+	      p1 = endrr;
+	      if (!CHECK_LEN(header, p1, qlen, 0))
+		return 0; /* bad packet */
 	    }
 	  
 	  if (!found && !option_bool(OPT_NO_NEG))
@@ -2035,7 +2032,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   if (trunc)
     header->hb3 |= HB3_TC;
 
-  if (anscount == 0 && nxdomain)
+  if (nxdomain)
     SET_RCODE(header, NXDOMAIN);
   else
     SET_RCODE(header, NOERROR); /* no error */

@@ -149,6 +149,9 @@ version 2.67
 	    no address, and vice-versa. Thanks to Yury Konovalov for
 	    spotting the problem.
 
+	    Do a better job caching dangling CNAMEs. Thanks to Yves
+	    Dorfsman for spotting the problem.
+
  
 version 2.66
             Add the ability to act as an authoritative DNS
