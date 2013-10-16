@@ -632,6 +632,8 @@ int main (int argc, char **argv)
 
   if (bind_fallback)
     my_syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
+
+  warn_bound_listeners();
   
   if (!option_bool(OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
@@ -856,6 +858,7 @@ int main (int argc, char **argv)
 	  enumerate_interfaces(0);
 	  /* NB, is_dad_listeners() == 1 --> we're binding interfaces */
 	  create_bound_listeners(0);
+	  warn_bound_listeners();
 	}
 
 #ifdef HAVE_LINUX_NETWORK

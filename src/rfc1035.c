@@ -724,7 +724,7 @@ int check_source(struct dns_header *header, size_t plen, unsigned char *pseudohe
 }
 
 /* is addr in the non-globally-routed IP space? */ 
-static int private_net(struct in_addr addr, int ban_localhost) 
+int private_net(struct in_addr addr, int ban_localhost) 
 {
   in_addr_t ip_addr = ntohl(addr.s_addr);
 

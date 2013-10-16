@@ -454,7 +454,7 @@ struct ipsets {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int tftp_ok, dhcp_ok, mtu, done, dad, dns_auth, index, multicast_done;
+  int tftp_ok, dhcp_ok, mtu, done, warned, dad, dns_auth, index, multicast_done;
   char *name; 
   struct irec *next;
 };
@@ -988,6 +988,7 @@ unsigned char *skip_questions(struct dns_header *header, size_t plen);
 int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
 		 char *name, int isExtract, int extrabytes);
 int in_arpa_name_2_addr(char *namein, struct all_addr *addrp);
+int private_net(struct in_addr addr, int ban_localhost);
 
 /* auth.c */
 #ifdef HAVE_AUTH
@@ -1068,6 +1069,7 @@ void check_servers(void);
 int enumerate_interfaces(int reset);
 void create_wildcard_listeners(void);
 void create_bound_listeners(int die);
+void warn_bound_listeners(void);
 int is_dad_listeners(void);
 int iface_check(int family, struct all_addr *addr, char *name, int *auth_dns);
 int loopback_exception(int fd, int family, struct all_addr *addr, char *name);
