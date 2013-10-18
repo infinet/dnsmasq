@@ -876,7 +876,7 @@ extern struct daemon {
   char *packet; /* packet buffer */
   int packet_buff_sz; /* size of above */
   char *namebuff; /* MAXDNAME size buffer */
-  unsigned int local_answer, queries_forwarded;
+  unsigned int local_answer, queries_forwarded, auth_answer;
   struct frec *frec_list;
   struct serverfd *sfds;
   struct irec *interfaces;
@@ -993,6 +993,7 @@ int private_net(struct in_addr addr, int ban_localhost);
 /* auth.c */
 #ifdef HAVE_AUTH
 size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t now, union mysockaddr *peer_addr);
+int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 
 /* util.c */

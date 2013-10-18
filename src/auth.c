@@ -62,7 +62,7 @@ static int filter_constructed_dhcp(struct auth_zone *zone, int flag, struct all_
   return filter_zone(zone, flag, addr_u) != NULL;
 }
 
-static int in_zone(struct auth_zone *zone, char *name, char **cut)
+int in_zone(struct auth_zone *zone, char *name, char **cut)
 {
   size_t namelen = strlen(name);
   size_t domainlen = strlen(zone->domain);

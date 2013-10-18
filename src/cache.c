@@ -1161,6 +1161,9 @@ void dump_cache(time_t now)
 	    daemon->cachesize, cache_live_freed, cache_inserted);
   my_syslog(LOG_INFO, _("queries forwarded %u, queries answered locally %u"), 
 	    daemon->queries_forwarded, daemon->local_answer);
+#ifdef HAVE_AUTH
+  my_syslog(LOG_INFO, _("queries for authoritative zones %u"), daemon->auth_answer);
+#endif
 
   /* sum counts from different records for same server */
   for (serv = daemon->servers; serv; serv = serv->next)
