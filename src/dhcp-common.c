@@ -315,8 +315,9 @@ struct dhcp_config *find_config(struct dhcp_config *configs,
 	    return config;
 	  
 	  /* dhcpcd prefixes ASCII client IDs by zero which is wrong, but we try and
-	     cope with that here */
-	  if (!(context->flags & CONTEXT_V6) && *clid == 0 && config->clid_len == clid_len-1  &&
+	     cope with that here. This is IPv4 only. context==NULL implies IPv4, 
+	     see lease_update_from_configs() */
+	  if ((!context || !(context->flags & CONTEXT_V6)) && *clid == 0 && config->clid_len == clid_len-1  &&
 	      memcmp(config->clid, clid+1, clid_len-1) == 0 &&
 	      is_config_in_context(context, config))
 	    return config;
