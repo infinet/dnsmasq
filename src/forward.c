@@ -676,7 +676,7 @@ void receive_query(struct listener *listen, time_t now)
   size_t m;
   ssize_t n;
   int if_index = 0;
-  int auth_dns = 0;
+  int local_auth = 0, auth_dns = 0;
   struct iovec iov[1];
   struct msghdr msg;
   struct cmsghdr *cmptr;
@@ -869,6 +869,7 @@ void receive_query(struct listener *listen, time_t now)
 	if (in_zone(zone, daemon->namebuff, NULL))
 	  {
 	    auth_dns = 1;
+	    local_auth = 1;
 	    break;
 	  }
 #endif
@@ -877,7 +878,7 @@ void receive_query(struct listener *listen, time_t now)
 #ifdef HAVE_AUTH
   if (auth_dns)
     {
-      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr);
+      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr, local_auth);
       if (m >= 1)
 	{
 	  send_from(listen->fd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND),
@@ -914,6 +915,7 @@ unsigned char *tcp_request(int confd, time_t now,
 {
   size_t size = 0;
   int norebind = 0;
+  int local_auth = 0;
   int checking_disabled, check_subnet;
   size_t m;
   unsigned short qtype;
@@ -975,6 +977,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	    if (in_zone(zone, daemon->namebuff, NULL))
 	      {
 		auth_dns = 1;
+		local_auth = 1;
 		break;
 	      }
 #endif
@@ -987,7 +990,7 @@ unsigned char *tcp_request(int confd, time_t now,
       
 #ifdef HAVE_AUTH
       if (auth_dns)
-	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr);
+	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr, local_auth);
       else
 #endif
 	{
