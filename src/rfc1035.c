@@ -1725,29 +1725,39 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	      if (intr)
 		{
 		  struct addrlist *addrlist;
+		  int gotit = 0;
 
 		  enumerate_interfaces(0);
 		  
-		  addrlist = intr->addr4;
+		  for (intr = daemon->int_names; intr; intr = intr->next)
+		    if (hostname_isequal(name, intr->name))
+		      {
+			addrlist = intr->addr4;
 #ifdef HAVE_IPV6
-		  if (type == T_AAAA)
-		    addrlist = intr->addr6;
+			if (type == T_AAAA)
+			  addrlist = intr->addr6;
 #endif		  
-		  ans = 1;
-		  if (!dryrun)
-		    {
-		      if (!addrlist)
-			log_query(F_FORWARD | F_CONFIG | flag | F_NEG, name, NULL, NULL);
-		      else 
-			for (; addrlist; addrlist = addrlist->next)
+			ans = 1;
+			if (!dryrun)
 			  {
-			    log_query(F_FORWARD | F_CONFIG | flag, name, &addrlist->addr, NULL);
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						    daemon->local_ttl, NULL, type, C_IN, 
-						    type == T_A ? "4" : "6", &addrlist->addr))
-			      anscount++;
+			    if (addrlist)
+			      {
+				gotit = 1;
+				for (; addrlist; addrlist = addrlist->next)
+				  {
+				    log_query(F_FORWARD | F_CONFIG | flag, name, &addrlist->addr, NULL);
+				    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							    daemon->local_ttl, NULL, type, C_IN, 
+							    type == T_A ? "4" : "6", &addrlist->addr))
+				      anscount++;
+				  }
+			      }
 			  }
-		    }
+		      }
+		  
+		  if (!dryrun && !gotit)
+		    log_query(F_FORWARD | F_CONFIG | flag | F_NEG, name, NULL, NULL);
+		     
 		  continue;
 		}
 
