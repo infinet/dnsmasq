@@ -110,7 +110,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   
   if (ntohs(header->qdcount) == 0 || OPCODE(header) != QUERY )
     return 0;
-  
+
   /* determine end of question section (we put answers there) */
   if (!(ansp = skip_questions(header, qlen)))
     return 0; /* bad packet */
