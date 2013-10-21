@@ -197,7 +197,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	      if (in_zone(zone, intr->name, NULL))
 		{	
 		  found = 1;
-		  log_query(flag| F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
+		  log_query(flag | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
 		  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					  daemon->auth_ttl, NULL,
 					  T_PTR, C_IN, "d", intr->name))
@@ -357,19 +357,19 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	 flag = F_IPV6;
 #endif
        
-       if (flag)
-	 for (intr = daemon->int_names; intr; intr = intr->next)
-	   if (hostname_isequal(name, intr->name))
-	     {
-	       struct addrlist *addrlist;
-	       
-	       addrlist = intr->addr4;
+       for (intr = daemon->int_names; intr; intr = intr->next)
+	 if (hostname_isequal(name, intr->name))
+	   {
+	     struct addrlist *addrlist;
+	     
+	     addrlist = intr->addr4;
 #ifdef HAVE_IPV6
-	       if (qtype == T_AAAA)
-		 addrlist = intr->addr6;
+	     if (qtype == T_AAAA)
+	       addrlist = intr->addr6;
 #endif	
-	       nxdomain = 0;
-	       
+	     nxdomain = 0;
+	     
+	     if (flag)
 	       for (; addrlist; addrlist = addrlist->next)  
 		 if (local_query || filter_constructed_dhcp(zone, flag, &addrlist->addr))
 		   {
