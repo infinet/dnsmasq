@@ -793,7 +793,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   if (trunc)
     header->hb3 |= HB3_TC;
   
-  if (anscount == 0 && auth && nxdomain)
+  if ((auth || local_query) && nxdomain)
     SET_RCODE(header, NXDOMAIN);
   else
     SET_RCODE(header, NOERROR); /* no error */
