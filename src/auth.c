@@ -394,7 +394,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	       }
 	     found = 1;
 	     if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-				     daemon->auth_ttl, NULL,
+				     daemon->auth_ttl, &nameoffset,
 				     T_CNAME, C_IN, "d", name))
 	       anscount++;
 	     
@@ -782,8 +782,17 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
   /* done all questions, set up header and return length of result */
   /* clear authoritative and truncated flags, set QR flag */
   header->hb3 = (header->hb3 & ~(HB3_AA | HB3_TC)) | HB3_QR;
-  /* clear RA flag */
-  header->hb4 &= ~HB4_RA;
+
+  if (local_query)
+    {
+      /* set RA flag */
+      header->hb4 |= HB4_RA;
+    }
+  else
+    {
+      /* clear RA flag */
+      header->hb4 &= ~HB4_RA;
+    }
 
   /* authoritive */
   if (auth)
