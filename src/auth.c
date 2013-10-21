@@ -406,7 +406,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  
 	  if (qtype == T_SOA)
 	    {
-	      soa = 1; /* inhibits auth section */
+	      auth = soa = 1; /* inhibits auth section */
 	      found = 1;
 	      log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<SOA>");
 	    }
@@ -439,6 +439,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  return 0;
 		}
 	       	      
+	      auth = 1;
 	      soa = 1; /* inhibits auth section */
 	      ns = 1; /* ensure we include NS records! */
 	      axfr = 1;
@@ -448,6 +449,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	    }
       	  else if (qtype == T_NS)
 	    {
+	      auth = 1;
 	      ns = 1; /* inhibits auth section */
 	      found = 1;
 	      log_query(F_RRNAME | F_AUTH, zone->domain, NULL, "<NS>"); 
