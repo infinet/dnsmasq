@@ -4,10 +4,10 @@
 # Translation completed by Gildas Le Nadan <3ntr0p13@gmail.com>
 msgid ""
 msgstr ""
-"Project-Id-Version: dnsmasq 2.66\n"
+"Project-Id-Version: dnsmasq 2.67\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-18 12:24+0100\n"
-"PO-Revision-Date: 2013-03-26 21:12+1100\n"
+"PO-Revision-Date: 2013-10-24 19:24+1100\n"
 "Last-Translator:  Gildas Le Nadan <3ntr0p13@gmail.com>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=ISO-8859-1\n"
@@ -541,7 +541,7 @@ msgstr "Utilise ces relais DHCP en temps que proxy complets."
 
 #: option.c:394
 msgid "Relay DHCP requests to a remote server"
-msgstr ""
+msgstr "Requêtes de relais DHCP à un serveur distant"
 
 #: option.c:395
 msgid "Specify alias name for LOCAL DNS name."
@@ -582,11 +582,11 @@ msgstr "Autoriser les clients DHCP à faire leurs propres mises à jour DDNS (Dyna
 
 #: option.c:404
 msgid "Send router-advertisements for interfaces doing DHCPv6"
-msgstr "envoyer des annonces de routeurs pour toutes les interfaces faisant du DHCPv6"
+msgstr "Envoyer des annonces de routeurs pour toutes les interfaces faisant du DHCPv6"
 
 #: option.c:405
 msgid "Always send frequent router-advertisements"
-msgstr ""
+msgstr "Envoyer des annonces de routeurs fréquentes"
 
 #: option.c:406
 msgid "Specify DUID_EN-type DHCPv6 server DUID"
@@ -634,7 +634,7 @@ msgstr "Spécifie les ipsets auxquels les domaines correspondants doivent-être aj
 
 #: option.c:417
 msgid "Specify a domain and address range for sythesised names"
-msgstr ""
+msgstr "Spécifie un domaine et une plage d'adresses pour les noms auto-générés"
 
 #: option.c:419
 msgid "Specify DHCPv6 prefix class"
@@ -787,17 +787,14 @@ msgid "inconsistent DHCP range"
 msgstr "plage d'adresses DHCP incohérente"
 
 #: option.c:2459
-#, fuzzy
 msgid "prefix length must be exactly 64 for RA subnets"
 msgstr "la taille du préfixe doit être exactement 64 pour les sous-réseaux d'annonces de routeurs (RA)"
 
 #: option.c:2461
-#, fuzzy
 msgid "prefix length must be exactly 64 for subnet constructors"
 msgstr "la taille du préfixe doit être exactement 64 pour le constructeur de sous-réseaux"
 
 #: option.c:2465
-#, fuzzy
 msgid "prefix length must be at least 64"
 msgstr "la taille de préfixe doit être au minimum 64"
 
@@ -806,9 +803,8 @@ msgid "inconsistent DHCPv6 range"
 msgstr "plage d'adresses DHCPv6 incohérente"
 
 #: option.c:2479
-#, fuzzy
 msgid "prefix must be zero with \"constructor:\" argument"
-msgstr "la taille du préfixe doit être exactement 64 pour le constructeur de sous-réseaux"
+msgstr "le préfixe doit avoir une taille de 0 lorsque l'argument \"constructor:\" est utilisé"
 
 #: option.c:2590 option.c:2638
 msgid "bad hex constant"
@@ -842,9 +838,8 @@ msgid "bad dhcp-proxy address"
 msgstr "adresse dhcp-proxy incorrecte"
 
 #: option.c:3210
-#, fuzzy
 msgid "Bad dhcp-relay"
-msgstr "plage d'adresses DHCP (dhcp-range) incorrecte"
+msgstr "valeur incorrecte pour le relais DHCP (dhcp-relay)"
 
 #: option.c:3220
 msgid "bad DUID"
@@ -1039,9 +1034,9 @@ msgid "possible DNS-rebind attack detected: %s"
 msgstr "détection d'une possible attaque de type DNS-rebind: %s"
 
 #: forward.c:1216
-#, fuzzy, c-format
+#, c-format
 msgid "Maximum number of concurrent DNS queries reached (max: %d)"
-msgstr "Spécifie le nombre maximum de requêtes DHCP concurrentes (par défaut : %s)."
+msgstr "Nombre maximum de requêtes DNS concurrentes atteint (maximum : %d)."
 
 #: network.c:551
 #, c-format
@@ -1391,7 +1386,7 @@ msgstr "ignore %s à la ligne %d : duplication de nom ou d'adresse IP"
 #: dhcp.c:993 rfc3315.c:2047
 #, c-format
 msgid "DHCP relay %s -> %s"
-msgstr ""
+msgstr "Relais DHCP %s -> %s"
 
 #: lease.c:61
 #, c-format
@@ -1709,9 +1704,9 @@ msgid "%u vendor class: %u"
 msgstr "%u Classe de vendeur ('Vendor Class') : %u"
 
 #: rfc3315.c:418
-#, fuzzy, c-format
+#, c-format
 msgid "%u client MAC address: %s"
-msgstr "le client %u fourni le nom : %s"
+msgstr "%u MAC adresse du client : %s"
 
 #: rfc3315.c:650
 #, c-format
@@ -1760,7 +1755,7 @@ msgstr "libération reçue"
 
 #: rfc3315.c:2038
 msgid "Cannot multicast to DHCPv6 server without correct interface"
-msgstr ""
+msgstr "Impossible de faire du multicast au server DHCPv6 sans interface valide"
 
 #: dhcp-common.c:145
 #, c-format
@@ -1839,12 +1834,12 @@ msgstr "annonces de routeurs sur %s%s"
 #: dhcp-common.c:875
 #, c-format
 msgid "DHCP relay from %s to %s via %s"
-msgstr ""
+msgstr "Relais DHCP de %s à %s via %s"
 
 #: dhcp-common.c:877
 #, c-format
 msgid "DHCP relay from %s to %s"
-msgstr ""
+msgstr "Relais DHCP de %s à %s"
 
 #: radv.c:93
 #, c-format
