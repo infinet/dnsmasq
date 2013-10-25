@@ -18,16 +18,26 @@
 
 #ifdef HAVE_DHCP6
 
+#include <netinet/icmp6.h>
+
 struct iface_param {
   struct dhcp_context *current;
-  struct in6_addr fallback;
+  struct dhcp_relay *relay;
+  struct in6_addr fallback, relay_local;
   int ind, addr_match;
 };
+
+struct mac_param {
+  struct in6_addr *target;
+  unsigned char *mac;
+  unsigned int maclen;
+};
+
 
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int flags, 
 			     unsigned int preferred, unsigned int valid, void *vparam);
-
+static int find_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv);
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
 
 void dhcp6_init(void)
@@ -87,6 +97,7 @@ void dhcp6_init(void)
 void dhcp6_packet(time_t now)
 {
   struct dhcp_context *context;
+  struct dhcp_relay *relay;
   struct iface_param parm;
   struct cmsghdr *cmptr;
   struct msghdr msg;
@@ -100,6 +111,9 @@ void dhcp6_packet(time_t now)
   struct ifreq ifr;
   struct iname *tmp;
   unsigned short port;
+  struct in6_addr dst_addr;
+
+  memset(&dst_addr, 0, sizeof(dst_addr));
 
   msg.msg_control = control_u.control6;
   msg.msg_controllen = sizeof(control_u);
@@ -122,60 +136,86 @@ void dhcp6_packet(time_t now)
 	p.c = CMSG_DATA(cmptr);
         
 	if_index = p.p->ipi6_ifindex;
+	dst_addr = p.p->ipi6_addr;
       }
 
   if (!indextoname(daemon->dhcp6fd, if_index, ifr.ifr_name))
     return;
-    
-  for (tmp = daemon->if_except; tmp; tmp = tmp->next)
-    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
-      return;
 
-  for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
-    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
-      return;
- 
-  parm.current = NULL;
-  parm.ind = if_index;
-  parm.addr_match = 0;
-  memset(&parm.fallback, 0, IN6ADDRSZ);
-
-  for (context = daemon->dhcp6; context; context = context->next)
-    if (IN6_IS_ADDR_UNSPECIFIED(&context->start6) && context->prefix == 0)
-      {
-	/* wildcard context for DHCP-stateless only */
-	parm.current = context;
-	context->current = NULL;
-      }
-    else
-      {
-	/* unlinked contexts are marked by context->current == context */
-	context->current = context;
-	memset(&context->local6, 0, IN6ADDRSZ);
-      }
-  
-  if (!iface_enumerate(AF_INET6, &parm, complete_context6))
-    return;
-  
-  if (daemon->if_names || daemon->if_addrs)
+  if ((port = relay_reply6(&from, sz, ifr.ifr_name)) == 0)
     {
-      
-      for (tmp = daemon->if_names; tmp; tmp = tmp->next)
+      for (tmp = daemon->if_except; tmp; tmp = tmp->next)
 	if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
-	  break;
+	  return;
+      
+      for (tmp = daemon->dhcp_except; tmp; tmp = tmp->next)
+	if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
+	  return;
+      
+      parm.current = NULL;
+      parm.relay = NULL;
+      memset(&parm.relay_local, 0, IN6ADDRSZ);
+      parm.ind = if_index;
+      parm.addr_match = 0;
+      memset(&parm.fallback, 0, IN6ADDRSZ);
+      
+      for (context = daemon->dhcp6; context; context = context->next)
+	if (IN6_IS_ADDR_UNSPECIFIED(&context->start6) && context->prefix == 0)
+	  {
+	    /* wildcard context for DHCP-stateless only */
+	    parm.current = context;
+	    context->current = NULL;
+	  }
+	else
+	  {
+	    /* unlinked contexts are marked by context->current == context */
+	    context->current = context;
+	    memset(&context->local6, 0, IN6ADDRSZ);
+	  }
 
-      if (!tmp && !parm.addr_match)
+      for (relay = daemon->relay6; relay; relay = relay->next)
+	relay->current = relay;
+      
+      if (!iface_enumerate(AF_INET6, &parm, complete_context6))
 	return;
+
+      if (daemon->if_names || daemon->if_addrs)
+	{
+	  
+	  for (tmp = daemon->if_names; tmp; tmp = tmp->next)
+	    if (tmp->name && wildcard_match(tmp->name, ifr.ifr_name))
+	      break;
+	  
+	  if (!tmp && !parm.addr_match)
+	    return;
+	}
+      
+      if (parm.relay)
+	{
+	  /* Ignore requests sent to the ALL_SERVERS multicast address for relay when
+	     we're listening there for DHCPv6 server reasons. */
+	  struct in6_addr all_servers;
+	  
+	  inet_pton(AF_INET6, ALL_SERVERS, &all_servers);
+	  
+	  if (!IN6_ARE_ADDR_EQUAL(&dst_addr, &all_servers))
+	    relay_upstream6(parm.relay, sz, &from.sin6_addr, from.sin6_scope_id);
+	  return;
+	}
+      
+      /* May have configured relay, but not DHCP server */
+      if (!daemon->doing_dhcp6)
+	return;
+      
+      lease_prune(NULL, now); /* lose any expired leases */
+      
+      port = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, 
+			 sz, &from.sin6_addr, now);
+      
+      lease_update_file(now);
+      lease_update_dns(0);
     }
-
-  lease_prune(NULL, now); /* lose any expired leases */
-
-  port = dhcp6_reply(parm.current, if_index, ifr.ifr_name, &parm.fallback, 
-		     sz, IN6_IS_ADDR_MULTICAST(&from.sin6_addr), now);
-  
-  lease_update_file(now);
-  lease_update_dns(0);
-  
+			  
   /* The port in the source address of the original request should
      be correct, but at least once client sends from the server port,
      so we explicitly send to the client port to a client, and the
@@ -189,75 +229,156 @@ void dhcp6_packet(time_t now)
     }
 }
 
+void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsigned int *maclenp, unsigned int *mactypep)
+{
+  /* Recieving a packet from a host does not populate the neighbour
+     cache, so we send a neighbour discovery request if we can't 
+     find the sender. Repeat a few times in case of packet loss. */
+  
+  struct neigh_packet neigh;
+  struct sockaddr_in6 addr;
+  struct mac_param mac_param;
+  int i;
+
+  neigh.type = ND_NEIGHBOR_SOLICIT;
+  neigh.code = 0;
+  neigh.reserved = 0;
+  neigh.target = *client;
+  
+  memset(&addr, 0, sizeof(addr));
+#ifdef HAVE_SOCKADDR_SA_LEN
+  addr.sin6_len = sizeof(struct sockaddr_in6);
+#endif
+  addr.sin6_family = AF_INET6;
+  addr.sin6_port = htons(IPPROTO_ICMPV6);
+  addr.sin6_addr = *client;
+  addr.sin6_scope_id = iface;
+  
+  mac_param.target = client;
+  mac_param.maclen = 0;
+  mac_param.mac = mac;
+  
+  for (i = 0; i < 5; i++)
+    {
+      struct timespec ts;
+      
+      iface_enumerate(AF_UNSPEC, &mac_param, find_mac);
+      
+      if (mac_param.maclen != 0)
+	break;
+      
+      sendto(daemon->icmp6fd, &neigh, sizeof(neigh), 0, (struct sockaddr *)&addr, sizeof(addr));
+      
+      ts.tv_sec = 0;
+      ts.tv_nsec = 100000000; /* 100ms */
+      nanosleep(&ts, NULL);
+    }
+
+  *maclenp = mac_param.maclen;
+  *mactypep = ARPHRD_ETHER;
+}
+    
+static int find_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
+{
+  struct mac_param *parm = parmv;
+  
+  if (family == AF_INET6 && IN6_ARE_ADDR_EQUAL(parm->target, (struct in6_addr *)addrp))
+    {
+      if (maclen <= DHCP_CHADDR_MAX)
+	{
+	  parm->maclen = maclen;
+	  memcpy(parm->mac, mac, maclen);
+	}
+      
+      return 0; /* found, abort */
+    }
+  
+  return 1;
+}
+
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int flags, unsigned int preferred, 
 			     unsigned int valid, void *vparam)
 {
   struct dhcp_context *context;
+  struct dhcp_relay *relay;
   struct iface_param *param = vparam;
   struct iname *tmp;
  
   (void)scope; /* warning */
   
-  if (if_index == param->ind &&
-      !IN6_IS_ADDR_LOOPBACK(local) &&
-      !IN6_IS_ADDR_LINKLOCAL(local) &&
-      !IN6_IS_ADDR_MULTICAST(local))
+  if (if_index == param->ind)
     {
-      /* if we have --listen-address config, see if the 
-	 arrival interface has a matching address. */
-      for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
-	if (tmp->addr.sa.sa_family == AF_INET6 &&
-	    IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, local))
-	  param->addr_match = 1;
-      
-      /* Determine a globally address on the arrival interface, even
-	 if we have no matching dhcp-context, because we're only
-	 allocating on remote subnets via relays. This
-	 is used as a default for the DNS server option. */
-      param->fallback = *local;
-      
-      for (context = daemon->dhcp6; context; context = context->next)
+      if (!IN6_IS_ADDR_LOOPBACK(local) &&
+	  !IN6_IS_ADDR_LINKLOCAL(local) &&
+	  !IN6_IS_ADDR_MULTICAST(local))
 	{
-	  if ((context->flags & CONTEXT_DHCP) &&
-	      !(context->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
-	      prefix == context->prefix &&
-	      is_same_net6(local, &context->start6, prefix) &&
-	      is_same_net6(local, &context->end6, prefix))
+	  /* if we have --listen-address config, see if the 
+	     arrival interface has a matching address. */
+	  for (tmp = daemon->if_addrs; tmp; tmp = tmp->next)
+	    if (tmp->addr.sa.sa_family == AF_INET6 &&
+		IN6_ARE_ADDR_EQUAL(&tmp->addr.in6.sin6_addr, local))
+	      param->addr_match = 1;
+	  
+	  /* Determine a globally address on the arrival interface, even
+	     if we have no matching dhcp-context, because we're only
+	     allocating on remote subnets via relays. This
+	     is used as a default for the DNS server option. */
+	  param->fallback = *local;
+	  
+	  for (context = daemon->dhcp6; context; context = context->next)
 	    {
-
-
-	      /* link it onto the current chain if we've not seen it before */
-	      if (context->current == context)
+	      if ((context->flags & CONTEXT_DHCP) &&
+		  !(context->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
+		  prefix == context->prefix &&
+		  is_same_net6(local, &context->start6, prefix) &&
+		  is_same_net6(local, &context->end6, prefix))
 		{
-		  struct dhcp_context *tmp, **up;
 		  
-		  /* use interface values only for contructed contexts */
-		  if (!(context->flags & CONTEXT_CONSTRUCTED))
-		    preferred = valid = 0xffffffff;
-		  else if (flags & IFACE_DEPRECATED)
-		    preferred = 0;
-
-		  if (context->flags & CONTEXT_DEPRECATE)
-		    preferred = 0;
 		  
-		  /* order chain, longest preferred time first */
-		  for (up = &param->current, tmp = param->current; tmp; tmp = tmp->current)
-		    if (tmp->preferred <= preferred)
-		      break;
-		    else
-		      up = &tmp->current;
-		  
-		  context->current = *up;
-		  *up = context;
-		  context->local6 = *local;
-		  context->preferred = preferred;
-		  context->valid = valid;
+		  /* link it onto the current chain if we've not seen it before */
+		  if (context->current == context)
+		    {
+		      struct dhcp_context *tmp, **up;
+		      
+		      /* use interface values only for contructed contexts */
+		      if (!(context->flags & CONTEXT_CONSTRUCTED))
+			preferred = valid = 0xffffffff;
+		      else if (flags & IFACE_DEPRECATED)
+			preferred = 0;
+		      
+		      if (context->flags & CONTEXT_DEPRECATE)
+			preferred = 0;
+		      
+		      /* order chain, longest preferred time first */
+		      for (up = &param->current, tmp = param->current; tmp; tmp = tmp->current)
+			if (tmp->preferred <= preferred)
+			  break;
+			else
+			  up = &tmp->current;
+		      
+		      context->current = *up;
+		      *up = context;
+		      context->local6 = *local;
+		      context->preferred = preferred;
+		      context->valid = valid;
+		    }
 		}
 	    }
 	}
+
+      for (relay = daemon->relay6; relay; relay = relay->next)
+	if (IN6_ARE_ADDR_EQUAL(local, &relay->local.addr.addr6) && relay->current == relay &&
+	    (IN6_IS_ADDR_UNSPECIFIED(&param->relay_local) || IN6_ARE_ADDR_EQUAL(local, &param->relay_local)))
+	  {
+	    relay->current = param->relay;
+	    param->relay = relay;
+	    param->relay_local = *local;
+	  }
+      
     }          
-  return 1;
+ 
+ return 1;
 }
 
 struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct in6_addr *net, int prefix, u64 addr)
@@ -400,48 +521,6 @@ int config_valid(struct dhcp_config *config, struct dhcp_context *context, struc
   return 0;
 }
 
-static int is_config_in_context6(struct dhcp_context *context, struct dhcp_config *config)
-{
-  if (!(config->flags & CONFIG_ADDR6) || 
-      (config->flags & CONFIG_WILDCARD))
-
-    return 1;
-  
-  for (; context; context = context->current)
-    if (is_same_net6(&config->addr6, &context->start6, context->prefix))
-      return 1;
-      
-  return 0;
-}
-
-
-struct dhcp_config *find_config6(struct dhcp_config *configs,
-				 struct dhcp_context *context,
-				 unsigned char *duid, int duid_len,
-				 char *hostname)
-{
-  struct dhcp_config *config; 
-      
-  if (duid)
-    for (config = configs; config; config = config->next)
-      if (config->flags & CONFIG_CLID)
-	{
-	  if (config->clid_len == duid_len && 
-	      memcmp(config->clid, duid, duid_len) == 0 &&
-	      is_config_in_context6(context, config))
-	    return config;
-	}
-    
-  if (hostname && context)
-    for (config = configs; config; config = config->next)
-      if ((config->flags & CONFIG_NAME) && 
-          hostname_isequal(config->hostname, hostname) &&
-          is_config_in_context6(context, config))
-        return config;
-
-  return NULL;
-}
-
 void make_duid(time_t now)
 {
   if (daemon->duid_config)
@@ -475,6 +554,7 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
   
   unsigned char *p;
   (void)index;
+  (void)parm;
 
   if (type >= 256)
     return 1;
@@ -522,7 +602,13 @@ static int construct_worker(struct in6_addr *local, int prefix,
       IN6_IS_ADDR_MULTICAST(local))
     return 1;
 
-  if (!indextoname(daemon->doing_dhcp6 ? daemon->dhcp6fd : daemon->icmp6fd, if_index, ifrn_name))
+  if (!(flags & IFACE_PERMANENT))
+    return 1;
+
+  if (flags & IFACE_DEPRECATED)
+    return 1;
+
+  if (!indextoname(daemon->icmp6fd, if_index, ifrn_name))
     return 0;
   
   for (template = daemon->dhcp6; template; template = template->next)
@@ -538,11 +624,8 @@ static int construct_worker(struct in6_addr *local, int prefix,
 	  }
 	
       }
-    else if ((addr6part(local) == addr6part(&template->start6) ||
-	      addr6part(local) == addr6part(&template->end6) ||
-	      (IN6_IS_ADDR_UNSPECIFIED(&template->start6) &&
-	       IFACE_PERMANENT == (flags & (IFACE_PERMANENT | IFACE_DEPRECATED)))) && 
-	     wildcard_match(template->template_interface, ifrn_name))
+    else if (wildcard_match(template->template_interface, ifrn_name) &&
+	     template->prefix == prefix)
       {
 	start6 = *local;
 	setaddr6part(&start6, addr6part(&template->start6));

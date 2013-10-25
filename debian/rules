@@ -23,6 +23,11 @@ TARGET = install-i18n
 
 DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 
+# Force package version based on git tags.
+ifneq (,$(filter gitversion,$(DEB_BUILD_OPTIONS)))
+     PACKAGE_VERSION = $(shell bld/get-version `pwd` |  sed 's/test/~&/; s/[a-z]/~&/;  s/-/./g; s/$$/-1/; s/^/-v/';)
+endif
+
 ifeq (,$(filter nodbus,$(DEB_BUILD_OPTIONS)))
      COPTS += -DHAVE_DBUS
 endif
@@ -103,7 +108,7 @@ binary-indep:	checkroot
 	install -m 644 debian/insserv debian/daemon/etc/insserv.conf.d/dnsmasq
 	ln -s $(package) debian/daemon/usr/share/doc/dnsmasq
 	cd debian/daemon && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums	
-	dpkg-gencontrol -pdnsmasq -Pdebian/daemon
+	dpkg-gencontrol $(PACKAGE_VERSION) -T -pdnsmasq -Pdebian/daemon
 	chown -R root.root debian/daemon
 	chmod -R g-ws debian/daemon
 	dpkg --build debian/daemon ..
@@ -150,8 +155,8 @@ ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 	strip -R .note -R .comment debian/base/usr/sbin/dnsmasq
 endif
 	cd debian/base && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums
-	dpkg-shlibdeps debian/base/usr/sbin/dnsmasq
-	dpkg-gencontrol -pdnsmasq-base -Pdebian/base
+	dpkg-shlibdeps --warnings=1 debian/base/usr/sbin/dnsmasq
+	dpkg-gencontrol $(PACKAGE_VERSION) -pdnsmasq-base -Pdebian/base
 	chown -R root.root debian/base
 	chmod -R g-ws debian/base 
 	dpkg --build debian/base ..
@@ -178,7 +183,7 @@ ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 endif	
 	cd debian/utils && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums
 	dpkg-shlibdeps -Tdebian/utils-substvars debian/utils/usr/bin/dhcp_release debian/utils/usr/bin/dhcp_lease_time
-	dpkg-gencontrol -Tdebian/utils-substvars -pdnsmasq-utils -Pdebian/utils
+	dpkg-gencontrol $(PACKAGE_VERSION) -Tdebian/utils-substvars -pdnsmasq-utils -Pdebian/utils
 	chown -R root.root debian/utils
 	chmod -R g-ws debian/utils 
 	dpkg --build debian/utils ..

@@ -16,8 +16,7 @@ set -e
 RUN_DIR="/var/run/dnsmasq"
 RSLVRLIST_FILE="${RUN_DIR}/resolv.conf"
 TMP_FILE="${RSLVRLIST_FILE}_new.$$"
-MY_RECORD_NAME="lo.dnsmasq"
-DNSCRYPT_RECORD_NAME="lo.dnscrypt"
+MY_NAME_FOR_RESOLVCONF="dnsmasq"
 
 [ -x /usr/sbin/dnsmasq ] || exit 0
 [ -x /lib/resolvconf/list-records ] || exit 1
@@ -46,14 +45,14 @@ if [ ! -d "$RUN_DIR" ] && ! mkdir --parents --mode=0755 "$RUN_DIR" ; then
 fi
 
 RSLVCNFFILES=""
-for F in $(/lib/resolvconf/list-records --after "$MY_RECORD_NAME") ; do
+for F in $(/lib/resolvconf/list-records --after "lo.$MY_NAME_FOR_RESOLVCONF") ; do
 	case "$F" in
-	  "$MY_RECORD_NAME")
-		# Omit
+	    "lo.$MY_NAME_FOR_RESOLVCONF")
+		# Omit own record	 
 		;;
-	  "$DNSCRYPT_RECORD_NAME")
-		# Dnscrypt, I only have eyes for you
-		RSLVCNFFILES="$DNSCRYPT_RECORD_NAME"
+	    lo.*)
+		# Include no more records after one for a local nameserver
+		RSLVCNFFILES="${RSLVCNFFILES:+$RSLVCNFFILES }$F"
 		break
 		;;
 	  *)

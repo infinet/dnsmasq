@@ -7,7 +7,7 @@ Standards-Version: 3.9.3
 
 Package: dnsmasq
 Architecture: all
-Depends: netbase, dnsmasq-base(>= ${source:Version})
+Depends: netbase, dnsmasq-base(>= ${binary:Version})
 Suggests: resolvconf
 Conflicts: resolvconf (<<1.15)
 Description: Small caching DNS proxy and DHCP/TFTP server

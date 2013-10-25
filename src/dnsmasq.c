@@ -50,8 +50,13 @@ int main (int argc, char **argv)
 #if defined(HAVE_LINUX_NETWORK)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
+  char *bound_device = NULL;
+  int did_bind = 0;
 #endif 
+#if defined(HAVE_DHCP) || defined(HAVE_DHCP6)
   struct dhcp_context *context;
+  struct dhcp_relay *relay;
+#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -167,50 +172,47 @@ int main (int argc, char **argv)
   daemon->soa_sn = now;
 #endif
   
-#ifdef HAVE_DHCP
-  if (daemon->dhcp || daemon->dhcp6)
-    { 
+#ifdef HAVE_DHCP6
+  if (daemon->dhcp6)
+    {
+      daemon->doing_ra = option_bool(OPT_RA);
       
-#  ifdef HAVE_DHCP6
-      if (daemon->dhcp6)
+      for (context = daemon->dhcp6; context; context = context->next)
 	{
-	  daemon->doing_ra = option_bool(OPT_RA);
-	  
-	  for (context = daemon->dhcp6; context; context = context->next)
-	    {
-	      if (context->flags & CONTEXT_DHCP)
-		daemon->doing_dhcp6 = 1;
-	      if (context->flags & CONTEXT_RA)
-		daemon->doing_ra = 1;
+	  if (context->flags & CONTEXT_DHCP)
+	    daemon->doing_dhcp6 = 1;
+	  if (context->flags & CONTEXT_RA)
+	    daemon->doing_ra = 1;
 #ifndef  HAVE_LINUX_NETWORK
-	      if (context->flags & CONTEXT_TEMPLATE)
-		die (_("dhcp-range constructor not available on this platform"), NULL, EC_BADCONF);
+	  if (context->flags & CONTEXT_TEMPLATE)
+	    die (_("dhcp-range constructor not available on this platform"), NULL, EC_BADCONF);
 #endif 
-	    }
 	}
-#  endif
-
-      /* Note that order matters here, we must call lease_init before
-	 creating any file descriptors which shouldn't be leaked
-	 to the lease-script init process. We need to call common_init
-	 before lease_init to allocate buffers it uses.*/
-      if (daemon->dhcp || daemon->doing_dhcp6)
-	{
-	  dhcp_common_init();
-	  lease_init(now);
-	}
-
-      if (daemon->dhcp)
-	dhcp_init();
- 
-#  ifdef HAVE_DHCP6
-      if (daemon->doing_ra)
-	ra_init(now);
-      
-      if (daemon->doing_dhcp6)
-	dhcp6_init();
-#  endif
     }
+#endif
+  
+#ifdef HAVE_DHCP
+  /* Note that order matters here, we must call lease_init before
+     creating any file descriptors which shouldn't be leaked
+     to the lease-script init process. We need to call common_init
+     before lease_init to allocate buffers it uses.*/
+  if (daemon->dhcp || daemon->doing_dhcp6 || daemon->relay4 || daemon->relay6)
+    {
+      dhcp_common_init();
+      if (daemon->dhcp || daemon->doing_dhcp6)
+	lease_init(now);
+    }
+  
+  if (daemon->dhcp || daemon->relay4)
+    dhcp_init();
+  
+#  ifdef HAVE_DHCP6
+  if (daemon->doing_ra || daemon->doing_dhcp6 || daemon->relay6)
+    ra_init(now);
+  
+  if (daemon->doing_dhcp6 || daemon->relay6)
+    dhcp6_init();
+#  endif
 
 #endif
 
@@ -240,17 +242,29 @@ int main (int argc, char **argv)
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP)
       /* after enumerate_interfaces()  */
+      bound_device = whichdevice();
+      
       if (daemon->dhcp)
 	{
-	  bindtodevice(daemon->dhcpfd);
-	  if (daemon->enable_pxe)
-	    bindtodevice(daemon->pxefd);
+	  if (!daemon->relay4 && bound_device)
+	    {
+	      bindtodevice(bound_device, daemon->dhcpfd);
+	      did_bind = 1;
+	    }
+	  if (daemon->enable_pxe && bound_device)
+	    {
+	      bindtodevice(bound_device, daemon->pxefd);
+	      did_bind = 1;
+	    }
 	}
 #endif
 
 #if defined(HAVE_LINUX_NETWORK) && defined(HAVE_DHCP6)
-      if (daemon->doing_dhcp6)
-	bindtodevice(daemon->dhcp6fd);
+      if (daemon->doing_dhcp6 && !daemon->relay6 && bound_device)
+	{
+	  bindtodevice(bound_device, daemon->dhcp6fd);
+	  did_bind = 1;
+	}
 #endif
     }
   else 
@@ -258,7 +272,7 @@ int main (int argc, char **argv)
  
 #ifdef HAVE_DHCP6
   /* after enumerate_interfaces() */
-  if (daemon->doing_dhcp6 || daemon->doing_ra)
+  if (daemon->doing_dhcp6 || daemon->relay6 || daemon->doing_ra)
     join_multicast(1);
 #endif
   
@@ -619,6 +633,8 @@ int main (int argc, char **argv)
 
   if (bind_fallback)
     my_syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
+
+  warn_bound_listeners();
   
   if (!option_bool(OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)
@@ -642,15 +658,26 @@ int main (int argc, char **argv)
   for (context = daemon->dhcp; context; context = context->next)
     log_context(AF_INET, context);
 
+  for (relay = daemon->relay4; relay; relay = relay->next)
+    log_relay(AF_INET, relay);
+
 #  ifdef HAVE_DHCP6
   for (context = daemon->dhcp6; context; context = context->next)
     log_context(AF_INET6, context);
 
+  for (relay = daemon->relay6; relay; relay = relay->next)
+    log_relay(AF_INET6, relay);
+  
   if (daemon->doing_dhcp6 || daemon->doing_ra)
     dhcp_construct_contexts(now);
   
   if (option_bool(OPT_RA))
     my_syslog(MS_DHCP | LOG_INFO, _("IPv6 router advertisement enabled"));
+#  endif
+
+#  ifdef HAVE_LINUX_NETWORK
+  if (did_bind)
+    my_syslog(MS_DHCP | LOG_INFO, _("DHCP, sockets bound exclusively to interface %s"), bound_device);
 #  endif
 
   /* after dhcp_contruct_contexts */
@@ -750,7 +777,7 @@ int main (int argc, char **argv)
 #endif	
   
 #ifdef HAVE_DHCP
-      if (daemon->dhcp)
+      if (daemon->dhcp || daemon->relay4)
 	{
 	  FD_SET(daemon->dhcpfd, &rset);
 	  bump_maxfd(daemon->dhcpfd, &maxfd);
@@ -763,7 +790,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_DHCP6
-      if (daemon->doing_dhcp6)
+      if (daemon->doing_dhcp6 || daemon->relay6)
 	{
 	  FD_SET(daemon->dhcp6fd, &rset);
 	  bump_maxfd(daemon->dhcp6fd, &maxfd);
@@ -832,6 +859,7 @@ int main (int argc, char **argv)
 	  enumerate_interfaces(0);
 	  /* NB, is_dad_listeners() == 1 --> we're binding interfaces */
 	  create_bound_listeners(0);
+	  warn_bound_listeners();
 	}
 
 #ifdef HAVE_LINUX_NETWORK
@@ -875,7 +903,7 @@ int main (int argc, char **argv)
 #endif      
 
 #ifdef HAVE_DHCP
-      if (daemon->dhcp)
+      if (daemon->dhcp || daemon->relay4)
 	{
 	  if (FD_ISSET(daemon->dhcpfd, &rset))
 	    dhcp_packet(now, 0);
@@ -884,7 +912,7 @@ int main (int argc, char **argv)
 	}
 
 #ifdef HAVE_DHCP6
-      if (daemon->doing_dhcp6 && FD_ISSET(daemon->dhcp6fd, &rset))
+      if ((daemon->doing_dhcp6 || daemon->relay6) && FD_ISSET(daemon->dhcp6fd, &rset))
 	dhcp6_packet(now);
 
       if (daemon->doing_ra && FD_ISSET(daemon->icmp6fd, &rset))
@@ -1227,6 +1255,8 @@ void poll_resolv(int force, int do_reload, time_t now)
 
 void clear_cache_and_reload(time_t now)
 {
+  (void)now;
+
   if (daemon->port != 0)
     cache_reload();
   
