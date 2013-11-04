@@ -29,6 +29,7 @@
 #  include <net/if_var.h> 
 #endif
 #include <netinet/in_var.h>
+#include <netinet6/in6_var.h>
 
 #ifndef SA_SIZE
 #define SA_SIZE(sa)                                             \
