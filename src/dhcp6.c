@@ -394,7 +394,7 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
   return NULL;
 }
 
-struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
+struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, int temp_addr,
 				       int iaid, int serial, struct dhcp_netid *netids, int plain_range, struct in6_addr *ans)   
 {
   /* Find a free address: exclude anything in use and anything allocated to
@@ -411,9 +411,13 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
   u64 j; 
 
   /* hash hwaddr: use the SDBM hashing algorithm.  This works
-     for MAC addresses, let's see how it manages with client-ids! */
-  for (j = iaid, i = 0; i < clid_len; i++)
-    j += clid[i] + (j << 6) + (j << 16) - j;
+     for MAC addresses, let's see how it manages with client-ids! 
+     For temporary addresses, we generate a new random one each time. */
+  if (temp_addr)
+    j = rand64();
+  else
+    for (j = iaid, i = 0; i < clid_len; i++)
+      j += clid[i] + (j << 6) + (j << 16) - j;
   
   for (pass = 0; pass <= plain_range ? 1 : 0; pass++)
     for (c = context; c; c = c->current)
@@ -423,7 +427,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
 	continue;
       else
 	{ 
-	  if (option_bool(OPT_CONSEC_ADDR))
+	  if (!temp_addr && option_bool(OPT_CONSEC_ADDR))
 	    /* seed is largest extant lease addr in this context */
 	    start = lease_find_max_addr6(c) + serial;
 	  else
