@@ -280,18 +280,28 @@ struct ptr_record {
 struct cname {
   char *alias, *target;
   struct cname *next;
+}; 
+
+#define ADDRLIST_LITERAL 1
+#define ADDRLIST_IPV6    2
+
+struct addrlist {
+  struct all_addr addr;
+  int flags, prefixlen; 
+  struct addrlist *next;
 };
+
+#define AUTH6     1
+#define AUTH4     2
 
 struct auth_zone {
   char *domain;
-  struct subnet {
-    int is6, prefixlen;
-    struct in_addr addr4;
-#ifdef HAVE_IPV6
-    struct in6_addr addr6;
-#endif
-    struct subnet *next;
-  } *subnet;
+  struct auth_name_list {
+    char *name;
+    int flags;
+    struct auth_name_list *next;
+  } *interface_names;
+  struct addrlist *subnet;
   struct auth_zone *next;
 };
 
@@ -311,13 +321,7 @@ struct host_record {
 struct interface_name {
   char *name; /* domain name */
   char *intr; /* interface name */
-  struct addrlist {
-    struct all_addr addr;
-    struct addrlist *next;
-  } *addr4;
-#ifdef HAVE_IPV6
-  struct addrlist *addr6;
-#endif
+  struct addrlist *addr;
   struct interface_name *next;
 };
 
@@ -748,9 +752,8 @@ struct dhcp_context {
 #define CONTEXT_RA             (1u<<13)
 #define CONTEXT_CONF_USED      (1u<<14)
 #define CONTEXT_USED           (1u<<15)
-#define CONTEXT_NOAUTH         (1u<<16)
-#define CONTEXT_OLD            (1u<<17)
-#define CONTEXT_V6             (1u<<18)
+#define CONTEXT_OLD            (1u<<16)
+#define CONTEXT_V6             (1u<<17)
 
 
 struct ping_result {
