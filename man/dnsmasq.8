@@ -1902,8 +1902,12 @@ Something like:
 .nf
 .B auth-server=our.zone.com,eth0
 .B interface-name=our.zone.com,eth0
-.B auth-zone=our.zone.com,1.2.3.0/24
+.B auth-zone=our.zone.com,1.2.3.0/24,eth0
 .fi
+
+(The "eth0" argument in auth-zone adds the subnet containing eth0's
+dynamic address to the zone, so that the interface-name returns the
+address in outside queries.)
 
 Our final configuration builds on that above, but also adds a
 secondary DNS server. This is another DNS server which learns the DNS data
