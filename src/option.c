@@ -1654,6 +1654,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	new = opt_malloc(sizeof(struct auth_zone));
 	new->domain = opt_string_alloc(arg);
 	new->subnet = NULL;
+	new->interface_names = NULL;
 	new->next = daemon->auth_zones;
 	daemon->auth_zones = new;
 
@@ -1661,10 +1662,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    int prefixlen = 0;
 	    char *prefix;
-	    struct subnet *subnet =  opt_malloc(sizeof(struct subnet));
-	    
-	    subnet->next = new->subnet;
-	    new->subnet = subnet;
+	    struct addrlist *subnet =  NULL;
+	    struct all_addr addr;
 
 	    comma = split(arg);
 	    prefix = split_chr(arg, '/');
@@ -1672,24 +1671,50 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    if (prefix && !atoi_check(prefix, &prefixlen))
 	      ret_err(gen_err);
 	    
-	    if (inet_pton(AF_INET, arg, &subnet->addr4))
+	    if (inet_pton(AF_INET, arg, &addr.addr.addr4))
 	      {
+		subnet = opt_malloc(sizeof(struct addrlist));
 		subnet->prefixlen = (prefixlen == 0) ? 24 : prefixlen;
-		subnet->is6 = 0;
+		subnet->flags = ADDRLIST_LITERAL;
 	      }
 #ifdef HAVE_IPV6
-	    else if (inet_pton(AF_INET6, arg, &subnet->addr6))
+	    else if (inet_pton(AF_INET6, arg, &addr.addr.addr6))
 	      {
+		subnet = opt_malloc(sizeof(struct addrlist));
 		subnet->prefixlen = (prefixlen == 0) ? 64 : prefixlen;
-		subnet->is6 = 1;
+		subnet->flags = ADDRLIST_LITERAL | ADDRLIST_IPV6;
 	      }
 #endif
-	    else
-	        ret_err(gen_err);
+	    else 
+	      {
+		struct auth_name_list *name =  opt_malloc(sizeof(struct auth_name_list));
+		name->name = opt_string_alloc(arg);
+		name->flags = AUTH4 | AUTH6;
+		name->next = new->interface_names;
+		new->interface_names = name;
+		if (prefix)
+		  {
+		    if (prefixlen == 4)
+		      name->flags &= ~AUTH6;
+#ifdef HAVE_IPV6
+		    else if (prefixlen == 6)
+		      name->flags &= ~AUTH4;
+#endif
+		    else
+		      ret_err(gen_err);
+		  }
+	      }
+	    
+	    if (subnet)
+	      {
+		subnet->addr = addr;
+		subnet->next = new->subnet;
+		new->subnet = subnet;
+	      }
 	  }
 	break;
       }
-
+      
     case  LOPT_AUTHSOA: /* --auth-soa */
       comma = split(arg);
       daemon->soa_sn = (u32)atoi(arg);
@@ -2468,11 +2493,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  {
 		    new->template_interface = opt_string_alloc(a[leasepos] + 12);
 		    new->flags |= CONTEXT_TEMPLATE;
-		  }
-		else if (strstr(a[leasepos], "constructor-noauth:") == a[leasepos])
-		  {
-		    new->template_interface = opt_string_alloc(a[leasepos] + 19);
-		    new->flags |= CONTEXT_TEMPLATE | CONTEXT_NOAUTH;
 		  }
 		else  
 		  break;
@@ -3340,10 +3360,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	new = opt_malloc(sizeof(struct interface_name));
 	new->next = NULL;
-	new->addr4 = NULL;
-#ifdef HAVE_IPV6
-	new->addr6 = NULL;
-#endif
+	new->addr = NULL;
+	
 	/* Add to the end of the list, so that first name
 	   of an interface is used for PTR lookups. */
 	for (up = &daemon->int_names; *up; up = &((*up)->next));

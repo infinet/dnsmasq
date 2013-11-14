@@ -239,7 +239,7 @@ struct iface_param {
 };
 
 static int iface_allowed(struct iface_param *param, int if_index, char *label,
-			 union mysockaddr *addr, struct in_addr netmask, int dad) 
+			 union mysockaddr *addr, struct in_addr netmask, int prefixlen, int dad) 
 {
   struct irec *iface;
   int mtu = 0, loopback;
@@ -267,15 +267,67 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
     label = ifr.ifr_name;
 
   
-  /* Update addresses from interface_names. These are a set independent
-     of the set we're listening on. */  
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family != AF_INET6 || !IN6_IS_ADDR_LINKLOCAL(&addr->in6.sin6_addr))
 #endif
     {
       struct interface_name *int_name;
       struct addrlist *al;
+#ifdef HAVE_AUTH
+      struct auth_zone *zone;
+      struct auth_name_list *name;
 
+      /* Find subnets in auth_zones */
+      for (zone = daemon->auth_zones; zone; zone = zone->next)
+	for (name = zone->interface_names; name; name = name->next)
+	  if (wildcard_match(name->name, label))
+	    {
+	      if (addr->sa.sa_family == AF_INET && (name->flags & AUTH4))
+		{
+		  if (param->spare)
+		    {
+		      al = param->spare;
+		      param->spare = al->next;
+		    }
+		  else
+		    al = whine_malloc(sizeof(struct addrlist));
+		  
+		  if (al)
+		    {
+		      al->next = zone->subnet;
+		      zone->subnet = al;
+		      al->prefixlen = prefixlen;
+		      al->addr.addr.addr4 = addr->in.sin_addr;
+		      al->flags = 0;
+		    }
+		}
+	      
+#ifdef HAVE_IPV6
+	      if (addr->sa.sa_family == AF_INET6 && (name->flags & AUTH6))
+		{
+		  if (param->spare)
+		    {
+		      al = param->spare;
+		      param->spare = al->next;
+		    }
+		  else
+		    al = whine_malloc(sizeof(struct addrlist));
+		  
+		  if (al)
+		    {
+		      al->next = zone->subnet;
+		      zone->subnet = al;
+		      al->prefixlen = prefixlen;al->addr.addr.addr6 = addr->in6.sin6_addr;
+		      al->flags = ADDRLIST_IPV6;
+		    }
+		} 
+#endif
+	      
+	    }
+#endif
+       
+      /* Update addresses from interface_names. These are a set independent
+	 of the set we're listening on. */  
       for (int_name = daemon->int_names; int_name; int_name = int_name->next)
 	if (strncmp(label, int_name->intr, IF_NAMESIZE) == 0)
 	  {
@@ -289,18 +341,19 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
 	    
 	    if (al)
 	      {
+		al->next = int_name->addr;
+		int_name->addr = al;
+		
 		if (addr->sa.sa_family == AF_INET)
 		  {
 		    al->addr.addr.addr4 = addr->in.sin_addr;
-		    al->next = int_name->addr4;
-		    int_name->addr4 = al;
+		    al->flags = 0;
 		  }
 #ifdef HAVE_IPV6
 		else
 		 {
 		    al->addr.addr.addr6 = addr->in6.sin6_addr;
-		    al->next = int_name->addr6;
-		    int_name->addr6 = al;
+		    al->flags = ADDRLIST_IPV6;
 		 } 
 #endif
 	      }
@@ -413,7 +466,6 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   struct in_addr netmask; /* dummy */
   netmask.s_addr = 0;
 
-  (void)prefix; /* warning */
   (void)scope; /* warning */
   (void)preferred;
   (void)valid;
@@ -427,7 +479,7 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_port = htons(daemon->port);
   addr.in6.sin6_scope_id = if_index;
   
-  return iface_allowed((struct iface_param *)vparam, if_index, NULL, &addr, netmask, !!(flags & IFACE_TENTATIVE));
+  return iface_allowed((struct iface_param *)vparam, if_index, NULL, &addr, netmask, prefix, !!(flags & IFACE_TENTATIVE));
 }
 #endif
 
@@ -435,6 +487,7 @@ static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
 			    struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   union mysockaddr addr;
+  int prefix, bit;
 
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -445,7 +498,10 @@ static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
   addr.in.sin_addr = local;
   addr.in.sin_port = htons(daemon->port);
 
-  return iface_allowed((struct iface_param *)vparam, if_index, label, &addr, netmask, 0);
+  /* determine prefix length from netmask */
+  for (prefix = 32, bit = 1; (bit & ntohl(netmask.s_addr)) == 0 && prefix != 0; bit = bit << 1, prefix--);
+
+  return iface_allowed((struct iface_param *)vparam, if_index, label, &addr, netmask, prefix, 0);
 }
    
 int enumerate_interfaces(int reset)
@@ -456,7 +512,10 @@ int enumerate_interfaces(int reset)
   int errsave, ret = 1;
   struct addrlist *addr, *tmp;
   struct interface_name *intname;
-  
+#ifdef HAVE_AUTH
+  struct auth_zone *zone;
+#endif
+
   /* Do this max once per select cycle  - also inhibits netlink socket use
    in TCP child processes. */
 
@@ -480,27 +539,38 @@ int enumerate_interfaces(int reset)
   /* remove addresses stored against interface_names */
   for (intname = daemon->int_names; intname; intname = intname->next)
     {
-      for (addr = intname->addr4; addr; addr = tmp)
+      for (addr = intname->addr; addr; addr = tmp)
 	{
 	  tmp = addr->next;
 	  addr->next = spare;
 	  spare = addr;
 	}
       
-      intname->addr4 = NULL;
-
-#ifdef HAVE_IPV6
-      for (addr = intname->addr6; addr; addr = tmp)
-	{
-	  tmp = addr->next;
-	  addr->next = spare;
-	  spare = addr;
-	} 
-      
-      intname->addr6 = NULL;
-#endif
+      intname->addr = NULL;
     }
-  
+
+#ifdef HAVE_AUTH
+  /* remove addresses stored against auth_zone subnets, but not 
+   ones configured as address literals */
+  for (zone = daemon->auth_zones; zone; zone = zone->next)
+    if (zone->interface_names)
+      {
+	struct addrlist **up;
+	for (up = &zone->subnet, addr = zone->subnet; addr; addr = tmp)
+	  {
+	    tmp = addr->next;
+	    if (addr->flags & ADDRLIST_LITERAL)
+	      up = &addr->next;
+	    else
+	      {
+		*up = addr->next;
+		addr->next = spare;
+		spare = addr;
+	      }
+	  }
+      }
+#endif
+
   param.spare = spare;
   
 #ifdef HAVE_IPV6

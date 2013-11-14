@@ -394,7 +394,7 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
   return NULL;
 }
 
-struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, 
+struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned char *clid, int clid_len, int temp_addr,
 				       int iaid, int serial, struct dhcp_netid *netids, int plain_range, struct in6_addr *ans)   
 {
   /* Find a free address: exclude anything in use and anything allocated to
@@ -411,9 +411,13 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
   u64 j; 
 
   /* hash hwaddr: use the SDBM hashing algorithm.  This works
-     for MAC addresses, let's see how it manages with client-ids! */
-  for (j = iaid, i = 0; i < clid_len; i++)
-    j += clid[i] + (j << 6) + (j << 16) - j;
+     for MAC addresses, let's see how it manages with client-ids! 
+     For temporary addresses, we generate a new random one each time. */
+  if (temp_addr)
+    j = rand64();
+  else
+    for (j = iaid, i = 0; i < clid_len; i++)
+      j += clid[i] + (j << 6) + (j << 16) - j;
   
   for (pass = 0; pass <= plain_range ? 1 : 0; pass++)
     for (c = context; c; c = c->current)
@@ -423,7 +427,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
 	continue;
       else
 	{ 
-	  if (option_bool(OPT_CONSEC_ADDR))
+	  if (!temp_addr && option_bool(OPT_CONSEC_ADDR))
 	    /* seed is largest extant lease addr in this context */
 	    start = lease_find_max_addr6(c) + serial;
 	  else
@@ -523,6 +527,8 @@ int config_valid(struct dhcp_config *config, struct dhcp_context *context, struc
 
 void make_duid(time_t now)
 {
+  (void)now;
+
   if (daemon->duid_config)
     {
       unsigned char *p;
@@ -535,8 +541,14 @@ void make_duid(time_t now)
     }
   else
     {
+      time_t newnow = 0;
+      
+      /* If we have no persistent lease database, or a non-stable RTC, use DUID_LL (newnow == 0) */
+#ifndef HAVE_BROKEN_RTC
       /* rebase epoch to 1/1/2000 */
-      time_t newnow = now - 946684800;
+      if (!option_bool(OPT_LEASE_RO) || daemon->lease_change_command)
+	newnow = now - 946684800;
+#endif      
       
       iface_enumerate(AF_LOCAL, &newnow, make_duid1);
       
@@ -555,23 +567,27 @@ static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, vo
   unsigned char *p;
   (void)index;
   (void)parm;
-
+  time_t newnow = *((time_t *)parm);
+  
   if (type >= 256)
     return 1;
 
-#ifdef HAVE_BROKEN_RTC
-  daemon->duid = p = safe_malloc(maclen + 4);
-  daemon->duid_len = maclen + 4;
-  PUTSHORT(3, p); /* DUID_LL */
-  PUTSHORT(type, p); /* address type */
-#else
-  daemon->duid = p = safe_malloc(maclen + 8);
-  daemon->duid_len = maclen + 8;
-  PUTSHORT(1, p); /* DUID_LLT */
-  PUTSHORT(type, p); /* address type */
-  PUTLONG(*((time_t *)parm), p); /* time */
-#endif
-
+  if (newnow == 0)
+    {
+      daemon->duid = p = safe_malloc(maclen + 4);
+      daemon->duid_len = maclen + 4;
+      PUTSHORT(3, p); /* DUID_LL */
+      PUTSHORT(type, p); /* address type */
+    }
+  else
+    {
+      daemon->duid = p = safe_malloc(maclen + 8);
+      daemon->duid_len = maclen + 8;
+      PUTSHORT(1, p); /* DUID_LLT */
+      PUTSHORT(type, p); /* address type */
+      PUTLONG(*((time_t *)parm), p); /* time */
+    }
+  
   memcpy(p, mac, maclen);
 
   return 0;

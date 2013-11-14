@@ -39,6 +39,15 @@ unsigned short rand16(void)
    return (unsigned short) (arc4random() >> 15);
 }
 
+u64 rand64(void)
+{
+  u64 ret;
+
+  arc4random_buf(&ret, sizeof(ret));
+
+  return ret;
+}
+
 #else
 
 /* SURF random number generator */
@@ -46,6 +55,7 @@ unsigned short rand16(void)
 static u32 seed[32];
 static u32 in[12];
 static u32 out[8];
+static int outleft = 0;
 
 void rand_init()
 {
@@ -83,15 +93,30 @@ static void surf(void)
 
 unsigned short rand16(void)
 {
+  if (!outleft) 
+    {
+      if (!++in[0]) if (!++in[1]) if (!++in[2]) ++in[3];
+      surf();
+      outleft = 8;
+    }
+  
+  return (unsigned short) out[--outleft];
+}
+
+u64 rand64(void)
+{
   static int outleft = 0;
 
-  if (!outleft) {
-    if (!++in[0]) if (!++in[1]) if (!++in[2]) ++in[3];
-    surf();
-    outleft = 8;
-  }
+  if (outleft < 2)
+    {
+      if (!++in[0]) if (!++in[1]) if (!++in[2]) ++in[3];
+      surf();
+      outleft = 8;
+    }
+  
+  outleft -= 2;
 
-  return (unsigned short) out[--outleft];
+  return (u64)out[outleft+1] + (((u64)out[outleft]) << 32);
 }
 
 #endif
