@@ -27,6 +27,11 @@ version 2.68
 	    DHCP ranges, probably with a trailing "/6" like this: 
 	    --auth-zone=example.com,eth0/6 to limit the addresses to
 	    IPv6 addresses of eth0.
+
+	    Fix problems when advertising deleted IPv6 prefixes. If
+	    the prefix is deleted (rather than replaced), it doesn't
+	    get advertised with zero preferred time. Thanks to Tsachi
+	    for the bug report. 
  
 
 version 2.67

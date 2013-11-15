@@ -597,7 +597,7 @@ time_t periodic_ra(time_t now)
       
       if ((context->flags & CONTEXT_OLD) && 
 	  context->if_index != 0 && 
-	  indextoname(daemon->icmp6fd, param.iface, param.name))
+	  indextoname(daemon->icmp6fd, context->if_index, param.name))
 	{
 	  /* A context for an old address. We'll not find the interface by 
 	     looking for addresses, but we know it anyway, since the context is
