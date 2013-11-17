@@ -660,16 +660,16 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		  *cut = 0;
 		
 		for (addrlist = intr->addr; addrlist; addrlist = addrlist->next) 
-		  if (!(subnet->flags & ADDRLIST_IPV6) &&
-		      (local_query || filter_zone(zone, F_IPV4,  &addrlist->addr)) && 
+		  if (!(addrlist->flags & ADDRLIST_IPV6) &&
+		      (local_query || filter_zone(zone, F_IPV4, &addrlist->addr)) && 
 		      add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
 					  daemon->auth_ttl, NULL, T_A, C_IN, "4", cut ? intr->name : NULL, &addrlist->addr))
 		    anscount++;
 		
 #ifdef HAVE_IPV6
 		for (addrlist = intr->addr; addrlist; addrlist = addrlist->next) 
-		  if ((subnet->flags & ADDRLIST_IPV6) && 
-		      (local_query || filter_zone(zone, F_IPV6,  &addrlist->addr)) &&
+		  if ((addrlist->flags & ADDRLIST_IPV6) && 
+		      (local_query || filter_zone(zone, F_IPV6, &addrlist->addr)) &&
 		      add_resource_record(header, limit, &trunc, -axfroffset, &ansp, 
 					  daemon->auth_ttl, NULL, T_AAAA, C_IN, "6", cut ? intr->name : NULL, &addrlist->addr))
 		    anscount++;

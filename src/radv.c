@@ -205,7 +205,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   struct dhcp_netid iface_id;
   struct dhcp_opt *opt_cfg;
   struct ra_interface *ra_param = find_iface_param(iface_name);
-  int done_dns = 0;
+  int done_dns = 0, old_prefix = 0;
 #ifdef HAVE_LINUX_NETWORK
   FILE *f;
 #endif
@@ -267,7 +267,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	      struct in6_addr local = context->start6;
 	      int do_slaac = 0;
 
-	      parm.found_context = 1;
+	      old_prefix = 1;
 
 	      /* zero net part of address */
 	      setaddr6part(&local, addr6part(&local) & ~((context->prefix == 64) ? (u64)-1LL : (1LLU << (128 - context->prefix)) - 1LLU));
@@ -300,9 +300,14 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 	up = &context->next;
     }
     
-  if (!parm.found_context)
-    return;
-    
+  /* If we're advertising only old prefixes, set router lifetime to zero. */
+  if (old_prefix && !parm.found_context)
+    ra->lifetime = htons(0);
+
+  /* No prefixes to advertise. */
+  if (!old_prefix && !parm.found_context)
+    return; 
+  
 #ifdef HAVE_LINUX_NETWORK
   /* Note that IPv6 MTU is not necessarilly the same as the IPv4 MTU
      available from SIOCGIFMTU */

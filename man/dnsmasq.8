@@ -199,7 +199,12 @@ or
 .B --listen-address
 configuration, indeed
 .B --auth-server
-will overide these and provide a different DNS service on the specified interface. The <domain> is the "glue record". It should resolve in the global DNS to a A and/or AAAA record which points to the address dnsmasq is listening on.
+will overide these and provide a different DNS service on the
+specified interface. The <domain> is the "glue record". It should
+resolve in the global DNS to a A and/or AAAA record which points to
+the address dnsmasq is listening on. When an interface is specified,
+it may be qualified with "/4" or "/6" to specify only the IPv4 or IPv6
+addresses associated with the interface.
 .TP 
 .B \-2, --no-dhcp-interface=<interface name>
 Do not provide DHCP or TFTP on the specified interface, but do provide DNS service.

@@ -1620,8 +1620,22 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  new->addr.sa.sa_family = AF_INET6;
 #endif
 	else
-	  new->name = opt_string_alloc(arg);
-	
+	  {
+	    char *fam = split_chr(arg, '/');
+	    new->name = opt_string_alloc(arg);
+	    new->addr.sa.sa_family = 0;
+	    if (fam)
+	      {
+		if (strcmp(fam, "4") == 0)
+		  new->addr.sa.sa_family = AF_INET;
+#ifdef HAVE_IPV6
+		else if (strcmp(fam, "6") == 0)
+		  new->addr.sa.sa_family = AF_INET6;
+#endif
+		else
+		  ret_err(gen_err);
+	      } 
+	  }
 	new->next = daemon->authinterface;
 	daemon->authinterface = new;
 	
