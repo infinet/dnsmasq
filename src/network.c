@@ -159,7 +159,8 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
   for (tmp = daemon->authinterface; tmp; tmp = tmp->next)
     if (tmp->name)
       {
-	if (strcmp(tmp->name, name) == 0)
+	if (strcmp(tmp->name, name) == 0 &&
+	    (tmp->addr.sa.sa_family == 0 || tmp->addr.sa.sa_family == family))
 	  break;
       }
     else if (addr && tmp->addr.sa.sa_family == AF_INET && family == AF_INET &&
