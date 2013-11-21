@@ -514,11 +514,13 @@ record (which is always in the C_IN class). The value of the record is
 given by the hex data, which may be of the form 01:23:45 or 01 23 45 or
 012345 or any mixture of these.
 .TP
-.B --interface-name=<name>,<interface>
+.B --interface-name=<name>,<interface>[/4|/6]
 Return a DNS record associating the name with the primary address on
-the given interface. This flag specifies an A record for the given
+the given interface. This flag specifies an A or AAAA record for the given
 name in the same way as an /etc/hosts line, except that the address is
-not constant, but taken from the given interface. If the interface is
+not constant, but taken from the given interface. The interface may be
+followed by "/4" or "/6" to specify that only IPv4 or IPv6 addresses
+of the interface should be used. If the interface is
 down, not configured or non-existent, an empty record is returned. The
 matching PTR record is also created, mapping the interface address to
 the name. More than one name may be associated with an interface

@@ -321,6 +321,7 @@ struct host_record {
 struct interface_name {
   char *name; /* domain name */
   char *intr; /* interface name */
+  int family; /* AF_INET, AF_INET6 or zero for both */
   struct addrlist *addr;
   struct interface_name *next;
 };
@@ -1076,6 +1077,7 @@ int enumerate_interfaces(int reset);
 void create_wildcard_listeners(void);
 void create_bound_listeners(int die);
 void warn_bound_listeners(void);
+void warn_int_names(void);
 int is_dad_listeners(void);
 int iface_check(int family, struct all_addr *addr, char *name, int *auth_dns);
 int loopback_exception(int fd, int family, struct all_addr *addr, char *name);
