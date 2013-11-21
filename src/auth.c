@@ -18,7 +18,7 @@
 
 #ifdef HAVE_AUTH
 
-static struct addrlist *filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u)
+static struct addrlist *find_subnet(struct auth_zone *zone, int flag, struct all_addr *addr_u)
 {
   struct addrlist *subnet;
 
@@ -43,6 +43,15 @@ static struct addrlist *filter_zone(struct auth_zone *zone, int flag, struct all
 
     }
   return NULL;
+}
+
+static int filter_zone(struct auth_zone *zone, int flag, struct all_addr *addr_u)
+{
+  /* No zones specified, no filter */
+  if (!zone->subnet)
+    return 1;
+  
+  return find_subnet(zone, flag, addr_u) != NULL;
 }
 
 int in_zone(struct auth_zone *zone, char *name, char **cut)
@@ -130,7 +139,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  if (!local_query)
 	    {
 	      for (zone = daemon->auth_zones; zone; zone = zone->next)
-		if ((subnet = filter_zone(zone, flag, &addr)))
+		if ((subnet = find_subnet(zone, flag, &addr)))
 		  break;
 	      
 	      if (!zone)
