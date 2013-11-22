@@ -189,10 +189,6 @@ HAVE_SOLARIS_NETWORK
 HAVE_GETOPT_LONG
    defined when GNU-style getopt_long available. 
 
-HAVE_ARC4RANDOM
-   defined if arc4random() available to get better security from DNS spoofs
-   by using really random ids (OpenBSD) 
-
 HAVE_SOCKADDR_SA_LEN
    defined if struct sockaddr has sa_len field (*BSD) 
 */
@@ -201,7 +197,6 @@ HAVE_SOCKADDR_SA_LEN
 #if defined(__uClinux__)
 #define HAVE_LINUX_NETWORK
 #define HAVE_GETOPT_LONG
-#undef HAVE_ARC4RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 /* Never use fork() on uClinux. Note that this is subtly different from the
    --keep-in-foreground option, since it also  suppresses forking new 
@@ -215,7 +210,6 @@ HAVE_SOCKADDR_SA_LEN
    ((__UCLIBC_MAJOR__==0) && (__UCLIBC_MINOR__==9) && (__UCLIBC_SUBLEVEL__<21))
 #    define HAVE_GETOPT_LONG
 #endif
-#undef HAVE_ARC4RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #if !defined(__ARCH_HAS_MMU__) && !defined(__UCLIBC_HAS_MMU__)
 #  define NO_FORK
@@ -230,7 +224,6 @@ HAVE_SOCKADDR_SA_LEN
 #elif defined(__linux__)
 #define HAVE_LINUX_NETWORK
 #define HAVE_GETOPT_LONG
-#undef HAVE_ARC4RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 
 #elif defined(__FreeBSD__) || \
@@ -242,15 +235,11 @@ HAVE_SOCKADDR_SA_LEN
 #if defined(optional_argument) && defined(required_argument)
 #   define HAVE_GETOPT_LONG
 #endif
-#if !defined(__FreeBSD_kernel__)
-#   define HAVE_ARC4RANDOM
-#endif
 #define HAVE_SOCKADDR_SA_LEN
 
 #elif defined(__APPLE__)
 #define HAVE_BSD_NETWORK
 #define HAVE_GETOPT_LONG
-#define HAVE_ARC4RANDOM
 #define HAVE_SOCKADDR_SA_LEN
 /* Define before sys/socket.h is included so we get socklen_t */
 #define _BSD_SOCKLEN_T_
@@ -261,13 +250,11 @@ HAVE_SOCKADDR_SA_LEN
 #elif defined(__NetBSD__)
 #define HAVE_BSD_NETWORK
 #define HAVE_GETOPT_LONG
-#undef HAVE_ARC4RANDOM
 #define HAVE_SOCKADDR_SA_LEN
 
 #elif defined(__sun) || defined(__sun__)
 #define HAVE_SOLARIS_NETWORK
 #define HAVE_GETOPT_LONG
-#undef HAVE_ARC4RANDOM
 #undef HAVE_SOCKADDR_SA_LEN
 #define ETHER_ADDR_LEN 6 
  

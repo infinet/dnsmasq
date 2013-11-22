@@ -28,28 +28,6 @@
 #include <idna.h>
 #endif
 
-#ifdef HAVE_ARC4RANDOM
-void rand_init(void)
-{
-  return;
-}
-
-unsigned short rand16(void)
-{
-   return (unsigned short) (arc4random() >> 15);
-}
-
-u64 rand64(void)
-{
-  u64 ret;
-
-  arc4random_buf(&ret, sizeof(ret));
-
-  return ret;
-}
-
-#else
-
 /* SURF random number generator */
 
 static u32 seed[32];
@@ -118,8 +96,6 @@ u64 rand64(void)
 
   return (u64)out[outleft+1] + (((u64)out[outleft]) << 32);
 }
-
-#endif
 
 static int check_name(char *in)
 {
