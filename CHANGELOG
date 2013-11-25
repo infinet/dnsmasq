@@ -32,6 +32,12 @@ version 2.68
 	    the prefix is deleted (rather than replaced), it doesn't
 	    get advertised with zero preferred time. Thanks to Tsachi
 	    for the bug report. 
+
+	    Fix segfault with some locally configured CNAMEs. Thanks
+	    to Andrew Childs for spotting the problem.
+
+	    Fix memory leak on re-reading /etc/hosts and friends,
+	    introduced in 2.67.
  
 
 version 2.67
