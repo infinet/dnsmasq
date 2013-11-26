@@ -252,6 +252,8 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
   struct iname *tmp;
 #endif
 
+  (void)prefixlen;
+
   if (!indextoname(param->fd, if_index, ifr.ifr_name) ||
       ioctl(param->fd, SIOCGIFFLAGS, &ifr) == -1)
     return 0;
@@ -318,7 +320,8 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
 		    {
 		      al->next = zone->subnet;
 		      zone->subnet = al;
-		      al->prefixlen = prefixlen;al->addr.addr.addr6 = addr->in6.sin6_addr;
+		      al->prefixlen = prefixlen;
+		      al->addr.addr.addr6 = addr->in6.sin6_addr;
 		      al->flags = ADDRLIST_IPV6;
 		    }
 		} 

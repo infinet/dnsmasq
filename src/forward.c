@@ -675,8 +675,10 @@ void receive_query(struct listener *listen, time_t now)
   struct in_addr netmask, dst_addr_4;
   size_t m;
   ssize_t n;
-  int if_index = 0;
-  int local_auth = 0, auth_dns = 0;
+  int if_index = 0, auth_dns = 0;
+#ifdef HAVE_AUTH
+  int local_auth = 0;
+#endif
   struct iovec iov[1];
   struct msghdr msg;
   struct cmsghdr *cmptr;
@@ -916,7 +918,9 @@ unsigned char *tcp_request(int confd, time_t now,
 {
   size_t size = 0;
   int norebind = 0;
+#ifdef HAVE_AUTH
   int local_auth = 0;
+#endif
   int checking_disabled, check_subnet;
   size_t m;
   unsigned short qtype;
