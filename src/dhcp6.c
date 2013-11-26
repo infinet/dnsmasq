@@ -661,6 +661,7 @@ static int construct_worker(struct in6_addr *local, int prefix,
 		  log_context(AF_INET6, context); 
 		  /* fast RAs for a while */
 		  ra_start_unsolicted(param->now, context);
+		  param->newone = 1; 
 		  /* Add address to name again */
 		  if (context->flags & CONTEXT_RA_NAME)
 		    param->newname = 1;
