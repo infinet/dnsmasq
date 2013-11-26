@@ -945,15 +945,15 @@ void cache_reload(void)
   /* Add CNAMEs to interface_names to the cache */
   for (a = daemon->cnames; a; a = a->next)
     for (intr = daemon->int_names; intr; intr = intr->next)
-      if (hostname_isequal(a->target, intr->name))
+      if (hostname_isequal(a->target, intr->name) &&
+	  ((cache = whine_malloc(sizeof(struct crec)))))
 	{
-	  struct crec *aliasc = whine_malloc(sizeof(struct crec));
-	  aliasc->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG;
-	  aliasc->name.namep = a->alias;
-	  aliasc->addr.cname.target.int_name = intr;
-	  aliasc->addr.cname.uid = -1;
-	  cache_hash(aliasc);
-	  add_hosts_cname(aliasc); /* handle chains */
+	  cache->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG;
+	  cache->name.namep = a->alias;
+	  cache->addr.cname.target.int_name = intr;
+	  cache->addr.cname.uid = -1;
+	  cache_hash(cache);
+	  add_hosts_cname(cache); /* handle chains */
 	}
   
   /* borrow the packet buffer for a temporary by-address hash */
