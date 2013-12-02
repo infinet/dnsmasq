@@ -371,6 +371,7 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
     if (sockaddr_isequal(&iface->addr, addr))
       {
 	iface->dad = dad;
+	iface->found = 1; /* for garbage collection */
 	return 1;
       }
 
@@ -445,6 +446,7 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
       iface->dns_auth = auth_dns;
       iface->mtu = mtu;
       iface->dad = dad;
+      iface->found = 1;
       iface->done = iface->multicast_done = iface->warned = 0;
       iface->index = if_index;
       if ((iface->name = whine_malloc(strlen(ifr.ifr_name)+1)))
@@ -517,6 +519,7 @@ int enumerate_interfaces(int reset)
   int errsave, ret = 1;
   struct addrlist *addr, *tmp;
   struct interface_name *intname;
+  struct irec *iface;
 #ifdef HAVE_AUTH
   struct auth_zone *zone;
 #endif
@@ -541,6 +544,10 @@ int enumerate_interfaces(int reset)
   if ((param.fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
     return 0;
  
+  /* Mark interfaces for garbage collection */
+  for (iface = daemon->interfaces; iface; iface = iface->next) 
+    iface->found = 0;
+
   /* remove addresses stored against interface_names */
   for (intname = daemon->int_names; intname; intname = intname->next)
     {
@@ -587,11 +594,47 @@ int enumerate_interfaces(int reset)
  
   errsave = errno;
   close(param.fd);
+  
+  if (option_bool(OPT_CLEVERBIND))
+    { 
+      /* Garbage-collect listeners listening on addresses that no longer exist.
+	 Does nothing when not binding interfaces or for listeners on localhost, 
+	 since the ->iface field is NULL. Note that this needs the protections
+	 against re-entrancy, hence it's here.  It also means there's a possibility,
+	 in OPT_CLEVERBIND mode, that at listener will just disappear after
+	 a call to enumerate_interfaces, this is checked OK on all calls. */
+      struct listener *l, *tmp, **up;
+      
+      for (up = &daemon->listeners, l = daemon->listeners; l; l = tmp)
+	{
+	  tmp = l->next;
+	  
+	  if (!l->iface || l->iface->found)
+	    up = &l->next;
+	  else
+	    {
+	      *up = l->next;
+	      
+	      /* In case it ever returns */
+	      l->iface->done = 0;
+	      
+	      if (l->fd != -1)
+		close(l->fd);
+	      if (l->tcpfd != -1)
+		close(l->tcpfd);
+	      if (l->tftpfd != -1)
+		close(l->tftpfd);
+	      
+	      free(l);
+	    }
+	}
+    }
+  
   errno = errsave;
-
+  
   spare = param.spare;
   active = 0;
-
+  
   return ret;
 }
 
@@ -830,7 +873,8 @@ static struct listener *create_listeners(union mysockaddr *addr, int do_tftp, in
       l->family = addr->sa.sa_family;
       l->fd = fd;
       l->tcpfd = tcpfd;
-      l->tftpfd = tftpfd;
+      l->tftpfd = tftpfd;	
+      l->iface = NULL;
     }
 
   return l;
@@ -877,7 +921,7 @@ void create_bound_listeners(int dienow)
   struct iname *if_tmp;
 
   for (iface = daemon->interfaces; iface; iface = iface->next)
-    if (!iface->done && !iface->dad && 
+    if (!iface->done && !iface->dad && iface->found &&
 	(new = create_listeners(&iface->addr, iface->tftp_ok, dienow)))
       {
 	new->iface = iface;
@@ -901,7 +945,6 @@ void create_bound_listeners(int dienow)
     if (!if_tmp->used && 
 	(new = create_listeners(&if_tmp->addr, !!option_bool(OPT_TFTP), dienow)))
       {
-	new->iface = NULL;
 	new->next = daemon->listeners;
 	daemon->listeners = new;
       }

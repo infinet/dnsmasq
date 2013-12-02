@@ -459,7 +459,7 @@ struct ipsets {
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
-  int tftp_ok, dhcp_ok, mtu, done, warned, dad, dns_auth, index, multicast_done;
+  int tftp_ok, dhcp_ok, mtu, done, warned, dad, dns_auth, index, multicast_done, found;
   char *name; 
   struct irec *next;
 };
