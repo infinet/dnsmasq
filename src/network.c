@@ -630,7 +630,11 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
       s = _("failed to create listening socket for %s: %s");
       
       if (fd != -1)
-	close (fd);
+	{
+	  int errsav = errno;
+	  close (fd);
+	  errno = errsav;
+	}
       
       if (dienow)
 	{
