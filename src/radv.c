@@ -430,7 +430,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
       else if (!IN6_IS_ADDR_LOOPBACK(local) &&
 	       !IN6_IS_ADDR_MULTICAST(local))
 	{
-	  int do_prefix = 0;
+	  int real_prefix = 0;
 	  int do_slaac = 0;
 	  int deprecate  = 0;
 	  int constructed = 0;
@@ -439,9 +439,9 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  
 	  for (context = daemon->dhcp6; context; context = context->next)
 	    if (!(context->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
-		prefix == context->prefix &&
-		is_same_net6(local, &context->start6, prefix) &&
-		is_same_net6(local, &context->end6, prefix))
+		prefix <= context->prefix &&
+		is_same_net6(local, &context->start6, context->prefix) &&
+		is_same_net6(local, &context->end6, context->prefix))
 	      {
 		context->saved_valid = valid;
 
@@ -496,7 +496,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		    if (!param->first)
 		      context->ra_time = 0;
 		    context->flags |= CONTEXT_RA_DONE;
-		    do_prefix = 1;
+		    real_prefix = context->prefix;
 		  }
 
 		param->first = 0;	
@@ -523,18 +523,18 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	      param->link_global = *local;
 	    }
 	  
-	  if (do_prefix)
+	  if (real_prefix != 0)
 	    {
 	      struct prefix_opt *opt;
 	     	      
 	      if ((opt = expand(sizeof(struct prefix_opt))))
 		{
 		  /* zero net part of address */
-		  setaddr6part(local, addr6part(local) & ~((prefix == 64) ? (u64)-1LL : (1LLU << (128 - prefix)) - 1LLU));
+		  setaddr6part(local, addr6part(local) & ~((real_prefix == 64) ? (u64)-1LL : (1LLU << (128 - real_prefix)) - 1LLU));
 		  
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
-		  opt->prefix_len = prefix;
+		  opt->prefix_len = real_prefix;
 		  /* autonomous only if we're not doing dhcp, always set "on-link" */
 		  opt->flags = do_slaac ? 0xC0 : 0x80;
 		  opt->valid_lifetime = htonl(valid);
@@ -645,9 +645,9 @@ static int iface_search(struct in6_addr *local,  int prefix,
  
   for (context = daemon->dhcp6; context; context = context->next)
     if (!(context->flags & (CONTEXT_TEMPLATE | CONTEXT_OLD)) &&
-	prefix == context->prefix &&
-	is_same_net6(local, &context->start6, prefix) &&
-	is_same_net6(local, &context->end6, prefix) &&
+	prefix <= context->prefix &&
+	is_same_net6(local, &context->start6, context->prefix) &&
+	is_same_net6(local, &context->end6, context->prefix) &&
 	context->ra_time != 0 && 
 	difftime(context->ra_time, param->now) <= 0.0)
       {
@@ -670,9 +670,9 @@ static int iface_search(struct in6_addr *local,  int prefix,
 	/* zero timers for other contexts on the same subnet, so they don't timeout 
 	   independently */
 	for (context = context->next; context; context = context->next)
-	  if (prefix == context->prefix &&
-	      is_same_net6(local, &context->start6, prefix) &&
-	      is_same_net6(local, &context->end6, prefix))
+	  if (prefix <= context->prefix &&
+	      is_same_net6(local, &context->start6, context->prefix) &&
+	      is_same_net6(local, &context->end6, context->prefix))
 	    context->ra_time = 0;
 	
 	return 0; /* found, abort */

@@ -673,7 +673,8 @@ always optional. It is always
 allowed to have more than one dhcp-range in a single subnet. 
 
 For IPv6, the parameters are slightly different: instead of netmask
-and broadcast address, there is an optional prefix length. If not
+and broadcast address, there is an optional prefix length which must
+be equal to or larger then the prefix length on the local interface. If not
 given, this defaults to 64. Unlike the IPv4 case, the prefix length is not
 automatically derived from the interface configuration. The mimimum
 size of the prefix length is 64.
