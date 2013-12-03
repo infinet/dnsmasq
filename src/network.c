@@ -484,8 +484,12 @@ static int iface_allowed_v6(struct in6_addr *local, int prefix,
   addr.in6.sin6_family = AF_INET6;
   addr.in6.sin6_addr = *local;
   addr.in6.sin6_port = htons(daemon->port);
-  addr.in6.sin6_scope_id = if_index;
-  
+  /* FreeBSD insists this is zero for non-linklocal addresses */
+  if (IN6_IS_ADDR_LINKLOCAL(local))
+    addr.in6.sin6_scope_id = if_index;
+  else
+    addr.in6.sin6_scope_id = 0;
+
   return iface_allowed((struct iface_param *)vparam, if_index, NULL, &addr, netmask, prefix, !!(flags & IFACE_TENTATIVE));
 }
 #endif
