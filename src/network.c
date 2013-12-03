@@ -711,9 +711,9 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
       if (listen(fd, 5) == -1)
 	goto err;
     }
-  else if (!option_bool(OPT_NOWILD))
+  else if (family == AF_INET)
     {
-      if (family == AF_INET)
+      if (!option_bool(OPT_NOWILD))
 	{
 #if defined(HAVE_LINUX_NETWORK) 
 	  if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1)
@@ -724,11 +724,11 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
 	    goto err;
 #endif
 	}
-#ifdef HAVE_IPV6
-      else if (!set_ipv6pktinfo(fd))
-	goto err;
-#endif
     }
+#ifdef HAVE_IPV6
+  else if (!set_ipv6pktinfo(fd))
+    goto err;
+#endif
   
   return fd;
 }
@@ -961,6 +961,9 @@ void create_bound_listeners(int dienow)
 
    The fix is to use --bind-dynamic, which actually checks the arrival interface too.
    Tough if your platform doesn't support this.
+
+   Note that checking the arrival interface is supported in the standard IPv6 API and
+   always done, so we don't warn about any IPv6 addresses here.
 */
 
 void warn_bound_listeners(void)
@@ -971,34 +974,16 @@ void warn_bound_listeners(void)
   for (iface = daemon->interfaces; iface; iface = iface->next)
     if (!iface->dns_auth)
       {
-	int warn = 0;
 	if (iface->addr.sa.sa_family == AF_INET)
 	  {
 	    if (!private_net(iface->addr.in.sin_addr, 1))
 	      {
 		inet_ntop(AF_INET, &iface->addr.in.sin_addr, daemon->addrbuff, ADDRSTRLEN);
-		warn = 1;
+		iface->warned = advice = 1;
+		my_syslog(LOG_WARNING, 
+			  _("LOUD WARNING: listening on %s may accept requests via interfaces other than %s"),
+			  daemon->addrbuff, iface->name);
 	      }
-	  }
-#ifdef HAVE_IPV6
-	else
-	  {
-	    if (!IN6_IS_ADDR_LINKLOCAL(&iface->addr.in6.sin6_addr) &&
-		!IN6_IS_ADDR_SITELOCAL(&iface->addr.in6.sin6_addr) &&
-		!IN6_IS_ADDR_ULA(&iface->addr.in6.sin6_addr) &&
-		!IN6_IS_ADDR_LOOPBACK(&iface->addr.in6.sin6_addr))
-	      {
-		inet_ntop(AF_INET6, &iface->addr.in6.sin6_addr, daemon->addrbuff, ADDRSTRLEN);
-		warn = 1;
-	      }
-	  }
-#endif
-	if (warn)
-	  {
-	    iface->warned = advice = 1;
-	    my_syslog(LOG_WARNING, 
-		      _("LOUD WARNING: listening on %s may accept requests via interfaces other than %s"),
-		      daemon->addrbuff, iface->name);
 	  }
       }
   

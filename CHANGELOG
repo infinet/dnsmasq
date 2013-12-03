@@ -38,6 +38,12 @@ version 2.68
 
 	    Fix memory leak on re-reading /etc/hosts and friends,
 	    introduced in 2.67.
+
+	    Check the arrival interface of incoming DNS and TFTP
+	    requests via IPv6, even in --bind-interfaces mode. This
+	    isn't possible for IPv4 and can generate scary warnings,
+	    but as it's always possible for IPv6 (the API always
+	    exists) then we should do it always. 
  
 
 version 2.67

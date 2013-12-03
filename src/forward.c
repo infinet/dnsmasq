@@ -697,7 +697,13 @@ void receive_query(struct listener *listen, time_t now)
 		 CMSG_SPACE(sizeof(struct sockaddr_dl))];
 #endif
   } control_u;
-  
+#ifdef HAVE_IPV6
+   /* Can always get recvd interface for IPv6 */
+  int check_dst = !option_bool(OPT_NOWILD) || listen->family == AF_INET6;
+#else
+  int check_dst = !option_bool(OPT_NOWILD);
+#endif
+
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
@@ -740,7 +746,7 @@ void receive_query(struct listener *listen, time_t now)
     source_addr.in6.sin6_flowinfo = 0;
 #endif
 
-  if (!option_bool(OPT_NOWILD))
+  if (check_dst)
     {
       struct ifreq ifr;
 
