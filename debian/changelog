@@ -1,6 +1,6 @@
 dnsmasq (2.67-1) unstable; urgency=low
 
-   * New upstream.
+   * New upstream. (closes: #730553)
    * Update resolvconf script. (closes: #720732)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 4 Aug 2013 14:53:22 +0000
