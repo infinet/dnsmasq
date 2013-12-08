@@ -10,15 +10,15 @@ msgstr ""
 "Project-Id-Version: pl\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-10 20:57+0100\n"
-"PO-Revision-Date: 2013-10-01 23:23+0200\n"
+"PO-Revision-Date: 2013-12-04 01:34+0100\n"
 "Last-Translator: Jan Psota <jasiupsota@gmail.com>\n"
 "Language-Team: polski <>\n"
 "Language: pl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bits\n"
+"Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n!=1);\n"
-"X-Generator: Gtranslator 2.91.6\n"
+"X-Generator: Poedit 1.5.5\n"
 "X-Language: pl_PL\n"
 
 #: cache.c:821
@@ -76,9 +76,9 @@ msgid "queries forwarded %u, queries answered locally %u"
 msgstr "%u zapytań przesłanych dalej, %u odpowiedzi udzielonych samodzielnie"
 
 #: cache.c:1165
-#, fuzzy, c-format
+#, c-format
 msgid "queries for authoritative zones %u"
-msgstr "Określenie TTL dla odpowiedzi autorytatywnych"
+msgstr "zapytań do stref autorytatywnych %u"
 
 #: cache.c:1188
 #, c-format
@@ -563,9 +563,8 @@ msgid "Add requestor's MAC address to forwarded DNS queries."
 msgstr "Przekazywanie MAC-adresu komputera pytającego w ruchu wychodzącym DNS."
 
 #: option.c:409
-#, fuzzy
 msgid "Add requestor's IP subnet to forwarded DNS queries."
-msgstr "Przekazywanie MAC-adresu komputera pytającego w ruchu wychodzącym DNS."
+msgstr "Zamieszczanie adresu IP pytającego w przekazywanych zapytaniach DNS."
 
 #: option.c:410
 msgid "Proxy DNSSEC validation results from upstream nameservers."
@@ -632,9 +631,8 @@ msgid "Specify ipsets to which matching domains should be added"
 msgstr "Wyszczególnienie ipset-ów, do których będą dopisywane adresy IP leżące we wskazanych domenach"
 
 #: option.c:426
-#, fuzzy
 msgid "Specify a domain and address range for synthesised names"
-msgstr "Określenie domeny i zakresu adresów dla tworzonych nazw"
+msgstr "Wskazanie domeny i zakresu adresów dla generowanych nazw"
 
 #: option.c:428
 msgid "Specify DHCPv6 prefix class"
@@ -642,19 +640,19 @@ msgstr "Określenie prefiksu klasy DHCPv6"
 
 #: option.c:430
 msgid "Set priority, resend-interval and router-lifetime"
-msgstr ""
+msgstr "Ustawianie priorytetu, okresu rozsyłania oraz czasu życia rutera (RA)."
 
 #: option.c:431
 msgid "Do not log routine DHCP."
-msgstr ""
+msgstr "Wyłączenie logowania zwyczajnego DHCP."
 
 #: option.c:432
 msgid "Do not log routine DHCPv6."
-msgstr ""
+msgstr "Wyłączenie logowania zwyczajnego DHCPv6."
 
 #: option.c:433
 msgid "Do not log RA."
-msgstr ""
+msgstr "Wyłączenie logowania RA."
 
 #: option.c:618
 #, c-format
@@ -852,7 +850,7 @@ msgstr "zły dhcp-relay"
 
 #: option.c:3304
 msgid "bad RA-params"
-msgstr ""
+msgstr "nieprawidłowe argumenty RA"
 
 #: option.c:3313
 msgid "bad DUID"
@@ -1033,7 +1031,7 @@ msgstr "wysyłanie pakietu nie powiodło się: %s"
 
 #: forward.c:493
 msgid "discarding DNS reply: subnet option mismatch"
-msgstr ""
+msgstr "odrzucam odpowiedź DNS: nie zgadza się specyfikacja podsieci"
 
 #: forward.c:511
 #, c-format
@@ -1058,16 +1056,16 @@ msgstr "nie udało się otworzyć gniazda %s: %s"
 #: network.c:947
 #, c-format
 msgid "LOUD WARNING: listening on %s may accept requests via interfaces other than %s"
-msgstr ""
+msgstr "UWAGA: nasłuchiwanie na %s może przyjmować żądania przychodzące przez interfejsy inne niż %s"
 
 #: network.c:953
 msgid "LOUD WARNING: use --bind-dynamic rather than --bind-interfaces to avoid DNS amplification attacks via these interface(s)"
-msgstr ""
+msgstr "UWAGA: zastosowanie --bind-dynamic zamiast --bind-interfaces daje ochronę przed atakami wzmocnienia DNS"
 
 #: network.c:962
-#, fuzzy, c-format
+#, c-format
 msgid "warning: no addresses found for interface %s"
-msgstr "używam adresów lokalnych tylko dla %s %s"
+msgstr "uwaga: nie znaleziono adresu interfejsu %s"
 
 #: network.c:1020
 #, c-format
@@ -1257,7 +1255,7 @@ msgstr "anonsowanie rutera IPv6 włączone"
 #: dnsmasq.c:685
 #, c-format
 msgid "DHCP, sockets bound exclusively to interface %s"
-msgstr ""
+msgstr "DHCP, gniazda dowiązane na wyłączność interfejsowi %s"
 
 #: dnsmasq.c:702
 msgid "root is "
