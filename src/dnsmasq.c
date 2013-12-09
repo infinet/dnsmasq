@@ -182,7 +182,7 @@ int main (int argc, char **argv)
 	    daemon->doing_dhcp6 = 1;
 	  if (context->flags & CONTEXT_RA)
 	    daemon->doing_ra = 1;
-#ifndef  HAVE_LINUX_NETWORK
+#if !defined(HAVE_LINUX_NETWORK) && !defined(HAVE_BSD_NETWORK)
 	  if (context->flags & CONTEXT_TEMPLATE)
 	    die (_("dhcp-range constructor not available on this platform"), NULL, EC_BADCONF);
 #endif 
@@ -220,13 +220,15 @@ int main (int argc, char **argv)
     ipset_init();
 #endif
 
-#ifdef HAVE_LINUX_NETWORK
+#if  defined(HAVE_LINUX_NETWORK)
   netlink_init();
-  
-  if (option_bool(OPT_NOWILD) && option_bool(OPT_CLEVERBIND))
-    die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
+#elif defined(HAVE_BSD_NETWORK)
+  route_init();
 #endif
 
+  if (option_bool(OPT_NOWILD) && option_bool(OPT_CLEVERBIND))
+    die(_("cannot set --bind-interfaces and --bind-dynamic"), NULL, EC_BADCONF);
+  
   if (!enumerate_interfaces(1) || !enumerate_interfaces(0))
     die(_("failed to find list of interfaces: %s"), NULL, EC_MISC);
   
@@ -808,11 +810,14 @@ int main (int argc, char **argv)
 	}
 #endif
 
-#ifdef HAVE_LINUX_NETWORK
+#if defined(HAVE_LINUX_NETWORK)
       FD_SET(daemon->netlinkfd, &rset);
       bump_maxfd(daemon->netlinkfd, &maxfd);
+#elif defined(HAVE_BSD_NETWORK)
+      FD_SET(daemon->routefd, &rset);
+      bump_maxfd(daemon->routefd, &maxfd);
 #endif
-      
+
       FD_SET(piperead, &rset);
       bump_maxfd(piperead, &maxfd);
 
@@ -867,9 +872,12 @@ int main (int argc, char **argv)
 	  warn_bound_listeners();
 	}
 
-#ifdef HAVE_LINUX_NETWORK
+#if defined(HAVE_LINUX_NETWORK)
       if (FD_ISSET(daemon->netlinkfd, &rset))
 	netlink_multicast(now);
+#elif defined(HAVE_BSD_NETWORK)
+      if (FD_ISSET(daemon->routefd, &rset))
+	route_sock(now);
 #endif
 
       /* Check for changes to resolv files once per second max. */
