@@ -228,7 +228,7 @@ struct event_desc {
 #define OPT_QUIET_DHCP     42
 #define OPT_QUIET_DHCP6    43
 #define OPT_QUIET_RA	   44
-#define OPT_DNSSEC_VALIDATE 45
+#define OPT_DNSSEC_VALID   45
 #define OPT_LAST           46
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
@@ -352,7 +352,7 @@ struct crec {
       int uid; /* -1 if union is interface-name */
     } cname;
     struct {
-      struct keydata *keydata;
+      struct blockdata *keydata;
       unsigned char algo;
       unsigned char digest; /* DS only */
       unsigned short keytag;
@@ -499,9 +499,20 @@ struct hostsfile {
   int index; /* matches to cache entries for logging */
 };
 
+
+/* DNSSEC status values. */
+#define STAT_SECURE             1
+#define STAT_INSECURE           2
+#define STAT_BOGUS              3
+#define STAT_NEED_DS            4
+#define STAT_NEED_KEY           5
+
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
 #define FREC_HAS_SUBNET         4
+#define FREC_DNSSEC_QUERY       8
+#define FREC_DNSKEY_QUERY      16
+#define FREC_DS_QUERY          32
 
 struct frec {
   union mysockaddr source;
@@ -516,6 +527,12 @@ struct frec {
   int fd, forwardall, flags;
   unsigned int crc;
   time_t time;
+#ifdef HAVE_DNSSEC
+  struct blockdata *stash; /* Saved reply, whilst we validate */
+  size_t stash_len;
+  struct frec *dependent; /* Query awaiting internally-generated DNSKEY or DS query */
+  struct frec *blocking_query; /* Query which is blocking us. */
+#endif
   struct frec *next;
 };
 
@@ -954,9 +971,9 @@ char *cache_get_name(struct crec *crecp);
 char *cache_get_cname_target(struct crec *crecp);
 struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
-struct keydata *keydata_alloc(char *data, size_t len);
-size_t keydata_walk(struct keydata **key, unsigned char **p, size_t cnt);
-void keydata_free(struct keydata *blocks);
+struct blockdata *blockdata_alloc(char *data, size_t len);
+size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt);
+void blockdata_free(struct blockdata *blocks);
 #endif
 
 /* domain.c */
@@ -992,6 +1009,9 @@ size_t resize_packet(struct dns_header *header, size_t plen,
 		  unsigned char *pheader, size_t hlen);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
+#ifdef HAVE_DNSSEC
+size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
+#endif
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
 int add_resource_record(struct dns_header *header, char *limit, int *truncp,
 			int nameoffset, unsigned char **pp, unsigned long ttl, 
@@ -1010,7 +1030,7 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 
 /* dnssec.c */
-int dnssec_validate(struct dns_header *header, size_t plen);
+int dnssec_validate(int flags, struct dns_header *header, size_t plen);
 
 /* util.c */
 void rand_init(void);
@@ -1072,7 +1092,7 @@ void receive_query(struct listener *listen, time_t now);
 unsigned char *tcp_request(int confd, time_t now,
 			   union mysockaddr *local_addr, struct in_addr netmask, int auth_dns);
 void server_gone(struct server *server);
-struct frec *get_new_frec(time_t now, int *wait);
+struct frec *get_new_frec(time_t now, int *wait, int force);
 int send_from(int fd, int nowild, char *packet, size_t len, 
 	       union mysockaddr *to, struct all_addr *source,
 	       unsigned int iface);

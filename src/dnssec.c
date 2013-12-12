@@ -713,7 +713,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
                     int rdlen, unsigned char *rdata)
 {
   int flags, proto, alg;
-  struct keydata *key; struct crec *crecp;
+  struct blockdata *key; struct crec *crecp;
   unsigned char *ordata = rdata; int ordlen = rdlen;
 
   CHECKED_GETSHORT(flags, rdata, rdlen);
@@ -726,7 +726,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
   if (!(flags & 0x100))
     return 0;
 
-  key = keydata_alloc((char*)rdata, rdlen);
+  key = blockdata_alloc((char*)rdata, rdlen);
 
   /* TODO: time(0) is correct here? */
   crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);
@@ -741,7 +741,7 @@ int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsig
     }
   else
     {
-      keydata_free(key);
+      blockdata_free(key);
       /* TODO: if insertion really might fail, verify we don't depend on cache
          insertion success for validation workflow correctness */
       printf("DNSKEY: cache insertion failure\n");
@@ -754,7 +754,7 @@ int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsign
                    int rdlen, unsigned char *rdata)
 {
   int keytag, algo, dig;
-  struct keydata *key; struct crec *crec_ds, *crec_key;
+  struct blockdata *key; struct crec *crec_ds, *crec_key;
 
   CHECKED_GETSHORT(keytag, rdata, rdlen);
   CHECKED_GETCHAR(algo, rdata, rdlen);
@@ -763,13 +763,13 @@ int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsign
   if (!digestalg_supported(dig))
     return 0;
 
-  key = keydata_alloc((char*)rdata, rdlen);
+  key = blockdata_alloc((char*)rdata, rdlen);
 
   /* TODO: time(0) is correct here? */
   crec_ds = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DS);
   if (!crec_ds)
     {
-      keydata_free(key);
+      blockdata_free(key);
       /* TODO: if insertion really might fail, verify we don't depend on cache
          insertion success for validation workflow correctness */
       printf("DS: cache insertion failure\n");
@@ -800,7 +800,7 @@ int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsign
   return 0;
 }
 
-int dnssec_validate(struct dns_header *header, size_t pktlen)
+int dnssec1_validate(struct dns_header *header, size_t pktlen)
 {
   unsigned char *p, *reply;
   char *owner = daemon->namebuff;

@@ -515,7 +515,7 @@ struct macparm {
 };
  
 static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
-			       int optno, unsigned char *opt, size_t optlen)
+			       int optno, unsigned char *opt, size_t optlen, int set_do)
 { 
   unsigned char *lenp, *datap, *p;
   int rdlen;
@@ -531,7 +531,8 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
       *p++ = 0; /* empty name */
       PUTSHORT(T_OPT, p);
       PUTSHORT(daemon->edns_pktsz, p); /* max packet length */
-      PUTLONG(0, p);    /* extended RCODE */
+      PUTSHORT(0, p);    /* extended RCODE and version */
+      PUTSHORT(set_do ? 0x8000 : 0, p); /* DO flag */
       lenp = p;
       PUTSHORT(0, p);    /* RDLEN */
       rdlen = 0;
@@ -543,7 +544,7 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
   else
     {
       int i, is_sign;
-      unsigned short code, len;
+      unsigned short code, len, flags;
       
       if (ntohs(header->arcount) != 1 ||
 	  !(p = find_pseudoheader(header, plen, NULL, NULL, &is_sign)) ||
@@ -551,14 +552,24 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
 	  (!(p = skip_name(p, header, plen, 10))))
 	return plen;
       
-      p += 8; /* skip UDP length and RCODE */
-      
+      p += 6; /* skip UDP length and RCODE */
+      GETSHORT(flags, p);
+      if (set_do)
+	{
+	  p -=2;
+	  PUTSHORT(flags | 0x8000, p);
+	}
+
       lenp = p;
       GETSHORT(rdlen, p);
       if (!CHECK_LEN(header, p, plen, rdlen))
 	return plen; /* bad packet */
       datap = p;
 
+       /* no option to add */
+      if (optno == 0)
+	return plen;
+      	  
       /* check if option already there */
       for (i = 0; i + 4 < rdlen; i += len + 4)
 	{
@@ -602,7 +613,7 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
   if (!match)
     return 1; /* continue */
 
-  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit,  EDNS0_OPTION_MAC, (unsigned char *)mac, maclen);
+  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit,  EDNS0_OPTION_MAC, (unsigned char *)mac, maclen, 0);
   
   return 0; /* done */
 }	      
@@ -681,9 +692,16 @@ size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, unio
   struct subnet_opt opt;
   
   len = calc_subnet_opt(&opt, source);
-  return add_pseudoheader(header, plen, (unsigned char *)limit, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len);
+  return add_pseudoheader(header, plen, (unsigned char *)limit, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len, 0);
 }
-  
+
+#ifdef HAVE_DNSSEC
+size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
+{
+  return add_pseudoheader(header, plen, (unsigned char *)limit, 0, NULL, 0, 1);
+}
+#endif
+
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer)
 {
   /* Section 9.2, Check that subnet option in reply matches. */
@@ -878,7 +896,7 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
 int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
-		      char **ipsets, int is_sign, int check_rebind, int checking_disabled)
+		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -1118,15 +1136,13 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
     }
   
   /* Don't put stuff from a truncated packet into the cache.
-     Don't cache replies where DNSSEC validation was turned off, either
-     the upstream server told us so, or the original query specified it. 
      Don't cache replies from non-recursive nameservers, since we may get a 
      reply containing a CNAME but not its target, even though the target 
      does exist. */
   if (!(header->hb3 & HB3_TC) && 
       !(header->hb4 & HB4_CD) &&
       (header->hb4 & HB4_RA) &&
-      !checking_disabled)
+      !no_cache_dnssec)
     cache_end_insert();
 
   return 0;
