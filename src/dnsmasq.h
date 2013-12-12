@@ -921,7 +921,7 @@ extern struct daemon {
 #if defined(HAVE_LINUX_NETWORK)
   int netlinkfd;
 #elif defined(HAVE_BSD_NETWORK)
-  int dhcp_raw_fd, dhcp_icmp_fd;
+  int dhcp_raw_fd, dhcp_icmp_fd, routefd;
 #endif
   struct iovec dhcp_packet;
   char *dhcp_buff, *dhcp_buff2, *dhcp_buff3;
@@ -1122,6 +1122,10 @@ int set_ipv6pktinfo(int fd);
 #ifdef HAVE_DHCP6
 void join_multicast(int dienow);
 #endif
+#if defined(HAVE_LINUX_NETWORK) || defined(HAVE_BSD_NETWORK)
+void newaddress(time_t now);
+#endif
+
 
 /* dhcp.c */
 #ifdef HAVE_DHCP
@@ -1209,6 +1213,8 @@ void netlink_multicast(time_t now);
 void init_bpf(void);
 void send_via_bpf(struct dhcp_packet *mess, size_t len,
 		  struct in_addr iface_addr, struct ifreq *ifr);
+void route_init(void);
+void route_sock(time_t now);
 #endif
 
 /* bpf.c or netlink.c */
