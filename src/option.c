@@ -3381,6 +3381,19 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	for (up = &daemon->int_names; *up; up = &((*up)->next));
 	*up = new;
 	new->name = domain;
+	new->family = 0;
+	arg = split_chr(comma, '/');
+	if (arg)
+	  {
+	    if (strcmp(arg, "4") == 0)
+	      new->family = AF_INET;
+#ifdef HAVE_IPV6
+	    else if (strcmp(arg, "6") == 0)
+	      new->family = AF_INET6;
+#endif
+	    else
+	      ret_err(gen_err);
+	  } 
 	new->intr = opt_string_alloc(comma);
 	break;
       }
@@ -3474,7 +3487,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_RR: /* dns-rr */
       {
        	struct txt_record *new;
-	size_t len;
+	size_t len = len;
 	char *data;
 	int val;
 

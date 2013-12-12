@@ -637,7 +637,10 @@ int main (int argc, char **argv)
   if (bind_fallback)
     my_syslog(LOG_WARNING, _("setting --bind-interfaces option because of OS limitations"));
 
-  warn_bound_listeners();
+  if (option_bool(OPT_NOWILD))
+    warn_bound_listeners();
+
+  warn_int_names();
   
   if (!option_bool(OPT_NOWILD)) 
     for (if_tmp = daemon->if_names; if_tmp; if_tmp = if_tmp->next)

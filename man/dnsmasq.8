@@ -514,11 +514,13 @@ record (which is always in the C_IN class). The value of the record is
 given by the hex data, which may be of the form 01:23:45 or 01 23 45 or
 012345 or any mixture of these.
 .TP
-.B --interface-name=<name>,<interface>
+.B --interface-name=<name>,<interface>[/4|/6]
 Return a DNS record associating the name with the primary address on
-the given interface. This flag specifies an A record for the given
+the given interface. This flag specifies an A or AAAA record for the given
 name in the same way as an /etc/hosts line, except that the address is
-not constant, but taken from the given interface. If the interface is
+not constant, but taken from the given interface. The interface may be
+followed by "/4" or "/6" to specify that only IPv4 or IPv6 addresses
+of the interface should be used. If the interface is
 down, not configured or non-existent, an empty record is returned. The
 matching PTR record is also created, mapping the interface address to
 the name. More than one name may be associated with an interface
@@ -593,8 +595,10 @@ needed for a client to do validation itself.
 .TP
 .B --auth-zone=<domain>[,<subnet>[/<prefix length>][,<subnet>[/<prefix length>].....]]
 Define a DNS zone for which dnsmasq acts as authoritative server. Locally defined DNS records which are in the domain
-will be served. A and AAAA records must be in one of the
-specified subnets. As alternative to directly specifying the subnets, it's possible to
+will be served. If subnet(s) are given, A and AAAA records must be in one of the
+specified subnets.
+
+As alternative to directly specifying the subnets, it's possible to
 give the name of an interface, in which case the subnets implied by
 that interface's configured addresses and netmask/prefix-length are
 used; this is useful when using constructed DHCP ranges as the actual
@@ -611,7 +615,8 @@ ipv6.arpa domains which are served for reverse-DNS queries. If not
 specified, the prefix length defaults to 24 for IPv4 and 64 for IPv6.
 For IPv4 subnets, the prefix length should be have the value 8, 16 or 24
 unless you are familiar with RFC 2317 and have arranged the
-in-addr.arpa delegation accordingly. 
+in-addr.arpa delegation accordingly. Note that if no subnets are
+specified, then no reverse queries are answered.
 .TP
 .B --auth-soa=<serial>[,<hostmaster>[,<refresh>[,<retry>[,<expiry>]]]]
 Specify fields in the SOA record associated with authoritative
@@ -668,7 +673,8 @@ always optional. It is always
 allowed to have more than one dhcp-range in a single subnet. 
 
 For IPv6, the parameters are slightly different: instead of netmask
-and broadcast address, there is an optional prefix length. If not
+and broadcast address, there is an optional prefix length which must
+be equal to or larger then the prefix length on the local interface. If not
 given, this defaults to 64. Unlike the IPv4 case, the prefix length is not
 automatically derived from the interface configuration. The mimimum
 size of the prefix length is 64.

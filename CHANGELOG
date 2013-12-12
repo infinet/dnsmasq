@@ -32,7 +32,24 @@ version 2.68
 	    the prefix is deleted (rather than replaced), it doesn't
 	    get advertised with zero preferred time. Thanks to Tsachi
 	    for the bug report. 
- 
+
+	    Fix segfault with some locally configured CNAMEs. Thanks
+	    to Andrew Childs for spotting the problem.
+
+	    Fix memory leak on re-reading /etc/hosts and friends,
+	    introduced in 2.67.
+
+	    Check the arrival interface of incoming DNS and TFTP
+	    requests via IPv6, even in --bind-interfaces mode. This
+	    isn't possible for IPv4 and can generate scary warnings,
+	    but as it's always possible for IPv6 (the API always
+	    exists) then we should do it always. 
+	    
+	    Tweak the rules on prefix-lengths in --dhcp-range for
+	    IPv6. The new rule is that the specified prefix length
+	    must be larger than or equal to the prefix length of the
+	    corresponding address on the local interface. 
+
 
 version 2.67
 	    Fix crash if upstream server returns SERVFAIL when
