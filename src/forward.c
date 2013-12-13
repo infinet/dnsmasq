@@ -677,7 +677,16 @@ void reply_query(int fd, int family, time_t now)
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
-	  int status = dnssec_validate(forward->flags, header, n);
+	  int status;
+	  char rrbitmap[256/8];
+	  int class; 
+
+	  if (forward->flags && FREC_DNSSKEY_QUERY)
+	    status = dnssec_validate_by_ds(header, n, daemon->namebuff, &class);
+	  else if (forward->flags && FREC_DS_QUERY)
+	    status = dnssec_validate_dnskey(header, n, daemon->namebuff, &class);
+	  else
+	    status = dnssec_validate_reply(&rrbitmap, header, n, daemon->namebuff, &class);
 	  
 	  /* Can't validate, as we're missing key data. Put this
 	     answer aside, whilst we get that. */     
@@ -687,26 +696,29 @@ void reply_query(int fd, int family, time_t now)
 	      if ((forward->stash = blockdata_alloc((char *)header, n)))
 		{
 		  forward->stash_len = n;
-	      
-		  /* Now formulate a query for the missing data. */
-		  nn = dnssec_generate_query(header, status);
-		  new = get_new_frec(now, NULL, 1);
-		  		  
-		  if (new)
+		  
+		  if ((new = get_new_frec(now, NULL, 1)))
 		    {
 		      int fd;
-
+		      
 		      new = forward; /* copy everything, then overwrite */
 		      new->dependent = forward; /* to find query awaiting new one. */
 		      forward->blocking_query = new; /* for garbage cleaning */
-		      new->flags |= FREC_DNSSEC_QUERY;
+		      /* validate routines leave name of required record in daemon->namebuff */
 		      if (status == STAT_NEED_KEY)
-			new->flags |= FREC_DNSKEY_QUERY; /* So we verify differently */
+			{
+			  new->flags |= FREC_DNSKEY_QUERY; 
+			  nn = dnssec_generate_query(header, daemon->namebuff, class, T_DNSKEY);
+			}
 		      else if (status == STAT_NEED_DS)
-			new->flags |= FREC_DS_QUERY;
+			{
+			  new->flags |= FREC_DS_QUERY;
+			  nn = dnssec_generate_query(header, daemon->namebuff, class, T_DS);
+			}
 		      new->crc = questions_crc(header, nn, daemon->namebuff);
 		      new->new_id = get_id(new->crc);
-		      
+		      header->id = htons(new->id);
+
 		      /* Don't resend this. */
 		      daemon->srv_save = NULL;
 	
@@ -714,19 +726,19 @@ void reply_query(int fd, int family, time_t now)
 			fd = server->sfd->fd;
 		      else
 #ifdef HAVE_IPV6
-		       /* Note that we use the same random port for the DNSSEC stuff */
-		      if (server->addr.sa.sa_family == AF_INET6)
-			{
-			  fd = new->rfd6->fd;
-			  new->rfd6->refcount++;
-			}
-		      else
+			/* Note that we use the same random port for the DNSSEC stuff */
+			if (server->addr.sa.sa_family == AF_INET6)
+			  {
+			    fd = new->rfd6->fd;
+			    new->rfd6->refcount++;
+			  }
+			else
 #endif
-			{
-			  fd = new->rfd4->fd;
-			  new->rfd4->refcount++;
-			}
-
+			  {
+			    fd = new->rfd4->fd;
+			    new->rfd4->refcount++;
+			  }
+		      
 		      /* Send DNSSEC query to same server as original query */
 		      while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send());
 		    }

@@ -511,9 +511,8 @@ struct hostsfile {
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
 #define FREC_HAS_SUBNET         4
-#define FREC_DNSSEC_QUERY       8
-#define FREC_DNSKEY_QUERY      16
-#define FREC_DS_QUERY          32
+#define FREC_DNSKEY_QUERY       8
+#define FREC_DS_QUERY          16
 
 struct frec {
   union mysockaddr source;

@@ -82,6 +82,8 @@ struct dns_header {
 #define HB4_RCODE    0x0f
 
 #define OPCODE(x)          (((x)->hb3 & HB3_OPCODE) >> 3)
+#define SET_OPCODE(x, code) (x)->hb3 = ((x)->hb3 & ~HB3_OPCODE) | code
+
 #define RCODE(x)           ((x)->hb4 & HB4_RCODE)
 #define SET_RCODE(x, code) (x)->hb4 = ((x)->hb4 & ~HB4_RCODE) | code
   
