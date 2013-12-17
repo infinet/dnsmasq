@@ -2732,7 +2732,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  else
 	    {
 	      char *cp, *lastp = NULL, last = 0;
-	      int fac = 1;
+	      int fac = 1, isdig = 0;
 	      
 	      if (strlen(a[j]) > 1)
 		{
@@ -2763,9 +2763,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		}
 	      
 	      for (cp = a[j]; *cp; cp++)
-		if (!isdigit((unsigned char)*cp) && *cp != ' ')
+		if (isdigit((unsigned char)*cp))
+		  isdig = 1;
+		else if (*cp != ' ')
 		  break;
-	      
+
 	      if (*cp)
 		{
 		  if (lastp)
@@ -2787,7 +2789,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		      new->domain = strip_hostname(new->hostname);			
 		    }
 		}
-	      else
+	      else if (isdig)
 		{
 		  new->lease_time = atoi(a[j]) * fac; 
 		  /* Leases of a minute or less confuse
