@@ -4,6 +4,9 @@ version 2.69
 	    on the BSD platform. Thanks to Matthias Andree for
 	    valuable research on how to implement this.
 
+	    Fix infinite loop associated with some --bogus-nxdomain
+	    configs. Thanks forgobogo for the bug report.
+
 
 version 2.68
             Use random addresses for DHCPv6 temporary address

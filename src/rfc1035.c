@@ -1283,7 +1283,7 @@ int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name,
 		/* Found a bogus address. Insert that info here, since there no SOA record
 		   to get the ttl from in the normal processing */
 		cache_start_insert();
-		cache_insert(name, NULL, now, ttl, F_IPV4 | F_FORWARD | F_NEG | F_NXDOMAIN | F_CONFIG);
+		cache_insert(name, NULL, now, ttl, F_IPV4 | F_FORWARD | F_NEG | F_NXDOMAIN);
 		cache_end_insert();
 		
 		return 1;
