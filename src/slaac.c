@@ -93,7 +93,6 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force)
 	    slaac->ping_time = now;
 	    slaac->backoff = 1;
 	    slaac->addr = addr;
-	    slaac->local = context->local6;
 	    /* Do RA's to prod it */
 	    ra_start_unsolicted(now, context);
 	  }

@@ -561,7 +561,7 @@ struct dhcp_lease {
   struct in6_addr addr6;
   int iaid;
   struct slaac_address {
-    struct in6_addr addr, local;
+    struct in6_addr addr;
     time_t ping_time;
     int backoff; /* zero -> confirmed */
     struct slaac_address *next;
