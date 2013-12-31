@@ -335,8 +335,8 @@ union bigname {
   union bigname *next; /* freelist */
 };
 
-struct keydata {
-  struct keydata *next;
+struct blockdata {
+  struct blockdata *next;
   unsigned char key[KEYBLOCK_LEN];
 };
 
@@ -528,6 +528,7 @@ struct frec {
   unsigned int crc;
   time_t time;
 #ifdef HAVE_DNSSEC
+  int class;
   struct blockdata *stash; /* Saved reply, whilst we validate */
   size_t stash_len;
   struct frec *dependent; /* Query awaiting internally-generated DNSKEY or DS query */
@@ -900,6 +901,9 @@ extern struct daemon {
   char *packet; /* packet buffer */
   int packet_buff_sz; /* size of above */
   char *namebuff; /* MAXDNAME size buffer */
+#ifdef HAVE_DNSSEC
+  char *keyname; /* MAXDNAME size buffer */
+#endif
   unsigned int local_answer, queries_forwarded, auth_answer;
   struct frec *frec_list;
   struct serverfd *sfds;
@@ -1030,7 +1034,11 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 
 /* dnssec.c */
-int dnssec_validate(int flags, struct dns_header *header, size_t plen);
+size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type);
+int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
+int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
+int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, int type, char *name, char *keyname);
+int dnssec_validate_reply(struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
 
 /* util.c */
 void rand_init(void);

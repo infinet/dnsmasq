@@ -81,8 +81,14 @@ int main (int argc, char **argv)
   umask(022); /* known umask, create leases and pid files as 0644 */
 
   read_opts(argc, argv, compile_opts);
+ 
+#ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
     if (daemon->doctors) exit(1); /* TODO */
+  
+  daemon->keyname = safe_malloc(MAXDNAME);
+#endif
+
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = option_bool(OPT_DNSSEC_VALID) ? EDNS_PKTSZ : PACKETSZ;
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 

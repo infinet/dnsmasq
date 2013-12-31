@@ -678,15 +678,14 @@ void reply_query(int fd, int family, time_t now)
       if (option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
 	  int status;
-	  char rrbitmap[256/8];
 	  int class; 
 
-	  if (forward->flags && FREC_DNSSKEY_QUERY)
-	    status = dnssec_validate_by_ds(header, n, daemon->namebuff, &class);
-	  else if (forward->flags && FREC_DS_QUERY)
-	    status = dnssec_validate_dnskey(header, n, daemon->namebuff, &class);
+	  if (forward->flags & FREC_DNSKEY_QUERY)
+	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+	  else if (forward->flags & FREC_DS_QUERY)
+	    status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
 	  else
-	    status = dnssec_validate_reply(&rrbitmap, header, n, daemon->namebuff, &class);
+	    status = dnssec_validate_reply(header, n, daemon->namebuff, daemon->keyname, &forward->class);
 	  
 	  /* Can't validate, as we're missing key data. Put this
 	     answer aside, whilst we get that. */     
@@ -717,7 +716,7 @@ void reply_query(int fd, int family, time_t now)
 			}
 		      new->crc = questions_crc(header, nn, daemon->namebuff);
 		      new->new_id = get_id(new->crc);
-		      header->id = htons(new->id);
+		      header->id = htons(new->new_id);
 
 		      /* Don't resend this. */
 		      daemon->srv_save = NULL;
@@ -751,22 +750,30 @@ void reply_query(int fd, int family, time_t now)
 	     and validate them with the new data. Failure to find needed data here is an internal error.
 	     Once we get to the original answer (FREC_DNSSEC_QUERY not set) and it validates,
 	     return it to the original requestor. */
-	  while (forward->flags & FREC_DNSSEC_QUERY)
+	  while (forward->dependent)
 	    {
-	      if (status == STAT_SECURE)
-		extract_dnssec_replies();
+	      struct frec *prev = forward->dependent;
 	      free_frec(forward);
-	      forward = forward->dependent;
+	      forward = prev;
 	      blockdata_retrieve_and_free(forward->stash, forward->stash_len, (void *)header);
 	      n = forward->stash_len;
 	      if (status == STAT_SECURE)
 		{
-		  status = dnssec_validate(forward->flags, header, n);
-		  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
-		    my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		   if (forward->flags & FREC_DNSKEY_QUERY)
+		     status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		   else if (forward->flags & FREC_DS_QUERY)
+		     status = dnssec_validate_dnskey(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		  
+		   if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+		     my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
 		}
 	    }
 	  
+	  /* All DNSKEY and DS records done and in cache, now finally validate original 
+	     answer, provided last DNSKEY is OK. */
+	  if (status == STAT_SECURE)
+	    status = dnssec_validate_reply(header, n, daemon->namebuff, daemon->keyname, &forward->class);
+
 	  if (status == STAT_SECURE)
 	    cache_secure = 1;
 	  /* TODO return SERVFAIL here */

@@ -26,7 +26,7 @@ static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
 static int uid = 1;
 #ifdef HAVE_DNSSEC
-static struct keydata *keyblock_free = NULL;
+static struct blockdata *keyblock_free = NULL;
 #endif
 
 /* type->string mapping: this is also used by the name-hash function as a mixing table. */
@@ -198,7 +198,7 @@ static void cache_free(struct crec *crecp)
     }
 #ifdef HAVE_DNSSEC
   else if (crecp->flags & (F_DNSKEY | F_DS))
-    keydata_free(crecp->addr.key.keydata);
+    blockdata_free(crecp->addr.key.keydata);
 #endif
 }    
 
@@ -1361,10 +1361,10 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
 }
 
 #ifdef HAVE_DNSSEC
-struct keydata *keydata_alloc(char *data, size_t len)
+struct blockdata *blockdata_alloc(char *data, size_t len)
 {
-  struct keydata *block, *ret = NULL;
-  struct keydata **prev = &ret;
+  struct blockdata *block, *ret = NULL;
+  struct blockdata **prev = &ret;
   size_t blen;
 
   while (len > 0)
@@ -1375,12 +1375,12 @@ struct keydata *keydata_alloc(char *data, size_t len)
 	  keyblock_free = block->next;
 	}
       else
-	block = whine_malloc(sizeof(struct keydata));
+	block = whine_malloc(sizeof(struct blockdata));
 
       if (!block)
 	{
 	  /* failed to alloc, free partial chain */
-	  keydata_free(ret);
+	  blockdata_free(ret);
 	  return NULL;
 	}
       
@@ -1396,7 +1396,7 @@ struct keydata *keydata_alloc(char *data, size_t len)
   return ret;
 }
 
-size_t keydata_walk(struct keydata **key, unsigned char **p, size_t cnt)
+size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt)
 {
   if (*p == NULL)
     *p = (*key)->key;
@@ -1411,9 +1411,9 @@ size_t keydata_walk(struct keydata **key, unsigned char **p, size_t cnt)
   return MIN(cnt, (*key)->key + KEYBLOCK_LEN - (*p));
 }
 
-void keydata_free(struct keydata *blocks)
+void blockdata_free(struct blockdata *blocks)
 {
-  struct keydata *tmp;
+  struct blockdata *tmp;
 
   if (blocks)
     {

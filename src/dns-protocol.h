@@ -140,3 +140,9 @@ struct dns_header {
     GETLONG(var, ptr); \
     (len) -= 4; \
   } while (0)
+
+#define CHECK_LEN(header, pp, plen, len) \
+    ((size_t)((pp) - (unsigned char *)(header) + (len)) <= (plen))
+
+#define ADD_RDLEN(header, pp, plen, len) \
+  (!CHECK_LEN(header, pp, plen, len) ? 0 : (((pp) += (len)), 1))
