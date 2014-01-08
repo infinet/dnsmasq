@@ -987,6 +987,8 @@ void dump_cache(time_t now);
 char *cache_get_name(struct crec *crecp);
 char *cache_get_cname_target(struct crec *crecp);
 struct crec *cache_enumerate(int init);
+
+/* blockdata.c */
 #ifdef HAVE_DNSSEC
 struct blockdata *blockdata_alloc(char *data, size_t len);
 size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt);

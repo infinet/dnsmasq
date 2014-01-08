@@ -25,9 +25,6 @@ static int cache_inserted = 0, cache_live_freed = 0, insert_error;
 static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
 static int uid = 1;
-#ifdef HAVE_DNSSEC
-static struct blockdata *keyblock_free = NULL;
-#endif
 
 /* type->string mapping: this is also used by the name-hash function as a mixing table. */
 static const struct {
@@ -1394,83 +1391,4 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
   my_syslog(LOG_INFO, "%s %s %s %s", source, name, verb, dest);
 }
 
-#ifdef HAVE_DNSSEC
-struct blockdata *blockdata_alloc(char *data, size_t len)
-{
-  struct blockdata *block, *ret = NULL;
-  struct blockdata **prev = &ret;
-  size_t blen;
-
-  while (len > 0)
-    {
-      if (keyblock_free)
-	{
-	  block = keyblock_free;
-	  keyblock_free = block->next;
-	}
-      else
-	block = whine_malloc(sizeof(struct blockdata));
-
-      if (!block)
-	{
-	  /* failed to alloc, free partial chain */
-	  blockdata_free(ret);
-	  return NULL;
-	}
-      
-      blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
-      memcpy(block->key, data, blen);
-      data += blen;
-      len -= blen;
-      *prev = block;
-      prev = &block->next;
-      block->next = NULL;
-    }
-  
-  return ret;
-}
-
-size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt)
-{
-  if (*p == NULL)
-    *p = (*key)->key;
-  else if (*p == (*key)->key + KEYBLOCK_LEN)
-    {
-      *key = (*key)->next;
-      if (*key == NULL)
-        return 0;
-      *p = (*key)->key;
-    }
-
-  return MIN(cnt, (*key)->key + KEYBLOCK_LEN - (*p));
-}
-
-void blockdata_free(struct blockdata *blocks)
-{
-  struct blockdata *tmp;
-
-  if (blocks)
-    {
-      for (tmp = blocks; tmp->next; tmp = tmp->next);
-      tmp->next = keyblock_free;
-      keyblock_free = blocks;
-    }
-}
-
-void  blockdata_retrieve(struct blockdata *block, size_t len, void *data)
-{
-  size_t blen;
-  struct  blockdata *b;
-  
-  for (b = block; len > 0 && b;  b = b->next)
-    {
-      blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
-      memcpy(data, b->key, blen);
-      data += blen;
-      len -= blen;
-    }
-}
-  
-#endif
-
-      
+ 
