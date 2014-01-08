@@ -461,7 +461,6 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
-  int squash_ad = 0;
 
 #ifdef HAVE_IPSET
   /* Similar algorithm to search_servers. */
@@ -506,18 +505,15 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
       
   /* RFC 4035 sect 4.6 para 3 */
   if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
-    squash_ad = 1;
+     header->hb4 &= ~HB4_AD;
   
 #ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
-    squash_ad = no_cache;
-
+    header->hb4 &= ~HB4_AD;
+  
   if (cache_secure)
     header->hb4 |= HB4_AD;
 #endif
-  
-  if (squash_ad)
-    header->hb4 &= ~HB4_AD;
   
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
     return n;
