@@ -330,11 +330,11 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       int forwarded = 0;
       
       if (option_bool(OPT_ADD_MAC))
-	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
+	plen = add_mac(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source);
       
       if (option_bool(OPT_CLIENT_SUBNET))
 	{
-	  size_t new = add_source_addr(header, plen, ((char *) header) + PACKETSZ, &forward->source); 
+	  size_t new = add_source_addr(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source); 
 	  if (new != plen)
 	    {
 	      plen = new;
@@ -345,7 +345,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
 	{
-	  plen = add_do_bit(header, plen, ((char *) header) + PACKETSZ);
+	  plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
 	  header->hb4 |= HB4_CD;
 	}
 #endif
@@ -585,7 +585,7 @@ void reply_query(int fd, int family, time_t now)
   union mysockaddr serveraddr;
   struct frec *forward;
   socklen_t addrlen = sizeof(serveraddr);
-  ssize_t n = recvfrom(fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+  ssize_t n = recvfrom(fd, daemon->packet, daemon->packet_buff_sz, 0, &serveraddr.sa, &addrlen);
   size_t nn;
   struct server *server;
   
@@ -732,12 +732,14 @@ void reply_query(int fd, int family, time_t now)
 		      if (status == STAT_NEED_KEY)
 			{
 			  new->flags |= FREC_DNSKEY_QUERY; 
-			  nn = dnssec_generate_query(header, daemon->keyname, forward->class, T_DNSKEY, &server->addr);
+			  nn = dnssec_generate_query(header, ((char *) header) + daemon->packet_buff_sz,
+						     daemon->keyname, forward->class, T_DNSKEY, &server->addr);
 			}
 		      else if (status == STAT_NEED_DS)
 			{
 			  new->flags |= FREC_DS_QUERY;
-			  nn = dnssec_generate_query(header, daemon->keyname, forward->class, T_DS, &server->addr);
+			  nn = dnssec_generate_query(header,((char *) header) + daemon->packet_buff_sz,
+						     daemon->keyname, forward->class, T_DS, &server->addr);
 			}
 		      new->crc = questions_crc(header, nn, daemon->namebuff);
 		      new->new_id = get_id(new->crc);
@@ -1064,7 +1066,7 @@ void receive_query(struct listener *listen, time_t now)
 #ifdef HAVE_AUTH
   if (auth_dns)
     {
-      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr, local_auth);
+      m = answer_auth(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, now, &source_addr, local_auth);
       if (m >= 1)
 	{
 	  send_from(listen->fd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND),
@@ -1075,7 +1077,7 @@ void receive_query(struct listener *listen, time_t now)
   else
 #endif
     {
-      m = answer_request(header, ((char *) header) + PACKETSZ, (size_t)n, 
+      m = answer_request(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, 
 			 dst_addr_4, netmask, now);
       
       if (m >= 1)

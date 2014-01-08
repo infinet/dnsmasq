@@ -479,7 +479,7 @@ static int digestalg_add_rdata(int sigtype, struct dns_header *header, size_t pk
   return 1;
 }
 
-size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type, union mysockaddr *addr)
+size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr)
 {
   unsigned char *p;
   char types[20];
@@ -511,7 +511,7 @@ size_t dnssec_generate_query(struct dns_header *header, char *name, int class, i
   PUTSHORT(type, p);
   PUTSHORT(class, p);
 
-  return add_do_bit(header, p - (unsigned char *)header, ((char *) header) + PACKETSZ);
+  return add_do_bit(header, p - (unsigned char *)header, end);
 }
   
 /* The DNS packet is expected to contain the answer to a DNSKEY query.

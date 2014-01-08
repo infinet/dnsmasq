@@ -90,7 +90,12 @@ int main (int argc, char **argv)
 #endif
 
   if (daemon->edns_pktsz < PACKETSZ)
-    daemon->edns_pktsz = option_bool(OPT_DNSSEC_VALID) ? EDNS_PKTSZ : PACKETSZ;
+    daemon->edns_pktsz = PACKETSZ;
+#ifdef HAVE_DNSSEC
+  /* Enforce min packet big enough for DNSSEC */
+  if (option_bool(OPT_DNSSEC_VALID) && daemon->edns_pktsz < EDNS_PKTSZ)
+    daemon->edns_pktsz = EDNS_PKTSZ;
+#endif
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
     daemon->edns_pktsz : DNSMASQ_PACKETSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
