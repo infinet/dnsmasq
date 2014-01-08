@@ -718,6 +718,10 @@ void reply_query(int fd, int family, time_t now)
 		  new->next = next;
 		  new->stash = NULL;
 		  new->blocking_query = NULL;
+		  new->rfd4 = NULL;
+#ifdef HAVE_IPV6
+		  new->rfd6 = NULL;
+#endif
 		  new->flags &= ~(FREC_DNSKEY_QUERY | FREC_DS_QUERY);
 		  
 		  if ((forward->stash = blockdata_alloc((char *)header, n)))
@@ -751,23 +755,27 @@ void reply_query(int fd, int family, time_t now)
 		      if (server->sfd)
 			fd = server->sfd->fd;
 		      else
+			{
+			  fd = -1;
 #ifdef HAVE_IPV6
-			/* Note that we use the same random port for the DNSSEC stuff */
-			if (server->addr.sa.sa_family == AF_INET6)
-			  {
-			    fd = new->rfd6->fd;
-			    new->rfd6->refcount++;
-			  }
-			else
+			  if (server->addr.sa.sa_family == AF_INET6)
+			    {
+			      if (new->rfd6 || (new->rfd6 = allocate_rfd(AF_INET6)))
+				fd = new->rfd6->fd;
+			    }
+			  else
 #endif
-			  {
-			    fd = new->rfd4->fd;
-			    new->rfd4->refcount++;
-			  }
+			    {
+			      if (new->rfd4 || (new->rfd4 = allocate_rfd(AF_INET)))
+				fd = new->rfd4->fd;
+			    }
+			}
 		      
-		      /* Send DNSSEC query to same server as original query */
-		      while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send()); 
-		      server->queries++;
+		      if (fd != -1)
+			{
+			  while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send()); 
+			  server->queries++;
+			}
 		    }
 		}
 	     
@@ -1142,7 +1150,7 @@ static int tcp_key_recurse(time_t now, int status, int class, char *keyname, str
 		{
 		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
 		  status = STAT_INSECURE;
-	    }
+		}
 	    }
 	}
     }
