@@ -686,7 +686,19 @@ void reply_query(int fd, int family, time_t now)
 	  if (forward->stash)
 	    return;
 
-	  if (forward->flags & FREC_DNSKEY_QUERY)
+	  if (header->hb3 & HB3_TC)
+	    {
+	      /* Truncated answer can't be validated.
+		 The client will retry over TCP, but if this is an answer to a 
+		 DNSSEC-generated query, we have a problem. Should really re-send
+		 over TCP. No-one with any sense will make a DNSKEY or DS RRset
+		 exceed 4096, so this may not be a real problem. Just log 
+		 for now. */
+	      if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
+		my_syslog(LOG_ERR, _("Reply to DNSSEC query truncated - validation fails."));
+	      status = STAT_INSECURE;
+	    }
+	  else if (forward->flags & FREC_DNSKEY_QUERY)
 	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);		      
 	  else if (forward->flags & FREC_DS_QUERY)
 	    status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
