@@ -139,8 +139,8 @@ RESOLVFILE
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
-#define HAVE_DNSSEC 
-#define HAVE_OPENSSL 
+/* #define HAVE_DNSSEC */
+
 
 /* Default locations for important system files. */
 

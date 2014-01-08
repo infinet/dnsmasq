@@ -59,8 +59,8 @@ ct_cflags =   `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFI
 ct_libs =     `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_CONNTRACK $(PKG_CONFIG) --libs libnetfilter_conntrack`
 lua_cflags =  `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --cflags lua5.1` 
 lua_libs =    `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_LUASCRIPT $(PKG_CONFIG) --libs lua5.1` 
-ssl_cflags =  `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_OPENSSL $(PKG_CONFIG) --cflags openssl`
-ssl_libs =    `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_OPENSSL $(PKG_CONFIG) --libs openssl`
+sec_cflags =  `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_DNSSEC $(PKG_CONFIG) --cflags libcrypto`
+sec_libs =    `echo $(COPTS) | $(top)/bld/pkg-wrapper HAVE_DNSSEC $(PKG_CONFIG) --libs libcrypto`
 sunos_libs =  `if uname | grep SunOS >/dev/null 2>&1; then echo -lsocket -lnsl -lposix4; fi`
 version =     -DVERSION='\"`$(top)/bld/get-version $(top)`\"'
 
@@ -76,8 +76,8 @@ hdrs = dnsmasq.h config.h dhcp-protocol.h dhcp6-protocol.h \
 all : $(BUILDDIR)
 	@cd $(BUILDDIR) && $(MAKE) \
  top="$(top)" \
- build_cflags="$(version) $(dbus_cflags) $(idn_cflags) $(ct_cflags) $(lua_cflags) $(ssl_cflags)" \
- build_libs="$(dbus_libs) $(idn_libs) $(ct_libs) $(lua_libs) $(sunos_libs) $(ssl_libs)" \
+ build_cflags="$(version) $(dbus_cflags) $(idn_cflags) $(ct_cflags) $(lua_cflags) $(sec_cflags)" \
+ build_libs="$(dbus_libs) $(idn_libs) $(ct_libs) $(lua_libs) $(sunos_libs) $(sec_libs)" \
  -f $(top)/Makefile dnsmasq 
 
 mostly_clean :
