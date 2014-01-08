@@ -1094,6 +1094,66 @@ void receive_query(struct listener *listen, time_t now)
     }
 }
 
+#ifdef HAVE_DNSSEC
+static int tcp_key_recurse(time_t now, int status, int class, char *keyname, struct server *server)
+{
+  /* Recurse up the key heirarchy */
+  size_t n; 
+  unsigned char *packet = whine_malloc(65536 + MAXDNAME + RRFIXEDSZ + sizeof(u16));
+  unsigned char *payload = &packet[2];
+  struct dns_header *header = (struct dns_header *)payload;
+  u16 *length = (u16 *)packet;
+  int new_status;
+  unsigned char c1, c2;
+
+  n = dnssec_generate_query(header, ((char *) header) + 65536, keyname, class, 
+			    status == STAT_NEED_KEY ? T_DNSKEY : T_DS, &server->addr);
+  
+  *length = htons(n);
+  
+  if (!read_write(server->tcpfd, packet, n + sizeof(u16), 0) ||
+      !read_write(server->tcpfd, &c1, 1, 1) ||
+      !read_write(server->tcpfd, &c2, 1, 1) ||
+      !read_write(server->tcpfd, payload, (c1 << 8) | c2, 1))
+    {
+      close(server->tcpfd);
+      server->tcpfd = -1;
+      new_status = STAT_INSECURE;
+    }
+  else
+    {
+      n = (c1 << 8) | c2;
+      
+      if (status ==  STAT_NEED_KEY)
+	new_status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+      else
+	new_status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+      
+      if (new_status == STAT_NEED_DS || new_status == STAT_NEED_KEY)
+	{
+	  if ((new_status = tcp_key_recurse(now, new_status, class, daemon->keyname, server) == STAT_SECURE))
+	    {
+	      if (status ==  STAT_NEED_KEY)
+		new_status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+	      else
+		new_status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+	      
+	      if (new_status == STAT_NEED_DS || new_status == STAT_NEED_KEY)
+		{
+		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		  status = STAT_INSECURE;
+	    }
+	    }
+	}
+    }
+
+  free(packet);
+
+  return new_status;
+}
+#endif
+
+
 /* The daemon forks before calling this: it should deal with one connection,
    blocking as neccessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
@@ -1106,7 +1166,7 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, check_subnet;
+  int checking_disabled, check_subnet, no_cache_dnssec = 0, cache_secure = 0;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -1139,7 +1199,8 @@ unsigned char *tcp_request(int confd, time_t now,
       check_subnet = 0;
 
       /* save state of "cd" flag in query */
-      checking_disabled = header->hb4 & HB4_CD;
+      if ((checking_disabled = header->hb4 & HB4_CD))
+	no_cache_dnssec = 1;
        
       /* RFC 4035: sect 4.6 para 2 */
       header->hb4 &= ~HB4_AD;
@@ -1259,6 +1320,14 @@ unsigned char *tcp_request(int confd, time_t now,
 			      continue;
 			    }
 			  
+#ifdef HAVE_DNSSEC
+			  if (option_bool(OPT_DNSSEC_VALID))
+			    {
+			      size = add_do_bit(header, size, ((char *) header) + 65536);
+			      header->hb4 |= HB4_CD;
+			    }
+#endif
+			  
 #ifdef HAVE_CONNTRACK
 			  /* Copy connection mark of incoming query to outgoing connection. */
 			  if (option_bool(OPT_CONNTRACK))
@@ -1282,7 +1351,8 @@ unsigned char *tcp_request(int confd, time_t now,
 		      
 		      if (!read_write(last_server->tcpfd, packet, size + sizeof(u16), 0) ||
 			  !read_write(last_server->tcpfd, &c1, 1, 1) ||
-			  !read_write(last_server->tcpfd, &c2, 1, 1))
+			  !read_write(last_server->tcpfd, &c2, 1, 1) ||
+			  !read_write(last_server->tcpfd, payload, (c1 << 8) | c2, 1))
 			{
 			  close(last_server->tcpfd);
 			  last_server->tcpfd = -1;
@@ -1290,8 +1360,6 @@ unsigned char *tcp_request(int confd, time_t now,
 			} 
 		      
 		      m = (c1 << 8) | c2;
-		      if (!read_write(last_server->tcpfd, payload, m, 1))
-			return packet;
 		      
 		      if (!gotname)
 			strcpy(daemon->namebuff, "query");
@@ -1303,6 +1371,36 @@ unsigned char *tcp_request(int confd, time_t now,
 			log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
 				  (struct all_addr *)&last_server->addr.in6.sin6_addr, NULL);
 #endif 
+
+#ifdef HAVE_DNSSEC
+		      if (option_bool(OPT_DNSSEC_VALID) && !checking_disabled)
+			{
+			  int class, status;
+			  
+			  status = dnssec_validate_reply(now, header, m, daemon->namebuff, daemon->keyname, &class);
+			  
+			  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+			    {
+			      if ((status = tcp_key_recurse(now, status, class, daemon->keyname, last_server)) == STAT_SECURE)
+				status = dnssec_validate_reply(now, header, m, daemon->namebuff, daemon->keyname, &class);
+			    }
+
+			  log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
+				    status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
+
+			  if (status == STAT_BOGUS)
+			    no_cache_dnssec = 1;
+
+			  if (status == STAT_SECURE)
+			    cache_secure = 1;
+			}
+#endif
+
+		      /* restore CD bit to the value in the query */
+		      if (checking_disabled)
+			header->hb4 |= HB4_CD;
+		      else
+			header->hb4 &= ~HB4_CD;
 		      
 		      /* There's no point in updating the cache, since this process will exit and
 			 lose the information after a few queries. We make this call for the alias and 
@@ -1312,8 +1410,8 @@ unsigned char *tcp_request(int confd, time_t now,
 			 sending replies containing questions and bogus answers. */
 		      if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
 			m = process_reply(header, now, last_server, (unsigned int)m, 
-					  option_bool(OPT_NO_REBIND) && !norebind, checking_disabled,
-					  0, check_subnet, &peer_addr); /* TODO - cache secure */
+					  option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
+					  cache_secure, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }
