@@ -617,8 +617,8 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	    
 	    from_wire(name);
 
-	    /* TODO fragented digest */
-	    if (memcmp(digestalg_final(), recp1->addr.key.keydata->key, digestalg_len()) == 0 &&
+	    if (recp1->uid == digestalg_len() &&
+		blockdata_retrieve(recp1->addr.key.keydata, recp1->uid, digestalg_final()) &&
 		validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
 	      {
 		struct all_addr a;
@@ -717,6 +717,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 	      crecp->addr.key.keydata = key;
 	      crecp->addr.key.algo = algo;
 	      crecp->addr.key.keytag = keytag;
+	      crecp->uid = rdlen - 4; 
 	    }
 	  else
 	    return STAT_INSECURE; /* cache problem */

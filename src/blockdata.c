@@ -96,18 +96,24 @@ void blockdata_free(struct blockdata *blocks)
     }
 }
 
-void  blockdata_retrieve(struct blockdata *block, size_t len, void *data)
+/* copy blocks into data[], return 1 if data[] unchanged by so doing */
+int blockdata_retrieve(struct blockdata *block, size_t len, void *data)
 {
   size_t blen;
   struct  blockdata *b;
+  int match = 1;
   
   for (b = block; len > 0 && b;  b = b->next)
     {
       blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
+      if (memcmp(data, b->key, blen) != 0)
+	match = 0;
       memcpy(data, b->key, blen);
       data += blen;
       len -= blen;
     }
+
+  return match;
 }
-  
+ 
 #endif
