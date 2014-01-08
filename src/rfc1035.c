@@ -577,10 +577,13 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
 	return plen; /* Too big */
     }
   
-  PUTSHORT(optno, p);
-  PUTSHORT(optlen, p);
-  memcpy(p, opt, optlen);
-  p += optlen;  
+  if (optno != 0)
+    {
+      PUTSHORT(optno, p);
+      PUTSHORT(optlen, p);
+      memcpy(p, opt, optlen);
+      p += optlen;  
+    }
 
   PUTSHORT(p - datap, lenp);
   return p - (unsigned char *)header;
@@ -889,7 +892,7 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
 int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
-		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec)
+		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec, int secure)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -919,6 +922,12 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
       struct crec *cpp = NULL;
       int flags = RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0;
       unsigned long cttl = ULONG_MAX, attl;
+
+      if (RCODE(header) == NXDOMAIN)
+	flags |= F_NXDOMAIN;
+
+      if (secure)
+	flags |= F_DNSSECOK; 
       
       namep = p;
       if (!extract_name(header, qlen, &p, name, 1, 4))
@@ -1446,7 +1455,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   int dryrun = 0, sec_reqd = 0;
   int is_sign;
   struct crec *crecp;
-  int nxdomain = 0, auth = 1, trunc = 0;
+  int nxdomain = 0, auth = 1, trunc = 0, sec_data = 1;
   struct mx_srv_record *rec;
  
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
@@ -1621,6 +1630,9 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
 		      continue;
 		    
+		    if (!(crecp->flags & F_DNSSECOK))
+		      sec_data = 0;
+		    
 		    if (crecp->flags & F_NEG)
 		      {
 			ans = 1;
@@ -1794,6 +1806,9 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)))
 			break;
 		      
+		      if (!(crecp->flags & F_DNSSECOK))
+			sec_data = 0;
+		      
 		      if (crecp->flags & F_CNAME)
 			{
 			  char *cname_target = cache_get_cname_target(crecp);
@@ -1868,6 +1883,9 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	      if ((crecp = cache_find_by_name(NULL, name, now, F_CNAME)) &&
 		  (qtype == T_CNAME || (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG))))
 		{
+		  if (!(crecp->flags & F_DNSSECOK))
+		    sec_data = 0;
+		  
 		  ans = 1;
 		  if (!dryrun)
 		    {
@@ -2046,7 +2064,13 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   /* truncation */
   if (trunc)
     header->hb3 |= HB3_TC;
-
+  
+  header->hb4 &= ~HB4_AD;
+  
+  if (option_bool(OPT_DNSSEC_VALID) || option_bool(OPT_DNSSEC_PROXY))
+    if (sec_data)
+      header->hb4 |= HB4_AD;
+  
   if (nxdomain)
     SET_RCODE(header, NXDOMAIN);
   else

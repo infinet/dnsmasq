@@ -17,7 +17,7 @@
 #ifndef DNSSEC_CRYPTO_H
 #define DNSSEC_CRYPTO_H
 
-struct keydata;
+struct blockdata;
 
 /* 
  * vtable for a signature verification algorithm.
@@ -49,7 +49,7 @@ typedef struct VerifyAlgCtx VerifyAlgCtx;
 typedef struct
 {
   int digest_algo;
-  int (*verify)(VerifyAlgCtx *ctx, struct keydata *key, unsigned key_len);
+  int (*verify)(VerifyAlgCtx *ctx, struct blockdata *key, unsigned key_len);
 } VerifyAlg;
 
 struct VerifyAlgCtx
@@ -74,9 +74,9 @@ int verifyalg_algonum(VerifyAlgCtx *a);
 #define DIGESTALG_SHA512   257
 
 int digestalg_supported(int algo);
-int digestalg_begin(int algo);
+void digestalg_begin(int algo);
 void digestalg_add_data(void *data, unsigned len);
-void digestalg_add_keydata(struct keydata *key, size_t len);
+void digestalg_add_keydata(struct blockdata *key, size_t len);
 unsigned char *digestalg_final(void);
 int digestalg_len(void);
 

@@ -56,6 +56,8 @@ static const struct {
   { 38,  "A6" },
   { 39,  "DNAME" },
   { 41,  "OPT" },
+  { 43,  "DS" },
+  { 46,  "RRSIG" },
   { 48,  "DNSKEY" },
   { 249, "TKEY" },
   { 250, "TSIG" },
@@ -916,12 +918,19 @@ void cache_reload(void)
   struct name_list *nl;
   struct cname *a;
   struct interface_name *intr;
+#ifdef HAVE_DNSSEC
+  struct dnskey *key;
+#endif
 
   cache_inserted = cache_live_freed = 0;
   
   for (i=0; i<hash_size; i++)
     for (cache = hash_table[i], up = &hash_table[i]; cache; cache = tmp)
       {
+#ifdef HAVE_DNSSEC
+	if (cache->flags & (F_DNSKEY | F_DS))
+	  blockdata_free(cache->addr.key.keydata);
+#endif
 	tmp = cache->hash_next;
 	if (cache->flags & (F_HOSTS | F_CONFIG))
 	  {
@@ -948,13 +957,27 @@ void cache_reload(void)
       if (hostname_isequal(a->target, intr->name) &&
 	  ((cache = whine_malloc(sizeof(struct crec)))))
 	{
-	  cache->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG;
+	  cache->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG | F_DNSSECOK;
 	  cache->name.namep = a->alias;
 	  cache->addr.cname.target.int_name = intr;
 	  cache->addr.cname.uid = -1;
 	  cache_hash(cache);
 	  add_hosts_cname(cache); /* handle chains */
 	}
+
+#ifdef HAVE_DNSSEC
+  for (key = daemon->dnskeys; key; key = key->next)
+    if ((cache = whine_malloc(sizeof(struct crec))) &&
+	(cache->addr.key.keydata = blockdata_alloc(key->key, key->keylen)))
+      {
+	cache->flags = F_FORWARD | F_IMMORTAL | F_DNSKEY | F_CONFIG | F_NAMEP;
+	cache->name.namep = key->name;
+	cache->uid = key->keylen;
+	cache->addr.key.algo = key->algo;
+	cache->addr.key.keytag = dnskey_keytag(key->algo, key->flags, (unsigned char *)key->key, key->keylen);
+	cache_hash(cache);
+      }
+#endif
   
   /* borrow the packet buffer for a temporary by-address hash */
   memset(daemon->packet, 0, daemon->packet_buff_sz);
@@ -1197,16 +1220,13 @@ void dump_cache(time_t now)
       for (i=0; i<hash_size; i++)
 	for (cache = hash_table[i]; cache; cache = cache->hash_next)
 	  {
-	    char *a, *p = daemon->namebuff;
-	    p += sprintf(p, "%-40.40s ", cache_get_name(cache));
-	    if ((cache->flags & F_NEG) && (cache->flags & F_FORWARD))
-	      a = ""; 
-	    else if (cache->flags & F_CNAME) 
-	      {
-		a = "";
-		if (!is_outdated_cname_pointer(cache))
-		  a = cache_get_cname_target(cache);
-	      }
+	    char *a = daemon->addrbuff, *p = daemon->namebuff, *n = cache_get_name(cache);
+	    *a = 0;
+	    if (strlen(n) == 0)
+	      n = "<Root>";
+	    p += sprintf(p, "%-40.40s ", n);
+	    if ((cache->flags & F_CNAME) && !is_outdated_cname_pointer(cache))
+	      a = cache_get_cname_target(cache);
 #ifdef HAVE_DNSSEC
 	    else if (cache->flags & F_DNSKEY)
 	      {
@@ -1216,11 +1236,11 @@ void dump_cache(time_t now)
 	    else if (cache->flags & F_DS)
 	      {
 		a = daemon->addrbuff;
-		sprintf(a, "%5u %3u %3u %u", cache->addr.key.keytag,
-			cache->addr.key.algo, cache->addr.key.digest, cache->uid);
+		sprintf(a, "%5u %3u %3u", cache->addr.key.keytag,
+			cache->addr.key.algo, cache->addr.key.digest);
 	      }
 #endif
-	    else 
+	    else if (!(cache->flags & F_NEG) || !(cache->flags & F_FORWARD))
 	      { 
 		a = daemon->addrbuff;
 		if (cache->flags & F_IPV4)
@@ -1291,13 +1311,20 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
 
   if (addr)
     {
+      if (flags & F_KEYTAG)
+	sprintf(daemon->addrbuff, arg, addr->addr.keytag);
+      else
+	{
 #ifdef HAVE_IPV6
-      inet_ntop(flags & F_IPV4 ? AF_INET : AF_INET6,
-		addr, daemon->addrbuff, ADDRSTRLEN);
+	  inet_ntop(flags & F_IPV4 ? AF_INET : AF_INET6,
+		    addr, daemon->addrbuff, ADDRSTRLEN);
 #else
-      strncpy(daemon->addrbuff, inet_ntoa(addr->addr.addr4), ADDRSTRLEN);  
+	  strncpy(daemon->addrbuff, inet_ntoa(addr->addr.addr4), ADDRSTRLEN);  
 #endif
+	}
     }
+  else
+    dest = arg;
 
   if (flags & F_REVERSE)
     {
@@ -1339,6 +1366,8 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
     source = arg;
   else if (flags & F_UPSTREAM)
     source = "reply";
+  else if (flags & F_SECSTAT)
+    source = "validation";
   else if (flags & F_AUTH)
     source = "auth";
   else if (flags & F_SERVER)
@@ -1350,6 +1379,11 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
     {
       source = arg;
       verb = "from";
+    }
+  else if (flags & F_DNSSEC)
+    {
+      source = arg;
+      verb = "to";
     }
   else
     source = "cached";
@@ -1422,6 +1456,21 @@ void blockdata_free(struct blockdata *blocks)
       keyblock_free = blocks;
     }
 }
+
+void  blockdata_retrieve(struct blockdata *block, size_t len, void *data)
+{
+  size_t blen;
+  struct  blockdata *b;
+  
+  for (b = block; len > 0 && b;  b = b->next)
+    {
+      blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
+      memcpy(data, b->key, blen);
+      data += blen;
+      len -= blen;
+    }
+}
+  
 #endif
 
       

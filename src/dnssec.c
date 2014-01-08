@@ -1,4 +1,5 @@
 /* dnssec.c is Copyright (c) 2012 Giovanni Bajo <rasky@develer.com>
+           and Copyright (c) 2012-2014 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,11 +16,14 @@
 */
 
 #include "dnsmasq.h"
+
+#ifdef HAVE_DNSSEC
+
 #include "dnssec-crypto.h"
 #include <assert.h>
 
 /* Maximum length in octects of a domain name, in wire format */
-#define MAXCDNAME  256
+#define MAXCDNAME  256 
 
 #define MAXRRSET 16
 
@@ -27,8 +31,6 @@
 #define SERIAL_EQ        0
 #define SERIAL_LT       -1
 #define SERIAL_GT        1
-
-static int dnskey_keytag(int alg, unsigned char *rdata, int rdlen);
 
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
 static int serial_compare_32(unsigned long s1, unsigned long s2)
@@ -45,36 +47,6 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
   return SERIAL_UNDEF;
 }
 
-/* Extract a DNS name from wire format, without handling compression. This is
-   faster than extract_name() and does not require access to the full dns
-   packet. */
-static int extract_name_no_compression(unsigned char *rr, int maxlen, char *buf)
-{
-  unsigned char *start=rr, *end = rr+maxlen;
-  int count;
-  
-  while (rr < end && *rr != 0)
-    {
-      count = *rr++;
-      while (count-- > 0 && rr < end)
-        {
-          *buf = *rr++;
-          if (!isascii(*buf) || iscntrl(*buf) || *buf == '.')
-            return 0;
-          if (*buf >= 'A' && *buf <= 'Z')
-            *buf += 'a' - 'A';
-          buf++;
-        }
-      *buf++ = '.';
-    }
-  /* Remove trailing dot (if any) */
-  if (rr != start)
-    *(--buf) = 0;
-  if (rr == end)
-    return 0;
-  /* Trailing \0 in source data must be consumed */
-  return rr-start+1;
-}
 
 /* process_domain_name() - do operations with domain names in canonicalized wire format.
  *
@@ -419,46 +391,55 @@ typedef struct PendingRRSIGValidation
   int keytag;
 } PendingRRSIGValidation;
 
-/* strchrnul - like strchr, but when character is not found, returns a pointer to the terminating \0.
 
-   This is an existing C GNU extension, but it's easier to reimplement it,
-   rather than tweaking with configure. */
-static char *my_strchrnul(char *str, char ch)
+/* Convert from presentation format to wire format, in place.
+   Also map UC -> LC.
+   Note that using extract_name to get presentation format
+   then calling to_wire() removes compression and maps case,
+   thus generating names in canonical form.
+   Calling to_wire followed by from_wire is almost an identity,
+   except that the UC remains mapped to LC. 
+*/
+static int to_wire(char *name)
 {
-  while (*str && *str != ch)
-    str++;
-  return str;
+  unsigned char *l, *p, term;
+  int len;
+
+  for (l = (unsigned char*)name; *l != 0; l = p)
+    {
+      for (p = l; *p != '.' && *p != 0; p++)
+	if (*p >= 'A' && *p <= 'Z')
+	  *p = *p - 'A' + 'a';
+      
+      term = *p;
+      
+      if ((len = p - l) != 0)
+	memmove(l+1, l, len);
+      *l = len;
+      
+      p++;
+      
+      if (term == 0)
+	*p = 0;
+    }
+  
+  return l + 1 - (unsigned char *)name;
 }
 
-/* Convert a domain name to wire format */
-static int convert_domain_to_wire(char *name, unsigned char* out)
+/* Note: no compression  allowed in input. */
+static void from_wire(char *name)
 {
-  unsigned char len;
-  unsigned char *start = out;
-  char *p;
+  unsigned char *l;
+  int len;
 
-  do
+  for (l = (unsigned char *)name; *l != 0; l += len+1)
     {
-      p = my_strchrnul(name, '.');
-      if ((len = p-name))
-        {
-          *out++ = len;
-          while (len--)
-            {
-              char ch = *name++;
-              /* TODO: this will not be required anymore once we
-                 remove all usages of extract_name() from DNSSEC code */
-              if (ch >= 'A' && ch <= 'Z')
-                ch = ch - 'A' + 'a';
-              *out++ = ch;
-            }
-        }
-      name = p+1;
+      len = *l;
+      memmove(l, l+1, len);
+      l[len] = '.';
     }
-  while (*p);
 
-  *out++ = '\0';
-  return out-start;
+  *(l-1) = 0;
 }
 
 
@@ -498,43 +479,56 @@ static int digestalg_add_rdata(int sigtype, struct dns_header *header, size_t pk
   return 1;
 }
 
-size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type)
+size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type, union mysockaddr *addr)
 {
   unsigned char *p;
+  char types[20];
+  
+  querystr("dnssec", types, type);
 
+  if (addr->sa.sa_family == AF_INET) 
+    log_query(F_DNSSEC | F_IPV4, name, (struct all_addr *)&addr->in.sin_addr, types);
+#ifdef HAVE_IPV6
+  else
+    log_query(F_DNSSEC | F_IPV6, name, (struct all_addr *)&addr->in6.sin6_addr, types);
+#endif
+  
   header->qdcount = htons(1);
   header->ancount = htons(0);
   header->nscount = htons(0);
   header->arcount = htons(0);
 
-  header->hb3 =  HB3_RD; 
+  header->hb3 = HB3_RD; 
   SET_OPCODE(header, QUERY);
-  header->hb4 = 0;
+  header->hb4 = HB4_CD;
 
   /* ID filled in later */
 
   p = (unsigned char *)(header+1);
 	
   p = do_rfc1035_name(p, name);
+  *p++ = 0;
   PUTSHORT(type, p);
   PUTSHORT(class, p);
 
   return add_do_bit(header, p - (unsigned char *)header, ((char *) header) + PACKETSZ);
 }
   
-/* The DNS packet is expected to contain the answer to a DNSKEY query
+/* The DNS packet is expected to contain the answer to a DNSKEY query.
+   Leave name of qury in name.
    Put all DNSKEYs in the answer which are valid into the cache.
    return codes:
          STAT_INSECURE bad packet, no DNSKEYs in reply.
 	 STAT_SECURE   At least one valid DNSKEY found and in cache.
-	 STAT_BOGUS    At least one DNSKEY found, which fails validation.
-	 STAT_NEED_DS  DS records to validate a key not found, name in namebuff 
+	 STAT_BOGUS    No DNSKEYs found, which  can be validated with DS,
+	               or self-sign for DNSKEY RRset is not valid.
+	 STAT_NEED_DS  DS records to validate a key not found, name in keyname 
 */
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class)
 {
-  unsigned char *p;
+  unsigned char *psave, *p = (unsigned char *)(header+1);
   struct crec *crecp, *recp1;
-  int j, qtype, qclass, ttl, rdlen, flags, protocol, algo, gotone;
+  int rc, j, qtype, qclass, ttl, rdlen, flags, algo, valid, keytag;
   struct blockdata *key;
 
   if (ntohs(header->qdcount) != 1)
@@ -546,15 +540,23 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
   GETSHORT(qtype, p);
   GETSHORT(qclass, p);
   
-  if (qtype != T_DNSKEY || qclass != class)
+  if (qtype != T_DNSKEY || qclass != class || ntohs(header->ancount) == 0)
     return STAT_INSECURE;
+
+   /* See if we have cached a DS record which validates this key */
+  if (!(crecp = cache_find_by_name(NULL, name, now, F_DS)))
+    {
+      strcpy(keyname, name);
+      return STAT_NEED_DS;
+    }
 
   cache_start_insert();
 
-  for (gotone = 0, j = ntohs(header->ancount); j != 0; j--) 
+  /* NOTE, we need to find ONE DNSKEY which matches the DS */
+  for (valid = 0, j = ntohs(header->ancount); j != 0; j--) 
     {
       /* Ensure we have type, class  TTL and length */
-      if (!extract_name(header, plen, &p, name, 1, 10))
+      if (!(rc = extract_name(header, plen, &p, name, 0, 10)))
 	return STAT_INSECURE; /* bad packet */
   
       GETSHORT(qtype, p); 
@@ -562,64 +564,89 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
       GETLONG(ttl, p);
       GETSHORT(rdlen, p);
 
-      if (qclass != class || qtype != T_DNSKEY || rdlen < 4)
+      if (qclass != class || qtype != T_DNSKEY || rc == 2)
 	{
-	  /* skip all records other than DNSKEY */
-	  p += rdlen;
-	  continue;
+	  if (ADD_RDLEN(header, p, plen, rdlen))
+	    continue;
+
+	  return STAT_INSECURE; /* bad packet */
 	}
       
-      crecp = cache_find_by_name(NULL, name, now, F_DS);
+      if (!CHECK_LEN(header, p, plen, rdlen) || rdlen < 4)
+	return STAT_INSECURE; /* bad packet */
+      
+      psave = p;
       
       /* length at least covers flags, protocol and algo now. */
       GETSHORT(flags, p);
-      protocol = *p++;
+      if (*p++ != 3)
+	return STAT_INSECURE;
       algo = *p++;
-
-      /* See if we have cached a DS record which validates this key */
+      keytag = dnskey_keytag(algo, flags, p, rdlen - 4);
+      
+      /* Put the key into the cache. Note that if the validation fails, we won't
+	 call cache_end_insert() and this will never be committed. */
+      if ((key = blockdata_alloc((char*)p, rdlen - 4)) &&
+	  (recp1 = cache_insert(name, NULL, now, ttl, F_FORWARD | F_DNSKEY)))
+	{
+	  recp1->uid = rdlen - 4;
+	  recp1->addr.key.keydata = key;
+	  recp1->addr.key.algo = algo;
+	  recp1->addr.key.keytag = keytag;
+	}
+      
+      p = psave;
+      if (!ADD_RDLEN(header, p, plen, rdlen))
+	return STAT_INSECURE; /* bad packet */
+      
+      /* Already determined that message is OK. Just loop stuffing cache */ 
+      if (valid || !key)
+	continue;
+      
       for (recp1 = crecp; recp1; recp1 = cache_find_by_name(recp1, name, now, F_DS))
-	if (recp1->addr.key.algo == algo && is_supported_digest(recp1->addr.key.digest))
-	  break;
-      
-      /* DS record needed to validate key is missing, return name of DS in namebuff */
-      if (!recp1)
-	return STAT_NEED_DS;
-      else
-	{
-	  int valid = 1;
-	  /* calculate digest of canonicalised DNSKEY data using digest in  (recp1->addr.key.digest) 
-	     and see if it equals digest stored in recp1
-	  */
-	  
-	  if (!valid)
-	    return STAT_BOGUS;
-	}
-      
-      if ((key = blockdata_alloc((char*)p, rdlen)))
-	{
-	  
-	  /* We've proved that the KEY is OK, store it in the cache */
-	  if ((crecp = cache_insert(name, NULL, now, ttl, F_FORWARD | F_DNSKEY)))
-	    {
-	      crecp->uid = rdlen;
-	      crecp->addr.key.keydata = key;
-	      crecp->addr.key.algo = algo;
-	      crecp->addr.key.keytag = dnskey_keytag(algo, (char*)p, rdlen);
-	      gotone = 1;
-	    }
-	}
-      
-    }
-  
-  cache_end_insert();  
+	if (recp1->addr.key.algo == algo && 
+	    recp1->addr.key.keytag == keytag &&
+	    (flags & 0x100) && /* zone key flag */
+	    digestalg_supported(recp1->addr.key.digest))
+	  {
+	    int wire_len = to_wire(name);
+	    
+	    digestalg_begin(recp1->addr.key.digest);
+	    digestalg_add_data(name, wire_len);
+	    digestalg_add_data((char *)psave, rdlen);
+	    
+	    from_wire(name);
 
-      
-  return gotone ? STAT_SECURE : STAT_INSECURE;
+	    /* TODO fragented digest */
+	    if (memcmp(digestalg_final(), recp1->addr.key.keydata->key, digestalg_len()) == 0 &&
+		validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
+	      {
+		struct all_addr a;
+		valid = 1;
+		a.addr.keytag = keytag;
+		log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+		break;
+	      }
+	  }
+    }
+
+  if (valid)
+    {
+      /* commit cache insert. */
+      cache_end_insert();
+      return STAT_SECURE;
+    }
+
+  log_query(F_UPSTREAM, name, NULL, "BOGUS DNSKEY");
+  return STAT_BOGUS;
 }
+
+
 /* The DNS packet is expected to contain the answer to a DS query
+   Leave name of DS query in name.
    Put all DSs in the answer which are valid into the cache.
    return codes:
-   STAT_INSECURE    bad packet, no DNSKEYs in reply.
+   STAT_INSECURE    bad packet, no DS in reply.
    STAT_SECURE      At least one valid DS found and in cache.
    STAT_BOGUS       At least one DS found, which fails validation.
    STAT_NEED_DNSKEY DNSKEY records to validate a DS not found, name in keyname
@@ -627,8 +654,8 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class)
 {
-  unsigned char *p = (unsigned char *)(header+1);
-  struct crec *crecp, *recp1;
+  unsigned char *psave, *p = (unsigned char *)(header+1);
+  struct crec *crecp;
   int qtype, qclass, val, j, gotone;
   struct blockdata *key;
 
@@ -641,10 +668,13 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   GETSHORT(qtype, p);
   GETSHORT(qclass, p);
 
-  if (qtype != T_DS || qclass != class)
+  if (qtype != T_DS || qclass != class || ntohs(header->ancount) == 0)
     return STAT_INSECURE;
-
-  val = validate_rrset(header, plen, class, T_DS, name, keyname);
+  
+  val = validate_rrset(now, header, plen, class, T_DS, name, keyname, NULL, 0, 0, 0);
+ 
+  if (val == STAT_BOGUS)
+    log_query(F_UPSTREAM, name, NULL, "BOGUS DS");
 
   /* failed to validate or missing key. */
   if (val != STAT_SECURE)
@@ -654,7 +684,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 
   for (gotone = 0, j = ntohs(header->ancount); j != 0; j--) 
     {
-      int ttl, rdlen, rc, algo;
+      int ttl, rdlen, rc, algo, digest, keytag;
       
       /* Ensure we have type, class  TTL and length */
       if (!(rc = extract_name(header, plen, &p, name, 0, 10)))
@@ -666,32 +696,42 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
       GETSHORT(rdlen, p);
       
       /* check type, class and name, skip if not in DS rrset */
-      if (qclass != class || qtype != T_DS || rc == 2)
+      if (qclass == class && qtype == T_DS && rc == 1)
 	{
-	  p += rdlen;
-	  continue;
-	}
-      
-      if ((key = blockdata_alloc((char*)p, rdlen)))
-	{
+	  if (!CHECK_LEN(header, p, plen, rdlen) || rdlen < 4)
+	    return STAT_INSECURE; /* bad packet */
+	  
+	  psave = p;
+	  GETSHORT(keytag, p);
+	  algo = *p++;
+	  digest = *p++;
 	  
 	  /* We've proved that the DS is OK, store it in the cache */
-	  if ((crecp = cache_insert(name, NULL, now, ttl, F_FORWARD | F_DS)))
+	  if ((key = blockdata_alloc((char*)p, rdlen - 4)) &&
+	      (crecp = cache_insert(name, NULL, now, ttl, F_FORWARD | F_DS)))
 	    {
-	      crecp->uid = rdlen;
+	      struct all_addr a;
+	      a.addr.keytag = keytag;
+	      log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u");
+	      crecp->addr.key.digest = digest;
 	      crecp->addr.key.keydata = key;
 	      crecp->addr.key.algo = algo;
-	      crecp->addr.key.keytag = dnskey_keytag(algo, (char*)p, rdlen);
-	      gotone = 1;
+	      crecp->addr.key.keytag = keytag;
 	    }
+	  else
+	    return STAT_INSECURE; /* cache problem */
+	  
+	  p = psave;
 	}
-      
+
+      if (!ADD_RDLEN(header, p, plen, rdlen))
+	return STAT_INSECURE; /* bad packet */
+     
     }
   
   cache_end_insert();  
   
-  
-  return gotone ? STAT_SECURE : STAT_INSECURE;
+  return STAT_SECURE;
 }
 
 
@@ -702,528 +742,249 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
    STAT_INSECURE can't validate (no RRSIG, bad packet).
    STAT_BOGUS    signature is wrong.
    STAT_NEED_KEY need DNSKEY to complete validation (name is returned in keyname)
+
+   if key is non-NULL, use that key, which has the algo and tag given in the params of those names,
+   otherwise find the key in the cache.
 */
-int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, int type, char *name, char *keyname)
+int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, 
+		   int type, char *name, char *keyname, struct blockdata *key, int keylen, int algo_in, int keytag_in)
 {
-  unsigned char *p, *psav, *sig;
-  int rrsetidx, res, sigttl, sig_data_len, j;
-  struct crec *crecp;
-  void *rrset[MAXRRSET];  /* TODO: max RRset size? */
+  unsigned char *p;
+  int rrsetidx, sigidx, res, rdlen, j;
+  struct crec *crecp = NULL;
+  void *rrset[MAXRRSET], *sigs[MAXRRSET];  /* TODO: max RRset size? */
   int type_covered, algo, labels, orig_ttl, sig_expiration, sig_inception, key_tag;
 
   if (!(p = skip_questions(header, plen)))
     return STAT_INSECURE;
 
   /* look for an RRSIG record for this RRset and get pointers to each record */
-  for (rrsetidx = 0, sig = NULL, j = ntohs(header->ancount) + ntohs(header->nscount); 
+  for (rrsetidx = 0, sigidx = 0, j = ntohs(header->ancount) + ntohs(header->nscount); 
        j != 0; j--) 
     {
-      unsigned char *pstart = p;
-      int stype, sclass, sttl, rdlen;
+      unsigned char *pstart;
+      int stype, sclass, sttl;
 
       if (!(res = extract_name(header, plen, &p, name, 0, 10)))
 	return STAT_INSECURE; /* bad packet */
+      
+      pstart = p;
       
       GETSHORT(stype, p);
       GETSHORT(sclass, p);
       GETLONG(sttl, p);
       GETSHORT(rdlen, p);
+      
+      (void)sttl;
         
       if (!CHECK_LEN(header, p, plen, rdlen))
 	 return STAT_INSECURE; /* bad packet */
 
-      if (res == 2 || htons(stype) != T_RRSIG || htons(sclass) != class)
-	continue;
-
-      if (htons(stype) == type)
+      if (res == 1 && sclass == class)
 	{
-	  rrset[rrsetidx++] = pstart;
-          if (rrsetidx == MAXRRSET)
-	    return STAT_INSECURE; /* RRSET too big TODO */
-	}
-
-      if (htons(stype) == T_RRSIG)
-	{
-	  /* name matches, RRSIG for correct class */
-	  /* enough data? */
-	  if (rdlen < 18)
-	    return STAT_INSECURE; 
-	  
-	  GETSHORT(type_covered, p);
-	  algo = *p++;
-	  labels = *p++;
-	  GETLONG(orig_ttl, p);
-	  GETLONG(sig_expiration, p);
-	  GETLONG(sig_inception, p);
-	  GETSHORT(key_tag, p);
-	  
-	  if (type_covered != type ||
-	      !check_date_range(sig_inception, sig_expiration))
+	  if (stype == type)
 	    {
-	      /* covers wrong type or out of date - skip */
-	      p = psav;
-	      if (!ADD_RDLEN(header, p, plen, rdlen))
-		return STAT_INSECURE;
-	      continue;
+	      rrset[rrsetidx++] = pstart;
+	      if (rrsetidx == MAXRRSET)
+		return STAT_INSECURE; /* RRSET too big TODO */
 	    }
 	  
-	  if (!extract_name(header, plen, &p, keyname, 1, 0))
-	    return STAT_INSECURE;
-
-	  /* OK, we have the signature record, see if the 
-	     relevant DNSKEY is in the cache. */
-	  for (crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY);
-	       crecp;
-	       crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY))
-	    if (crecp->addr.key.algo == algo && crecp->addr.key.keytag == key_tag)
-	      break;
-	  
-	  /* No, abort for now whilst we get it */
-	  if (!crecp)
-	    return STAT_NEED_KEY;
-
-	  /* Save point to signature data */
-	  sig = p;
-	  sig_data_len = rdlen - (p - psav);
-	  sigttl = sttl;
-
-	  /* next record */
+	  if (stype == T_RRSIG)
+	    {
+	      sigs[sigidx++] = pstart;
+	      if (sigidx == MAXRRSET)
+		return STAT_INSECURE; /* RRSET too big TODO */
+	    }
+	}
+     
+      if (!ADD_RDLEN(header, p, plen, rdlen))
+	return STAT_INSECURE;
+    }
+  
+  /* RRset empty, no RRSIGs */
+  if (rrsetidx == 0 || sigidx == 0)
+    return STAT_INSECURE;
+     
+  /* Now try all the sigs to try and find one which validates */
+  for (j = 0; j <sigidx; j++)
+    {
+      unsigned char *psav;
+      int i, wire_len;
+      VerifyAlgCtx *alg;
+      u16 ntype, nclass;
+      u32 nsigttl;
+      
+      p = sigs[j] + 8; /* skip type, class and ttl */
+      
+      GETSHORT(rdlen, p);
+      
+      if (rdlen < 18)
+	return STAT_INSECURE; /* bad packet */ 
+      
+      psav = p;
+      
+      GETSHORT(type_covered, p);
+      algo = *p++;
+      labels = *p++;
+      GETLONG(orig_ttl, p);
+      GETLONG(sig_expiration, p);
+      GETLONG(sig_inception, p);
+      GETSHORT(key_tag, p);
+      
+      if (type_covered != type ||
+	  !check_date_range(sig_inception, sig_expiration) ||
+	  !verifyalg_supported(algo))
+	{
+	  /* covers wrong type or out of date - skip */
 	  p = psav;
 	  if (!ADD_RDLEN(header, p, plen, rdlen))
 	    return STAT_INSECURE;
-	}    
-    }
-  
-  /* Didn't find RRSIG or RRset is empty */
-  if (!sig || rrsetidx == 0)
-    return STAT_INSECURE;
-  
-  /* OK, we have an RRSIG and an RRset and we have a the DNSKEY that validates them. */
-  
-  /* Sort RRset records in canonical order. */
-  rrset_canonical_order_ctx.header = header;
-  rrset_canonical_order_ctx.pktlen = plen;
-  qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
-
-  /* Now initialize the signature verification algorithm and process the whole
-     RRset */
-  VerifyAlgCtx *alg = verifyalg_alloc(algo);
-  if (!alg)
-    return STAT_INSECURE;
- 
-  alg->sig = sig;
-  alg->siglen = sig_data_len;
-  
-  u16 ntype = htons(type);
-  u16 nclass = htons(class);
-  u32 nsigttl = htonl(sigttl);
-
-  /* TODO: we shouldn't need to convert this to wire here. Best solution would be:
-     - Use process_name() instead of extract_name() everywhere in dnssec code
-     - Convert from wire format to representation format only for querying/storing cache
-  */
-  unsigned char owner_wire[MAXCDNAME];
-  int owner_wire_len = convert_domain_to_wire(name, owner_wire);
-  
-  digestalg_begin(alg->vtbl->digest_algo);
-  digestalg_add_data(sigrdata, 18+signer_name_rdlen);
-  for (i = 0; i < rrsetidx; ++i)
-    {
-      p = (unsigned char*)(rrset[i]);
+	  continue;
+	}
       
-      digestalg_add_data(owner_wire, owner_wire_len);
-      digestalg_add_data(&ntype, 2);
-      digestalg_add_data(&nclass, 2);
-      digestalg_add_data(&nsigttl, 4);
+      if (!extract_name(header, plen, &p, keyname, 1, 0))
+	return STAT_INSECURE;
+      
+      /* OK, we have the signature record, see if the relevant DNSKEY is in the cache. */
+      if (!key && !(crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY)))
+	return STAT_NEED_KEY;
+      
+      /* Sort RRset records in canonical order. */
+      rrset_canonical_order_ctx.header = header;
+      rrset_canonical_order_ctx.pktlen = plen;
+      qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
+      
+      alg = verifyalg_alloc(algo);
+      alg->sig = p;
+      alg->siglen = rdlen - (p - psav);
+       
+      ntype = htons(type);
+      nclass = htons(class);
+      nsigttl = htonl(orig_ttl);
+      
+      digestalg_begin(alg->vtbl->digest_algo);
+      digestalg_add_data(psav, 18);
+      wire_len = to_wire(keyname);
+      digestalg_add_data(keyname, wire_len);
+      from_wire(keyname);
+      
+      /* TODO wildcard rules : 4035 5.3.2 */
+      for (i = 0; i < rrsetidx; ++i)
+	{
+	  p = (unsigned char*)(rrset[i]);
+	  
+	  wire_len = to_wire(name);
+	  digestalg_add_data(name, wire_len);
+	  from_wire(name);
+	  digestalg_add_data(&ntype, 2);
+	  digestalg_add_data(&nclass, 2);
+	  digestalg_add_data(&nsigttl, 4);
+	  
+	  p += 8;
+	  if (!digestalg_add_rdata(type, header, plen, p))
+	    return STAT_INSECURE;
+	}
     
-      p += 8;
-      if (!digestalg_add_rdata(ntohs(sigtype), header, pktlen, p))
-        return 0;
+      memcpy(alg->digest, digestalg_final(),  digestalg_len());
+
+      if (key)
+	{
+	  if (algo_in == algo && keytag_in == key_tag &&
+	      alg->vtbl->verify(alg, key, keylen))
+	    return STAT_SECURE;
+	}
+      else
+	{
+	  /* iterate through all possible keys 4035 5.3.1 */
+	  for (; crecp; crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY))
+	    if (crecp->addr.key.algo == algo && crecp->addr.key.keytag == key_tag &&
+		alg->vtbl->verify(alg, crecp->addr.key.keydata, crecp->uid))
+	      return STAT_SECURE;
+	}
     }
-  int digest_len = digestalg_len();
-  memcpy(alg->digest, digestalg_final(), digest_len);
 
-  if (alg->vtbl->verify(alg,  crecp->addr.key.keydata, crecp_uid))
-    return STAT_SECURE;
-  
-  return STAT_INSECURE;
+  return STAT_BOGUS;
 }
+ 
 
-
-#if 0
-static int begin_rrsig_validation(struct dns_header *header, size_t pktlen,
-                                  unsigned char *reply, int count, char *owner,
-                                  int sigclass, int sigrdlen, unsigned char *sig,
-                                  PendingRRSIGValidation *out)
+/* Validate all the RRsets in the answer and authority sections of the reply (4035:3.2.3) */
+int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class)
 {
-  int i, res;
-  int sigtype, sigalg, siglbl;
-  unsigned char *sigrdata = sig;
-  unsigned long sigttl, date_end, date_start;
-  unsigned char* p = reply;
-  char* signer_name = daemon->namebuff;
-  int signer_name_rdlen;
-  int keytag;
-  void *rrset[16];  /* TODO: max RRset size? */
-  int rrsetidx = 0;
-  
-  if (sigrdlen < 18)
-    return 0;
-  GETSHORT(sigtype, sig);
-  sigalg = *sig++;
-  siglbl = *sig++;
-  GETLONG(sigttl, sig);
-  GETLONG(date_end, sig);
-  GETLONG(date_start, sig);
-  GETSHORT(keytag, sig);
-  sigrdlen -= 18;
-  
-  if (!verifyalg_supported(sigalg))
+  unsigned char *ans_start, *p1, *p2;
+  int type1, class1, rdlen1, type2, class2, rdlen2;
+  int i, j, rc;
+
+  if (!(ans_start = skip_questions(header, plen)))
+    return STAT_INSECURE;
+   
+  for (p1 = ans_start, i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
     {
-      printf("ERROR: RRSIG algorithm not supported: %d\n", sigalg);
-      return 0;
+      if (!extract_name(header, plen, &p1, name, 1, 10))
+	return STAT_INSECURE; /* bad packet */
+      
+      GETSHORT(type1, p1);
+      GETSHORT(class1, p1);
+      p1 += 4; /* TTL */
+      GETSHORT(rdlen1, p1);
+      
+      /* Don't try and validate RRSIGs! */
+      if (type1 != T_RRSIG)
+	{
+	  /* Check if we've done this RRset already */
+	  for (p2 = ans_start, j = 0; j < i; j++)
+	    {
+	      if (!(rc = extract_name(header, plen, &p2, name, 0, 10)))
+		return STAT_INSECURE; /* bad packet */
+	      
+	      GETSHORT(type2, p2);
+	      GETSHORT(class2, p2);
+	      p2 += 4; /* TTL */
+	      GETSHORT(rdlen2, p2);
+	      
+	      if (type2 == type1 && class2 == class1 && rc == 1)
+		break; /* Done it before: name, type, class all match. */
+	      
+	      if (!ADD_RDLEN(header, p2, plen, rdlen2))
+		return STAT_INSECURE;
+	    }
+	  
+	  /* Not done, validate now */
+	  if (j == i && (rc = validate_rrset(now, header, plen, class1, type1, name, keyname, NULL, 0, 0, 0)) != STAT_SECURE)
+	    {
+	      *class = class1; /* Class for DS or DNSKEY */
+	      return rc;
+	    }
+	}
+
+      if (!ADD_RDLEN(header, p1, plen, rdlen1))
+	return STAT_INSECURE;
     }
 
-  if (!check_date_range(date_start, date_end))
-    {
-      printf("ERROR: RRSIG outside date range\n");
-      return 0;
-    }
-
-  /* Iterate within the answer and find the RRsets matching the current RRsig */
-  for (i = 0; i < count; ++i)
-    {    
-      int qtype, qclass, rdlen;
-      if (!(res = extract_name(header, pktlen, &p, owner, 0, 10)))
-        return 0;
-      rrset[rrsetidx] = p;
-      GETSHORT(qtype, p);
-      GETSHORT(qclass, p);
-      p += 4; /* skip ttl */
-      GETSHORT(rdlen, p);
-      if (res == 1 && qtype == sigtype && qclass == sigclass)
-        {
-          ++rrsetidx;
-          if (rrsetidx == countof(rrset))
-            {
-              /* Internal buffer too small */
-              printf("internal buffer too small for this RRset\n");
-              return 0;
-            }
-        }
-      p += rdlen;
-    }
-  
-  /* Sort RRset records in canonical order. */
-  rrset_canonical_order_ctx.header = header;
-  rrset_canonical_order_ctx.pktlen = pktlen;
-  qsort(rrset, rrsetidx, sizeof(void*), rrset_canonical_order);
-  
-  /* Skip through the signer name; we don't extract it right now because
-     we don't want to overwrite the single daemon->namebuff which contains
-     the owner name. We'll get to this later. */
-  if (!(p = skip_name(sig, header, pktlen, 0)))
-    return 0;
-  signer_name_rdlen = p - sig;
-  sig = p; sigrdlen -= signer_name_rdlen;
-
-  /* Now initialize the signature verification algorithm and process the whole
-     RRset */
-  VerifyAlgCtx *alg = verifyalg_alloc(sigalg);
-  if (!alg)
-    return 0;
-  alg->sig = sig;
-  alg->siglen = sigrdlen;
-  
-  sigtype = htons(sigtype);
-  sigclass = htons(sigclass);
-  sigttl = htonl(sigttl);
-
-  /* TODO: we shouldn't need to convert this to wire here. Best solution would be:
-     - Use process_name() instead of extract_name() everywhere in dnssec code
-     - Convert from wire format to representation format only for querying/storing cache
-   */
-  unsigned char owner_wire[MAXCDNAME];
-  int owner_wire_len = convert_domain_to_wire(owner, owner_wire);
-
-  digestalg_begin(alg->vtbl->digest_algo);
-  digestalg_add_data(sigrdata, 18+signer_name_rdlen);
-  for (i = 0; i < rrsetidx; ++i)
-    {
-      p = (unsigned char*)(rrset[i]);
-
-      digestalg_add_data(owner_wire, owner_wire_len);
-      digestalg_add_data(&sigtype, 2);
-      digestalg_add_data(&sigclass, 2);
-      digestalg_add_data(&sigttl, 4);
-    
-      p += 8;
-      if (!digestalg_add_rdata(ntohs(sigtype), header, pktlen, p))
-        return 0;
-    }
-  int digest_len = digestalg_len();
-  memcpy(alg->digest, digestalg_final(), digest_len);
-
-  /* We don't need the owner name anymore; now extract the signer name */
-  if (!extract_name_no_compression(sigrdata+18, signer_name_rdlen, signer_name))
-    return 0;
-
-  out->alg = alg;
-  out->keytag = keytag;
-  out->signer_name = signer_name;
-  return 1;
+  return STAT_SECURE;
 }
 
-static int end_rrsig_validation(PendingRRSIGValidation *val, struct crec *crec_dnskey)
-{
-  /* FIXME: keydata is non-contiguous */
-  return val->alg->vtbl->verify(val->alg, crec_dnskey->addr.key.keydata, crec_dnskey->uid);
-}
-
-
-static void dnssec_parserrsig(struct dns_header *header, size_t pktlen,
-                              unsigned char *reply, int count, char *owner,
-                              int sigclass, int sigrdlen, unsigned char *sig)
-{
-  PendingRRSIGValidation val;
-
-  /* Initiate the RRSIG validation process. The pending state is returned into val. */
-  if (!begin_rrsig_validation(header, pktlen, reply, count, owner, sigclass, sigrdlen, sig, &val))
-    return;
-
-  printf("RRSIG: querying cache for DNSKEY %s (keytag: %d)\n", val.signer_name, val.keytag);
-
-  /* Look in the cache for *all* the DNSKEYs with matching signer_name and keytag */
-  char onekey = 0;
-  struct crec *crecp = NULL;
-  while ((crecp = cache_find_by_name(crecp, val.signer_name, time(0), F_DNSKEY)))  /* TODO: time(0) */
-    {
-      onekey = 1;
-
-      if (crecp->addr.key.keytag == val.keytag
-          && crecp->addr.key.algo == verifyalg_algonum(val.alg))
-        {
-          printf("RRSIG: found DNSKEY %d in cache, attempting validation\n", val.keytag);
-
-          if (end_rrsig_validation(&val, crecp))
-            printf("Validation OK\n");
-          else
-            printf("ERROR: Validation FAILED (%s, keytag:%d, algo:%d)\n", owner, val.keytag, verifyalg_algonum(val.alg));
-        }
-    }
-
-  if (!onekey)
-    {
-      printf("DNSKEY not found, need to fetch it\n");
-      /* TODO: store PendingRRSIGValidation in routing table,
-         fetch key (and make it go through dnssec_parskey), then complete validation. */
-    }
-}
-
-#endif /* comment out */
 
 /* Compute keytag (checksum to quickly index a key). See RFC4034 */
-static int dnskey_keytag(int alg, unsigned char *rdata, int rdlen)
+int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen)
 {
   if (alg == 1)
     {
       /* Algorithm 1 (RSAMD5) has a different (older) keytag calculation algorithm.
          See RFC4034, Appendix B.1 */
-      return rdata[rdlen-3] * 256 + rdata[rdlen-2];
+      return key[keylen-4] * 256 + key[keylen-3];
     }
   else
     {
       unsigned long ac;
       int i;
 
-      ac = 0;
-      for (i = 0; i < rdlen; ++i)
-        ac += (i & 1) ? rdata[i] : rdata[i] << 8;
-      ac += (ac >> 16) & 0xFFFF;
-      return ac & 0xFFFF;
+      ac = ((htons(flags) >> 8) | ((htons(flags) << 8) & 0xff00)) + 0x300 + alg;
+      for (i = 0; i < keylen; ++i)
+        ac += (i & 1) ? key[i] : key[i] << 8;
+      ac += (ac >> 16) & 0xffff;
+      return ac & 0xffff;
     }
 }
 
-/* Check if the DS record (from cache) points to the DNSKEY record (from cache) */
-static int dnskey_ds_match(struct crec *dnskey, struct crec *ds)
-{
-  if (dnskey->addr.key.keytag != ds->addr.key.keytag)
-    return 0;
-  if (dnskey->addr.key.algo != ds->addr.key.algo)
-    return 0;
 
-  unsigned char owner[MAXCDNAME];  /* TODO: user part of daemon->namebuff */
-  int owner_len = convert_domain_to_wire(cache_get_name(ds), owner);
-  size_t keylen = dnskey->uid;
-  int dig = ds->uid;
-  int digsize;
-
-  if (!digestalg_begin(dig))
-    return 0;
-  digsize = digestalg_len();
-  digestalg_add_data(owner, owner_len);
-  digestalg_add_data("\x01\x01\x03", 3);
-  digestalg_add_data(&ds->addr.key.algo, 1);
-  digestalg_add_keydata(dnskey->addr.key.keydata, keylen);
-  return (memcmp(digestalg_final(), ds->addr.key.keydata->key, digsize) == 0);
-}
-
-int dnssec_parsekey(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
-                    int rdlen, unsigned char *rdata)
-{
-  int flags, proto, alg;
-  struct blockdata *key; struct crec *crecp;
-  unsigned char *ordata = rdata; int ordlen = rdlen;
-
-  CHECKED_GETSHORT(flags, rdata, rdlen);
-  CHECKED_GETCHAR(proto, rdata, rdlen);
-  CHECKED_GETCHAR(alg, rdata, rdlen);
-
-  if (proto != 3)
-    return 0;
-  /* Skip non-signing keys (as specified in RFC4034 */
-  if (!(flags & 0x100))
-    return 0;
-
-  key = blockdata_alloc((char*)rdata, rdlen);
-
-  /* TODO: time(0) is correct here? */
-  crecp = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DNSKEY);
-  if (crecp)
-    {
-      /* TODO: improve union not to name "uid" this field */
-      crecp->uid = rdlen;
-      crecp->addr.key.keydata = key;
-      crecp->addr.key.algo = alg;
-      crecp->addr.key.keytag = dnskey_keytag(alg, ordata, ordlen);
-      printf("DNSKEY: storing key for %s (keytag: %d)\n", owner, crecp->addr.key.keytag);
-    }
-  else
-    {
-      blockdata_free(key);
-      /* TODO: if insertion really might fail, verify we don't depend on cache
-         insertion success for validation workflow correctness */
-      printf("DNSKEY: cache insertion failure\n");
-      return 0;
-    }
-  return 1;
-}
-
-int dnssec_parseds(struct dns_header *header, size_t pktlen, char *owner, unsigned long ttl,
-                   int rdlen, unsigned char *rdata)
-{
-  int keytag, algo, dig;
-  struct blockdata *key; struct crec *crec_ds, *crec_key;
-
-  CHECKED_GETSHORT(keytag, rdata, rdlen);
-  CHECKED_GETCHAR(algo, rdata, rdlen);
-  CHECKED_GETCHAR(dig, rdata, rdlen);
-
-  if (!digestalg_supported(dig))
-    return 0;
-
-  key = blockdata_alloc((char*)rdata, rdlen);
-
-  /* TODO: time(0) is correct here? */
-  crec_ds = cache_insert(owner, NULL, time(0), ttl, F_FORWARD | F_DS);
-  if (!crec_ds)
-    {
-      blockdata_free(key);
-      /* TODO: if insertion really might fail, verify we don't depend on cache
-         insertion success for validation workflow correctness */
-      printf("DS: cache insertion failure\n");
-      return 0;
-    }
-
-  /* TODO: improve union not to name "uid" this field */
-  crec_ds->uid = dig;
-  crec_ds->addr.key.keydata = key;
-  crec_ds->addr.key.algo = algo;
-  crec_ds->addr.key.keytag = keytag;
-  printf("DS: storing key for %s (digest: %d)\n", owner, dig);
-
-  /* Now try to find a DNSKEY which matches this DS digest. */
-  printf("Looking for a DNSKEY matching DS %d...\n", keytag);
-  crec_key = NULL;
-  while ((crec_key = cache_find_by_name(crec_key, owner, time(0), F_DNSKEY)))  /* TODO: time(0) */
-    {
-      if (dnskey_ds_match(crec_key, crec_ds))
-        {
-          /* TODO: create a link within the cache: ds => dnskey */
-          printf("MATCH FOUND for keytag %d\n", keytag);
-          return 1;
-        }
-    }
-
-  printf("ERROR: match not found for DS %d (owner: %s)\n", keytag, owner);
-  return 0;
-}
-
-int dnssec1_validate(struct dns_header *header, size_t pktlen)
-{
-  unsigned char *p, *reply;
-  char *owner = daemon->namebuff;
-  int i, s, qtype, qclass, rdlen;
-  unsigned long ttl;
-  int slen[3] = { ntohs(header->ancount), ntohs(header->nscount), ntohs(header->arcount) };
-
-  if (slen[0] + slen[1] + slen[2] == 0)
-    return 0;
-  if (!(reply = p = skip_questions(header, pktlen)))
-    return 0;
-
-  /* First, process DNSKEY/DS records and add them to the cache. */
-  cache_start_insert();
-  for (i = 0; i < slen[0]; i++)
-    {
-      if (!extract_name(header, pktlen, &p, owner, 1, 10))
-      	return 0;
-      GETSHORT(qtype, p);
-      GETSHORT(qclass, p);
-      GETLONG(ttl, p);
-      GETSHORT(rdlen, p);
-      if (qtype == T_DS)
-        {
-          printf("DS found\n");
-          dnssec_parseds(header, pktlen, owner, ttl, rdlen, p);
-        }
-      else if (qtype == T_DNSKEY)
-        {
-          printf("DNSKEY found\n");
-          dnssec_parsekey(header, pktlen, owner, ttl, rdlen, p);
-        }
-      p += rdlen;
-    }
-  cache_end_insert();
-
-  /* After we have cached DNSKEY/DS records, start looking for RRSIGs.
-     We want to do this in a separate step because we want the cache
-     to be already populated with DNSKEYs before parsing signatures. */
-  p = reply;
-  for (s = 0; s < 3; ++s)
-    {
-      reply = p;
-      for (i = 0; i < slen[s]; i++)
-        {
-          if (!extract_name(header, pktlen, &p, owner, 1, 10))
-            return 0;
-          GETSHORT(qtype, p);
-          GETSHORT(qclass, p);
-          GETLONG(ttl, p);
-          GETSHORT(rdlen, p);
-          if (qtype == T_RRSIG)
-            {
-              printf("RRSIG found (owner: %s)\n", owner);
-              /* TODO: missing logic. We should only validate RRSIGs for which we
-                 have a valid DNSKEY that is referenced by a DS record upstream.
-                 There is a memory vs CPU conflict here; should we validate everything
-                 to save memory and thus waste CPU, or better first acquire all information
-                 (wasting memory) and then doing the minimum CPU computations required? */
-              dnssec_parserrsig(header, pktlen, reply, slen[s], owner, qclass, rdlen, p);
-            }
-          p += rdlen;
-        }
-    }
-
-  return 1;
-}
+#endif /* HAVE_DNSSEC */

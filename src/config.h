@@ -139,8 +139,8 @@ RESOLVFILE
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
-#define HAVE_DNSSEC
-#define HAVE_OPENSSL
+#define HAVE_DNSSEC 
+#define HAVE_OPENSSL 
 
 /* Default locations for important system files. */
 
@@ -385,7 +385,12 @@ static char *compile_opts =
 #ifndef HAVE_AUTH
 "no-"
 #endif
-  "auth";
+"auth "
+#ifndef HAVE_DNSSEC
+"no-"
+#endif
+"DNSSEC";
+
 
 #endif
 

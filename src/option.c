@@ -139,6 +139,7 @@ struct myoption {
 #define LOPT_QUIET_DHCP6  327
 #define LOPT_QUIET_RA     328
 #define LOPT_SEC_VALID    329
+#define LOPT_DNSKEY       330
 
 
 #ifdef HAVE_GETOPT_LONG
@@ -276,6 +277,7 @@ static const struct myoption opts[] =
     { "ipset", 1, 0, LOPT_IPSET },
     { "synth-domain", 1, 0, LOPT_SYNTH },
     { "dnssec", 0, 0, LOPT_SEC_VALID },
+    { "dnskey", 1, 0, LOPT_DNSKEY },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
@@ -428,6 +430,7 @@ static struct {
   { LOPT_SYNTH, ARG_DUP, "<domain>,<range>,[<prefix>]", gettext_noop("Specify a domain and address range for synthesised names"), NULL },
 #ifdef HAVE_DNSSEC
   { LOPT_SEC_VALID, OPT_DNSSEC_VALID, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
+  { LOPT_DNSKEY, ARG_DUP, "<domain>,<algo>,<key>", gettext_noop("Specify trust anchor DNSKEY"), NULL },
 #endif
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
@@ -3670,9 +3673,34 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	daemon->host_records_tail = new;
 	break;
       }
-      
+
+#ifdef HAVE_DNSSEC
+    case LOPT_DNSKEY:
+      {
+	struct dnskey *new = opt_malloc(sizeof(struct dnskey));
+      	char *key64, *algo;
+ 
+       	if (!(comma = split(arg)) || !(algo = split(comma)) || !(key64 = split(algo)) ||
+	      !atoi_check16(comma, &new->flags) || !atoi_check16(algo, &new->algo) ||
+	      !(new->name = canonicalise_opt(arg)))
+	  ret_err(_("bad DNSKEY"));
+       
+
+	/* Upper bound on length */
+	new->key = opt_malloc((3*strlen(key64)/4));
+	unhide_metas(key64);
+	if ((new->keylen = parse_base64(key64, new->key)) == -1)
+	  ret_err(_("bad base64 in DNSKEY"));
+	
+	new->next = daemon->dnskeys;
+	daemon->dnskeys = new;
+
+	break;
+      }
+#endif
+		
     default:
-      ret_err(_("unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DBus support)"));
+      ret_err(_("unsupported option (check that dnsmasq was compiled with DHCP/TFTP/DNSSEC/DBus support)"));
       
     }
   

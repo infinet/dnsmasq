@@ -242,6 +242,7 @@ struct all_addr {
 #ifdef HAVE_IPV6
     struct in6_addr addr6;
 #endif
+    unsigned int keytag;
   } addr;
 };
 
@@ -285,6 +286,12 @@ struct cname {
   char *alias, *target;
   struct cname *next;
 }; 
+
+struct dnskey {
+  char *name, *key;
+  int keylen, algo, flags;
+  struct dnskey *next;
+};
 
 #define ADDRLIST_LITERAL 1
 #define ADDRLIST_IPV6    2
@@ -360,7 +367,7 @@ struct crec {
     } key;
   } addr;
   time_t ttd; /* time to die */
-  /* used as keylen if F_DS or F_DNSKEY, index to source for F_HOSTS */
+  /* used as keylen ifF_DNSKEY, index to source for F_HOSTS */
   int uid; 
   unsigned short flags;
   union {
@@ -395,6 +402,9 @@ struct crec {
 #define F_QUERY     (1u<<19)
 #define F_NOERR     (1u<<20)
 #define F_AUTH      (1u<<21)
+#define F_DNSSEC    (1u<<22)
+#define F_KEYTAG    (1u<<23)
+#define F_SECSTAT   (1u<<24)
 
 /* composites */
 #define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* Only one may be set */
@@ -896,6 +906,9 @@ extern struct daemon {
 #ifdef OPTION6_PREFIX_CLASS 
   struct prefix_class *prefix_classes;
 #endif
+#ifdef HAVE_DNSSEC
+  struct dnskey *dnskeys;
+#endif
 
   /* globally used stuff for DNS */
   char *packet; /* packet buffer */
@@ -977,6 +990,7 @@ struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
 struct blockdata *blockdata_alloc(char *data, size_t len);
 size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt);
+void  blockdata_retrieve(struct blockdata *block, size_t len, void *data);
 void blockdata_free(struct blockdata *blocks);
 #endif
 
@@ -1000,7 +1014,7 @@ size_t setup_reply(struct dns_header *header, size_t  qlen,
 		   unsigned long local_ttl);
 int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff, 
 		      time_t now, char **ipsets, int is_sign, int checkrebind,
-		      int checking_disabled);
+		      int no_cache, int secure);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
@@ -1034,11 +1048,13 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 
 /* dnssec.c */
-size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type);
+size_t dnssec_generate_query(struct dns_header *header, char *name, int class, int type, union mysockaddr *addr);
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
-int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, int type, char *name, char *keyname);
-int dnssec_validate_reply(struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
+int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, 
+		   int type, char *name, char *keyname, struct blockdata *key, int keylen, int algo, int keytag);
+int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
+int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
 
 /* util.c */
 void rand_init(void);
@@ -1065,6 +1081,9 @@ void prettyprint_time(char *buf, unsigned int t);
 int prettyprint_addr(union mysockaddr *addr, char *buf);
 int parse_hex(char *in, unsigned char *out, int maxlen, 
 	      unsigned int *wildcard_mask, int *mac_type);
+#ifdef HAVE_DNSSEC
+int parse_base64(char *in, char *out);
+#endif
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, 
 		  unsigned int mask);
 int expand_buf(struct iovec *iov, size_t size);

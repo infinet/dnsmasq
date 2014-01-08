@@ -344,7 +344,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
-	plen = add_do_bit(header, plen, ((char *) header) + PACKETSZ);
+	{
+	  plen = add_do_bit(header, plen, ((char *) header) + PACKETSZ);
+	  header->hb4 |= HB4_CD;
+	}
 #endif
 
       while (1)
@@ -550,7 +553,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  SET_RCODE(header, NOERROR);
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache))
+      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
@@ -678,41 +681,51 @@ void reply_query(int fd, int family, time_t now)
       if (option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
 	  int status;
-	  int class; 
+
+	  /* We've had a reply already, which we're validating. Ignore this duplicate */
+	  if (forward->stash)
+	    return;
 
 	  if (forward->flags & FREC_DNSKEY_QUERY)
-	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);		      
 	  else if (forward->flags & FREC_DS_QUERY)
 	    status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
 	  else
-	    status = dnssec_validate_reply(header, n, daemon->namebuff, daemon->keyname, &forward->class);
+	    status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);
 	  
 	  /* Can't validate, as we're missing key data. Put this
 	     answer aside, whilst we get that. */     
 	  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
 	    {
 	      struct frec *new;
-	      if ((forward->stash = blockdata_alloc((char *)header, n)))
+	      
+	      if ((new = get_new_frec(now, NULL, 1)))
 		{
-		  forward->stash_len = n;
+		  struct frec *next = new->next;
+		  *new = *forward; /* copy everything, then overwrite */
+		  new->next = next;
+		  new->stash = NULL;
+		  new->blocking_query = NULL;
+		  new->flags &= ~(FREC_DNSKEY_QUERY | FREC_DS_QUERY);
 		  
-		  if ((new = get_new_frec(now, NULL, 1)))
+		  if ((forward->stash = blockdata_alloc((char *)header, n)))
 		    {
 		      int fd;
 		      
-		      new = forward; /* copy everything, then overwrite */
+		      forward->stash_len = n;
+		      
 		      new->dependent = forward; /* to find query awaiting new one. */
 		      forward->blocking_query = new; /* for garbage cleaning */
-		      /* validate routines leave name of required record in daemon->namebuff */
+		      /* validate routines leave name of required record in daemon->keyname */
 		      if (status == STAT_NEED_KEY)
 			{
 			  new->flags |= FREC_DNSKEY_QUERY; 
-			  nn = dnssec_generate_query(header, daemon->namebuff, class, T_DNSKEY);
+			  nn = dnssec_generate_query(header, daemon->keyname, forward->class, T_DNSKEY, &server->addr);
 			}
 		      else if (status == STAT_NEED_DS)
 			{
 			  new->flags |= FREC_DS_QUERY;
-			  nn = dnssec_generate_query(header, daemon->namebuff, class, T_DS);
+			  nn = dnssec_generate_query(header, daemon->keyname, forward->class, T_DS, &server->addr);
 			}
 		      new->crc = questions_crc(header, nn, daemon->namebuff);
 		      new->new_id = get_id(new->crc);
@@ -739,9 +752,11 @@ void reply_query(int fd, int family, time_t now)
 			  }
 		      
 		      /* Send DNSSEC query to same server as original query */
-		      while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send());
+		      while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send()); 
+		      server->queries++;
 		    }
 		}
+	     
 	      return;
 	    }
 	  
@@ -750,35 +765,56 @@ void reply_query(int fd, int family, time_t now)
 	     and validate them with the new data. Failure to find needed data here is an internal error.
 	     Once we get to the original answer (FREC_DNSSEC_QUERY not set) and it validates,
 	     return it to the original requestor. */
-	  while (forward->dependent)
+	  if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
 	    {
-	      struct frec *prev = forward->dependent;
-	      free_frec(forward);
-	      forward = prev;
-	      blockdata_retrieve_and_free(forward->stash, forward->stash_len, (void *)header);
-	      n = forward->stash_len;
-	      if (status == STAT_SECURE)
+	      while (forward->dependent)
 		{
-		   if (forward->flags & FREC_DNSKEY_QUERY)
-		     status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
-		   else if (forward->flags & FREC_DS_QUERY)
-		     status = dnssec_validate_dnskey(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		  struct frec *prev;
 		  
-		   if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
-		     my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		  if (status == STAT_SECURE)
+		    {
+		      if (forward->flags & FREC_DNSKEY_QUERY)
+			status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		      else if (forward->flags & FREC_DS_QUERY)
+			status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		    }
+		  
+		  prev = forward->dependent;
+		  free_frec(forward);
+		  forward = prev;
+		  forward->blocking_query = NULL; /* already gone */
+		  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
+                  n = forward->stash_len;
+		}
+	      
+	      /* All DNSKEY and DS records done and in cache, now finally validate original 
+		 answer, provided last DNSKEY is OK. */
+	      if (status == STAT_SECURE)
+		status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);
+	      
+	      if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+		{
+		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		  status = STAT_INSECURE;
 		}
 	    }
-	  
-	  /* All DNSKEY and DS records done and in cache, now finally validate original 
-	     answer, provided last DNSKEY is OK. */
-	  if (status == STAT_SECURE)
-	    status = dnssec_validate_reply(header, n, daemon->namebuff, daemon->keyname, &forward->class);
+
+	  log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
+		    status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
+	      
+	  no_cache_dnssec = 0;
 
 	  if (status == STAT_SECURE)
 	    cache_secure = 1;
 	  /* TODO return SERVFAIL here */
 	  else if (status == STAT_BOGUS)
 	    no_cache_dnssec = 1;
+	  
+	  /* restore CD bit to the value in the query */
+	  if (forward->flags & FREC_CHECKING_DISABLED)
+	    header->hb4 |= HB4_CD;
+	  else
+	    header->hb4 &= ~HB4_CD;
 	}
 #endif
       
@@ -1342,7 +1378,6 @@ static struct randfd *allocate_rfd(int family)
 
   return NULL; /* doom */
 }
-
 static void free_frec(struct frec *f)
 {
   if (f->rfd4 && --(f->rfd4->refcount) == 0)
@@ -1361,7 +1396,10 @@ static void free_frec(struct frec *f)
 
 #ifdef HAVE_DNSSEC
   if (f->stash)
-    blockdata_free(f->stash);
+    {
+      blockdata_free(f->stash);
+      f->stash = NULL;
+    }
 
   /* Anything we're waiting on is pointless now, too */
   if (f->blocking_query)

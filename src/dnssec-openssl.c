@@ -14,13 +14,16 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <string.h>
 #include "dnsmasq.h"
+
+#ifdef HAVE_DNSSEC
+
 #include "dnssec-crypto.h"
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/dsa.h>
 #include <openssl/err.h>
+#include <string.h>
 
 #define POOL_SIZE 1
 static union _Pool
@@ -39,20 +42,20 @@ static void print_hex(unsigned char *data, unsigned len)
   printf("\n");
 }
 
-static int keydata_to_bn(BIGNUM *ret, struct keydata **key_data, unsigned char **p, unsigned len)
+static int keydata_to_bn(BIGNUM *ret, struct blockdata **key_data, unsigned char **p, unsigned len)
 {
   size_t cnt;
   BIGNUM temp;
 
   BN_init(ret);
 
-  cnt = keydata_walk(key_data, p, len);
+  cnt = blockdata_walk(key_data, p, len);
   BN_bin2bn(*p, cnt, ret);
   len -= cnt;
   *p += cnt;
   while (len > 0)
     {
-      if (!(cnt = keydata_walk(key_data, p, len)))
+      if (!(cnt = blockdata_walk(key_data, p, len)))
         return 0;
       BN_lshift(ret, ret, cnt*8);
       BN_init(&temp);
@@ -64,7 +67,7 @@ static int keydata_to_bn(BIGNUM *ret, struct keydata **key_data, unsigned char *
   return 1;
 }
 
-static int rsasha1_parse_key(BIGNUM *exp, BIGNUM *mod, struct keydata *key_data, unsigned key_len)
+static int rsasha1_parse_key(BIGNUM *exp, BIGNUM *mod, struct blockdata *key_data, unsigned key_len)
 {
   unsigned char *p = key_data->key;
   size_t exp_len, mod_len;
@@ -80,7 +83,7 @@ static int rsasha1_parse_key(BIGNUM *exp, BIGNUM *mod, struct keydata *key_data,
       keydata_to_bn(mod, &key_data, &p, mod_len);
 }
 
-static int dsasha1_parse_key(BIGNUM *Q, BIGNUM *P, BIGNUM *G, BIGNUM *Y, struct keydata *key_data, unsigned key_len)
+static int dsasha1_parse_key(BIGNUM *Q, BIGNUM *P, BIGNUM *G, BIGNUM *Y, struct blockdata *key_data, unsigned key_len)
 {
   unsigned char *p = key_data->key;
   int T;
@@ -93,7 +96,7 @@ static int dsasha1_parse_key(BIGNUM *Q, BIGNUM *P, BIGNUM *G, BIGNUM *Y, struct 
       keydata_to_bn(Y, &key_data, &p, 64+T*8);
 }
 
-static int rsa_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len, int nid, int dlen)
+static int rsa_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len, int nid, int dlen)
 {
   int validated = 0;
 
@@ -108,27 +111,27 @@ static int rsa_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_
   return validated;
 }
 
-static int rsamd5_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+static int rsamd5_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len)
 {
   return rsa_verify(ctx, key_data, key_len, NID_md5, 16);
 }
 
-static int rsasha1_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+static int rsasha1_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len)
 {
   return rsa_verify(ctx, key_data, key_len, NID_sha1, 20);
 }
 
-static int rsasha256_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+static int rsasha256_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len)
 {
   return rsa_verify(ctx, key_data, key_len, NID_sha256, 32);
 }
 
-static int rsasha512_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+static int rsasha512_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len)
 {
   return rsa_verify(ctx, key_data, key_len, NID_sha512, 64);
 }
 
-static int dsasha1_verify(VerifyAlgCtx *ctx, struct keydata *key_data, unsigned key_len)
+static int dsasha1_verify(VerifyAlgCtx *ctx, struct blockdata *key_data, unsigned key_len)
 {
   static unsigned char asn1_signature[] =
   {
@@ -222,9 +225,6 @@ VerifyAlgCtx* verifyalg_alloc(int algo)
   int i;
   VerifyAlgCtx *ret = 0;
 
-  if (!verifyalg_supported(algo))
-    return 0;
-
   if (pool_used == (1<<POOL_SIZE)-1)
       ret = whine_malloc(valgctx_size[algo]);
   else
@@ -271,7 +271,7 @@ int digestalg_supported(int algo)
           algo == DIGESTALG_SHA512);
 }
 
-int digestalg_begin(int algo)
+void digestalg_begin(int algo)
 {
   EVP_MD_CTX_init(&digctx);
   if (algo == DIGESTALG_SHA1)
@@ -282,9 +282,6 @@ int digestalg_begin(int algo)
     EVP_DigestInit_ex(&digctx, EVP_sha512(), NULL);
   else if (algo == DIGESTALG_MD5)
     EVP_DigestInit_ex(&digctx, EVP_md5(), NULL);
-  else
-    return 0;
-  return 1;
 }
 
 int digestalg_len()
@@ -297,12 +294,12 @@ void digestalg_add_data(void *data, unsigned len)
   EVP_DigestUpdate(&digctx, data, len);
 }
 
-void digestalg_add_keydata(struct keydata *key, size_t len)
+void digestalg_add_keydata(struct blockdata *key, size_t len)
 {
   size_t cnt; unsigned char *p = NULL;
   while (len)
     {
-      cnt = keydata_walk(&key, &p, len);
+      cnt = blockdata_walk(&key, &p, len);
       EVP_DigestUpdate(&digctx, p, cnt);
       p += cnt;
       len -= cnt;
@@ -316,3 +313,4 @@ unsigned char* digestalg_final(void)
   return digest;
 }
 
+#endif /* HAVE_DNSSEC */
