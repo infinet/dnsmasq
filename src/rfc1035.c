@@ -921,14 +921,9 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
       int found = 0, cname_count = 5;
       struct crec *cpp = NULL;
       int flags = RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0;
+      int secflag = secure ?  F_DNSSECOK : 0;
       unsigned long cttl = ULONG_MAX, attl;
 
-      if (RCODE(header) == NXDOMAIN)
-	flags |= F_NXDOMAIN;
-
-      if (secure)
-	flags |= F_DNSSECOK; 
-      
       namep = p;
       if (!extract_name(header, qlen, &p, name, 1, 4))
 	return 0; /* bad packet */
@@ -989,7 +984,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			  goto cname_loop;
 			}
 		      
-		      cache_insert(name, &addr, now, cttl, name_encoding | F_REVERSE);
+		      cache_insert(name, &addr, now, cttl, name_encoding | secflag | F_REVERSE);
 		      found = 1; 
 		    }
 		  
@@ -1007,7 +1002,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		  ttl = find_soa(header, qlen, NULL);
 		}
 	      if (ttl)
-		cache_insert(NULL, &addr, now, ttl, name_encoding | F_REVERSE | F_NEG | flags);	
+		cache_insert(NULL, &addr, now, ttl, name_encoding | F_REVERSE | F_NEG | flags | secflag);	
 	    }
 	}
       else
@@ -1057,7 +1052,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		    {
 		      if (!cname_count--)
 			return 0; /* looped CNAMES */
-		      newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD);
+		      newc = cache_insert(name, NULL, now, attl, F_CNAME | F_FORWARD | secflag);
 		      if (newc)
 			{
 			  newc->addr.cname.target.cache = NULL;
@@ -1100,7 +1095,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			}
 #endif
 		      
-		      newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD);
+		      newc = cache_insert(name, &addr, now, attl, flags | F_FORWARD | secflag);
 		      if (newc && cpp)
 			{
 			  cpp->addr.cname.target.cache = newc;
@@ -1126,7 +1121,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		 pointing at this, inherit its TTL */
 	      if (ttl || cpp)
 		{
-		  newc = cache_insert(name, NULL, now, ttl ? ttl : cttl, F_FORWARD | F_NEG | flags);	
+		  newc = cache_insert(name, NULL, now, ttl ? ttl : cttl, F_FORWARD | F_NEG | flags | secflag);	
 		  if (newc && cpp)
 		    {
 		      cpp->addr.cname.target.cache = newc;
