@@ -82,13 +82,6 @@ int main (int argc, char **argv)
 
   read_opts(argc, argv, compile_opts);
  
-#ifdef HAVE_DNSSEC
-  if (option_bool(OPT_DNSSEC_VALID))
-    if (daemon->doctors) exit(1); /* TODO */
-  
-  daemon->keyname = safe_malloc(MAXDNAME);
-#endif
-
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
 #ifdef HAVE_DNSSEC
@@ -96,12 +89,17 @@ int main (int argc, char **argv)
   if (option_bool(OPT_DNSSEC_VALID) && daemon->edns_pktsz < EDNS_PKTSZ)
     daemon->edns_pktsz = EDNS_PKTSZ;
 #endif
+
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
     daemon->edns_pktsz : DNSMASQ_PACKETSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
-
+  
   daemon->addrbuff = safe_malloc(ADDRSTRLEN);
-
+  
+#ifdef HAVE_DNSSEC
+  if (option_bool(OPT_DNSSEC_VALID))
+    daemon->keyname = safe_malloc(MAXDNAME);
+#endif
 
 #ifdef HAVE_DHCP
   if (!daemon->lease_file)
@@ -143,6 +141,11 @@ int main (int argc, char **argv)
     }
 #endif
   
+#ifdef HAVE_DNSSEC
+  if (daemon->cachesize <CACHESIZ && option_bool(OPT_DNSSEC_VALID))
+    die(_("Cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
+#endif
+
 #ifndef HAVE_TFTP
   if (option_bool(OPT_TFTP))
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
