@@ -19,6 +19,13 @@
 #ifdef HAVE_DNSSEC
 
 static struct blockdata *keyblock_free = NULL;
+static unsigned int blockdata_count = 0, blockdata_hwm = 0;
+
+void blockdata_report(void)
+{
+  my_syslog(LOG_INFO, _("DNSSEC memory in use %u, max %u"), 
+	    blockdata_count * KEYBLOCK_LEN,  blockdata_hwm * KEYBLOCK_LEN);
+} 
 
 struct blockdata *blockdata_alloc(char *data, size_t len)
 {
@@ -32,10 +39,15 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
 	{
 	  block = keyblock_free;
 	  keyblock_free = block->next;
+	  blockdata_count++; 
 	}
-      else
-	block = whine_malloc(sizeof(struct blockdata));
-
+      else if ((block = whine_malloc(sizeof(struct blockdata))))
+	{
+	  blockdata_count++;
+	  if (blockdata_hwm < blockdata_count)
+	    blockdata_hwm = blockdata_count;
+	}
+	  
       if (!block)
 	{
 	  /* failed to alloc, free partial chain */
@@ -76,9 +88,11 @@ void blockdata_free(struct blockdata *blocks)
 
   if (blocks)
     {
-      for (tmp = blocks; tmp->next; tmp = tmp->next);
+      for (tmp = blocks; tmp->next; tmp = tmp->next)
+	blockdata_count--;
       tmp->next = keyblock_free;
-      keyblock_free = blocks;
+      keyblock_free = blocks; 
+      blockdata_count--;
     }
 }
 

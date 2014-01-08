@@ -1184,6 +1184,9 @@ void dump_cache(time_t now)
 #ifdef HAVE_AUTH
   my_syslog(LOG_INFO, _("queries for authoritative zones %u"), daemon->auth_answer);
 #endif
+#ifdef HAVE_DNSSEC
+  blockdata_report();
+#endif
 
   /* sum counts from different records for same server */
   for (serv = daemon->servers; serv; serv = serv->next)
