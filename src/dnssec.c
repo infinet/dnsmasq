@@ -76,6 +76,21 @@ static void from_wire(char *name)
   *(l-1) = 0;
 }
 
+/* Input in presentation format */
+static int count_labels(char *name)
+{
+  int i;
+
+  if (*name == 0)
+    return 0;
+
+  for (i = 0; *name; name++)
+    if (*name == '.')
+      i++;
+
+  return i+1;
+}
+
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
 static int serial_compare_32(unsigned long s1, unsigned long s2)
 {
@@ -280,7 +295,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   static int rrset_sz = 0, sig_sz = 0;
   
   unsigned char *p;
-  int rrsetidx, sigidx, res, rdlen, j;
+  int rrsetidx, sigidx, res, rdlen, j, name_labels;
   struct crec *crecp = NULL;
   int type_covered, algo, labels, orig_ttl, sig_expiration, sig_inception, key_tag;
   u16 *rr_desc = get_desc(type);
@@ -288,12 +303,14 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   if (!(p = skip_questions(header, plen)))
     return STAT_INSECURE;
 
-  /* look for an RRSIG record for this RRset and get pointers to each record */
+  name_labels = count_labels(name); /* For 4035 5.3.2 check */
+
+  /* look for RRSIGs for this RRset and get pointers to each RR in the set. */
   for (rrsetidx = 0, sigidx = 0, j = ntohs(header->ancount) + ntohs(header->nscount); 
        j != 0; j--) 
     {
       unsigned char *pstart, *pdata;
-      int stype, sclass, sttl;
+      int stype, sclass;
 
       pstart = p;
       
@@ -302,17 +319,12 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       
       GETSHORT(stype, p);
       GETSHORT(sclass, p);
-      GETLONG(sttl, p);
+      p += 4; /* TTL */
       
       pdata = p;
 
       GETSHORT(rdlen, p);
       
-      (void)sttl;
-        
-      if (!CHECK_LEN(header, p, plen, rdlen))
-	 return STAT_INSECURE; /* bad packet */
-
       if (res == 1 && sclass == class)
 	{
 	  if (stype == type)
@@ -339,24 +351,42 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  
 	  if (stype == T_RRSIG)
 	    {
-	      if (sigidx == sig_sz)
-		{
-		  unsigned char **new;
-		  
-		  /* expand */
-		  if (!(new = whine_malloc((sig_sz + 5) * sizeof(unsigned char **))))
-		    return STAT_INSECURE;
-		  
-		  if (sigs)
-		    {
-		      memcpy(new, sigs, sig_sz * sizeof(unsigned char **));
-		      free(sigs);
-		    }
-		  
-		  sigs = new;
-		  sig_sz += 5;
-		}
-	      sigs[sigidx++] = pdata;
+	       if (rdlen < 18)
+		 return STAT_INSECURE; /* bad packet */ 
+	         
+	       GETSHORT(type_covered, p);
+	       algo = *p++;
+	       labels = *p++;
+	       p += 4; /* orig_ttl */
+	       GETLONG(sig_expiration, p);
+	       GETLONG(sig_inception, p);
+	       p = pdata + 2; /* restore for ADD_RDLEN */
+	       
+	       if (type_covered == type &&
+		   check_date_range(sig_inception, sig_expiration) &&
+		   verifyalg_supported(algo) &&
+		   labels <= name_labels)
+		 {
+		   if (sigidx == sig_sz)
+		     {
+		       unsigned char **new;
+		       
+		       /* expand */
+		       if (!(new = whine_malloc((sig_sz + 5) * sizeof(unsigned char **))))
+			 return STAT_INSECURE;
+		       
+		       if (sigs)
+			 {
+			   memcpy(new, sigs, sig_sz * sizeof(unsigned char **));
+			   free(sigs);
+			 }
+		       
+		       sigs = new;
+		       sig_sz += 5;
+		     }
+		   
+		   sigs[sigidx++] = pdata;
+		 }
 	    }
 	}
      
@@ -382,32 +412,15 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       u32 nsigttl;
       
       p = sigs[j];
-      
-      GETSHORT(rdlen, p);
-      
-      if (rdlen < 18)
-	return STAT_INSECURE; /* bad packet */ 
-      
+      GETSHORT(rdlen, p); /* rdlen >= 18 checked previously */
       psav = p;
       
-      GETSHORT(type_covered, p);
+      p += 2; /* type_covered - already checked */
       algo = *p++;
       labels = *p++;
       GETLONG(orig_ttl, p);
-      GETLONG(sig_expiration, p);
-      GETLONG(sig_inception, p);
+      p += 8; /* sig_expiration and sig_inception */
       GETSHORT(key_tag, p);
-      
-      if (type_covered != type ||
-	  !check_date_range(sig_inception, sig_expiration) ||
-	  !verifyalg_supported(algo))
-	{
-	  /* covers wrong type or out of date - skip */
-	  p = psav;
-	  if (!ADD_RDLEN(header, p, plen, rdlen))
-	    return STAT_INSECURE;
-	  continue;
-	}
       
       if (!extract_name(header, plen, &p, keyname, 1, 0))
 	return STAT_INSECURE;
@@ -428,24 +441,38 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       digestalg_add_data(keyname, wire_len);
       from_wire(keyname);
       
-      /* TODO wildcard rules : 4035 5.3.2 */
       for (i = 0; i < rrsetidx; ++i)
 	{
 	  int seg;
 	  unsigned char *end, *cp;
+	  char *name_start = name;
 	  u16 len, *dp;
 
 	  p = rrset[i];
 	  if (!extract_name(header, plen, &p, name, 1, 10)) 
 	    return STAT_INSECURE;
-	  wire_len = to_wire(name);
-	  digestalg_add_data(name, wire_len);
-	  from_wire(name); /* leave name unchanged on exit */
+
+	  /* if more labels than in RRsig name, hash *.<no labels in rrsig labels field>  4035 5.3.2 */
+	  if (labels < name_labels)
+	    {
+	      int k;
+	      for (k = name_labels - labels; k != 0; k--)
+		while (*name_start != '.' && *name_start != 0)
+		  name_start++;
+	      name_start--;
+	      *name_start = '*';
+	    }
+	  
+	  wire_len = to_wire(name_start);
+	  digestalg_add_data(name_start, wire_len);
 	  digestalg_add_data(p, 4); /* class and type */
 	  digestalg_add_data(&nsigttl, 4);
 	  
 	  p += 8; /* skip class, type, ttl */
 	  GETSHORT(rdlen, p);
+	  if (!CHECK_LEN(header, p, plen, rdlen))
+	    return STAT_INSECURE; 
+	  
 	  end = p + rdlen;
 	  
 	  /* canonicalise rdata and calculate length of same, use name buffer as workspace */
@@ -463,13 +490,12 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	    digestalg_add_data(name, seg);
 	  if (cp != end)
 	    digestalg_add_data(cp,  end - cp);
-	  
-	  /* namebuff used for workspace, above, restore for next loop
-	     and to leave unchanged on exit */
-	  p = (unsigned char*)(rrset[i]);
-	  extract_name(header, plen, &p, name, 1, 0);
 	}
     
+      /* namebuff used for workspace above, restore to leave unchanged on exit */
+      p = (unsigned char*)(rrset[0]);
+      extract_name(header, plen, &p, name, 1, 0);
+
       memcpy(alg->digest, digestalg_final(),  digestalg_len());
 
       if (key)
