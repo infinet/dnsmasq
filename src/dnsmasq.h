@@ -1054,8 +1054,6 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr);
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
-int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, 
-		   int type, char *name, char *keyname, struct blockdata *key, int keylen, int algo, int keytag);
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
 

@@ -493,7 +493,7 @@ unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t 
       else if (is_sign && 
 	       i == arcount - 1 && 
 	       class == C_ANY && 
-	       (type == T_SIG || type == T_TSIG))
+	       type == T_TSIG)
 	*is_sign = 1;
     }
   
