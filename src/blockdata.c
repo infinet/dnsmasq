@@ -24,7 +24,7 @@ static unsigned int blockdata_count = 0, blockdata_hwm = 0;
 void blockdata_report(void)
 {
   my_syslog(LOG_INFO, _("DNSSEC memory in use %u, max %u"), 
-	    blockdata_count * KEYBLOCK_LEN,  blockdata_hwm * KEYBLOCK_LEN);
+	    blockdata_count * sizeof(struct blockdata),  blockdata_hwm * sizeof(struct blockdata));
 } 
 
 struct blockdata *blockdata_alloc(char *data, size_t len)
