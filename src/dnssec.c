@@ -233,8 +233,11 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	  
 	  dp1 = dp2 = rr_desc;
 	  
-	  for (quit = 0, left1 = 0, left2 = 0; !quit;)
+	  for (quit = 0, left1 = 0, left2 = 0, len1 = 0, len2 = 0; !quit;)
 	    {
+	      if (left1 != 0)
+		memmove(buff1, buff1 + len1 - left1, left1);
+	      
 	      if ((len1 = get_rdata(header, plen, end1, buff1 + left1, &p1, &dp1)) == 0)
 		{
 		  quit = 1;
@@ -242,6 +245,9 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 		  memcpy(buff1 + left1, p1, len1);
 		}
 	      len1 += left1;
+	      
+	      if (left2 != 0)
+		memmove(buff2, buff2 + len2 - left2, left2);
 	      
 	      if ((len2 = get_rdata(header, plen, end2, buff2 + left2, &p2, &dp2)) == 0)
 		{
@@ -252,21 +258,13 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	      len2 += left2;
 	       
 	      if (len1 > len2)
-		{
-		  left1 = len1 - len2;
-		  left2 = 0;
-		  len = len2;
-		}
+		left1 = len1 - len2, left2 = 0, len = len2;
 	      else
-		{
-		  left2 = len2 - len1;
-		  left1 = 0;
-		  len = len1;
-		}
+		left2 = len2 - len1, left1 = 0, len = len1;
 	      
 	      rc = memcmp(buff1, buff2, len);
 	      
-	      if (rc == 1 || (rc == 0 && quit && len2 > len1))
+	      if (rc == 1 || (rc == 0 && quit && len1 > len2))
 		{
 		  unsigned char *tmp = rrset[i+1];
 		  rrset[i+1] = rrset[i];
