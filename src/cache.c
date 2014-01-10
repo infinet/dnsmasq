@@ -692,7 +692,7 @@ static void add_hosts_cname(struct crec *target)
     if (hostname_isequal(cache_get_name(target), a->target) &&
 	(crec = whine_malloc(sizeof(struct crec))))
       {
-	crec->flags = F_FORWARD | F_IMMORTAL | F_NAMEP | F_CONFIG | F_CNAME;
+	crec->flags = F_FORWARD | F_IMMORTAL | F_NAMEP | F_CONFIG | F_CNAME | F_DNSSECOK;
 	crec->name.namep = a->alias;
 	crec->addr.cname.target.cache = target;
 	crec->addr.cname.uid = target->uid;
@@ -829,14 +829,14 @@ static int read_hostsfile(char *filename, int index, int cache_size, struct crec
       
       if (inet_pton(AF_INET, token, &addr) > 0)
 	{
-	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4;
+	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4 | F_DNSSECOK;
 	  addrlen = INADDRSZ;
 	  domain_suffix = get_domain(addr.addr.addr4);
 	}
 #ifdef HAVE_IPV6
       else if (inet_pton(AF_INET6, token, &addr) > 0)
 	{
-	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6;
+	  flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6 | F_DNSSECOK;
 	  addrlen = IN6ADDRSZ;
 	  domain_suffix = get_domain6(&addr.addr.addr6);
 	}
@@ -990,7 +990,7 @@ void cache_reload(void)
 	    (cache = whine_malloc(sizeof(struct crec))))
 	  {
 	    cache->name.namep = nl->name;
-	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4 | F_NAMEP | F_CONFIG;
+	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4 | F_NAMEP | F_CONFIG | F_DNSSECOK;
 	    add_hosts_entry(cache, (struct all_addr *)&hr->addr, INADDRSZ, 0, (struct crec **)daemon->packet, revhashsz);
 	  }
 #ifdef HAVE_IPV6
@@ -998,7 +998,7 @@ void cache_reload(void)
 	    (cache = whine_malloc(sizeof(struct crec))))
 	  {
 	    cache->name.namep = nl->name;
-	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6 | F_NAMEP | F_CONFIG;
+	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6 | F_NAMEP | F_CONFIG | F_DNSSECOK;
 	    add_hosts_entry(cache, (struct all_addr *)&hr->addr6, IN6ADDRSZ, 0, (struct crec **)daemon->packet, revhashsz);
 	  }
 #endif
@@ -1068,7 +1068,7 @@ static void add_dhcp_cname(struct crec *target, time_t ttd)
 	
 	if (aliasc)
 	  {
-	    aliasc->flags = F_FORWARD | F_NAMEP | F_DHCP | F_CNAME | F_CONFIG;
+	    aliasc->flags = F_FORWARD | F_NAMEP | F_DHCP | F_CNAME | F_CONFIG | F_DNSSECOK;
 	    if (ttd == 0)
 	      aliasc->flags |= F_IMMORTAL;
 	    else
@@ -1156,7 +1156,7 @@ void cache_add_dhcp_entry(char *host_name, int prot,
   
   if (crec) /* malloc may fail */
     {
-      crec->flags = flags | F_NAMEP | F_DHCP | F_FORWARD;
+      crec->flags = flags | F_NAMEP | F_DHCP | F_FORWARD | F_DNSSECOK;
       if (ttd == 0)
 	crec->flags |= F_IMMORTAL;
       else
