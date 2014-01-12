@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2013 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2014 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,15 +81,25 @@ int main (int argc, char **argv)
   umask(022); /* known umask, create leases and pid files as 0644 */
 
   read_opts(argc, argv, compile_opts);
-    
+ 
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
+#ifdef HAVE_DNSSEC
+  /* Enforce min packet big enough for DNSSEC */
+  if (option_bool(OPT_DNSSEC_VALID) && daemon->edns_pktsz < EDNS_PKTSZ)
+    daemon->edns_pktsz = EDNS_PKTSZ;
+#endif
+
   daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
     daemon->edns_pktsz : DNSMASQ_PACKETSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
-
+  
   daemon->addrbuff = safe_malloc(ADDRSTRLEN);
-
+  
+#ifdef HAVE_DNSSEC
+  if (option_bool(OPT_DNSSEC_VALID))
+    daemon->keyname = safe_malloc(MAXDNAME);
+#endif
 
 #ifdef HAVE_DHCP
   if (!daemon->lease_file)
@@ -131,6 +141,11 @@ int main (int argc, char **argv)
     }
 #endif
   
+#ifdef HAVE_DNSSEC
+  if (daemon->cachesize <CACHESIZ && option_bool(OPT_DNSSEC_VALID))
+    die(_("Cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
+#endif
+
 #ifndef HAVE_TFTP
   if (option_bool(OPT_TFTP))
     die(_("TFTP server not available: set HAVE_TFTP in src/config.h"), NULL, EC_BADCONF);
@@ -1312,7 +1327,7 @@ static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp)
   
   /* will we be able to get memory? */
   if (daemon->port != 0)
-    get_new_frec(now, &wait);
+    get_new_frec(now, &wait, 0);
   
   for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
     {

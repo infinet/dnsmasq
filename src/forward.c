@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2013 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2014 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -270,7 +270,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       if (gotname)
 	flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
       
-      if (!flags && !(forward = get_new_frec(now, NULL)))
+      if (!flags && !(forward = get_new_frec(now, NULL, 0)))
 	/* table full - server failure. */
 	flags = F_NEG;
       
@@ -330,17 +330,25 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       int forwarded = 0;
       
       if (option_bool(OPT_ADD_MAC))
-	plen = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
+	plen = add_mac(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source);
       
       if (option_bool(OPT_CLIENT_SUBNET))
 	{
-	  size_t new = add_source_addr(header, plen, ((char *) header) + PACKETSZ, &forward->source); 
+	  size_t new = add_source_addr(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source); 
 	  if (new != plen)
 	    {
 	      plen = new;
 	      forward->flags |= FREC_HAS_SUBNET;
 	    }
 	}
+
+#ifdef HAVE_DNSSEC
+      if (option_bool(OPT_DNSSEC_VALID))
+	{
+	  plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
+	  header->hb4 |= HB4_CD;
+	}
+#endif
 
       while (1)
 	{ 
@@ -447,7 +455,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 }
 
 static size_t process_reply(struct dns_header *header, time_t now, struct server *server, size_t n, int check_rebind, 
-			    int checking_disabled, int check_subnet, union mysockaddr *query_source)
+			    int no_cache, int cache_secure, int check_subnet, union mysockaddr *query_source)
 {
   unsigned char *pheader, *sizep;
   char **sets = 0;
@@ -495,11 +503,18 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	}
     }
       
-
   /* RFC 4035 sect 4.6 para 3 */
-  if (!is_sign && !option_bool(OPT_DNSSEC))
+  if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
+     header->hb4 &= ~HB4_AD;
+  
+#ifdef HAVE_DNSSEC
+  if (option_bool(OPT_DNSSEC_VALID))
     header->hb4 &= ~HB4_AD;
-
+  
+  if (cache_secure)
+    header->hb4 |= HB4_AD;
+#endif
+  
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
     return n;
   
@@ -512,7 +527,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
       if (!option_bool(OPT_LOG))
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
-    
+
   if (daemon->bogus_addr && RCODE(header) != NXDOMAIN &&
       check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
@@ -534,7 +549,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  SET_RCODE(header, NOERROR);
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, checking_disabled))
+      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
@@ -566,7 +581,7 @@ void reply_query(int fd, int family, time_t now)
   union mysockaddr serveraddr;
   struct frec *forward;
   socklen_t addrlen = sizeof(serveraddr);
-  ssize_t n = recvfrom(fd, daemon->packet, daemon->edns_pktsz, 0, &serveraddr.sa, &addrlen);
+  ssize_t n = recvfrom(fd, daemon->packet, daemon->packet_buff_sz, 0, &serveraddr.sa, &addrlen);
   size_t nn;
   struct server *server;
   
@@ -592,9 +607,7 @@ void reply_query(int fd, int family, time_t now)
       n < (int)sizeof(struct dns_header) || !(header->hb3 & HB3_QR) ||
       !(forward = lookup_frec(ntohs(header->id), questions_crc(header, n, daemon->namebuff))))
     return;
-   
-  server = forward->sentto;
-  
+
   if ((RCODE(header) == SERVFAIL || RCODE(header) == REFUSED) &&
       !option_bool(OPT_ORDER) &&
       forward->forwardall == 0)
@@ -619,6 +632,8 @@ void reply_query(int fd, int family, time_t now)
 	    }
 	}
     }   
+   
+  server = forward->sentto;
   
   if ((forward->sentto->flags & SERV_TYPE) == 0)
     {
@@ -640,7 +655,7 @@ void reply_query(int fd, int family, time_t now)
       if (!option_bool(OPT_ALL_SERVERS))
 	daemon->last_server = server;
     }
-  
+
   /* If the answer is an error, keep the forward record in place in case
      we get a good reply from another server. Kill it when we've
      had replies from all to avoid filling the forwarding table when
@@ -648,12 +663,180 @@ void reply_query(int fd, int family, time_t now)
   if (forward->forwardall == 0 || --forward->forwardall == 1 || 
       (RCODE(header) != REFUSED && RCODE(header) != SERVFAIL))
     {
-      int check_rebind = !(forward->flags & FREC_NOREBIND);
+      int check_rebind = 0, no_cache_dnssec = 0, cache_secure = 0;
 
-      if (!option_bool(OPT_NO_REBIND))
-	check_rebind = 0;
+      if (option_bool(OPT_NO_REBIND))
+	check_rebind = !(forward->flags & FREC_NOREBIND);
       
-      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, forward->flags & FREC_CHECKING_DISABLED,
+      /*   Don't cache replies where DNSSEC validation was turned off, either
+	   the upstream server told us so, or the original query specified it.  */
+      if ((header->hb4 & HB4_CD) || (forward->flags & FREC_CHECKING_DISABLED))
+	no_cache_dnssec = 1;
+      
+#ifdef HAVE_DNSSEC
+      if (option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
+	{
+	  int status;
+
+	  /* We've had a reply already, which we're validating. Ignore this duplicate */
+	  if (forward->stash)
+	    return;
+
+	  if (header->hb3 & HB3_TC)
+	    {
+	      /* Truncated answer can't be validated.
+		 The client will retry over TCP, but if this is an answer to a 
+		 DNSSEC-generated query, we have a problem. Should really re-send
+		 over TCP. No-one with any sense will make a DNSKEY or DS RRset
+		 exceed 4096, so this may not be a real problem. Just log 
+		 for now. */
+	      if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
+		my_syslog(LOG_ERR, _("Reply to DNSSEC query truncated - validation fails."));
+	      status = STAT_INSECURE;
+	    }
+	  else if (forward->flags & FREC_DNSKEY_QUERY)
+	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);		      
+	  else if (forward->flags & FREC_DS_QUERY)
+	    status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+	  else
+	    status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);
+	  
+	  /* Can't validate, as we're missing key data. Put this
+	     answer aside, whilst we get that. */     
+	  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+	    {
+	      struct frec *new;
+	      
+	      if ((new = get_new_frec(now, NULL, 1)))
+		{
+		  struct frec *next = new->next;
+		  *new = *forward; /* copy everything, then overwrite */
+		  new->next = next;
+		  new->stash = NULL;
+		  new->blocking_query = NULL;
+		  new->rfd4 = NULL;
+#ifdef HAVE_IPV6
+		  new->rfd6 = NULL;
+#endif
+		  new->flags &= ~(FREC_DNSKEY_QUERY | FREC_DS_QUERY);
+		  
+		  if ((forward->stash = blockdata_alloc((char *)header, n)))
+		    {
+		      int fd;
+		      
+		      forward->stash_len = n;
+		      
+		      new->dependent = forward; /* to find query awaiting new one. */
+		      forward->blocking_query = new; /* for garbage cleaning */
+		      /* validate routines leave name of required record in daemon->keyname */
+		      if (status == STAT_NEED_KEY)
+			{
+			  new->flags |= FREC_DNSKEY_QUERY; 
+			  nn = dnssec_generate_query(header, ((char *) header) + daemon->packet_buff_sz,
+						     daemon->keyname, forward->class, T_DNSKEY, &server->addr);
+			}
+		      else if (status == STAT_NEED_DS)
+			{
+			  new->flags |= FREC_DS_QUERY;
+			  nn = dnssec_generate_query(header,((char *) header) + daemon->packet_buff_sz,
+						     daemon->keyname, forward->class, T_DS, &server->addr);
+			}
+		      new->crc = questions_crc(header, nn, daemon->namebuff);
+		      new->new_id = get_id(new->crc);
+		      header->id = htons(new->new_id);
+
+		      /* Don't resend this. */
+		      daemon->srv_save = NULL;
+	
+		      if (server->sfd)
+			fd = server->sfd->fd;
+		      else
+			{
+			  fd = -1;
+#ifdef HAVE_IPV6
+			  if (server->addr.sa.sa_family == AF_INET6)
+			    {
+			      if (new->rfd6 || (new->rfd6 = allocate_rfd(AF_INET6)))
+				fd = new->rfd6->fd;
+			    }
+			  else
+#endif
+			    {
+			      if (new->rfd4 || (new->rfd4 = allocate_rfd(AF_INET)))
+				fd = new->rfd4->fd;
+			    }
+			}
+		      
+		      if (fd != -1)
+			{
+			  while (sendto(fd, (char *)header, nn, 0, &server->addr.sa, sa_len(&server->addr)) == -1 && retry_send()); 
+			  server->queries++;
+			}
+		    }
+		}
+	     
+	      return;
+	    }
+	  
+	  /* Ok, we reached far enough up the chain-of-trust that we can validate something.
+	     Now wind back down, pulling back answers which wouldn't previously validate
+	     and validate them with the new data. Failure to find needed data here is an internal error.
+	     Once we get to the original answer (FREC_DNSSEC_QUERY not set) and it validates,
+	     return it to the original requestor. */
+	  if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
+	    {
+	      while (forward->dependent)
+		{
+		  struct frec *prev;
+		  
+		  if (status == STAT_SECURE)
+		    {
+		      if (forward->flags & FREC_DNSKEY_QUERY)
+			status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		      else if (forward->flags & FREC_DS_QUERY)
+			status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		    }
+		  
+		  prev = forward->dependent;
+		  free_frec(forward);
+		  forward = prev;
+		  forward->blocking_query = NULL; /* already gone */
+		  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
+                  n = forward->stash_len;
+		}
+	      
+	      /* All DNSKEY and DS records done and in cache, now finally validate original 
+		 answer, provided last DNSKEY is OK. */
+	      if (status == STAT_SECURE)
+		status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);
+	      
+	      if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+		{
+		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		  status = STAT_INSECURE;
+		}
+	    }
+
+	  log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
+		    status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
+	      
+	  no_cache_dnssec = 0;
+
+	  if (status == STAT_SECURE)
+	    cache_secure = 1;
+	  /* TODO return SERVFAIL here */
+	  else if (status == STAT_BOGUS)
+	    no_cache_dnssec = 1;
+	  
+	  /* restore CD bit to the value in the query */
+	  if (forward->flags & FREC_CHECKING_DISABLED)
+	    header->hb4 |= HB4_CD;
+	  else
+	    header->hb4 &= ~HB4_CD;
+	}
+#endif
+      
+      if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, no_cache_dnssec, cache_secure,
 			      forward->flags & FREC_HAS_SUBNET, &forward->source)))
 	{
 	  header->id = htons(forward->orig_id);
@@ -887,7 +1070,7 @@ void receive_query(struct listener *listen, time_t now)
 #ifdef HAVE_AUTH
   if (auth_dns)
     {
-      m = answer_auth(header, ((char *) header) + PACKETSZ, (size_t)n, now, &source_addr, local_auth);
+      m = answer_auth(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, now, &source_addr, local_auth);
       if (m >= 1)
 	{
 	  send_from(listen->fd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND),
@@ -898,7 +1081,7 @@ void receive_query(struct listener *listen, time_t now)
   else
 #endif
     {
-      m = answer_request(header, ((char *) header) + PACKETSZ, (size_t)n, 
+      m = answer_request(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, 
 			 dst_addr_4, netmask, now);
       
       if (m >= 1)
@@ -915,6 +1098,66 @@ void receive_query(struct listener *listen, time_t now)
     }
 }
 
+#ifdef HAVE_DNSSEC
+static int tcp_key_recurse(time_t now, int status, int class, char *keyname, struct server *server)
+{
+  /* Recurse up the key heirarchy */
+  size_t n; 
+  unsigned char *packet = whine_malloc(65536 + MAXDNAME + RRFIXEDSZ + sizeof(u16));
+  unsigned char *payload = &packet[2];
+  struct dns_header *header = (struct dns_header *)payload;
+  u16 *length = (u16 *)packet;
+  int new_status;
+  unsigned char c1, c2;
+
+  n = dnssec_generate_query(header, ((char *) header) + 65536, keyname, class, 
+			    status == STAT_NEED_KEY ? T_DNSKEY : T_DS, &server->addr);
+  
+  *length = htons(n);
+  
+  if (!read_write(server->tcpfd, packet, n + sizeof(u16), 0) ||
+      !read_write(server->tcpfd, &c1, 1, 1) ||
+      !read_write(server->tcpfd, &c2, 1, 1) ||
+      !read_write(server->tcpfd, payload, (c1 << 8) | c2, 1))
+    {
+      close(server->tcpfd);
+      server->tcpfd = -1;
+      new_status = STAT_INSECURE;
+    }
+  else
+    {
+      n = (c1 << 8) | c2;
+      
+      if (status ==  STAT_NEED_KEY)
+	new_status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+      else
+	new_status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+      
+      if (new_status == STAT_NEED_DS || new_status == STAT_NEED_KEY)
+	{
+	  if ((new_status = tcp_key_recurse(now, new_status, class, daemon->keyname, server) == STAT_SECURE))
+	    {
+	      if (status ==  STAT_NEED_KEY)
+		new_status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+	      else
+		new_status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
+	      
+	      if (new_status == STAT_NEED_DS || new_status == STAT_NEED_KEY)
+		{
+		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		  status = STAT_INSECURE;
+		}
+	    }
+	}
+    }
+
+  free(packet);
+
+  return new_status;
+}
+#endif
+
+
 /* The daemon forks before calling this: it should deal with one connection,
    blocking as neccessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
@@ -927,7 +1170,7 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, check_subnet;
+  int checking_disabled, check_subnet, no_cache_dnssec = 0, cache_secure = 0;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -960,7 +1203,8 @@ unsigned char *tcp_request(int confd, time_t now,
       check_subnet = 0;
 
       /* save state of "cd" flag in query */
-      checking_disabled = header->hb4 & HB4_CD;
+      if ((checking_disabled = header->hb4 & HB4_CD))
+	no_cache_dnssec = 1;
        
       /* RFC 4035: sect 4.6 para 2 */
       header->hb4 &= ~HB4_AD;
@@ -1080,6 +1324,14 @@ unsigned char *tcp_request(int confd, time_t now,
 			      continue;
 			    }
 			  
+#ifdef HAVE_DNSSEC
+			  if (option_bool(OPT_DNSSEC_VALID))
+			    {
+			      size = add_do_bit(header, size, ((char *) header) + 65536);
+			      header->hb4 |= HB4_CD;
+			    }
+#endif
+			  
 #ifdef HAVE_CONNTRACK
 			  /* Copy connection mark of incoming query to outgoing connection. */
 			  if (option_bool(OPT_CONNTRACK))
@@ -1103,7 +1355,8 @@ unsigned char *tcp_request(int confd, time_t now,
 		      
 		      if (!read_write(last_server->tcpfd, packet, size + sizeof(u16), 0) ||
 			  !read_write(last_server->tcpfd, &c1, 1, 1) ||
-			  !read_write(last_server->tcpfd, &c2, 1, 1))
+			  !read_write(last_server->tcpfd, &c2, 1, 1) ||
+			  !read_write(last_server->tcpfd, payload, (c1 << 8) | c2, 1))
 			{
 			  close(last_server->tcpfd);
 			  last_server->tcpfd = -1;
@@ -1111,8 +1364,6 @@ unsigned char *tcp_request(int confd, time_t now,
 			} 
 		      
 		      m = (c1 << 8) | c2;
-		      if (!read_write(last_server->tcpfd, payload, m, 1))
-			return packet;
 		      
 		      if (!gotname)
 			strcpy(daemon->namebuff, "query");
@@ -1124,6 +1375,36 @@ unsigned char *tcp_request(int confd, time_t now,
 			log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
 				  (struct all_addr *)&last_server->addr.in6.sin6_addr, NULL);
 #endif 
+
+#ifdef HAVE_DNSSEC
+		      if (option_bool(OPT_DNSSEC_VALID) && !checking_disabled)
+			{
+			  int class, status;
+			  
+			  status = dnssec_validate_reply(now, header, m, daemon->namebuff, daemon->keyname, &class);
+			  
+			  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+			    {
+			      if ((status = tcp_key_recurse(now, status, class, daemon->keyname, last_server)) == STAT_SECURE)
+				status = dnssec_validate_reply(now, header, m, daemon->namebuff, daemon->keyname, &class);
+			    }
+
+			  log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
+				    status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
+
+			  if (status == STAT_BOGUS)
+			    no_cache_dnssec = 1;
+
+			  if (status == STAT_SECURE)
+			    cache_secure = 1;
+			}
+#endif
+
+		      /* restore CD bit to the value in the query */
+		      if (checking_disabled)
+			header->hb4 |= HB4_CD;
+		      else
+			header->hb4 &= ~HB4_CD;
 		      
 		      /* There's no point in updating the cache, since this process will exit and
 			 lose the information after a few queries. We make this call for the alias and 
@@ -1133,8 +1414,8 @@ unsigned char *tcp_request(int confd, time_t now,
 			 sending replies containing questions and bogus answers. */
 		      if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
 			m = process_reply(header, now, last_server, (unsigned int)m, 
-					  option_bool(OPT_NO_REBIND) && !norebind, checking_disabled,
-					  check_subnet, &peer_addr);
+					  option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
+					  cache_secure, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }
@@ -1168,6 +1449,9 @@ static struct frec *allocate_frec(time_t now)
       f->flags = 0;
 #ifdef HAVE_IPV6
       f->rfd6 = NULL;
+#endif
+#ifdef HAVE_DNSSEC
+      f->blocking_query = NULL;
 #endif
       daemon->frec_list = f;
     }
@@ -1210,7 +1494,6 @@ static struct randfd *allocate_rfd(int family)
 
   return NULL; /* doom */
 }
-
 static void free_frec(struct frec *f)
 {
   if (f->rfd4 && --(f->rfd4->refcount) == 0)
@@ -1226,13 +1509,29 @@ static void free_frec(struct frec *f)
     
   f->rfd6 = NULL;
 #endif
+
+#ifdef HAVE_DNSSEC
+  if (f->stash)
+    {
+      blockdata_free(f->stash);
+      f->stash = NULL;
+    }
+
+  /* Anything we're waiting on is pointless now, too */
+  if (f->blocking_query)
+    free_frec(f->blocking_query);
+  f->blocking_query = NULL;
+  
+#endif
 }
 
 /* if wait==NULL return a free or older than TIMEOUT record.
    else return *wait zero if one available, or *wait is delay to
    when the oldest in-use record will expire. Impose an absolute
-   limit of 4*TIMEOUT before we wipe things (for random sockets) */
-struct frec *get_new_frec(time_t now, int *wait)
+   limit of 4*TIMEOUT before we wipe things (for random sockets).
+   If force is set, always return a result, even if we have
+   to allocate above the limit. */
+struct frec *get_new_frec(time_t now, int *wait, int force)
 {
   struct frec *f, *oldest, *target;
   int count;
@@ -1281,7 +1580,7 @@ struct frec *get_new_frec(time_t now, int *wait)
     }
   
   /* none available, calculate time 'till oldest record expires */
-  if (count > daemon->ftabsize)
+  if (!force && count > daemon->ftabsize)
     {
       static time_t last_log = 0;
       

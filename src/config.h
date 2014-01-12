@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2013 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2014 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #define MAX_PROCS 20 /* max no children for TCP requests */
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
 #define EDNS_PKTSZ 4096 /* default max EDNS.0 UDP packet from RFC5625 */
-#define KEYBLOCK_LEN 140 /* choose to mininise fragmentation when storing DNSSEC keys */
+#define KEYBLOCK_LEN 35 /* choose to mininise fragmentation when storing DNSSEC keys */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
 #define FORWARD_TEST 50 /* try all servers every 50 queries */
 #define FORWARD_TIME 20 /* or 20 seconds */
@@ -139,6 +139,7 @@ RESOLVFILE
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
+/* #define HAVE_DNSSEC */
 
 
 /* Default locations for important system files. */
@@ -384,7 +385,12 @@ static char *compile_opts =
 #ifndef HAVE_AUTH
 "no-"
 #endif
-  "auth";
+"auth "
+#ifndef HAVE_DNSSEC
+"no-"
+#endif
+"DNSSEC";
+
 
 #endif
 

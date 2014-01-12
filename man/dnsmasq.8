@@ -917,9 +917,11 @@ and to set the time-server address to 192.168.0.4, do
 .B --dhcp-option = 42,192.168.0.4 
 or 
 .B --dhcp-option = option:ntp-server, 192.168.0.4
-The special address 0.0.0.0 (or [::] for DHCPv6) is taken to mean "the address of the
-machine running dnsmasq". Data types allowed are comma separated
-dotted-quad IP addresses, a decimal number, colon-separated hex digits
+The special address 0.0.0.0 is taken to mean "the address of the
+machine running dnsmasq". 
+
+Data types allowed are comma separated
+dotted-quad IPv4 addresses, []-wrapped IPv6 addresses, a decimal number, colon-separated hex digits
 and a text string. If the optional tags are given then
 this option is only sent when all the tags are matched.
 
@@ -935,7 +937,9 @@ keyword, followed by the option number or option name. The IPv6 option
 name space is disjoint from the IPv4 option name space. IPv6 addresses
 in options must be bracketed with square brackets, eg. 
 .B --dhcp-option=option6:ntp-server,[1234::56]
- 
+For IPv6, [::] means "the global address of
+the machine running dnsmasq", whilst [fd00::] is replaced with the
+ULA, if it exists, and [fe80::] with the link-local address.
 
 Be careful: no checking is done that the correct type of data for the
 option number is sent, it is quite possible to
