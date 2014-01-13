@@ -993,8 +993,7 @@ struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
 void blockdata_report(void);
 struct blockdata *blockdata_alloc(char *data, size_t len);
-size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt);
-int blockdata_retrieve(struct blockdata *block, size_t len, void *data);
+void *blockdata_retrieve(struct blockdata *block, size_t len, void *data);
 void blockdata_free(struct blockdata *blocks);
 #endif
 

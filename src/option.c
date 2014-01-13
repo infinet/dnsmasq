@@ -3687,7 +3687,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
        
 
 	/* Upper bound on length */
-	new->key = opt_malloc((3*strlen(key64)/4));
+	new->key = opt_malloc((3*strlen(key64)/4)+1);
 	unhide_metas(key64);
 	if ((new->keylen = parse_base64(key64, new->key)) == -1)
 	  ret_err(_("bad base64 in DNSKEY"));

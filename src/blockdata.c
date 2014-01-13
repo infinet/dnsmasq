@@ -67,21 +67,6 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
   return ret;
 }
 
-size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt)
-{
-  if (*p == NULL)
-    *p = (*key)->key;
-  else if (*p == (*key)->key + KEYBLOCK_LEN)
-    {
-      *key = (*key)->next;
-      if (*key == NULL)
-        return 0;
-      *p = (*key)->key;
-    }
-
-  return MIN(cnt, (size_t)((*key)->key + KEYBLOCK_LEN - (*p)));
-}
-
 void blockdata_free(struct blockdata *blocks)
 {
   struct blockdata *tmp;
@@ -96,24 +81,38 @@ void blockdata_free(struct blockdata *blocks)
     }
 }
 
-/* copy blocks into data[], return 1 if data[] unchanged by so doing */
-int blockdata_retrieve(struct blockdata *block, size_t len, void *data)
+/* if data == NULL, return pointer to static block of sufficient size */
+void *blockdata_retrieve(struct blockdata *block, size_t len, void *data)
 {
   size_t blen;
   struct  blockdata *b;
-  int match = 1;
+  void *new, *d;
   
-  for (b = block; len > 0 && b;  b = b->next)
+  static unsigned int buff_len = 0;
+  static unsigned char *buff = NULL;
+   
+  if (!data)
+    {
+      if (len > buff_len)
+	{
+	  if (!(new = whine_malloc(len)))
+	    return NULL;
+	  if (buff)
+	    free(buff);
+	  buff = new;
+	}
+      data = buff;
+    }
+  
+  for (d = data, b = block; len > 0 && b;  b = b->next)
     {
       blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
-      if (memcmp(data, b->key, blen) != 0)
-	match = 0;
-      memcpy(data, b->key, blen);
-      data += blen;
+      memcpy(d, b->key, blen);
+      d += blen;
       len -= blen;
     }
 
-  return match;
+  return data;
 }
  
 #endif
