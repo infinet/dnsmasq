@@ -511,14 +511,17 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
 			       int optno, unsigned char *opt, size_t optlen, int set_do)
 { 
   unsigned char *lenp, *datap, *p;
-  int rdlen;
+  int rdlen, is_sign;
   
-  if (ntohs(header->arcount) == 0)
+  if (!(p = find_pseudoheader(header, plen, NULL, NULL, &is_sign)))
     {
+      if (is_sign)
+	return plen;
+
       /* We are adding the pseudoheader */
       if (!(p = skip_questions(header, plen)) ||
 	  !(p = skip_section(p, 
-			     ntohs(header->ancount) + ntohs(header->nscount), 
+			     ntohs(header->ancount) + ntohs(header->nscount) + ntohs(header->arcount), 
 			     header, plen)))
 	return plen;
       *p++ = 0; /* empty name */
@@ -531,16 +534,16 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
       rdlen = 0;
       if (((ssize_t)optlen) > (limit - (p + 4)))
 	return plen; /* Too big */
-      header->arcount = htons(1);
+      header->arcount = htons(ntohs(header->arcount) + 1);
       datap = p;
     }
   else
     {
-      int i, is_sign;
+      int i;
       unsigned short code, len, flags;
       
+      /* Must be at the end, if exists */
       if (ntohs(header->arcount) != 1 ||
-	  !(p = find_pseudoheader(header, plen, NULL, NULL, &is_sign)) ||
 	  is_sign ||
 	  (!(p = skip_name(p, header, plen, 10))))
 	return plen;
@@ -1147,7 +1150,6 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 
 /* If the packet holds exactly one query
    return F_IPV4 or F_IPV6  and leave the name from the query in name */
-
 unsigned int extract_request(struct dns_header *header, size_t qlen, char *name, unsigned short *typep)
 {
   unsigned char *p = (unsigned char *)(header+1);
@@ -1447,22 +1449,29 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   int nameoffset;
   unsigned short flag;
   int q, ans, anscount = 0, addncount = 0;
-  int dryrun = 0, sec_reqd = 0;
+  int dryrun = 0, sec_reqd = 0, have_pseudoheader = 0;
   int is_sign;
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0, sec_data = 1;
   struct mx_srv_record *rec;
+  size_t len;
  
+  /* Don't return AD set even for local data if checking disabled. */
+  if (header->hb4 & HB4_CD)
+    sec_data = 0;
+
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
      the query. We check to see if the do bit is set, if so we always
      forward rather than answering from the cache, which doesn't include
-     security information. */
+     security information, unless we're in DNSSEC validation mode. */
 
   if (find_pseudoheader(header, qlen, NULL, &pheader, &is_sign))
     { 
       unsigned short udpsz, flags;
       unsigned char *psave = pheader;
+
+      have_pseudoheader = 1;
 
       GETSHORT(udpsz, pheader);
       pheader += 2; /* ext_rcode */
@@ -1637,7 +1646,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			if (!dryrun)
 			  log_query(crecp->flags & ~F_FORWARD, name, &addr, NULL);
 		      }
-		    else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd)
+		    else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd || option_bool(OPT_DNSSEC_VALID))
 		      {
 			ans = 1;
 			if (!(crecp->flags & (F_HOSTS | F_DHCP)))
@@ -1834,7 +1843,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  if (!dryrun)
 			    log_query(crecp->flags, name, NULL, NULL);
 			}
-		      else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd)
+		      else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd ||  option_bool(OPT_DNSSEC_VALID))
 			{
 			  /* If we are returning local answers depending on network,
 			     filter here. */
@@ -2060,12 +2069,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   if (trunc)
     header->hb3 |= HB3_TC;
   
-  header->hb4 &= ~HB4_AD;
-  
-  if (option_bool(OPT_DNSSEC_VALID) || option_bool(OPT_DNSSEC_PROXY))
-    if (sec_data)
-      header->hb4 |= HB4_AD;
-  
   if (nxdomain)
     SET_RCODE(header, NXDOMAIN);
   else
@@ -2073,6 +2076,18 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   header->ancount = htons(anscount);
   header->nscount = htons(0);
   header->arcount = htons(addncount);
-  return ansp - (unsigned char *)header;
+  
+  header->hb4 &= ~HB4_AD;
+  len = ansp - (unsigned char *)header;
+  
+  if (have_pseudoheader)
+    {
+      len = add_pseudoheader(header, len, (unsigned char *)limit, 0, NULL, 0, sec_reqd);
+      if (sec_reqd && sec_data)
+	header->hb4 |= HB4_AD;
+
+    }
+  
+  return len                           ;
 }
 
