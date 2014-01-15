@@ -230,7 +230,8 @@ struct event_desc {
 #define OPT_QUIET_DHCP6    43
 #define OPT_QUIET_RA	   44
 #define OPT_DNSSEC_VALID   45
-#define OPT_LAST           46
+#define OPT_DNSSEC_PERMISS 46
+#define OPT_LAST           47
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -993,8 +994,7 @@ struct crec *cache_enumerate(int init);
 #ifdef HAVE_DNSSEC
 void blockdata_report(void);
 struct blockdata *blockdata_alloc(char *data, size_t len);
-size_t blockdata_walk(struct blockdata **key, unsigned char **p, size_t cnt);
-int blockdata_retrieve(struct blockdata *block, size_t len, void *data);
+void *blockdata_retrieve(struct blockdata *block, size_t len, void *data);
 void blockdata_free(struct blockdata *blocks);
 #endif
 

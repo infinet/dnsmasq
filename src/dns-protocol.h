@@ -136,24 +136,6 @@ struct dns_header {
 	(cp) += 4; \
 }
 
-#define CHECKED_GETCHAR(var, ptr, len) do { \
-    if ((len) < 1) return 0; \
-    var = *ptr++; \
-    (len) -= 1; \
-  } while (0)
-
-#define CHECKED_GETSHORT(var, ptr, len) do { \
-    if ((len) < 2) return 0; \
-    GETSHORT(var, ptr); \
-    (len) -= 2; \
-  } while (0)
-
-#define CHECKED_GETLONG(var, ptr, len) do { \
-    if ((len) < 4) return 0; \
-    GETLONG(var, ptr); \
-    (len) -= 4; \
-  } while (0)
-
 #define CHECK_LEN(header, pp, plen, len) \
     ((size_t)((pp) - (unsigned char *)(header) + (len)) <= (plen))
 

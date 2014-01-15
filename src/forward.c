@@ -511,7 +511,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   if (option_bool(OPT_DNSSEC_VALID))
     header->hb4 &= ~HB4_AD;
   
-  if (cache_secure)
+  if (!(header->hb4 & HB4_CD) && cache_secure)
     header->hb4 |= HB4_AD;
 #endif
   
@@ -556,6 +556,31 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	}
     }
   
+#ifdef HAVE_DNSSEC
+  if (no_cache && !(header->hb4 & HB4_CD)) 
+    {
+      if (option_bool(OPT_DNSSEC_PERMISS))
+	{
+	  unsigned short type;
+	  char types[20];
+	  
+	  if (extract_request(header, (size_t)n, daemon->namebuff, &type))
+	    {
+	      querystr("", types, type);
+	      my_syslog(LOG_WARNING, _("DNSSEC validation failed: query %s%s"), daemon->namebuff, types);
+	    }
+	  else
+	    my_syslog(LOG_WARNING, _("DNSSEC validation failed for unknown query"));
+	}
+      else
+	{
+	  /* Bogus reply, turn into SERVFAIL */
+	  SET_RCODE(header, SERVFAIL);
+	  munged = 1;
+	}
+    }
+#endif
+
   /* do this after extract_addresses. Ensure NODATA reply and remove
      nameserver info. */
   
@@ -824,7 +849,6 @@ void reply_query(int fd, int family, time_t now)
 
 	  if (status == STAT_SECURE)
 	    cache_secure = 1;
-	  /* TODO return SERVFAIL here */
 	  else if (status == STAT_BOGUS)
 	    no_cache_dnssec = 1;
 	  

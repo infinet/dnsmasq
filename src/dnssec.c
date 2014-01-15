@@ -19,12 +19,209 @@
 
 #ifdef HAVE_DNSSEC
 
-#include "dnssec-crypto.h"
+#include <nettle/rsa.h>
+#include <nettle/dsa.h>
+#include <nettle/nettle-meta.h>
+#include <gmp.h>
 
 #define SERIAL_UNDEF  -100
 #define SERIAL_EQ        0
 #define SERIAL_LT       -1
 #define SERIAL_GT        1
+
+/* http://www.iana.org/assignments/ds-rr-types/ds-rr-types.xhtml */
+static char *ds_digest_name(int digest)
+{
+  switch (digest)
+    {
+    case 1: return "sha1";
+    case 2: return "sha256";
+    case 3: return "gosthash94";
+    case 4: return "sha384";
+    default: return NULL;
+    }
+}
+ 
+/* http://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.xhtml */
+static char *algo_digest_name(int algo)
+{
+  switch (algo)
+    {
+    case 1: return "md5";
+    case 3: return "sha1";
+    case 5: return "sha1";
+    case 6: return "sha1";
+    case 7: return "sha1";
+    case 8: return "sha256";
+    case 10: return "sha512";
+    case 12: return "gosthash94";
+    case 13: return "sha256";
+    case 14: return "sha384";
+    default: return NULL;
+    }
+}
+      
+/* Find pointer to correct hash function in nettle library */
+static const struct nettle_hash *hash_find(char *name)
+{
+  int i;
+  
+  if (!name)
+    return NULL;
+  
+  for (i = 0; nettle_hashes[i]; i++)
+    {
+      if (strcmp(nettle_hashes[i]->name, name) == 0)
+	return nettle_hashes[i];
+    }
+
+  return NULL;
+}
+
+/* expand ctx and digest memory allocations if necessary and init hash function */
+static int hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp)
+{
+  static void *ctx = NULL;
+  static unsigned char *digest = NULL;
+  static unsigned int ctx_sz = 0;
+  static unsigned int digest_sz = 0;
+
+  void *new;
+
+  if (ctx_sz < hash->context_size)
+    {
+      if (!(new = whine_malloc(hash->context_size)))
+	return 0;
+      if (ctx)
+	free(ctx);
+      ctx = new;
+      ctx_sz = hash->context_size;
+    }
+  
+  if (digest_sz < hash->digest_size)
+    {
+      if (!(new = whine_malloc(hash->digest_size)))
+	return 0;
+      if (digest)
+	free(digest);
+      digest = new;
+      digest_sz = hash->digest_size;
+    }
+
+  *ctxp = ctx;
+  *digestp = digest;
+
+  hash->init(ctx);
+
+  return 1;
+}
+  
+static int rsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+		      unsigned char *digest, int algo)
+{
+  unsigned char *p;
+  size_t exp_len;
+  
+  static struct rsa_public_key *key = NULL;
+  static mpz_t sig_mpz;
+  
+  if (key == NULL)
+    {
+      if (!(key = whine_malloc(sizeof(struct rsa_public_key))))
+	return 0;
+      
+      nettle_rsa_public_key_init(key);
+      mpz_init(sig_mpz);
+    }
+  
+  if ((key_len < 3) || !(p = blockdata_retrieve(key_data, key_len, NULL)))
+    return 0;
+  
+  key_len--;
+  if ((exp_len = *p++) == 0)
+    {
+      GETSHORT(exp_len, p);
+      key_len -= 2;
+    }
+  
+  if (exp_len >= key_len)
+    return 0;
+  
+  key->size =  key_len - exp_len;
+  mpz_import(key->e, exp_len, 1, 1, 0, 0, p);
+  mpz_import(key->n, key->size, 1, 1, 0, 0, p + exp_len);
+
+  mpz_import(sig_mpz, sig_len, 1, 1, 0, 0, sig);
+  
+  switch (algo)
+    {
+    case 1:
+      return nettle_rsa_md5_verify_digest(key, digest, sig_mpz);
+    case 5: case 7:
+      return nettle_rsa_sha1_verify_digest(key, digest, sig_mpz);
+    case 8:
+      return nettle_rsa_sha256_verify_digest(key, digest, sig_mpz);
+    case 10:
+      return nettle_rsa_sha512_verify_digest(key, digest, sig_mpz);
+    }
+
+  return 0;
+}  
+
+static int dsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+		      unsigned char *digest, int algo)
+{
+  unsigned char *p;
+  unsigned int t;
+  
+  static struct dsa_public_key *key = NULL;
+  static struct dsa_signature *sig_struct;
+  
+  if (key == NULL)
+    {
+      if (!(sig_struct = whine_malloc(sizeof(struct dsa_signature))) || 
+	  !(key = whine_malloc(sizeof(struct dsa_public_key)))) 
+	return 0;
+      
+      nettle_dsa_public_key_init(key);
+      nettle_dsa_signature_init(sig_struct);
+    }
+  
+  if ((sig_len < 41) || !(p = blockdata_retrieve(key_data, key_len, NULL)))
+    return 0;
+  
+  t = *p++;
+  
+  if (key_len < (213 + (t * 24)))
+    return 0;
+
+  mpz_import(key->q, 20, 1, 1, 0, 0, p); p += 20;
+  mpz_import(key->p, 64 + (t*8), 1, 1, 0, 0, p); p += 64 + (t*8);
+  mpz_import(key->g, 64 + (t*8), 1, 1, 0, 0, p); p += 64 + (t*8);
+  mpz_import(key->y, 64 + (t*8), 1, 1, 0, 0, p); p += 64 + (t*8);
+  
+  mpz_import(sig_struct->r, 20, 1, 1, 0, 0, sig+1);
+  mpz_import(sig_struct->s, 20, 1, 1, 0, 0, sig+21);
+  
+  (void)algo;
+
+  return nettle_dsa_sha1_verify_digest(key, digest, sig_struct);
+} 
+ 
+static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+		  unsigned char *digest, int algo)
+{
+  switch (algo)
+    {
+    case 1: case 5: case 7: case 8: case 10:
+      return rsa_verify(key_data, key_len, sig, sig_len, digest, algo);
+      
+    case 3: case 6: 
+      return dsa_verify(key_data, key_len, sig, sig_len, digest, algo);
+    }
+  
+  return 0;
+}
 
 /* Convert from presentation format to wire format, in place.
    Also map UC -> LC.
@@ -362,7 +559,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	       
 	       if (type_covered == type &&
 		   check_date_range(sig_inception, sig_expiration) &&
-		   verifyalg_supported(algo) &&
+		   hash_find(algo_digest_name(algo)) &&
 		   labels <= name_labels)
 		 {
 		   if (sigidx == sig_sz)
@@ -404,9 +601,11 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   /* Now try all the sigs to try and find one which validates */
   for (j = 0; j <sigidx; j++)
     {
-      unsigned char *psav;
-      int i, wire_len;
-      VerifyAlgCtx *alg;
+      unsigned char *psav, *sig;
+      int i, wire_len, sig_len;
+      const struct nettle_hash *hash;
+      void *ctx;
+      unsigned char *digest;
       u32 nsigttl;
       
       p = sigs[j];
@@ -427,16 +626,18 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       if (!key && !(crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY)))
 	return STAT_NEED_KEY;
       
-      alg = verifyalg_alloc(algo);
-      alg->sig = p;
-      alg->siglen = rdlen - (p - psav);
+      sig = p;
+      sig_len = rdlen - (p - psav);
+       
+      if (!(hash = hash_find(algo_digest_name(algo))) ||
+	  !hash_init(hash, &ctx, &digest))
+	continue;
        
       nsigttl = htonl(orig_ttl);
       
-      digestalg_begin(alg->vtbl->digest_algo);
-      digestalg_add_data(psav, 18);
+      hash->update(ctx, 18, psav);
       wire_len = to_wire(keyname);
-      digestalg_add_data(keyname, wire_len);
+      hash->update(ctx, (unsigned int)wire_len, (unsigned char*)keyname);
       from_wire(keyname);
       
       for (i = 0; i < rrsetidx; ++i)
@@ -462,9 +663,9 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	    }
 	  
 	  wire_len = to_wire(name_start);
-	  digestalg_add_data(name_start, wire_len);
-	  digestalg_add_data(p, 4); /* class and type */
-	  digestalg_add_data(&nsigttl, 4);
+	  hash->update(ctx, (unsigned int)wire_len, (unsigned char *)name_start);
+	  hash->update(ctx, 4, p); /* class and type */
+	  hash->update(ctx, 4, (unsigned char *)&nsigttl);
 	  
 	  p += 8; /* skip class, type, ttl */
 	  GETSHORT(rdlen, p);
@@ -479,27 +680,27 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  for (len = 0; (seg = get_rdata(header, plen, end, name, &cp, &dp)) != 0; len += seg);
 	  len += end - cp;
 	  len = htons(len);
-	  digestalg_add_data(&len, 2); 
+	  hash->update(ctx, 2, (unsigned char *)&len); 
 	  
 	  /* Now canonicalise again and digest. */
 	  cp = p;
 	  dp = rr_desc;
 	  while ((seg = get_rdata(header, plen, end, name, &cp, &dp)))
-	    digestalg_add_data(name, seg);
+	    hash->update(ctx, seg, (unsigned char *)name);
 	  if (cp != end)
-	    digestalg_add_data(cp,  end - cp);
+	    hash->update(ctx, end - cp, cp);
 	}
-    
+     
+      hash->digest(ctx, hash->digest_size, digest);
+      
       /* namebuff used for workspace above, restore to leave unchanged on exit */
       p = (unsigned char*)(rrset[0]);
       extract_name(header, plen, &p, name, 1, 0);
 
-      memcpy(alg->digest, digestalg_final(),  digestalg_len());
-
       if (key)
 	{
 	  if (algo_in == algo && keytag_in == key_tag &&
-	      alg->vtbl->verify(alg, key, keylen))
+	      verify(key, keylen, sig, sig_len, digest, algo))
 	    return STAT_SECURE;
 	}
       else
@@ -507,7 +708,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  /* iterate through all possible keys 4035 5.3.1 */
 	  for (; crecp; crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY))
 	    if (crecp->addr.key.algo == algo && crecp->addr.key.keytag == key_tag &&
-		alg->vtbl->verify(alg, crecp->addr.key.keydata, crecp->uid))
+		verify(crecp->addr.key.keydata, crecp->uid, sig, sig_len, digest, algo))
 	      return STAT_SECURE;
 	}
     }
@@ -579,7 +780,6 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
       
       psave = p;
       
-      /* length at least covers flags, protocol and algo now. */
       GETSHORT(flags, p);
       if (*p++ != 3)
 	return STAT_INSECURE;
@@ -606,30 +806,41 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	continue;
       
       for (recp1 = crecp; recp1; recp1 = cache_find_by_name(recp1, name, now, F_DS))
-	if (recp1->addr.key.algo == algo && 
-	    recp1->addr.key.keytag == keytag &&
-	    (flags & 0x100) && /* zone key flag */
-	    digestalg_supported(recp1->addr.key.digest))
-	  {
-	    int wire_len = to_wire(name);
+	{
+	  void *ctx;
+	  unsigned char *digest, *ds_digest;
+	  const struct nettle_hash *hash;
+	  
+	  if (recp1->addr.key.algo == algo && 
+	      recp1->addr.key.keytag == keytag &&
+	      (flags & 0x100) && /* zone key flag */
+	      (hash = hash_find(ds_digest_name(recp1->addr.key.digest))) &&
+	      hash_init(hash, &ctx, &digest))
 	    
-	    digestalg_begin(recp1->addr.key.digest);
-	    digestalg_add_data(name, wire_len);
-	    digestalg_add_data((char *)psave, rdlen);
-	    
-	    from_wire(name);
-
-	    if (recp1->uid == digestalg_len() &&
-		blockdata_retrieve(recp1->addr.key.keydata, recp1->uid, digestalg_final()) &&
-		validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
-	      {
-		struct all_addr a;
-		valid = 1;
-		a.addr.keytag = keytag;
-		log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
-		break;
-	      }
-	  }
+	    {
+	      int wire_len = to_wire(name);
+	      
+	      /* Note that digest may be different between DSs, so 
+		 we can't move this outside the loop. */
+	      hash->update(ctx, (unsigned int)wire_len, (unsigned char *)name);
+	      hash->update(ctx, (unsigned int)rdlen, psave);
+	      hash->digest(ctx, hash->digest_size, digest);
+	      
+	      from_wire(name);
+	      
+	      if (recp1->uid == (int)hash->digest_size &&
+		  (ds_digest = blockdata_retrieve(recp1->addr.key.keydata, recp1->uid, NULL)) &&
+		  memcmp (ds_digest, digest, recp1->uid) == 0 &&
+		  validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
+		{
+		  struct all_addr a;
+		  valid = 1;
+		  a.addr.keytag = keytag;
+		  log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+		  break;
+		}
+	    }
+	}
     }
 
   if (valid)
