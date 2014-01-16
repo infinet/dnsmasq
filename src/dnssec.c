@@ -461,7 +461,7 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	      
 	      rc = memcmp(buff1, buff2, len);
 	      
-	      if (rc == 1 || (rc == 0 && quit && len1 > len2))
+	      if (rc > 0 || (rc == 0 && quit && len1 > len2))
 		{
 		  unsigned char *tmp = rrset[i+1];
 		  rrset[i+1] = rrset[i];
@@ -830,7 +830,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	      
 	      if (recp1->uid == (int)hash->digest_size &&
 		  (ds_digest = blockdata_retrieve(recp1->addr.key.keydata, recp1->uid, NULL)) &&
-		  memcmp (ds_digest, digest, recp1->uid) == 0 &&
+		  memcmp(ds_digest, digest, recp1->uid) == 0 &&
 		  validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
 		{
 		  struct all_addr a;

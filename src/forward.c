@@ -1476,6 +1476,7 @@ static struct frec *allocate_frec(time_t now)
 #endif
 #ifdef HAVE_DNSSEC
       f->blocking_query = NULL;
+      f->stash = NULL;
 #endif
       daemon->frec_list = f;
     }
