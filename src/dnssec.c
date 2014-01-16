@@ -868,7 +868,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 {
   unsigned char *psave, *p = (unsigned char *)(header+1);
   struct crec *crecp;
-  int qtype, qclass, val, j, gotone;
+  int qtype, qclass, val, j;
   struct blockdata *key;
 
   if (ntohs(header->qdcount) != 1 ||
@@ -895,7 +895,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   
   cache_start_insert();
 
-  for (gotone = 0, j = ntohs(header->ancount); j != 0; j--) 
+  for (j = ntohs(header->ancount); j != 0; j--) 
     {
       int ttl, rdlen, rc, algo, digest, keytag;
       

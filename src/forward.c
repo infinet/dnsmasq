@@ -252,6 +252,46 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
     forward = NULL;
   else if (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
     {
+#ifdef HAVE_DNSSEC
+      /* If we've already got an answer to this query, but we're awaiting keys for vaildation,
+	 there's no point retrying the query, retry the key query instead...... */
+      if (forward->blocking_query)
+	{
+	  int fd;
+
+	  while (forward->blocking_query)
+	    forward = forward->blocking_query;
+	  
+	  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
+	  plen = forward->stash_len;
+	  
+	  if (forward->sentto->addr.sa.sa_family) 
+	    log_query(F_DNSSEC | F_IPV4, "retry", (struct all_addr *)&forward->sentto->addr.in.sin_addr, "dnssec");
+#ifdef HAVE_IPV6
+	  else
+	    log_query(F_DNSSEC | F_IPV6, "retry", (struct all_addr *)&forward->sentto->addr.in6.sin6_addr, "dnssec");
+#endif
+  
+	  if (forward->sentto->sfd)
+	    fd = forward->sentto->sfd->fd;
+	  else
+	    {
+#ifdef HAVE_IPV6
+	      if (forward->sentto->addr.sa.sa_family == AF_INET6)
+		fd = forward->rfd6->fd;
+	      else
+#endif
+		fd = forward->rfd4->fd;
+	    }
+	  
+	  while (sendto(fd, (char *)header, plen, 0,
+			&forward->sentto->addr.sa,
+			    sa_len(&forward->sentto->addr)) == -1 && retry_send());
+	  
+	  return 1;
+	}
+#endif
+
       /* retry on existing query, send to all available servers  */
       domain = forward->sentto->domain;
       forward->sentto->failed_queries++;
@@ -704,7 +744,7 @@ void reply_query(int fd, int family, time_t now)
 	  int status;
 
 	  /* We've had a reply already, which we're validating. Ignore this duplicate */
-	  if (forward->stash)
+	  if (forward->blocking_query)
 	    return;
 
 	  if (header->hb3 & HB3_TC)
@@ -737,7 +777,6 @@ void reply_query(int fd, int family, time_t now)
 		  struct frec *next = new->next;
 		  *new = *forward; /* copy everything, then overwrite */
 		  new->next = next;
-		  new->stash = NULL;
 		  new->blocking_query = NULL;
 		  new->rfd4 = NULL;
 #ifdef HAVE_IPV6
@@ -745,7 +784,14 @@ void reply_query(int fd, int family, time_t now)
 #endif
 		  new->flags &= ~(FREC_DNSKEY_QUERY | FREC_DS_QUERY);
 		  
-		  if ((forward->stash = blockdata_alloc((char *)header, n)))
+		  /* Free any saved query */
+		  if (forward->stash)
+		    blockdata_free(forward->stash);
+		  
+		  /* Now save reply pending receipt of key data */
+		  if (!(forward->stash = blockdata_alloc((char *)header, n)))
+		    free_frec(new); /* malloc failure, unwind */
+		  else
 		    {
 		      int fd;
 		      
@@ -760,7 +806,7 @@ void reply_query(int fd, int family, time_t now)
 			  nn = dnssec_generate_query(header, ((char *) header) + daemon->packet_buff_sz,
 						     daemon->keyname, forward->class, T_DNSKEY, &server->addr);
 			}
-		      else if (status == STAT_NEED_DS)
+		      else 
 			{
 			  new->flags |= FREC_DS_QUERY;
 			  nn = dnssec_generate_query(header,((char *) header) + daemon->packet_buff_sz,
@@ -769,6 +815,9 @@ void reply_query(int fd, int family, time_t now)
 		      new->crc = questions_crc(header, nn, daemon->namebuff);
 		      new->new_id = get_id(new->crc);
 		      header->id = htons(new->new_id);
+		      /* Save query for retransmission */
+		      new->stash = blockdata_alloc((char *)header, nn);
+		      new->stash_len = nn;
 
 		      /* Don't resend this. */
 		      daemon->srv_save = NULL;
