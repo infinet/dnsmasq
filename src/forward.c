@@ -513,10 +513,11 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
       char *matchstart = daemon->namebuff + namelen - domainlen;
       if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
 	  (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
-	  domainlen >= matchlen) {
-	matchlen = domainlen;
-	sets = ipset_pos->sets;
-      }
+	  domainlen >= matchlen) 
+	{
+	  matchlen = domainlen;
+	  sets = ipset_pos->sets;
+	}
     }
 #endif
   
