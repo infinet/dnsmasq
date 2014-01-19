@@ -955,6 +955,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   int type1, class1, rdlen1, type2, class2, rdlen2;
   int i, j, rc;
 
+  if (RCODE(header) != NXDOMAIN && RCODE(header) != NOERROR)
+    return STAT_INSECURE;
+
   if (!(ans_start = skip_questions(header, plen)))
     return STAT_INSECURE;
    
