@@ -519,6 +519,7 @@ struct hostsfile {
 #define STAT_BOGUS              3
 #define STAT_NEED_DS            4
 #define STAT_NEED_KEY           5
+#define STAT_TRUNCATED          6
 
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2

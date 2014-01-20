@@ -751,14 +751,11 @@ void reply_query(int fd, int family, time_t now)
 	  if (header->hb3 & HB3_TC)
 	    {
 	      /* Truncated answer can't be validated.
-		 The client will retry over TCP, but if this is an answer to a 
-		 DNSSEC-generated query, we have a problem. Should really re-send
-		 over TCP. No-one with any sense will make a DNSKEY or DS RRset
-		 exceed 4096, so this may not be a real problem. Just log 
-		 for now. */
-	      if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
-		my_syslog(LOG_ERR, _("Reply to DNSSEC query truncated - validation fails."));
-	      status = STAT_INSECURE;
+		 If this is an answer to a DNSSEC-generated query, we still
+		 need to get the client to retry over TCP, so return
+		 an answer with the TC bit set, even if the actual answer fits.
+	      */
+	      status = STAT_TRUNCATED;
 	    }
 	  else if (forward->flags & FREC_DNSKEY_QUERY)
 	    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);		      
@@ -891,12 +888,15 @@ void reply_query(int fd, int family, time_t now)
 		  status = STAT_INSECURE;
 		}
 	    }
-
-	  log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
-		    status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
-	      
+	  
+	  if (status == STAT_TRUNCATED)
+	     header->hb3 |= HB3_TC;
+	  else
+	    log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
+		      status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));
+	  
 	  no_cache_dnssec = 0;
-
+	  
 	  if (status == STAT_SECURE)
 	    cache_secure = 1;
 	  else if (status == STAT_BOGUS)
