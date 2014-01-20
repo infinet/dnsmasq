@@ -948,16 +948,95 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   return STAT_SECURE;
 }
 
+/* 4034 6.1 */
+static int hostname_cmp(const char *a, const char *b)
+{
+  char *sa = NULL, *pa = (char *)a + strlen(a);
+  char *sb = NULL, *pb = (char *)b + strlen(b);
+  char *ca, *cb;
+  char sac = 0, sbc = 0;
+  int rc;
+
+  while (1)
+    {
+      while (pa != a && *pa != '.')
+	pa--;
+      
+      while (pb != b && *pb != '.')
+	pb--;
+
+      ca = *pa == '.' ? pa+1 : pa;
+      cb = *pb == '.' ? pb+1 : pb;
+
+      while (1) {
+	unsigned char c1 = (unsigned char) *ca++;
+	unsigned char c2 = (unsigned char) *cb++;
+
+	if (c1 == 0)
+	  {
+	    rc = (c2 == 0) ? 0 : -1;
+	    break;
+	  }
+
+	if (c2 == 0)
+	  {
+	    rc = 1;
+	    break;
+	  }
+	
+	if (c1 >= 'A' && c1 <= 'Z')
+	  c1 += 'a' - 'A';
+	if (c2 >= 'A' && c2 <= 'Z')
+	  c2 += 'a' - 'A';
+		
+	if (c1 != c2)
+	  {
+	    if (c1 <  c2)
+	      rc = -1;
+	    else 
+	      rc = 1;
+	  
+	    break;
+	  }
+      }
+
+      if (rc == 0)
+	{
+	  if (pa == a && pb != b)
+	    rc = 1;
+	  
+	  if (pa != a && pb == b)
+	    rc = -1;
+	}
+      
+      if (sa)
+	*sa = sac;
+      
+      if (sb)
+	*sb = sbc;
+      
+      if ((pa == a && pb == b) || rc != 0)
+	return rc;
+      
+      sa = pa, sac = *sa, *sa = 0;
+      sb = pb, sbc = *sb, *sb = 0;
+
+      pa--;
+      pb--;
+    }
+}
+
+
 /* Validate all the RRsets in the answer and authority sections of the reply (4035:3.2.3) */
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class)
 {
   unsigned char *ans_start, *p1, *p2;
   int type1, class1, rdlen1, type2, class2, rdlen2;
-  int i, j, rc;
+  int i, j, rc, have_nsec, have_nsec_equal, cname_count = 5;
 
-  if (RCODE(header) != NXDOMAIN && RCODE(header) != NOERROR)
+  if ((RCODE(header) != NXDOMAIN && RCODE(header) != NOERROR) || ntohs(header->qdcount) != 1)
     return STAT_INSECURE;
-
+  
   if (!(ans_start = skip_questions(header, plen)))
     return STAT_INSECURE;
    
@@ -1004,7 +1083,156 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	return STAT_INSECURE;
     }
 
-  return STAT_SECURE;
+  /* OK, all the RRsets validate, now see if we have a NODATA or NXDOMAIN reply */
+
+  p1 = (unsigned char *)(header+1);
+  
+  if (!extract_name(header, plen, &p1, name, 1, 4))
+    return STAT_INSECURE;
+
+  GETSHORT(type1, p1);
+  GETSHORT(class1, p1);
+
+ cname_loop:
+  for (j = ntohs(header->ancount); j != 0; j--) 
+    {
+      if (!(rc = extract_name(header, plen, &p1, name, 0, 10)))
+	return STAT_INSECURE; /* bad packet */
+      
+      GETSHORT(type2, p1); 
+      GETSHORT(class2, p1);
+      p1 += 4; /* TTL */
+      GETSHORT(rdlen2, p1);
+
+      if (rc == 1 && class1 == class2)
+	{
+	  /* Do we have an answer for the question? */
+	  if (type1 == type2)
+	    return RCODE(header) == NXDOMAIN ? STAT_INSECURE : STAT_SECURE;
+	  else if (type2 == T_CNAME)
+	    {
+	      /* looped CNAMES */
+	      if (!cname_count-- || 
+		  !extract_name(header, plen, &p1, name, 1, 0) ||
+		  !(p1 = skip_questions(header, plen)))
+		return STAT_INSECURE;
+	      
+	      goto cname_loop;
+	    }
+	} 
+
+      if (!ADD_RDLEN(header, p1, plen, rdlen2))
+	return STAT_INSECURE;
+    }
+
+  /* NXDOMAIN or NODATA reply, look for NSEC records to support that.
+     At this point, p1 points to the start of the auth section.
+     Use keyname as workspace */
+  for (have_nsec = 0, have_nsec_equal = 0, p2 = NULL, rdlen2 = 0, j = ntohs(header->nscount); j != 0; j--) 
+    {
+      unsigned char *nsec_start = p1;
+      if (!extract_name(header, plen, &p1, keyname, 1, 10))
+	return STAT_INSECURE; /* bad packet */
+      
+      GETSHORT(type2, p1); 
+      GETSHORT(class2, p1);
+      p1 += 4; /* TTL */
+      GETSHORT(rdlen1, p1);
+      
+      if (class1 == class2 && type2 == T_NSEC)
+	{
+	  have_nsec = 1;
+	  rc = hostname_cmp(name, keyname);
+
+	  if (rc >= 0)
+	    {
+	      if (p2)
+		{
+		  unsigned char *psave = p2;
+		  /* new NSEC is smaller than name,
+		     is it bigger than previous one? */
+		  
+		  /* get previous one into name buffer */
+		  if (!extract_name(header, plen, &psave, name, 1, 0))
+		    return STAT_INSECURE; /* bad packet */
+
+		  if (hostname_cmp(name, keyname) < 0)
+		    {
+		      p2 = nsec_start;
+		      rdlen2 = rdlen1;
+		    }
+		  
+		  /* restore query name */
+		  psave = (unsigned char *)(header+1);
+		  if (!extract_name(header, plen, &psave, name, 1, 0))
+		    return STAT_INSECURE;
+		}
+	      else
+		{
+		  /* There was no previous best candidate */
+		  p2 = nsec_start;
+		  rdlen2 = rdlen1; 
+		}
+	    }
+	  
+	  if (rc == 0)
+	    have_nsec_equal = 1;
+	}
+	  
+      if (!ADD_RDLEN(header, p1, plen, rdlen1))
+	return STAT_INSECURE;
+    }
+     
+  
+  if (p2)
+    {
+      unsigned char *psave;
+      p2 = skip_name(p2, header, plen, 0);
+      p2 += 10; /* type, class, ttl, rdlen */
+      psave = p2;
+      extract_name(header, plen, &p2, keyname, 1, 0);
+      rdlen2 -= p2 - psave;
+    }
+
+  /* At this point, have_nsec is set if there's at least one NSEC
+     have_nsec_equal is set if there's an NSEC with the same name as the query;
+     p2 points to the type bit maps of the biggest NSEC smaller than or equal to the query
+     or NULL if the query is smaller than all of them.
+     Keyname holds the next domain name for that NSEC.
+     rdlen2 is the length of the bitmap field */
+  
+
+  if (RCODE(header) == NOERROR && have_nsec_equal)
+    {
+      int offset = (type1 & 0xff) >> 3;
+      int mask = 0x80 >> (type1 & 0x07);
+      
+      while (rdlen2 >= 2)
+	{
+	  if (p2[0] == type1 >> 8)
+	    {
+	      /* Does the NSEC say our type exists? */
+	      if (offset < p2[1] &&
+		  (p2[offset+2] & mask) != 0)
+		return STAT_INSECURE;
+	      
+	      break; /* finshed checking */
+	    }
+	  
+	  rdlen2 -= p2[1];
+	  p2 +=  p2[1];
+	}
+      
+      return STAT_SECURE;
+    }
+
+  if (RCODE(header) == NXDOMAIN && have_nsec)
+    {
+      if (!p2 || hostname_cmp(name, keyname) < 0)
+	return STAT_SECURE; /* Before the first, or in a proven gap */
+    }
+
+  return STAT_INSECURE;
 }
 
 
