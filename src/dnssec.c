@@ -346,8 +346,6 @@ static u16 *get_desc(int type)
       T_KX, 2, 0, -1,
       T_SRV, 6, 0, -1,
       T_DNAME, 0, -1,
-      T_RRSIG, 18, 0, -1,
-      T_NSEC, 0, -1,
       0, -1 /* wildcard/catchall */
     }; 
   
@@ -989,7 +987,7 @@ static int hostname_cmp(const char *a, const char *b)
 	  if (bc >= 'A' && bc <= 'Z')
 	    bc += 'a' - 'A';
 	  
-	  if (ac > bc)
+	  if (ac < bc)
 	    return -1;
 	  else if (ac != bc)
 	    return 1;
