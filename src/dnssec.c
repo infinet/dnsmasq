@@ -951,78 +951,64 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 /* 4034 6.1 */
 static int hostname_cmp(const char *a, const char *b)
 {
-  char *sa = NULL, *pa = (char *)a + strlen(a);
-  char *sb = NULL, *pb = (char *)b + strlen(b);
-  char *ca, *cb;
-  char sac = 0, sbc = 0;
-  int rc;
-
+  char *sa, *ea, *ca, *sb, *eb, *cb;
+  unsigned char ac, bc;
+  
+  sa = ea = (char *)a + strlen(a);
+  sb = eb = (char *)b + strlen(b);
+ 
   while (1)
     {
-      while (pa != a && *pa != '.')
-	pa--;
+      while (sa != a && *(sa-1) != '.')
+	sa--;
       
-      while (pb != b && *pb != '.')
-	pb--;
+      while (sb != b && *(sb-1) != '.')
+	sb--;
 
-      ca = *pa == '.' ? pa+1 : pa;
-      cb = *pb == '.' ? pb+1 : pb;
+      ca = sa;
+      cb = sb;
 
-      while (1) {
-	unsigned char c1 = (unsigned char) *ca++;
-	unsigned char c2 = (unsigned char) *cb++;
-
-	if (c1 == 0)
-	  {
-	    rc = (c2 == 0) ? 0 : -1;
-	    break;
-	  }
-
-	if (c2 == 0)
-	  {
-	    rc = 1;
-	    break;
-	  }
-	
-	if (c1 >= 'A' && c1 <= 'Z')
-	  c1 += 'a' - 'A';
-	if (c2 >= 'A' && c2 <= 'Z')
-	  c2 += 'a' - 'A';
-		
-	if (c1 != c2)
-	  {
-	    if (c1 <  c2)
-	      rc = -1;
-	    else 
-	      rc = 1;
-	  
-	    break;
-	  }
-      }
-
-      if (rc == 0)
+      while (1) 
 	{
-	  if (pa == a && pb != b)
-	    rc = 1;
+	  if (ca == ea)
+	    {
+	      if (cb == eb)
+		break;
+	      
+	      return -1;
+	    }
 	  
-	  if (pa != a && pb == b)
-	    rc = -1;
+	  if (cb == eb)
+	    return 1;
+	  
+	  ac = (unsigned char) *ca++;
+	  bc = (unsigned char) *cb++;
+	  
+	  if (ac >= 'A' && ac <= 'Z')
+	    ac += 'a' - 'A';
+	  if (bc >= 'A' && bc <= 'Z')
+	    bc += 'a' - 'A';
+	  
+	  if (ac > bc)
+	    return -1;
+	  else if (ac != bc)
+	    return 1;
+	}
+
+     
+      if (sa == a)
+	{
+	  if (sb == b)
+	    return 0;
+	  
+	  return -1;
 	}
       
-      if (sa)
-	*sa = sac;
+      if (sb == b)
+	return 1;
       
-      if (sb)
-	*sb = sbc;
-      
-      if ((pa == a && pb == b) || rc != 0)
-	return rc;
-      
-      sa = pa, sac = *sa, *sa = 0;
-      sb = pb, sbc = *sb, *sb = 0;
-
-      pa--;
-      pb--;
+      ea = sa--;
+      eb = sb--;
     }
 }
 
