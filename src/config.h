@@ -124,6 +124,11 @@ RESOLVFILE
 
 */
 
+/* Defining this builds a binary which handles time differently and works better on a system without a 
+   stable RTC (it uses uptime, not epoch time) and writes the DHCP leases file less often to avoid flash wear. 
+*/
+
+/* #define HAVE_BROKEN_RTC */
 
 /* The default set of options to build. Built with these options, dnsmasq
    has no library dependencies other than libc */
@@ -134,8 +139,15 @@ RESOLVFILE
 #define HAVE_SCRIPT
 #define HAVE_AUTH
 #define HAVE_IPSET 
+
+/* Build options which require external libraries.
+   
+   Defining HAVE_<opt>_STATIC as _well_ as HAVE_<opt> will link the library statically.
+
+   You can use "make COPTS=-DHAVE_<opt>" instead of editing these.
+*/
+
 /* #define HAVE_LUASCRIPT */
-/* #define HAVE_BROKEN_RTC */
 /* #define HAVE_DBUS */
 /* #define HAVE_IDN */
 /* #define HAVE_CONNTRACK */
