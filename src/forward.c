@@ -1596,7 +1596,7 @@ static void free_frec(struct frec *f)
   if (f->blocking_query)
     free_frec(f->blocking_query);
   f->blocking_query = NULL;
-  
+  f->dependent = NULL;
 #endif
 }
 
