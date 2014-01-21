@@ -457,7 +457,7 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	      else
 		left2 = len2 - len1, left1 = 0, len = len1;
 	      
-	      rc = memcmp(buff1, buff2, len);
+	      rc = (len == 0) ? 0 : memcmp(buff1, buff2, len);
 	      
 	      if (rc > 0 || (rc == 0 && quit && len1 > len2))
 		{
@@ -466,6 +466,8 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 		  rrset[i] = tmp;
 		  swap = quit = 1;
 		}
+	      else if (rc < 0)
+		quit = 1;
 	    }
 	}
     } while (swap);
