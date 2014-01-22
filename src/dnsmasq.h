@@ -423,10 +423,6 @@ struct crec {
 #define F_KEYTAG    (1u<<23)
 #define F_SECSTAT   (1u<<24)
 
-/* composites */
-#define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* F_DS & F_DNSKEY -> RRSIG yuck. */
-
-
 
 /* struct sockaddr is not large enough to hold any address,
    and specifically not big enough to hold an IPv6 address.
