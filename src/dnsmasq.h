@@ -380,6 +380,7 @@ struct crec {
     struct {
       struct blockdata *keydata;
       unsigned short class, type_covered, keytag;
+      char algo;
     } sig;
   } addr;
   time_t ttd; /* time to die */

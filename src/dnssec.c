@@ -484,7 +484,7 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
    otherwise find the key in the cache.
 */
 static int validate_rrset(time_t now, struct dns_header *header, size_t plen, int class, 
-		   int type, char *name, char *keyname, struct blockdata *key, int keylen, int algo_in, int keytag_in)
+			  int type, char *name, char *keyname, struct blockdata *key, int keylen, int algo_in, int keytag_in)
 {
   static unsigned char **rrset = NULL, **sigs = NULL;
   static int rrset_sz = 0, sig_sz = 0;
@@ -500,12 +500,14 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 
   name_labels = count_labels(name); /* For 4035 5.3.2 check */
 
+  cache_start_insert(); /* RRSIGS */
+
   /* look for RRSIGs for this RRset and get pointers to each RR in the set. */
   for (rrsetidx = 0, sigidx = 0, j = ntohs(header->ancount) + ntohs(header->nscount); 
        j != 0; j--) 
     {
       unsigned char *pstart, *pdata;
-      int stype, sclass;
+      int stype, sclass, ttl;
 
       pstart = p;
       
@@ -514,11 +516,14 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       
       GETSHORT(stype, p);
       GETSHORT(sclass, p);
-      p += 4; /* TTL */
+      GETLONG(ttl, p);
       
       pdata = p;
 
       GETSHORT(rdlen, p);
+      
+      if (!CHECK_LEN(header, p, plen, rdlen))
+	return STAT_INSECURE; 
       
       if (res == 1 && sclass == class)
 	{
@@ -550,17 +555,8 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 		 return STAT_INSECURE; /* bad packet */ 
 	         
 	       GETSHORT(type_covered, p);
-	       algo = *p++;
-	       labels = *p++;
-	       p += 4; /* orig_ttl */
-	       GETLONG(sig_expiration, p);
-	       GETLONG(sig_inception, p);
-	       p = pdata + 2; /* restore for ADD_RDLEN */
 	       
-	       if (type_covered == type &&
-		   check_date_range(sig_inception, sig_expiration) &&
-		   hash_find(algo_digest_name(algo)) &&
-		   labels <= name_labels)
+	       if (type_covered == type)
 		 {
 		   if (sigidx == sig_sz)
 		     {
@@ -581,13 +577,42 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 		     }
 		   
 		   sigs[sigidx++] = pdata;
-		 }
+
+		   /* If it's a type we're going to cache, cache the RRISG too */
+		   if (type_covered == T_A || type_covered == T_AAAA ||
+		       type_covered == T_CNAME || type_covered == T_DS || 
+		       type_covered == T_DNSKEY) 
+		     {
+		       struct all_addr a;
+		       struct blockdata *block;
+		       a.addr.dnssec.class = class;
+		       a.addr.dnssec.type = type_covered;
+		       
+		       algo = *p++;
+		       p += 13; /* labels, orig_ttl, expiration, inception */
+		       GETSHORT(key_tag, p);	
+		       if ((block = blockdata_alloc((char*)pdata + 2, rdlen)) &&
+			   (crecp = cache_insert(name, &a, now, ttl,  F_FORWARD | F_DNSKEY | F_DS)))
+			 {
+			   crecp->uid = rdlen;
+			   crecp->addr.sig.keydata = block;
+			   crecp->addr.sig.class = class;
+			   crecp->addr.sig.keytag = key_tag;
+			   crecp->addr.sig.type_covered = type_covered;
+			   crecp->addr.sig.algo = algo;
+			 }
+		     }
+		 } 
+	       
+	       p = pdata + 2; /* restore for ADD_RDLEN */
 	    }
 	}
      
       if (!ADD_RDLEN(header, p, plen, rdlen))
 	return STAT_INSECURE;
     }
+  
+  cache_end_insert(); /* RRSIGS */
   
   /* RRset empty, no RRSIGs */
   if (rrsetidx == 0 || sigidx == 0)
@@ -616,23 +641,26 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       algo = *p++;
       labels = *p++;
       GETLONG(orig_ttl, p);
-      p += 8; /* sig_expiration and sig_inception */
+      GETLONG(sig_expiration, p);
+      GETLONG(sig_inception, p);
       GETSHORT(key_tag, p);
       
       if (!extract_name(header, plen, &p, keyname, 1, 0))
 	return STAT_INSECURE;
       
+      if (!check_date_range(sig_inception, sig_expiration) ||
+	  labels > name_labels ||
+	  !(hash = hash_find(algo_digest_name(algo))) ||
+	  !hash_init(hash, &ctx, &digest))
+	continue;
+	
       /* OK, we have the signature record, see if the relevant DNSKEY is in the cache. */
       if (!key && !(crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY)))
 	return STAT_NEED_KEY;
       
       sig = p;
       sig_len = rdlen - (p - psav);
-       
-      if (!(hash = hash_find(algo_digest_name(algo))) ||
-	  !hash_init(hash, &ctx, &digest))
-	continue;
-       
+              
       nsigttl = htonl(orig_ttl);
       
       hash->update(ctx, 18, psav);
@@ -756,10 +784,8 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
       return STAT_NEED_DS;
     }
 
-  cache_start_insert();
-
   /* NOTE, we need to find ONE DNSKEY which matches the DS */
-  for (valid = 0, j = ntohs(header->ancount); j != 0; j--) 
+  for (valid = 0, j = ntohs(header->ancount); j != 0 && !valid; j--) 
     {
       /* Ensure we have type, class  TTL and length */
       if (!(rc = extract_name(header, plen, &p, name, 0, 10)))
@@ -788,35 +814,19 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	return STAT_INSECURE;
       algo = *p++;
       keytag = dnskey_keytag(algo, flags, p, rdlen - 4);
+      key = NULL;
       
-      /* Cache needs to known class for DNSSEC stuff */
-      a.addr.dnssec.class = class;
-      
-      /* Put the key into the cache. Note that if the validation fails, we won't
-	 call cache_end_insert() and this will never be committed. */
-      if ((key = blockdata_alloc((char*)p, rdlen - 4)) &&
-	  (recp1 = cache_insert(name, &a, now, ttl, F_FORWARD | F_DNSKEY | F_DNSSECOK)))
-	{
-	  struct all_addr a;
-	  
-	  a.addr.keytag = keytag;
-	  log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
-	  
-	  recp1->uid = rdlen - 4;
-	  recp1->addr.key.keydata = key;
-	  recp1->addr.key.algo = algo;
-	  recp1->addr.key.keytag = keytag;
-	  recp1->addr.key.flags = flags;
-	  recp1->addr.key.class = class;
-	}
+      /* key must have zone key flag set */
+      if (flags & 0x100)
+	key = blockdata_alloc((char*)p, rdlen - 4);
       
       p = psave;
+      
       if (!ADD_RDLEN(header, p, plen, rdlen))
 	return STAT_INSECURE; /* bad packet */
       
-      /* Already determined that message is OK or failed to store or ineligable
-	 (ie no zone key flag) key. Don't attempt to validate, just loop stuffing cache */ 
-      if (valid || !key || !(flags & 0x100))
+      /* No zone key flag or malloc failure */
+      if (!key)
 	continue;
       
       for (recp1 = crecp; recp1; recp1 = cache_find_by_name(recp1, name, now, F_DS))
@@ -852,10 +862,70 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 		}
 	    }
 	}
+      blockdata_free(key);
     }
 
   if (valid)
     {
+      /* DNSKEY RRset determined to be OK, now cache it. */
+      cache_start_insert();
+      
+      p = skip_questions(header, plen);
+
+      for (j = ntohs(header->ancount); j != 0; j--) 
+	{
+	  /* Ensure we have type, class  TTL and length */
+	  if (!(rc = extract_name(header, plen, &p, name, 0, 10)))
+	    return STAT_INSECURE; /* bad packet */
+	  
+	  GETSHORT(qtype, p); 
+	  GETSHORT(qclass, p);
+	  GETLONG(ttl, p);
+	  GETSHORT(rdlen, p);
+	  
+	  if (qclass != class || qtype != T_DNSKEY || rc == 2)
+	    {
+	      if (ADD_RDLEN(header, p, plen, rdlen))
+		continue;
+	      
+	      return STAT_INSECURE; /* bad packet */
+	    }
+	  
+	  if (!CHECK_LEN(header, p, plen, rdlen) || rdlen < 4)
+	    return STAT_INSECURE; /* bad packet */
+      
+	  psave = p;
+	  
+	  GETSHORT(flags, p);
+	  if (*p++ != 3)
+	    return STAT_INSECURE;
+	  algo = *p++;
+	  keytag = dnskey_keytag(algo, flags, p, rdlen - 4);
+      
+	  /* Cache needs to known class for DNSSEC stuff */
+	  a.addr.dnssec.class = class;
+	  
+	  if ((key = blockdata_alloc((char*)p, rdlen - 4)) &&
+	      (recp1 = cache_insert(name, &a, now, ttl, F_FORWARD | F_DNSKEY | F_DNSSECOK)))
+	    {
+	      struct all_addr a;
+	      
+	      a.addr.keytag = keytag;
+	      log_query(F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+	      
+	      recp1->uid = rdlen - 4;
+	      recp1->addr.key.keydata = key;
+	      recp1->addr.key.algo = algo;
+	      recp1->addr.key.keytag = keytag;
+	      recp1->addr.key.flags = flags;
+	      recp1->addr.key.class = class;
+	    }
+	  
+	  p = psave;
+	  if (!ADD_RDLEN(header, p, plen, rdlen))
+	    return STAT_INSECURE; /* bad packet */
+	}
+      
       /* commit cache insert. */
       cache_end_insert();
       return STAT_SECURE;

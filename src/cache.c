@@ -330,8 +330,9 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
 	
 	  if ((crecp->flags & F_FORWARD) && hostname_isequal(cache_get_name(crecp), name))
 	    {
-	      
-	      if ((flags & crecp->flags & (F_IPV4 | F_IPV6)) || ((crecp->flags | flags) & F_CNAME))
+	      /* Don't delete DNSSEC in favour of a CNAME, they can co-exist */
+	      if ((flags & crecp->flags & (F_IPV4 | F_IPV6)) || 
+		  ((crecp->flags | flags) & F_CNAME) && !(crecp->flags & (F_DNSKEY | F_DS)))
 		{
 		  if (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG))
 		    return 0;
@@ -344,7 +345,7 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
 #ifdef HAVE_DNSSEC
 	      /* Deletion has to be class-sensitive for DS, DNSKEY, RRSIG, also 
 		 type-covered sensitive for  RRSIG */
-	      if (flags & crecp->flags & (F_DNSKEY | F_DS))
+	      if ((flags & (F_DNSKEY | F_DS)) == (crecp->flags & (F_DNSKEY | F_DS)))
 		{
 		  int del = 0;
 		  switch (flags & (F_DS | F_DNSKEY))
@@ -1227,6 +1228,7 @@ void cache_add_dhcp_entry(char *host_name, int prot,
 void dump_cache(time_t now)
 {
   struct server *serv, *serv1;
+  char *t = "";
 
   my_syslog(LOG_INFO, _("time %lu"), (unsigned long)now);
   my_syslog(LOG_INFO, _("cache size %d, %d/%d cache insertions re-used unexpired cache entries."), 
@@ -1267,7 +1269,7 @@ void dump_cache(time_t now)
     {
       struct crec *cache ;
       int i;
-      my_syslog(LOG_INFO, "Host                                     Address                        Flags     Expires");
+      my_syslog(LOG_INFO, "Host                                     Address                        Flags      Expires");
     
       for (i=0; i<hash_size; i++)
 	for (cache = hash_table[i]; cache; cache = cache->hash_next)
@@ -1282,9 +1284,21 @@ void dump_cache(time_t now)
 #ifdef HAVE_DNSSEC
 	    else if (cache->flags & F_DS)
 	      {
-		a = daemon->addrbuff;
-		sprintf(a, "%5u %3u %3u", cache->addr.ds.keytag,
-			cache->addr.ds.algo, cache->addr.ds.digest);
+		if (cache->flags & F_DNSKEY)
+		  {
+		    char tp[20];
+		    /* RRSIG */
+		    querystr("", tp, cache->addr.sig.type_covered);
+		    a = daemon->addrbuff;
+		    sprintf(a, "%5u %3u %s", cache->addr.sig.keytag,
+			    cache->addr.sig.algo, tp);
+		  }
+		else
+		  {
+		    a = daemon->addrbuff;
+		    sprintf(a, "%5u %3u %3u", cache->addr.ds.keytag,
+			    cache->addr.ds.algo, cache->addr.ds.digest);
+		  }
 	      }
 	    else if (cache->flags & F_DNSKEY)
 	      {
@@ -1304,12 +1318,21 @@ void dump_cache(time_t now)
 #endif
 	      }
 
-	    p += sprintf(p, "%-30.30s %s%s%s%s%s%s%s%s%s%s%s%s%s  ", a, 
-			 cache->flags & F_IPV4 ? "4" : "",
-			 cache->flags & F_IPV6 ? "6" : "",
-			 cache->flags & F_DNSKEY ? "K" : "",
-			 cache->flags & F_DS ? "S" : "",
-			 cache->flags & F_CNAME ? "C" : "",
+	    if (cache->flags & F_IPV4)
+	      t = "4";
+	    else if (cache->flags & F_IPV6)
+	      t = "6";
+	    else if (cache->flags & F_CNAME)
+	      t = "C";
+#ifdef HAVE_DNSSEC
+	    else if ((cache->flags & (F_DS | F_DNSKEY)) == (F_DS | F_DNSKEY))
+	      t = "G"; /* DNSKEY and DS set -> RRISG */
+	    else if (cache->flags & F_DS)
+	      t = "S";
+	    else if (cache->flags & F_DNSKEY)
+	      t = "K";
+#endif
+	    p += sprintf(p, "%-30.30s %s%s%s%s%s%s%s%s%s  ", a, t,
 			 cache->flags & F_FORWARD ? "F" : " ",
 			 cache->flags & F_REVERSE ? "R" : " ",
 			 cache->flags & F_IMMORTAL ? "I" : " ",
