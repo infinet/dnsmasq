@@ -1368,6 +1368,11 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 	p += INADDRSZ;
 	break;
 	
+      case 'b':
+	usval = va_arg(ap, int);
+	*p++ = usval;
+	break;
+	
       case 's':
 	usval = va_arg(ap, int);
 	PUTSHORT(usval, p);
@@ -1538,6 +1543,58 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	    }
 	}
 
+#ifdef HAVE_DNSSEC
+      if ((qtype == T_DNSKEY || qtype == T_ANY) && (crecp = cache_find_by_name(NULL, name, now, F_DNSKEY)))
+	{
+	  do {
+	    char *keydata;
+	    
+	    if (crecp->addr.ds.class == qclass &&
+		(qtype == T_DNSKEY || (crecp->flags & F_CONFIG)) &&
+		(keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->uid, NULL)))
+	      {
+		ans = 1;
+		if (!dryrun)
+		  {
+		    struct all_addr a;
+		    a.addr.keytag =  crecp->addr.key.keytag;
+		    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DNSKEY keytag %u");
+		    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					    crec_ttl(crecp, now), &nameoffset,
+					    T_DNSKEY, qclass, "sbbt", 
+					    crecp->addr.key.flags, 3, crecp->addr.key.algo, crecp->uid, keydata))
+		      anscount++;
+		  }
+	      }
+	  } while (crecp = cache_find_by_name(crecp, name, now, F_DNSKEY));
+	}
+
+      if ((qtype == T_DS || qtype == T_ANY) && (crecp = cache_find_by_name(NULL, name, now, F_DS)))
+	{
+	  do {
+	    char *keydata;
+	    
+	    if (crecp->addr.ds.class == qclass &&
+		(qtype == T_DS || (crecp->flags & F_CONFIG)) &&
+		(keydata = blockdata_retrieve(crecp->addr.ds.keydata, crecp->uid, NULL)))
+	      {
+		ans = 1;
+		if (!dryrun)
+		  {
+		    struct all_addr a;
+		    a.addr.keytag =  crecp->addr.ds.keytag;
+		    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DS keytag %u");
+		    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+					    crec_ttl(crecp, now), &nameoffset,
+					    T_DS, qclass, "sbbt", 
+					    crecp->addr.ds.keytag, crecp->addr.ds.algo, crecp->addr.ds.digest, crecp->uid, keydata))
+		      anscount++;
+		  }
+	      }
+	  } while (crecp = cache_find_by_name(crecp, name, now, F_DS));
+	}
+#endif	     
+      
       if (qclass == C_IN)
 	{
 	  struct txt_record *t;
@@ -1901,7 +1958,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    }
 		}
 	    }
-	  
+
 	  if (qtype == T_MX || qtype == T_ANY)
 	    {
 	      int found = 0;

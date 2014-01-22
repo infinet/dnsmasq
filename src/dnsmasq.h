@@ -244,7 +244,12 @@ struct all_addr {
 #ifdef HAVE_IPV6
     struct in6_addr addr6;
 #endif
+    /* for log_query */
     unsigned int keytag;
+    /* for cache_insert if RRSIG, DNSKEY, DS */
+    struct {
+      unsigned short class, type;
+    } dnssec;      
   } addr;
 };
 
@@ -363,13 +368,22 @@ struct crec {
     } cname;
     struct {
       struct blockdata *keydata;
+      unsigned short class, flags, keytag;
       unsigned char algo;
-      unsigned char digest; /* DS only */
-      unsigned short keytag;
-    } key;
+    } key; 
+    struct {
+      struct blockdata *keydata;
+      unsigned short class, keytag;
+      unsigned char algo;
+      unsigned char digest; 
+    } ds; 
+    struct {
+      struct blockdata *keydata;
+      unsigned short class, type_covered, keytag;
+    } sig;
   } addr;
   time_t ttd; /* time to die */
-  /* used as keylen ifF_DNSKEY, index to source for F_HOSTS */
+  /* used as keylen if F_DNSKEY or F_DS, index to source for F_HOSTS */
   int uid; 
   unsigned short flags;
   union {
@@ -409,7 +423,7 @@ struct crec {
 #define F_SECSTAT   (1u<<24)
 
 /* composites */
-#define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* Only one may be set */
+#define F_TYPE      (F_IPV4 | F_IPV6 | F_DNSKEY | F_DS) /* F_DS & F_DNSKEY -> RRSIG yuck. */
 
 
 

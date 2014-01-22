@@ -76,7 +76,6 @@
 #define EDNS0_OPTION_MAC            65001 /* dyndns.org temporary assignment */
 #define EDNS0_OPTION_CLIENT_SUBNET  8     /* IANA */
 
-
 struct dns_header {
   u16 id;
   u8  hb3,hb4;
