@@ -368,23 +368,23 @@ struct crec {
     } cname;
     struct {
       struct blockdata *keydata;
-      unsigned short class, flags, keytag;
+      unsigned short keylen, flags, keytag;
       unsigned char algo;
     } key; 
     struct {
       struct blockdata *keydata;
-      unsigned short class, keytag;
+      unsigned short keylen, keytag;
       unsigned char algo;
       unsigned char digest; 
     } ds; 
     struct {
       struct blockdata *keydata;
-      unsigned short class, type_covered, keytag;
+      unsigned short keylen, type_covered, keytag;
       char algo;
     } sig;
   } addr;
   time_t ttd; /* time to die */
-  /* used as keylen if F_DNSKEY or F_DS, index to source for F_HOSTS */
+  /* used as class if DNSKEY/DS/RRSIG, index to source for F_HOSTS */
   int uid; 
   unsigned short flags;
   union {
