@@ -332,7 +332,7 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
 	    {
 	      /* Don't delete DNSSEC in favour of a CNAME, they can co-exist */
 	      if ((flags & crecp->flags & (F_IPV4 | F_IPV6)) || 
-		  ((crecp->flags | flags) & F_CNAME) && !(crecp->flags & (F_DNSKEY | F_DS)))
+		  (((crecp->flags | flags) & F_CNAME) && !(crecp->flags & (F_DNSKEY | F_DS))))
 		{
 		  if (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG))
 		    return 0;
