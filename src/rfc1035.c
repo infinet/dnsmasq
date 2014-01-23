@@ -1566,7 +1566,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      anscount++;
 		  }
 	      }
-	  } while (crecp = cache_find_by_name(crecp, name, now, F_DNSKEY));
+	  } while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY)));
 	}
 
       if ((qtype == T_DS || qtype == T_ANY) && (crecp = cache_find_by_name(NULL, name, now, F_DS)))
@@ -1591,7 +1591,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      anscount++;
 		  }
 	      }
-	  } while (crecp = cache_find_by_name(crecp, name, now, F_DS));
+	  } while ((crecp = cache_find_by_name(crecp, name, now, F_DS)));
 	}
 #endif	     
       
