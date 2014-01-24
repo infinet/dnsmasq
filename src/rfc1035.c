@@ -1544,7 +1544,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	}
 
 #ifdef HAVE_DNSSEC
-      if (qtype == T_DNSKEY || qtype == T_DS || qtype == T_RRSIG)
+      if (option_bool(OPT_DNSSEC_VALID) && (qtype == T_DNSKEY || qtype == T_DS || qtype == T_RRSIG))
 	{
 	  int gotone = 0;
 	  struct blockdata *keydata;
