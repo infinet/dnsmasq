@@ -1255,7 +1255,7 @@ void dump_cache(time_t now)
 	  {
 	    char *a = daemon->addrbuff, *p = daemon->namebuff, *n = cache_get_name(cache);
 	    *a = 0;
-	    if (strlen(n) == 0)
+	    if (strlen(n) == 0 && !(cache->flags & F_REVERSE))
 	      n = "<Root>";
 	    p += sprintf(p, "%-40.40s ", n);
 	    if ((cache->flags & F_CNAME) && !is_outdated_cname_pointer(cache))

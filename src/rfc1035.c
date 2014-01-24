@@ -984,6 +984,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			{
 			  if (!cname_count--)
 			    return 0; /* looped CNAMES */
+			  secflag = 0; /* no longer DNSSEC */
 			  goto cname_loop;
 			}
 		      
@@ -1708,41 +1709,75 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    }
 		}
 	      else if ((crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
-		do 
-		  { 
-		    /* don't answer wildcard queries with data not from /etc/hosts or dhcp leases */
-		    if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
-		      continue;
-		    
-		    if (!(crecp->flags & F_DNSSECOK))
-		      sec_data = 0;
-		    
-		    if (crecp->flags & F_NEG)
-		      {
-			ans = 1;
-			auth = 0;
-			if (crecp->flags & F_NXDOMAIN)
-			  nxdomain = 1;
-			if (!dryrun)
-			  log_query(crecp->flags & ~F_FORWARD, name, &addr, NULL);
-		      }
-		    else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd || option_bool(OPT_DNSSEC_VALID))
-		      {
-			ans = 1;
-			if (!(crecp->flags & (F_HOSTS | F_DHCP)))
-			  auth = 0;
-			if (!dryrun)
-			  {
-			    log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr, 
-				      record_source(crecp->uid));
-			    
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						    crec_ttl(crecp, now), NULL,
-						    T_PTR, C_IN, "d", cache_get_name(crecp)))
-			      anscount++;
-			  }
-		      }
-		  } while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
+		{
+#ifdef HAVE_DNSSEC
+		  if (!(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) && 
+		      (crecp->flags & F_DNSSECOK) &&
+		      !(crecp->flags & F_NEG) && 
+		      sec_reqd &&
+		      option_bool(OPT_DNSSEC_VALID))
+		    {
+		      int gotsig = 0;
+		      
+		      crecp = NULL;
+		      while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
+			{
+			  if (crecp->addr.sig.type_covered == T_PTR && crecp->uid == C_IN)
+			    {
+			      char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
+			      gotsig = 1;
+			      
+			      if (!dryrun && 
+				  add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						      crecp->ttd - now, &nameoffset,
+						      T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
+				anscount++;
+			    }
+			} 
+		      /* Need to re-run original cache search */
+		      crecp = gotsig ? cache_find_by_addr(NULL, &addr, now, is_arpa) : NULL;
+		    }
+#endif
+
+		  if (crecp)
+		    {
+		      do 
+			{ 
+			  /* don't answer wildcard queries with data not from /etc/hosts or dhcp leases */
+			  if (qtype == T_ANY && !(crecp->flags & (F_HOSTS | F_DHCP)))
+			    continue;
+			  
+			  if (!(crecp->flags & F_DNSSECOK))
+			    sec_data = 0;
+			  
+			  if (crecp->flags & F_NEG)
+			    {
+			      ans = 1;
+			      auth = 0;
+			      if (crecp->flags & F_NXDOMAIN)
+				nxdomain = 1;
+			      if (!dryrun)
+				log_query(crecp->flags & ~F_FORWARD, name, &addr, NULL);
+			    }
+			  else if ((crecp->flags & (F_HOSTS | F_DHCP)) || !sec_reqd || option_bool(OPT_DNSSEC_VALID))
+			    {
+			      ans = 1;
+			      if (!(crecp->flags & (F_HOSTS | F_DHCP)))
+				auth = 0;
+			      if (!dryrun)
+				{
+				  log_query(crecp->flags & ~F_FORWARD, cache_get_name(crecp), &addr, 
+					    record_source(crecp->uid));
+				  
+				  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							  crec_ttl(crecp, now), NULL,
+							  T_PTR, C_IN, "d", cache_get_name(crecp)))
+				    anscount++;
+				}
+			    }
+			} while ((crecp = cache_find_by_addr(crecp, &addr, now, is_arpa)));
+		    }
+		}
 	      else if (is_rev_synth(is_arpa, &addr, name))
 		{
 		  ans = 1;

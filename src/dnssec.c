@@ -581,7 +581,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 		   /* If it's a type we're going to cache, cache the RRISG too */
 		   if (type_covered == T_A || type_covered == T_AAAA ||
 		       type_covered == T_CNAME || type_covered == T_DS || 
-		       type_covered == T_DNSKEY) 
+		       type_covered == T_DNSKEY || type_covered == T_PTR) 
 		     {
 		       struct all_addr a;
 		       struct blockdata *block;
