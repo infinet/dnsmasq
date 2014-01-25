@@ -1375,7 +1375,7 @@ unsigned char *tcp_request(int confd, time_t now,
 		{
 		  struct server *firstsendto = NULL;
 #ifdef HAVE_DNSSEC
-		  unsigned char *newhash, *hash[HASH_SIZE];
+		  unsigned char *newhash, hash[HASH_SIZE];
 		  if ((newhash = hash_questions(header, (unsigned int)size, daemon->keyname)))
 		    memcpy(hash, newhash, HASH_SIZE);
 #else
@@ -1506,10 +1506,16 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_DNSSEC
 		      newhash = hash_questions(header, (unsigned int)m, daemon->namebuff);
 		      if (!newhash || memcmp(hash, newhash, HASH_SIZE) != 0)
-			break;
+			{ 
+			  m = 0;
+			  break;
+			}
 #else			  
 		      if (crc != questions_crc(header, (unsigned int)m, daemon->namebuff))
-			break;
+			{
+			  m = 0;
+			  break;
+			}
 #endif
 
 		      m = process_reply(header, now, last_server, (unsigned int)m, 

@@ -1393,7 +1393,8 @@ unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name
       if (!CHECK_LEN(header, p, plen, 0))
 	return digest; /* bad packet */
     }
-
+  
+  hash->digest(ctx, hash->digest_size, digest);
   return digest;
 }
 
