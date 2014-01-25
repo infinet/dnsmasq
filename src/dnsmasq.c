@@ -141,10 +141,18 @@ int main (int argc, char **argv)
     }
 #endif
   
+  if (option_bool(OPT_DNSSEC_VALID))
+    {
 #ifdef HAVE_DNSSEC
-  if (daemon->cachesize <CACHESIZ && option_bool(OPT_DNSSEC_VALID))
-    die(_("Cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
+      if (!daemon->dnskeys)
+	die(_("No trust anchors provided for DNSSEC"), NULL, EC_BADCONF);
+      
+      if (daemon->cachesize < CACHESIZ)
+	die(_("Cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
+#else 
+      die(_("DNSSEC not available: set HAVE_DNSSEC in src/config.h"), NULL, EC_BADCONF);
 #endif
+    }
 
 #ifndef HAVE_TFTP
   if (option_bool(OPT_TFTP))

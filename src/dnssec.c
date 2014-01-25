@@ -1099,7 +1099,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 		  struct all_addr a;
 		  struct blockdata *key;
 		  struct crec *crecp;
-		  
+
 		  cache_start_insert();
 		  
 		  for (p2 = ans_start, j = 0; j < ntohs(header->ancount) + ntohs(header->nscount); j++)

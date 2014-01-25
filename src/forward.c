@@ -855,42 +855,34 @@ void reply_query(int fd, int family, time_t now)
 	     and validate them with the new data. Failure to find needed data here is an internal error.
 	     Once we get to the original answer (FREC_DNSSEC_QUERY not set) and it validates,
 	     return it to the original requestor. */
-	  if (forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY))
+	  while (forward->dependent)
 	    {
-	      while (forward->dependent)
-		{
-		  struct frec *prev;
-		  
-		  if (status == STAT_SECURE)
-		    {
-		      if (forward->flags & FREC_DNSKEY_QUERY)
-			status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
-		      else if (forward->flags & FREC_DS_QUERY)
-			status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
-		    }
-		  
-		  prev = forward->dependent;
-		  free_frec(forward);
-		  forward = prev;
-		  forward->blocking_query = NULL; /* already gone */
-		  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
-                  n = forward->stash_len;
-		}
+	      struct frec *prev = forward->dependent;
+	      free_frec(forward);
+	      forward = prev;
+	      forward->blocking_query = NULL; /* already gone */
+	      blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
+	      n = forward->stash_len;
 	      
-	      /* All DNSKEY and DS records done and in cache, now finally validate original 
-		 answer, provided last DNSKEY is OK. */
 	      if (status == STAT_SECURE)
-		status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);
-	      
-	      if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
 		{
-		  my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
-		  status = STAT_INSECURE;
+		  if (forward->flags & FREC_DNSKEY_QUERY)
+		    status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		  else if (forward->flags & FREC_DS_QUERY)
+		    status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, forward->class);
+		  else
+		    status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class);	
+		  
+		  if (status == STAT_NEED_DS || status == STAT_NEED_KEY)
+		    {
+		      my_syslog(LOG_ERR, _("Unexpected missing data for DNSSEC validation"));
+		      status = STAT_INSECURE;
+		    }
 		}
 	    }
 	  
 	  if (status == STAT_TRUNCATED)
-	     header->hb3 |= HB3_TC;
+	    header->hb3 |= HB3_TC;
 	  else
 	    log_query(F_KEYTAG | F_SECSTAT, "result", NULL, 
 		      status == STAT_SECURE ? "SECURE" : (status == STAT_INSECURE ? "INSECURE" : "BOGUS"));

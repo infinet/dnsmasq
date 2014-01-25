@@ -1710,32 +1710,33 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		}
 	      else if ((crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
 		{
-#ifdef HAVE_DNSSEC
-		  if (!(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) && 
-		      (crecp->flags & F_DNSSECOK) &&
-		      !(crecp->flags & F_NEG) && 
-		      sec_reqd &&
-		      option_bool(OPT_DNSSEC_VALID))
+		  if (!(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) && sec_reqd)
 		    {
-		      int gotsig = 0;
-		      
-		      crecp = NULL;
-		      while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
+		      if (!option_bool(OPT_DNSSEC_VALID) || ((crecp->flags & F_NEG) && (crecp->flags & F_DNSSECOK)))
+			crecp = NULL;
+#ifdef HAVE_DNSSEC
+		      else if (crecp->flags & F_DNSSECOK)
 			{
-			  if (crecp->addr.sig.type_covered == T_PTR && crecp->uid == C_IN)
+			  int gotsig = 0;
+			  
+			  crecp = NULL;
+			  while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
 			    {
-			      char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
-			      gotsig = 1;
-			      
-			      if (!dryrun && 
-				  add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						      crecp->ttd - now, &nameoffset,
-						      T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
-				anscount++;
-			    }
-			} 
-		      /* Need to re-run original cache search */
-		      crecp = gotsig ? cache_find_by_addr(NULL, &addr, now, is_arpa) : NULL;
+			      if (crecp->addr.sig.type_covered == T_PTR && crecp->uid == C_IN)
+				{
+				  char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
+				  gotsig = 1;
+				  
+				  if (!dryrun && 
+				      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							  crecp->ttd - now, &nameoffset,
+							  T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
+				    anscount++;
+				}
+			    } 
+			  /* Need to re-run original cache search */
+			  crecp = gotsig ? cache_find_by_addr(NULL, &addr, now, is_arpa) : NULL;
+			}
 		    }
 #endif
 
@@ -1918,42 +1919,45 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      crecp = save;
 		    }
 
-#ifdef HAVE_DNSSEC
-		  if (!(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) && 
-		      (crecp->flags & F_DNSSECOK) &&
-		      !(crecp->flags & F_NEG) && 
-		      sec_reqd &&
-		      option_bool(OPT_DNSSEC_VALID))
+		  /* If the client asked for DNSSEC and we can't provide RRSIGs, either
+		     because we've not doing DNSSEC or the cached answer is signed by negative,
+		     don't answer from the cache, forward instead. */
+		  if (!(crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) && sec_reqd)
 		    {
-		      /* We're returning validated data, need to return the RRSIG too. */
-
-		      int sigtype = type;
-		      /* The signature may have expired even though the data is still in cache, 
-			 forward instead of answering from cache if so. */
-		      int gotsig = 0;
-		      
-		      if (crecp->flags & F_CNAME)
-			sigtype = T_CNAME;
-		      
-		      crecp = NULL;
-		      while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
+		      if (!option_bool(OPT_DNSSEC_VALID) || ((crecp->flags & F_NEG) && (crecp->flags & F_DNSSECOK)))
+			crecp = NULL;
+#ifdef HAVE_DNSSEC
+		      else if (crecp->flags & F_DNSSECOK)
 			{
-			  if (crecp->addr.sig.type_covered == sigtype && crecp->uid == C_IN)
+			  /* We're returning validated data, need to return the RRSIG too. */
+			  
+			  int sigtype = type;
+			  /* The signature may have expired even though the data is still in cache, 
+			     forward instead of answering from cache if so. */
+			  int gotsig = 0;
+			  
+			  if (crecp->flags & F_CNAME)
+			    sigtype = T_CNAME;
+			  
+			  crecp = NULL;
+			  while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
 			    {
-			      char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
-			      gotsig = 1;
-
-			      if (!dryrun && 
-				  add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						      crecp->ttd - now, &nameoffset,
-						      T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
-				anscount++;
+			      if (crecp->addr.sig.type_covered == sigtype && crecp->uid == C_IN)
+				{
+				  char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
+				  gotsig = 1;
+				  
+				  if (!dryrun && 
+				      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							  crecp->ttd - now, &nameoffset,
+							  T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
+				    anscount++;
+				}
 			    }
+			  /* Need to re-run original cache search */
+			  crecp = gotsig ? cache_find_by_name(NULL, name, now, flag | F_CNAME) : NULL;
 			}
-		      /* Need to re-run original cache search */
-		      crecp = gotsig ? cache_find_by_name(NULL, name, now, flag | F_CNAME) : NULL;
-		    }
-		 
+		    }		 
 #endif
 		  if (crecp)
 		    do
