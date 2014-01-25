@@ -539,6 +539,12 @@ struct hostsfile {
 #define FREC_DNSKEY_QUERY       8
 #define FREC_DS_QUERY          16
 
+#ifdef HAVE_DNSSEC
+#define HASH_SIZE 20 /* SHA-1 digest size */
+#else
+#define HASH_SIZE sizeof(int)
+#endif
+
 struct frec {
   union mysockaddr source;
   struct all_addr dest;
@@ -550,9 +556,9 @@ struct frec {
   unsigned int iface;
   unsigned short orig_id, new_id;
   int fd, forwardall, flags;
-  unsigned int crc;
   time_t time;
-#ifdef HAVE_DNSSEC
+  unsigned char *hash[HASH_SIZE];
+#ifdef HAVE_DNSSEC 
   int class;
   struct blockdata *stash; /* Saved reply, whilst we validate */
   size_t stash_len;
@@ -1070,6 +1076,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char 
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
+unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);
 
 /* util.c */
 void rand_init(void);

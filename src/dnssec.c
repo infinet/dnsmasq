@@ -1366,5 +1366,35 @@ size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, i
 
   return add_do_bit(header, p - (unsigned char *)header, end);
 }
+
+unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name)
+{
+  int q;
+  unsigned int len;
+  unsigned char *p = (unsigned char *)(header+1);
+  const struct nettle_hash *hash;
+  void *ctx;
+  unsigned char *digest;
   
+  if (!(hash = hash_find("sha1")) || !hash_init(hash, &ctx, &digest))
+    return NULL;
+  
+  for (q = ntohs(header->qdcount); q != 0; q--) 
+    {
+      if (!extract_name(header, plen, &p, name, 1, 4))
+	return digest; /* bad packet */
+      
+      len = to_wire(name);
+      hash->update(ctx, len, (unsigned char *)name);
+      /* CRC the class and type as well */
+      hash->update(ctx, 4, p);
+
+      p += 4;
+      if (!CHECK_LEN(header, p, plen, 0))
+	return digest; /* bad packet */
+    }
+
+  return digest;
+}
+
 #endif /* HAVE_DNSSEC */

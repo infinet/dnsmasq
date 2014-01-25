@@ -16,11 +16,11 @@
 
 #include "dnsmasq.h"
 
-static struct frec *lookup_frec(unsigned short id, unsigned int crc);
+static struct frec *lookup_frec(unsigned short id, void *hash);
 static struct frec *lookup_frec_by_sender(unsigned short id,
 					  union mysockaddr *addr,
-					  unsigned int crc);
-static unsigned short get_id(unsigned int crc);
+					  void *hash);
+static unsigned short get_id(void);
 static void free_frec(struct frec *f);
 static struct randfd *allocate_rfd(int family);
 
@@ -239,18 +239,23 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   char *domain = NULL;
   int type = 0, norebind = 0;
   struct all_addr *addrp = NULL;
-  unsigned int crc = questions_crc(header, plen, daemon->namebuff);
   unsigned int flags = 0;
-  unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
   struct server *start = NULL;
-  
+#ifdef HAVE_DNSSEC
+  void *hash = hash_questions(header, plen, daemon->namebuff);
+#else
+  unsigned int crc = questions_crc(header, plen, daemon->namebuff);
+  void *hash = &crc;
+#endif
+ unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
+
   /* RFC 4035: sect 4.6 para 2 */
   header->hb4 &= ~HB4_AD;
   
   /* may be no servers available. */
   if (!daemon->servers)
     forward = NULL;
-  else if (forward || (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, crc)))
+  else if (forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
     {
 #ifdef HAVE_DNSSEC
       /* If we've already got an answer to this query, but we're awaiting keys for vaildation,
@@ -320,9 +325,9 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  forward->dest = *dst_addr;
 	  forward->iface = dst_iface;
 	  forward->orig_id = ntohs(header->id);
-	  forward->new_id = get_id(crc);
+	  forward->new_id = get_id();
 	  forward->fd = udpfd;
-	  forward->crc = crc;
+	  memcpy(forward->hash, hash, HASH_SIZE);
 	  forward->forwardall = 0;
 	  forward->flags = 0;
 	  if (norebind)
@@ -653,7 +658,11 @@ void reply_query(int fd, int family, time_t now)
   ssize_t n = recvfrom(fd, daemon->packet, daemon->packet_buff_sz, 0, &serveraddr.sa, &addrlen);
   size_t nn;
   struct server *server;
-  
+  void *hash;
+#ifndef HAVE_DNSSEC
+  unsigned int crc;
+#endif
+
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
@@ -671,10 +680,17 @@ void reply_query(int fd, int family, time_t now)
       break;
    
   header = (struct dns_header *)daemon->packet;
+
+#ifdef HAVE_DNSSEC
+  hash = hash_questions(header, n, daemon->namebuff);
+#else
+  hash = &crc;
+  crc = questions_crc(header, n, daemon->namebuff);
+#endif
   
   if (!server ||
       n < (int)sizeof(struct dns_header) || !(header->hb3 & HB3_QR) ||
-      !(forward = lookup_frec(ntohs(header->id), questions_crc(header, n, daemon->namebuff))))
+      !(forward = lookup_frec(ntohs(header->id), hash)))
     return;
 
   if ((RCODE(header) == SERVFAIL || RCODE(header) == REFUSED) &&
@@ -813,8 +829,9 @@ void reply_query(int fd, int family, time_t now)
 			  nn = dnssec_generate_query(header,((char *) header) + daemon->packet_buff_sz,
 						     daemon->keyname, forward->class, T_DS, &server->addr);
 			}
-		      new->crc = questions_crc(header, nn, daemon->namebuff);
-		      new->new_id = get_id(new->crc);
+		      if ((hash = hash_questions(header, nn, daemon->namebuff)))
+			memcpy(new->hash, hash, HASH_SIZE);
+		      new->new_id = get_id();
 		      header->id = htons(new->new_id);
 		      /* Save query for retransmission */
 		      new->stash = blockdata_alloc((char *)header, nn);
@@ -1357,8 +1374,13 @@ unsigned char *tcp_request(int confd, time_t now,
 	      if (!flags && last_server)
 		{
 		  struct server *firstsendto = NULL;
+#ifdef HAVE_DNSSEC
+		  unsigned char *newhash, *hash[HASH_SIZE];
+		  if ((newhash = hash_questions(header, (unsigned int)size, daemon->keyname)))
+		    memcpy(hash, newhash, HASH_SIZE);
+#else
 		  unsigned int crc = questions_crc(header, (unsigned int)size, daemon->namebuff);
-		  
+#endif		  
 		  /* Loop round available servers until we succeed in connecting to one.
 		     Note that this code subtley ensures that consecutive queries on this connection
 		     which can go to the same server, do so. */
@@ -1481,10 +1503,18 @@ unsigned char *tcp_request(int confd, time_t now,
 		      /* If the crc of the question section doesn't match the crc we sent, then
 			 someone might be attempting to insert bogus values into the cache by 
 			 sending replies containing questions and bogus answers. */
-		      if (crc == questions_crc(header, (unsigned int)m, daemon->namebuff))
-			m = process_reply(header, now, last_server, (unsigned int)m, 
-					  option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
-					  cache_secure, check_subnet, &peer_addr); 
+#ifdef HAVE_DNSSEC
+		      newhash = hash_questions(header, (unsigned int)m, daemon->namebuff);
+		      if (!newhash || memcmp(hash, newhash, HASH_SIZE) != 0)
+			break;
+#else			  
+		      if (crc != questions_crc(header, (unsigned int)m, daemon->namebuff))
+			break;
+#endif
+
+		      m = process_reply(header, now, last_server, (unsigned int)m, 
+					option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
+					cache_secure, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }
@@ -1674,13 +1704,13 @@ struct frec *get_new_frec(time_t now, int *wait, int force)
 }
  
 /* crc is all-ones if not known. */
-static struct frec *lookup_frec(unsigned short id, unsigned int crc)
+static struct frec *lookup_frec(unsigned short id, void *hash)
 {
   struct frec *f;
 
   for(f = daemon->frec_list; f; f = f->next)
     if (f->sentto && f->new_id == id && 
-	(f->crc == crc || crc == 0xffffffff))
+	(!hash || memcmp(hash, f->hash, HASH_SIZE) == 0))
       return f;
       
   return NULL;
@@ -1688,14 +1718,14 @@ static struct frec *lookup_frec(unsigned short id, unsigned int crc)
 
 static struct frec *lookup_frec_by_sender(unsigned short id,
 					  union mysockaddr *addr,
-					  unsigned int crc)
+					  void *hash)
 {
   struct frec *f;
   
   for(f = daemon->frec_list; f; f = f->next)
     if (f->sentto &&
 	f->orig_id == id && 
-	f->crc == crc &&
+	memcmp(hash, f->hash, HASH_SIZE) == 0 &&
 	sockaddr_isequal(&f->source, addr))
       return f;
    
@@ -1719,13 +1749,13 @@ void server_gone(struct server *server)
 }
 
 /* return unique random ids. */
-static unsigned short get_id(unsigned int crc)
+static unsigned short get_id(void)
 {
   unsigned short ret = 0;
   
   do 
     ret = rand16();
-  while (lookup_frec(ret, crc));
+  while (lookup_frec(ret, NULL));
   
   return ret;
 }
