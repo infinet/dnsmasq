@@ -1335,7 +1335,7 @@ size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, i
   unsigned char *p;
   char types[20];
   
-  querystr("dnssec", types, type);
+  querystr("dnssec-query", types, type);
 
   if (addr->sa.sa_family == AF_INET) 
     log_query(F_DNSSEC | F_IPV4, name, (struct all_addr *)&addr->in.sin_addr, types);
