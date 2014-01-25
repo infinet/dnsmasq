@@ -386,7 +386,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       if (option_bool(OPT_DNSSEC_VALID))
 	{
 	  plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
-	  header->hb4 |= HB4_CD;
+	  /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
+	     this allows it to select auth servers when one is returning bad data. */
+	  if (option_bool(OPT_DNSSEC_DEBUG))
+	    header->hb4 |= HB4_CD;
 	}
 #endif
 

@@ -231,7 +231,8 @@ struct event_desc {
 #define OPT_QUIET_RA	   44
 #define OPT_DNSSEC_VALID   45
 #define OPT_DNSSEC_PERMISS 46
-#define OPT_LAST           47
+#define OPT_DNSSEC_DEBUG   47
+#define OPT_LAST           48
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */

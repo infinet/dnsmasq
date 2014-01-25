@@ -1737,8 +1737,8 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  /* Need to re-run original cache search */
 			  crecp = gotsig ? cache_find_by_addr(NULL, &addr, now, is_arpa) : NULL;
 			}
-		    }
 #endif
+		    }
 
 		  if (crecp)
 		    {
@@ -1957,8 +1957,9 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  /* Need to re-run original cache search */
 			  crecp = gotsig ? cache_find_by_name(NULL, name, now, flag | F_CNAME) : NULL;
 			}
-		    }		 
 #endif
+		    }		 
+
 		  if (crecp)
 		    do
 		      { 

@@ -1351,7 +1351,9 @@ size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, i
 
   header->hb3 = HB3_RD; 
   SET_OPCODE(header, QUERY);
-  header->hb4 = HB4_CD;
+  /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
+     this allows it to select auth servers when one is returning bad data. */
+  header->hb4 = option_bool(OPT_DNSSEC_DEBUG) ? HB4_CD : 0;
 
   /* ID filled in later */
 
