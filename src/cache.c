@@ -1003,7 +1003,7 @@ void cache_reload(void)
 	cache->addr.key.algo = key->algo;
 	cache->addr.key.flags = key->flags;
 	cache->addr.key.keytag = dnskey_keytag(key->algo, key->flags, (unsigned char *)key->key, key->keylen);
-	cache->uid = C_IN; /* TODO - in option? */
+	cache->uid = key->class;
 	cache_hash(cache);
       }
 #endif

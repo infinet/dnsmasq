@@ -3682,13 +3682,32 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       {
 	struct dnskey *new = opt_malloc(sizeof(struct dnskey));
       	char *key64, *algo;
- 
-       	if (!(comma = split(arg)) || !(algo = split(comma)) || !(key64 = split(algo)) ||
-	      !atoi_check16(comma, &new->flags) || !atoi_check16(algo, &new->algo) ||
-	      !(new->name = canonicalise_opt(arg)))
-	  ret_err(_("bad DNSKEY"));
-       
+	
+	new->class = C_IN;
 
+	if ((comma = split(arg)) && (algo = split(comma)))
+	  {
+	    int class = 0;
+	    if (strcmp(comma, "IN") == 0)
+	      class = C_IN;
+	    else if (strcmp(comma, "CH") == 0)
+	      class = C_CHAOS;
+	    else if (strcmp(comma, "HS") == 0)
+	      class = C_HESIOD;
+	    
+	    if (class != 0)
+	      {
+		new->class = class;
+		comma = algo;
+		algo = split(comma);
+	      }
+	  }
+		  
+       	if (!comma || !algo || !(key64 = split(algo)) ||
+	    !atoi_check16(comma, &new->flags) || !atoi_check16(algo, &new->algo) ||
+	    !(new->name = canonicalise_opt(arg)))
+	  ret_err(_("bad DNSKEY"));
+	    
 	/* Upper bound on length */
 	new->key = opt_malloc((3*strlen(key64)/4)+1);
 	unhide_metas(key64);

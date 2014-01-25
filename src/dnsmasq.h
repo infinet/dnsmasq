@@ -297,7 +297,7 @@ struct cname {
 
 struct dnskey {
   char *name, *key;
-  int keylen, algo, flags;
+  int keylen, class, algo, flags;
   struct dnskey *next;
 };
 
