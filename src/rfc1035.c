@@ -1559,9 +1559,13 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	  if (crecp)
 	    {
 	      if (qtype == T_RRSIG)
-		ans = gotone = 1;
+		{
+		  ans = gotone = 1;
+		  auth = 0;
+		}
 	      else if (qtype == T_DS)
 		{
+		  auth = 0;
 		  crecp = NULL;
 		  while ((crecp = cache_find_by_name(crecp, name, now, F_DS)))
 		    if (crecp->uid == qclass)
@@ -1587,6 +1591,8 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY)))
 		      if (crecp->uid == qclass)
 			{
+			  if (!(crecp->flags & F_CONFIG))
+			    auth = 0;
 			  ans = gotone = 1;
 			  if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->addr.key.keylen, NULL)))
 			    {			     			      
