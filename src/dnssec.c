@@ -795,18 +795,16 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
       GETSHORT(qclass, p);
       GETLONG(ttl, p);
       GETSHORT(rdlen, p);
-
-      if (qclass != class || qtype != T_DNSKEY || rc == 2)
-	{
-	  if (ADD_RDLEN(header, p, plen, rdlen))
-	    continue;
-
-	  return STAT_INSECURE; /* bad packet */
-	}
-      
+ 
       if (!CHECK_LEN(header, p, plen, rdlen) || rdlen < 4)
 	return STAT_INSECURE; /* bad packet */
       
+      if (qclass != class || qtype != T_DNSKEY || rc == 2)
+	{
+	  p += rdlen;
+	  continue;
+	}
+            
       psave = p;
       
       GETSHORT(flags, p);
