@@ -556,14 +556,6 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
      header->hb4 &= ~HB4_AD;
   
-#ifdef HAVE_DNSSEC
-  if (option_bool(OPT_DNSSEC_VALID))
-    header->hb4 &= ~HB4_AD;
-  
-  if (!(header->hb4 & HB4_CD) && cache_secure)
-    header->hb4 |= HB4_AD;
-#endif
-  
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
     return n;
   
@@ -583,9 +575,12 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
       munged = 1;
       SET_RCODE(header, NXDOMAIN);
       header->hb3 &= ~HB3_AA;
+      cache_secure = 0;
     }
   else 
     {
+      int doctored = 0;
+      
       if (RCODE(header) == NXDOMAIN && 
 	  extract_request(header, n, daemon->namebuff, NULL) &&
 	  check_for_local_domain(daemon->namebuff, now))
@@ -596,13 +591,18 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  munged = 1;
 	  header->hb3 |= HB3_AA;
 	  SET_RCODE(header, NOERROR);
+	  cache_secure = 0;
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure))
+      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure, &doctored))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
+	  cache_secure = 0;
 	}
+
+      if (doctored)
+	cache_secure = 0;
     }
   
 #ifdef HAVE_DNSSEC
@@ -615,6 +615,12 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  munged = 1;
 	}
     }
+
+  if (option_bool(OPT_DNSSEC_VALID))
+    header->hb4 &= ~HB4_AD;
+  
+  if (!(header->hb4 & HB4_CD) && cache_secure)
+    header->hb4 |= HB4_AD;
 #endif
 
   /* do this after extract_addresses. Ensure NODATA reply and remove

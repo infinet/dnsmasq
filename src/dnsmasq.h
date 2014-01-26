@@ -1037,7 +1037,7 @@ size_t setup_reply(struct dns_header *header, size_t  qlen,
 		   unsigned long local_ttl);
 int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff, 
 		      time_t now, char **ipsets, int is_sign, int checkrebind,
-		      int no_cache, int secure);
+		      int no_cache, int secure, int *doctored);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 

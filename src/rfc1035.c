@@ -754,7 +754,7 @@ int private_net(struct in_addr addr, int ban_localhost)
     ((ip_addr & 0xFFFF0000) == 0xA9FE0000)  /* 169.254.0.0/16 (zeroconf) */ ;
 }
 
-static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *header, size_t qlen, char *name)
+static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *header, size_t qlen, char *name, int *doctored)
 {
   int i, qtype, qclass, rdlen;
 
@@ -799,6 +799,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *
 	      addr.s_addr |= (doctor->out.s_addr & doctor->mask.s_addr);
 	      /* Since we munged the data, the server it came from is no longer authoritative */
 	      header->hb3 &= ~HB3_AA;
+	      *doctored = 1;
 	      memcpy(p, &addr, INADDRSZ);
 	      break;
 	    }
@@ -837,7 +838,7 @@ static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *
   return p; 
 }
 
-static int find_soa(struct dns_header *header, size_t qlen, char *name)
+static int find_soa(struct dns_header *header, size_t qlen, char *name, int *doctored)
 {
   unsigned char *p;
   int qtype, qclass, rdlen;
@@ -846,7 +847,7 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
   
   /* first move to NS section and find TTL from any SOA section */
   if (!(p = skip_questions(header, qlen)) ||
-      !(p = do_doctor(p, ntohs(header->ancount), header, qlen, name)))
+      !(p = do_doctor(p, ntohs(header->ancount), header, qlen, name, doctored)))
     return 0;  /* bad packet */
   
   for (i = ntohs(header->nscount); i != 0; i--)
@@ -881,8 +882,8 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
 	return 0; /* bad packet */
     }
   
-  /* rewrite addresses in additioal section too */
-  if (!do_doctor(p, ntohs(header->arcount), header, qlen, NULL))
+  /* rewrite addresses in additional section too */
+  if (!do_doctor(p, ntohs(header->arcount), header, qlen, NULL, doctored))
     return 0;
   
   if (!found_soa)
@@ -896,7 +897,7 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name)
    expired and cleaned out that way. 
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
 int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
-		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec, int secure)
+		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec, int secure, int *doctored)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -911,10 +912,14 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
   cache_start_insert();
 
   /* find_soa is needed for dns_doctor and logging side-effects, so don't call it lazily if there are any. */
-  if (daemon->doctors || option_bool(OPT_LOG))
+  if (daemon->doctors || option_bool(OPT_LOG) || option_bool(OPT_DNSSEC_VALID))
     {
       searched_soa = 1;
-      ttl = find_soa(header, qlen, name);
+      ttl = find_soa(header, qlen, name, doctored);
+#ifdef HAVE_DNSSEC
+      if (*doctored)
+	secure = 0;
+#endif
     }
   
   /* go through the questions. */
@@ -1004,7 +1009,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen, NULL);
+		  ttl = find_soa(header, qlen, NULL, doctored);
 		}
 	      if (ttl)
 		cache_insert(NULL, &addr, now, ttl, name_encoding | F_REVERSE | F_NEG | flags | secflag);	
@@ -1120,7 +1125,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	      if (!searched_soa)
 		{
 		  searched_soa = 1;
-		  ttl = find_soa(header, qlen, NULL);
+		  ttl = find_soa(header, qlen, NULL, doctored);
 		}
 	      /* If there's no SOA to get the TTL from, but there is a CNAME 
 		 pointing at this, inherit its TTL */
