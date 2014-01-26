@@ -140,8 +140,7 @@ struct myoption {
 #define LOPT_QUIET_RA     328
 #define LOPT_SEC_VALID    329
 #define LOPT_DNSKEY       330
-#define LOPT_DNSSEC_PERM  331
-#define LOPT_DNSSEC_DEBUG 332
+#define LOPT_DNSSEC_DEBUG 331
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -279,7 +278,6 @@ static const struct myoption opts[] =
     { "synth-domain", 1, 0, LOPT_SYNTH },
     { "dnssec", 0, 0, LOPT_SEC_VALID },
     { "dnskey", 1, 0, LOPT_DNSKEY },
-    { "dnssec-permissive", 0, 0, LOPT_DNSSEC_PERM },
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
@@ -433,7 +431,6 @@ static struct {
   { LOPT_SYNTH, ARG_DUP, "<domain>,<range>,[<prefix>]", gettext_noop("Specify a domain and address range for synthesised names"), NULL },
   { LOPT_SEC_VALID, OPT_DNSSEC_VALID, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
   { LOPT_DNSKEY, ARG_DUP, "<domain>,<algo>,<key>", gettext_noop("Specify trust anchor DNSKEY"), NULL },
-  { LOPT_DNSSEC_PERM, OPT_DNSSEC_PERMISS, NULL, gettext_noop("Do NOT return SERVFAIL whne DNSSEC validation fails."), NULL },
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },

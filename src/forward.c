@@ -608,20 +608,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 #ifdef HAVE_DNSSEC
   if (no_cache && !(header->hb4 & HB4_CD)) 
     {
-      if (option_bool(OPT_DNSSEC_PERMISS))
-	{
-	  unsigned short type;
-	  char types[20];
-	  
-	  if (extract_request(header, (size_t)n, daemon->namebuff, &type))
-	    {
-	      querystr("", types, type);
-	      my_syslog(LOG_WARNING, _("DNSSEC validation failed: query %s%s"), daemon->namebuff, types);
-	    }
-	  else
-	    my_syslog(LOG_WARNING, _("DNSSEC validation failed for unknown query"));
-	}
-      else
+      if (!option_bool(OPT_DNSSEC_DEBUG))
 	{
 	  /* Bogus reply, turn into SERVFAIL */
 	  SET_RCODE(header, SERVFAIL);

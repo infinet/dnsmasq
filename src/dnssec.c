@@ -1382,7 +1382,7 @@ unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name
   for (q = ntohs(header->qdcount); q != 0; q--) 
     {
       if (!extract_name(header, plen, &p, name, 1, 4))
-	return digest; /* bad packet */
+	break; /* bad packet */
       
       len = to_wire(name);
       hash->update(ctx, len, (unsigned char *)name);
@@ -1391,7 +1391,7 @@ unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name
 
       p += 4;
       if (!CHECK_LEN(header, p, plen, 0))
-	return digest; /* bad packet */
+	break; /* bad packet */
     }
   
   hash->digest(ctx, hash->digest_size, digest);
