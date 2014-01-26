@@ -360,6 +360,7 @@ static unsigned char *skip_section(unsigned char *ansp, int count, struct dns_he
    than CRC the raw bytes, since replies might be compressed differently. 
    We ignore case in the names for the same reason. Return all-ones
    if there is not question section. */
+#ifndef HAVE_DNSSEC
 unsigned int questions_crc(struct dns_header *header, size_t plen, char *name)
 {
   int q;
@@ -400,7 +401,7 @@ unsigned int questions_crc(struct dns_header *header, size_t plen, char *name)
 
   return crc;
 }
-
+#endif
 
 size_t resize_packet(struct dns_header *header, size_t plen, unsigned char *pheader, size_t hlen)
 {
