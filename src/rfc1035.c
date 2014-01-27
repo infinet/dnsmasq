@@ -2272,6 +2272,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 
     }
   
-  return len                           ;
+  return len;
 }
 
