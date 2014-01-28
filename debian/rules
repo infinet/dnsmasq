@@ -17,7 +17,7 @@ CFLAGS += -Wall -W
 
 LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 
-COPTS = 
+COPTS =
 
 TARGET = install-i18n
 
@@ -75,6 +75,10 @@ endif
 
 ifneq (,$(filter uselua,$(DEB_BUILD_OPTIONS)))
      COPTS += -DHAVE_LUASCRIPT
+endif
+
+ifneq (,$(filter usednssec,$(DEB_BUILD_OPTIONS)))
+     COPTS += -DHAVE_DNSSEC
 endif
 
 clean:

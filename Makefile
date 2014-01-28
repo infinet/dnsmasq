@@ -100,8 +100,8 @@ all-i18n : $(BUILDDIR)
 	@cd $(BUILDDIR) && $(MAKE) \
  top="$(top)" \
  i18n=-DLOCALEDIR=\'\"$(LOCALEDIR)\"\' \
- build_cflags="$(version) $(dbus_cflags) $(ct_cflags) $(lua_cflags) `$(PKG_CONFIG) --cflags libidn`" \
- build_libs="$(dbus_libs) $(ct_libs) $(lua_libs) $(sunos_libs) `$(PKG_CONFIG) --libs libidn`"  \
+ build_cflags="$(version) $(dbus_cflags) $(ct_cflags) $(lua_cflags) $(nettle_cflags) `$(PKG_CONFIG) --cflags libidn`" \
+ build_libs="$(dbus_libs) $(ct_libs) $(lua_libs) $(sunos_libs) $(nettle_libs) `$(PKG_CONFIG) --libs libidn`"  \
  -f $(top)/Makefile dnsmasq
 	for f in `cd $(PO); echo *.po`; do \
 		cd $(top) && cd $(BUILDDIR) && $(MAKE) top="$(top)" -f $(top)/Makefile $${f%.po}.mo; \
