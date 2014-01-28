@@ -17,7 +17,7 @@ CFLAGS += -Wall -W
 
 LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 
-COPTS =
+DEB_COPTS = $(COPTS)
 
 TARGET = install-i18n
 
@@ -29,56 +29,56 @@ ifneq (,$(filter gitversion,$(DEB_BUILD_OPTIONS)))
 endif
 
 ifeq (,$(filter nodbus,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DHAVE_DBUS
+     DEB_COPTS += -DHAVE_DBUS
 endif
 
 ifeq (,$(filter noconntrack,$(DEB_BUILD_OPTIONS)))
 ifeq ($(DEB_BUILD_ARCH_OS),linux)
-     COPTS += -DHAVE_CONNTRACK
+     DEB_COPTS += -DHAVE_CONNTRACK
 endif
 endif
 
 ifneq (,$(filter noipset,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_IPSET
+     DEB_COPTS += -DNO_IPSET
 endif
 
 ifneq (,$(filter nodhcp6,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_DHCP6
+     DEB_COPTS += -DNO_DHCP6
 endif
 
 ifneq (,$(filter noipv6,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_IPV6
+     DEB_COPTS += -DNO_IPV6
 endif
 
 ifneq (,$(filter notftp,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_TFTP
+     DEB_COPTS += -DNO_TFTP
 endif
 
 ifneq (,$(filter nodhcp,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_DHCP
+     DEB_COPTS += -DNO_DHCP
 endif
 
 ifneq (,$(filter noscript,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DNO_SCRIPT
+     DEB_COPTS += -DNO_SCRIPT
 endif
 
 ifneq (,$(filter nortc,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DHAVE_BROKEN_RTC
+     DEB_COPTS += -DHAVE_BROKEN_RTC
 endif
 
 ifneq (,$(filter noi18n,$(DEB_BUILD_OPTIONS)))
      TARGET = install
      ifeq (,$(filter noidn, $(DEB_BUILD_OPTIONS)))
-	COPTS += -DHAVE_IDN
+	DEB_COPTS += -DHAVE_IDN
      endif	
 endif
 
 ifneq (,$(filter uselua,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DHAVE_LUASCRIPT
+     DEB_COPTS += -DHAVE_LUASCRIPT
 endif
 
 ifneq (,$(filter usednssec,$(DEB_BUILD_OPTIONS)))
-     COPTS += -DHAVE_DNSSEC
+     DEB_COPTS += -DHAVE_DNSSEC
 endif
 
 clean:
@@ -127,7 +127,7 @@ binary-arch:	checkroot
 		-d debian/base/usr/share/doc/$(package)/examples \
 	        -d debian/base/var/run \
 	        -d debian/base/var/lib/misc
-	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(COPTS)" CC=gcc
+	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
 ifeq (,$(findstring nodocs,$(DEB_BUILD_OPTIONS)))
 	install -m 644 doc.html debian/base/usr/share/doc/$(package)/.
 	install -m 644 setup.html debian/base/usr/share/doc/$(package)/.
@@ -171,7 +171,7 @@ ifeq ($(DEB_BUILD_ARCH_OS),linux)
                        -d debian/utils/usr/share/man/man1 \
 	               -d debian/utils/usr/bin \
                        -d debian/utils/usr/share/doc/dnsmasq-utils
-	make -C contrib/wrt PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(COPTS)" CC=gcc
+	make -C contrib/wrt PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
 	install -m 755 contrib/wrt/dhcp_release debian/utils/usr/bin/dhcp_release
 	install -m 644 contrib/wrt/dhcp_release.1 debian/utils/usr/share/man/man1/dhcp_release.1
 	gzip -9 debian/utils/usr/share/man/man1/dhcp_release.1
