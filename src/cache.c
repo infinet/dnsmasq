@@ -345,7 +345,8 @@ static int cache_scan_free(char *name, struct all_addr *addr, time_t now, unsign
 #ifdef HAVE_DNSSEC
 	      /* Deletion has to be class-sensitive for DS, DNSKEY, RRSIG, also 
 		 type-covered sensitive for  RRSIG */
-	      if ((flags & (F_DNSKEY | F_DS)) == (crecp->flags & (F_DNSKEY | F_DS)) &&
+	      if ((flags & (F_DNSKEY | F_DS)) &&
+		  (flags & (F_DNSKEY | F_DS)) == (crecp->flags & (F_DNSKEY | F_DS)) &&
 		  crecp->uid == addr->addr.dnssec.class &&
 		  (!((flags & (F_DS | F_DNSKEY)) == (F_DS | F_DNSKEY)) || 
 		   crecp->addr.sig.type_covered == addr->addr.dnssec.type))
