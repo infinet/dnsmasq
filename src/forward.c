@@ -1549,6 +1549,7 @@ static struct frec *allocate_frec(time_t now)
       f->rfd6 = NULL;
 #endif
 #ifdef HAVE_DNSSEC
+      f->dependent = NULL;
       f->blocking_query = NULL;
       f->stash = NULL;
 #endif
