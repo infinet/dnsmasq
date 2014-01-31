@@ -195,8 +195,9 @@ static void cache_free(struct crec *crecp)
       big_free = crecp->name.bname;
       crecp->flags &= ~F_BIGNAME;
     }
+
 #ifdef HAVE_DNSSEC
-  else if (crecp->flags & (F_DNSKEY | F_DS))
+  if (crecp->flags & (F_DNSKEY | F_DS))
     blockdata_free(crecp->addr.key.keydata);
 #endif
 }    
