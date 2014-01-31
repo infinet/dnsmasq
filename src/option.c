@@ -3678,7 +3678,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_DNSKEY:
       {
 	struct dnskey *new = opt_malloc(sizeof(struct dnskey));
-      	char *key64, *algo;
+      	char *key64, *algo = NULL;
 	
 	new->class = C_IN;
 
