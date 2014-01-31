@@ -18,13 +18,29 @@
 
 #ifdef HAVE_DNSSEC
 
-static struct blockdata *keyblock_free = NULL;
-static unsigned int blockdata_count = 0, blockdata_hwm = 0;
+static struct blockdata *keyblock_free;
+static unsigned int blockdata_count, blockdata_hwm, blockdata_alloced;
+
+/* Preallocate some blocks, proportional to cachesize, to reduce heap fragmentation. */
+void blockdata_init(void)
+{
+  int i;
+
+  blockdata_alloced = (daemon->cachesize * 100) / sizeof(struct blockdata);
+   
+  keyblock_free = safe_malloc(blockdata_alloced * sizeof(struct blockdata));
+  keyblock_free[blockdata_alloced-1].next = NULL;
+  for (i = 0; i < blockdata_alloced - 1; i++)
+    keyblock_free[i].next = &keyblock_free[i+1];
+  
+  blockdata_count = 0;
+  blockdata_hwm = 0;
+}
 
 void blockdata_report(void)
 {
-  my_syslog(LOG_INFO, _("DNSSEC memory in use %u, max %u"), 
-	    blockdata_count * sizeof(struct blockdata),  blockdata_hwm * sizeof(struct blockdata));
+  my_syslog(LOG_INFO, _("DNSSEC memory in use %u, max %u, allocated %u"), 
+	    blockdata_count * sizeof(struct blockdata),  blockdata_hwm * sizeof(struct blockdata),  blockdata_alloced * sizeof(struct blockdata));
 } 
 
 struct blockdata *blockdata_alloc(char *data, size_t len)
@@ -44,8 +60,8 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
       else if ((block = whine_malloc(sizeof(struct blockdata))))
 	{
 	  blockdata_count++;
-	  if (blockdata_hwm < blockdata_count)
-	    blockdata_hwm = blockdata_count;
+	  if (blockdata_alloced < blockdata_count)
+	    blockdata_alloced = blockdata_count;
 	}
 	  
       if (!block)
@@ -54,6 +70,9 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
 	  blockdata_free(ret);
 	  return NULL;
 	}
+       
+      if (blockdata_hwm < blockdata_count)
+	blockdata_hwm = blockdata_count; 
       
       blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;
       memcpy(block->key, data, blen);
@@ -70,7 +89,7 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
 void blockdata_free(struct blockdata *blocks)
 {
   struct blockdata *tmp;
-
+  
   if (blocks)
     {
       for (tmp = blocks; tmp->next; tmp = tmp->next)

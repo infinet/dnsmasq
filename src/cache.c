@@ -170,7 +170,22 @@ static void cache_hash(struct crec *crecp)
   crecp->hash_next = *up;
   *up = crecp;
 }
- 
+
+#ifdef HAVE_DNSSEC
+static void cache_blockdata_free(struct crec *crecp)
+{
+  if (crecp->flags & F_DNSKEY)
+    {
+      if (crecp->flags & F_DS)
+	blockdata_free(crecp->addr.sig.keydata);
+      else
+	blockdata_free(crecp->addr.key.keydata);
+    }
+  else if (crecp->flags & F_DS)
+    blockdata_free(crecp->addr.ds.keydata);
+}
+#endif
+
 static void cache_free(struct crec *crecp)
 {
   crecp->flags &= ~F_FORWARD;
@@ -197,8 +212,7 @@ static void cache_free(struct crec *crecp)
     }
 
 #ifdef HAVE_DNSSEC
-  if (crecp->flags & (F_DNSKEY | F_DS))
-    blockdata_free(crecp->addr.key.keydata);
+  cache_blockdata_free(crecp);
 #endif
 }    
 
@@ -957,8 +971,7 @@ void cache_reload(void)
     for (cache = hash_table[i], up = &hash_table[i]; cache; cache = tmp)
       {
 #ifdef HAVE_DNSSEC
-	if (cache->flags & (F_DNSKEY | F_DS))
-	  blockdata_free(cache->addr.key.keydata);
+	cache_blockdata_free(cache);
 #endif
 	tmp = cache->hash_next;
 	if (cache->flags & (F_HOSTS | F_CONFIG))

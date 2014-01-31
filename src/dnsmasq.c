@@ -304,7 +304,12 @@ int main (int argc, char **argv)
 #endif
   
   if (daemon->port != 0)
-    cache_init();
+    {
+      cache_init();
+#ifdef HAVE_DNSSEC
+      blockdata_init();
+#endif
+    }
     
   if (option_bool(OPT_DBUS))
 #ifdef HAVE_DBUS
