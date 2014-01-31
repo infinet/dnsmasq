@@ -654,7 +654,7 @@ int main (int argc, char **argv)
     }
 #endif
   
-#ifdef HAVE_DBUS
+#ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
     my_syslog(LOG_INFO, _("DNSSEC validation enabled"));
 #endif
