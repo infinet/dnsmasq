@@ -853,7 +853,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	      if (recp1->addr.ds.keylen == (int)hash->digest_size &&
 		  (ds_digest = blockdata_retrieve(recp1->addr.key.keydata, recp1->addr.ds.keylen, NULL)) &&
 		  memcmp(ds_digest, digest, recp1->addr.ds.keylen) == 0 &&
-		  validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag))
+		  validate_rrset(now, header, plen, class, T_DNSKEY, name, keyname, key, rdlen - 4, algo, keytag) == STAT_SECURE)
 		{
 		  valid = 1;
 		  break;
