@@ -73,8 +73,7 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
 	  keyblock_free = block->next;
 	  blockdata_count++; 
 	}
-	  
-      if (!block)
+      else
 	{
 	  /* failed to alloc, free partial chain */
 	  blockdata_free(ret);

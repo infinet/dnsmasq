@@ -486,7 +486,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 	   insert. Once in this state, all inserts will probably fail. */
 	if (free_avail)
 	  {
-	    static warned = 0;
+	    static int warned = 0;
 	    if (!warned)
 	      {
 		my_syslog(LOG_ERR, _("Internal error in cache."));
