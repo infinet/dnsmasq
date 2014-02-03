@@ -1423,14 +1423,7 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
   if (flags & F_NEG)
     {
       if (flags & F_NXDOMAIN)
-	{
-	  if (flags & F_IPV4)
-	    dest = "NXDOMAIN-IPv4";
-	  else if (flags & F_IPV6)
-	    dest = "NXDOMAIN-IPv6";
-	  else
-	    dest = "NXDOMAIN";
-	}
+	dest = "NXDOMAIN";
       else
 	{      
 	  if (flags & F_IPV4)
