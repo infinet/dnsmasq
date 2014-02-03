@@ -1207,7 +1207,7 @@ static int tcp_key_recurse(time_t now, int status, int class, char *keyname, str
     {
       n = (c1 << 8) | c2;
       
-      if (status ==  STAT_NEED_KEY)
+      if (status == STAT_NEED_KEY)
 	new_status = dnssec_validate_by_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
       else
 	new_status = dnssec_validate_ds(now, header, n, daemon->namebuff, daemon->keyname, class);
