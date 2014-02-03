@@ -456,7 +456,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
   /* if previous insertion failed give up now. */
   if (insert_error)
     return NULL;
-
+  
   /* First remove any expired entries and entries for the name/address we
      are currently inserting. Fail is we attempt to delete a name from
      /etc/hosts or DHCP. */
@@ -486,14 +486,32 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 	   insert. Once in this state, all inserts will probably fail. */
 	if (free_avail)
 	  {
+	    static warned = 0;
+	    if (!warned)
+	      {
+		my_syslog(LOG_ERR, _("Internal error in cache."));
+		warned = 1;
+	      }
 	    insert_error = 1;
 	    return NULL;
 	  }
 		
 	if (freed_all)
 	  {
+	    struct all_addr free_addr = new->addr.addr;;
+
+#ifdef HAVE_DNSSEC
+	    /* For DNSSEC records, addr holds class and type_covered for RRSIG */
+	    if (new->flags & (F_DS | F_DNSKEY))
+	      {
+		free_addr.addr.dnssec.class = new->uid;
+		if ((new->flags & (F_DS | F_DNSKEY)) == (F_DS | F_DNSKEY))
+		  free_addr.addr.dnssec.type = new->addr.sig.type_covered;
+	      }
+#endif
+	    
 	    free_avail = 1; /* Must be free space now. */
-	    cache_scan_free(cache_get_name(new), &new->addr.addr, now, new->flags);
+	    cache_scan_free(cache_get_name(new), &free_addr, now, new->flags);
 	    cache_live_freed++;
 	  }
 	else
@@ -505,7 +523,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
       }
  
     /* Check if we need to and can allocate extra memory for a long name.
-       If that fails, give up now. */
+       If that fails, give up now, always succeed for DNSSEC records. */
     if (name && (strlen(name) > SMALLDNAME-1))
       {
 	if (big_free)
@@ -513,13 +531,13 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
 	    big_name = big_free;
 	    big_free = big_free->next;
 	  }
-	else if (!bignames_left ||
+	else if ((bignames_left == 0 && !(flags & (F_DS | F_DNSKEY))) ||
 		 !(big_name = (union bigname *)whine_malloc(sizeof(union bigname))))
 	  {
 	    insert_error = 1;
 	    return NULL;
 	  }
-	else
+	else if (bignames_left != 0)
 	  bignames_left--;
 	
       }

@@ -21,20 +21,33 @@
 static struct blockdata *keyblock_free;
 static unsigned int blockdata_count, blockdata_hwm, blockdata_alloced;
 
+static void blockdata_expand(int n)
+{
+  struct blockdata *new = whine_malloc(n * sizeof(struct blockdata));
+  
+  if (new)
+    {
+      int i;
+      
+      new[n-1].next = keyblock_free;
+      keyblock_free = new;
+
+      for (i = 0; i < n - 1; i++)
+	new[i].next = &new[i+1];
+
+      blockdata_alloced += n;
+    }
+}
+
 /* Preallocate some blocks, proportional to cachesize, to reduce heap fragmentation. */
 void blockdata_init(void)
 {
-  int i;
-
-  blockdata_alloced = (daemon->cachesize * 100) / sizeof(struct blockdata);
-   
-  keyblock_free = safe_malloc(blockdata_alloced * sizeof(struct blockdata));
-  keyblock_free[blockdata_alloced-1].next = NULL;
-  for (i = 0; i < blockdata_alloced - 1; i++)
-    keyblock_free[i].next = &keyblock_free[i+1];
-  
+  keyblock_free = NULL;
+  blockdata_alloced = 0;
   blockdata_count = 0;
   blockdata_hwm = 0;
+  
+  blockdata_expand((daemon->cachesize * 100) / sizeof(struct blockdata));
 }
 
 void blockdata_report(void)
@@ -51,17 +64,14 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
 
   while (len > 0)
     {
+      if (!keyblock_free)
+	blockdata_expand(50);
+      
       if (keyblock_free)
 	{
 	  block = keyblock_free;
 	  keyblock_free = block->next;
 	  blockdata_count++; 
-	}
-      else if ((block = whine_malloc(sizeof(struct blockdata))))
-	{
-	  blockdata_count++;
-	  if (blockdata_alloced < blockdata_count)
-	    blockdata_alloced = blockdata_count;
 	}
 	  
       if (!block)
