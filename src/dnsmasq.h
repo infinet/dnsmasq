@@ -423,6 +423,7 @@ struct crec {
 #define F_DNSSEC    (1u<<22)
 #define F_KEYTAG    (1u<<23)
 #define F_SECSTAT   (1u<<24)
+#define F_NO_RR     (1u<<25)
 
 
 /* struct sockaddr is not large enough to hold any address,
@@ -993,9 +994,9 @@ char *record_source(int index);
 void querystr(char *desc, char *str, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
-				unsigned short prot);
+				unsigned int prot);
 struct crec *cache_find_by_name(struct crec *crecp, 
-				char *name, time_t now, unsigned short  prot);
+				char *name, time_t now, unsigned int prot);
 void cache_end_insert(void);
 void cache_start_insert(void);
 struct crec *cache_insert(char *name, struct all_addr *addr,

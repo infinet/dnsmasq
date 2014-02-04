@@ -1242,7 +1242,7 @@ int check_for_local_domain(char *name, time_t now)
   struct ptr_record *ptr;
   struct naptr *naptr;
 
-  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6 | F_CNAME)) &&
+  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6 | F_CNAME | F_NO_RR)) &&
       (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)))
     return 1;
   
@@ -1742,24 +1742,25 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      else if (crecp->flags & F_DNSSECOK)
 			{
 			  int gotsig = 0;
-			  
-			  crecp = NULL;
-			  while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
+			  struct crec *rr_crec = NULL;
+
+			  while ((rr_crec = cache_find_by_name(rr_crec, name, now, F_DS | F_DNSKEY)))
 			    {
-			      if (crecp->addr.sig.type_covered == T_PTR && crecp->uid == C_IN)
+			      if (rr_crec->addr.sig.type_covered == T_PTR && rr_crec->uid == C_IN)
 				{
-				  char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
+				  char *sigdata = blockdata_retrieve(rr_crec->addr.sig.keydata, rr_crec->addr.sig.keylen, NULL);
 				  gotsig = 1;
 				  
 				  if (!dryrun && 
 				      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-							  crecp->ttd - now, &nameoffset,
+							  rr_crec->ttd - now, &nameoffset,
 							  T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
 				    anscount++;
 				}
 			    } 
-			  /* Need to re-run original cache search */
-			  crecp = gotsig ? cache_find_by_addr(NULL, &addr, now, is_arpa) : NULL;
+			  
+			  if (!gotsig)
+			    crecp = NULL;
 			}
 #endif
 		    }
@@ -1923,7 +1924,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		}
 
 	    cname_restart:
-	      if ((crecp = cache_find_by_name(NULL, name, now, flag | F_CNAME)))
+	      if ((crecp = cache_find_by_name(NULL, name, now, flag | F_CNAME | (dryrun ? F_NO_RR : 0))))
 		{
 		  int localise = 0;
 		  
@@ -1954,7 +1955,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      else if (crecp->flags & F_DNSSECOK)
 			{
 			  /* We're returning validated data, need to return the RRSIG too. */
-			  
+			  struct crec *rr_crec = NULL;
 			  int sigtype = type;
 			  /* The signature may have expired even though the data is still in cache, 
 			     forward instead of answering from cache if so. */
@@ -1963,23 +1964,23 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  if (crecp->flags & F_CNAME)
 			    sigtype = T_CNAME;
 			  
-			  crecp = NULL;
-			  while ((crecp = cache_find_by_name(crecp, name, now, F_DS | F_DNSKEY)))
+			  while ((rr_crec = cache_find_by_name(rr_crec, name, now, F_DS | F_DNSKEY)))
 			    {
-			      if (crecp->addr.sig.type_covered == sigtype && crecp->uid == C_IN)
+			      if (rr_crec->addr.sig.type_covered == sigtype && rr_crec->uid == C_IN)
 				{
-				  char *sigdata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL);
+				  char *sigdata = blockdata_retrieve(rr_crec->addr.sig.keydata, rr_crec->addr.sig.keylen, NULL);
 				  gotsig = 1;
 				  
 				  if (!dryrun && 
 				      add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-							  crecp->ttd - now, &nameoffset,
-							  T_RRSIG, C_IN, "t", crecp->addr.sig.keylen, sigdata))
+							  rr_crec->ttd - now, &nameoffset,
+							  T_RRSIG, C_IN, "t", rr_crec->addr.sig.keylen, sigdata))
 				    anscount++;
 				}
 			    }
-			  /* Need to re-run original cache search */
-			  crecp = gotsig ? cache_find_by_name(NULL, name, now, flag | F_CNAME) : NULL;
+			  
+			  if (!gotsig)
+			    crecp = NULL;
 			}
 #endif
 		    }		 
@@ -2072,7 +2073,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	  if (qtype == T_CNAME || qtype == T_ANY)
 	    {
 	      if ((crecp = cache_find_by_name(NULL, name, now, F_CNAME)) &&
-		  (qtype == T_CNAME || (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG))))
+		  (qtype == T_CNAME || (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG  | (dryrun ? F_NO_RR : 0)))))
 		{
 		  if (!(crecp->flags & F_DNSSECOK))
 		    sec_data = 0;
@@ -2111,7 +2112,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		  }
 	      
 	      if (!found && (option_bool(OPT_SELFMX) || option_bool(OPT_LOCALMX)) && 
-		  cache_find_by_name(NULL, name, now, F_HOSTS | F_DHCP))
+		  cache_find_by_name(NULL, name, now, F_HOSTS | F_DHCP | F_NO_RR))
 		{ 
 		  ans = 1;
 		  if (!dryrun)

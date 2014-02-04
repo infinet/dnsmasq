@@ -592,10 +592,13 @@ void cache_end_insert(void)
   new_chain = NULL;
 }
 
-struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsigned short prot)
+struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsigned int prot)
 {
   struct crec *ans;
+  int no_rr = prot & F_NO_RR;
 
+  prot &= ~F_NO_RR;
+  
   if (crecp) /* iterating */
     ans = crecp->next;
   else
@@ -643,7 +646,7 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
 		    }
 		  else
 		    {
-		      if (!insert)
+		      if (!insert && !no_rr)
 			{
 			  insert = up;
 			  ins_flags = crecp->flags & (F_REVERSE | F_IMMORTAL);
@@ -683,7 +686,7 @@ struct crec *cache_find_by_name(struct crec *crecp, char *name, time_t now, unsi
 }
 
 struct crec *cache_find_by_addr(struct crec *crecp, struct all_addr *addr, 
-				time_t now, unsigned short prot)
+				time_t now, unsigned int prot)
 {
   struct crec *ans;
 #ifdef HAVE_IPV6
