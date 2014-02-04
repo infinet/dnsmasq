@@ -9,19 +9,24 @@ shift
 
 in=`cat`
 
-if grep "^\#[[:space:]]*define[[:space:]]*${search}_STATIC" config.h >/dev/null 2>&1 || \
-   echo $in | grep ${search}_STATIC >/dev/null 2>&1; then
-   if [ $op = "--libs" ]; then
-     pkg=`$pkg --static $op $*`
-     echo "-Wl,-Bstatic $pkg -Wl,-Bdynamic"
-     exit 0
-   fi
-fi
-
 if grep "^\#[[:space:]]*define[[:space:]]*$search" config.h >/dev/null 2>&1 || \
     echo $in | grep $search >/dev/null 2>&1; then
-    pkg=`$pkg $op $*`
-    echo "$pkg"
-    
+
+    if [ $op = "--copy" ]; then
+	pkg="$*"
+    else
+	pkg=`$pkg $op $*` 
+    fi
+
+    if grep "^\#[[:space:]]*define[[:space:]]*${search}_STATIC" config.h >/dev/null 2>&1 || \
+	echo $in | grep ${search}_STATIC >/dev/null 2>&1; then
+	if [ $op = "--libs" ] || [ $op = "--copy" ]; then
+	    echo "-Wl,-Bstatic $pkg -Wl,-Bdynamic"
+	else
+	    echo "$pkg" 
+	fi
+    else
+	echo "$pkg"
+    fi
 fi
 

@@ -505,7 +505,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
        j != 0; j--) 
     {
       unsigned char *pstart, *pdata;
-      int stype, sclass, ttl;
+      int stype, sclass;
 
       pstart = p;
       
@@ -514,7 +514,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       
       GETSHORT(stype, p);
       GETSHORT(sclass, p);
-      GETLONG(ttl, p);
+      p += 4; /* TTL */
       
       pdata = p;
 
