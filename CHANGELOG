@@ -17,7 +17,52 @@ version 2.69
 	    dnsmasq, [fe80::] with the link-local address. 
 	    Thanks to Tsachi Kimeldorfer for championing this.
 
+	    DNSSEC validation and caching. Dnsmasq needs to be
+	    compiled with this enabled, with 
+	    
+	    make dnsmasq COPTS=-DHAVE_DNSSEC
+	    
+	    this add dependencies on the nettle crypto library and the 
+	    gmp maths library. It's possible to have these linked
+	    statically with
+	    
+	    make dnsmasq COPTS='-DHAVE_DNSSEC -DHAVE_DNSSEC_STATIC'
+	    
+	    which bloats the dnsmasq binary to over a megabyte, but
+	    saves the size of the shared libraries which are five
+	    times that size.
+	    To enable, DNSSEC, you will need a set of
+	    trust-anchors. Now that the TLDs are signed, this can be
+	    the keys for the root zone, and for convenience they are
+	    included in trust-anchors.conf in the dnsmasq
+	    distribution. You should of course check that these are
+	    legitimate and up-to-date. So, adding
+	    
+	    conf-file=/path/to/trust-anchors.conf
+	    dnssec
 
+	    to your config is all thats needed to get things
+	    working. The upstream nameservers have to be DNSSEC-capable
+	    too, of course. Many ISP nameservers aren't, but the
+	    Google public nameservers (8.8.8.8 and 8.8.4.4) are.
+	    When DNSSEC is configured, dnsmasq validates any queries 
+	    for domains which are signed. Query results which are 
+	    bogus are replaced with SERVFAIL replies, and results 
+	    which are correctly signed have the AD bit set. In 
+	    addition, and just as importantly, dnsmasq supplies 
+	    correct DNSSEC information to clients which are doing 
+	    their own validation, and caches DNSKEY, DS and RRSIG
+	    records, which significantly improve the performance of 
+	    downstream validators. Setting --log-queries will show 
+	    DNSSEC in action.
+
+	    The development of DNSSEC in dnsmasq was started by 
+	    Giovanni Bajo, to whom huge thanks are owed. It has been
+	    supported by Comcast, whose techfund grant has allowed for 
+	    an invaluable period of full-time work to get it to 
+	    a workable state.
+ 
+	    
 version 2.68
             Use random addresses for DHCPv6 temporary address
             allocations, instead of algorithmically determined stable
