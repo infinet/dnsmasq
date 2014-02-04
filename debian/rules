@@ -77,7 +77,7 @@ ifneq (,$(filter uselua,$(DEB_BUILD_OPTIONS)))
      DEB_COPTS += -DHAVE_LUASCRIPT
 endif
 
-ifneq (,$(filter usednssec,$(DEB_BUILD_OPTIONS)))
+ifeq (,$(filter nodnssec,$(DEB_BUILD_OPTIONS)))
      DEB_COPTS += -DHAVE_DNSSEC
 endif
 
