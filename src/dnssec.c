@@ -531,6 +531,11 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 		{
 		  unsigned char **new;
 
+		  /* Protect against insane/maliciuos queries which bloat the workspace
+		     and eat CPU in the sort */
+		  if (rrsetidx >= 100)
+		    return STAT_INSECURE; 
+
 		  /* expand */
 		  if (!(new = whine_malloc((rrset_sz + 5) * sizeof(unsigned char **))))
 		    return STAT_INSECURE;
