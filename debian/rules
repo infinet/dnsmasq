@@ -126,12 +126,14 @@ binary-arch:	checkroot
 	        -d debian/base/usr/share/doc/$(package) \
 		-d debian/base/usr/share/doc/$(package)/examples \
 	        -d debian/base/var/run \
+		-d debian/base/usr/share/$(package) \
 	        -d debian/base/var/lib/misc
 	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
 ifeq (,$(findstring nodocs,$(DEB_BUILD_OPTIONS)))
 	install -m 644 doc.html debian/base/usr/share/doc/$(package)/.
 	install -m 644 setup.html debian/base/usr/share/doc/$(package)/.
 	install -m 644 dnsmasq.conf.example debian/base/usr/share/doc/$(package)/examples/.
+	install -m 644 trust-anchors.conf debian/base/usr/share/$(package)/.
 	install -m 644 FAQ debian/base/usr/share/doc/$(package)/.
 	gzip -9 debian/base/usr/share/doc/$(package)/FAQ
 	install -m 644 CHANGELOG debian/base/usr/share/doc/$(package)/changelog
