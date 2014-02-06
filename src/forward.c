@@ -1117,13 +1117,11 @@ void receive_query(struct listener *listen, time_t now)
   
   if (extract_request(header, (size_t)n, daemon->namebuff, &type))
     {
-      char types[20];
 #ifdef HAVE_AUTH
       struct auth_zone *zone;
 #endif
-
-      querystr(auth_dns ? "auth" : "query", types, type);
-
+      char *types = querystr(auth_dns ? "auth" : "query", type);
+      
       if (listen->family == AF_INET) 
 	log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 
 		  (struct all_addr *)&source_addr.in.sin_addr, types);
@@ -1290,11 +1288,10 @@ unsigned char *tcp_request(int confd, time_t now,
       
       if ((gotname = extract_request(header, (unsigned int)size, daemon->namebuff, &qtype)))
 	{
-	  char types[20];
 #ifdef HAVE_AUTH
 	  struct auth_zone *zone;
 #endif
-	  querystr(auth_dns ? "auth" : "query", types, qtype);
+	  char *types = querystr(auth_dns ? "auth" : "query", qtype);
 	  
 	  if (peer_addr.sa.sa_family == AF_INET) 
 	    log_query(F_QUERY | F_IPV4 | F_FORWARD, daemon->namebuff, 

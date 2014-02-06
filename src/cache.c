@@ -55,7 +55,9 @@ static const struct {
   { 41,  "OPT" },
   { 43,  "DS" },
   { 46,  "RRSIG" },
+  { 47,  "NSEC" },
   { 48,  "DNSKEY" },
+  { 50,  "NSEC3" },
   { 249, "TKEY" },
   { 250, "TSIG" },
   { 251, "IXFR" },
@@ -1301,12 +1303,10 @@ void dump_cache(time_t now)
 	      {
 		if (cache->flags & F_DNSKEY)
 		  {
-		    char tp[20];
 		    /* RRSIG */
-		    querystr("", tp, cache->addr.sig.type_covered);
 		    a = daemon->addrbuff;
 		    sprintf(a, "%5u %3u %s", cache->addr.sig.keytag,
-			    cache->addr.sig.algo, tp);
+			    cache->addr.sig.algo, querystr("", cache->addr.sig.type_covered));
 		  }
 		else
 		  {
@@ -1382,14 +1382,45 @@ char *record_source(int index)
   return "<unknown>";
 }
 
-void querystr(char *desc, char *str, unsigned short type)
+char *querystr(char *desc, unsigned short type)
 {
   unsigned int i;
-  
-  sprintf(str, "%s[type=%d]", desc, type); 
+  int len = 10; /* strlen("type=xxxxx") */
+  const char *types = NULL;
+  static char *buff = NULL;
+  static int bufflen = 0;
+
   for (i = 0; i < (sizeof(typestr)/sizeof(typestr[0])); i++)
     if (typestr[i].type == type)
-      sprintf(str,"%s[%s]", desc, typestr[i].name);
+      {
+	types = typestr[i].name;
+	len = strlen(types);
+	break;
+      }
+
+  len += 3; /* braces, terminator */
+  len += strlen(desc);
+
+  if (!buff || bufflen < len)
+    {
+      if (buff)
+	free(buff);
+      else if (len < 20)
+	len = 20;
+      
+      buff = whine_malloc(len);
+      bufflen = len;
+    }
+
+  if (buff)
+    {
+      if (types)
+	sprintf(buff, "%s[%s]", desc, types);
+      else
+	sprintf(buff, "%s[type=%d]", desc, type);
+    }
+
+  return buff ? buff : "";
 }
 
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)

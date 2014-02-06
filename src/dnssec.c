@@ -1387,9 +1387,7 @@ int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen)
 size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr)
 {
   unsigned char *p;
-  char types[20];
-  
-  querystr("dnssec-query", types, type);
+  char *types = querystr("dnssec-query", type);
 
   if (addr->sa.sa_family == AF_INET) 
     log_query(F_DNSSEC | F_IPV4, name, (struct all_addr *)&addr->in.sin_addr, types);

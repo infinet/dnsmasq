@@ -1628,11 +1628,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    (keydata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL)))
 		  {
 		    if (qtype == T_RRSIG)
-		      {
-			char types[20];
-			querystr("rrsig", types, crecp->addr.sig.type_covered);
-			log_query(F_RRNAME, name, NULL, types);
-		      }
+		      log_query(F_RRNAME, name, NULL, querystr("rrsig", crecp->addr.sig.type_covered));
 		    if ((keydata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL)) &&
 			add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					    crec_ttl(crecp, now), &nameoffset,

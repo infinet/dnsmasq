@@ -991,7 +991,7 @@ extern struct daemon {
 void cache_init(void);
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg); 
 char *record_source(int index);
-void querystr(char *desc, char *str, unsigned short type);
+char *querystr(char *desc, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
 				unsigned int prot);
