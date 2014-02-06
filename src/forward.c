@@ -249,9 +249,6 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #endif
  unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
 
-  /* RFC 4035: sect 4.6 para 2 */
-  header->hb4 &= ~HB4_AD;
-  
   /* may be no servers available. */
   if (!daemon->servers)
     forward = NULL;
@@ -1283,9 +1280,6 @@ unsigned char *tcp_request(int confd, time_t now,
       if ((checking_disabled = header->hb4 & HB4_CD))
 	no_cache_dnssec = 1;
        
-      /* RFC 4035: sect 4.6 para 2 */
-      header->hb4 &= ~HB4_AD;
-      
       if ((gotname = extract_request(header, (unsigned int)size, daemon->namebuff, &qtype)))
 	{
 #ifdef HAVE_AUTH

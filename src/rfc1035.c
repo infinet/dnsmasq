@@ -1468,7 +1468,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   struct mx_srv_record *rec;
   size_t len;
  
-  /* Don't return AD set even for local data if checking disabled. */
+  /* Don't return AD set if checking disabled. */
   if (header->hb4 & HB4_CD)
     sec_data = 0;
 
@@ -2260,17 +2260,20 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   header->ancount = htons(anscount);
   header->nscount = htons(0);
   header->arcount = htons(addncount);
+
+  /* RFC 6840 5.7 */
+  if (header->hb4 & HB4_AD)
+    sec_reqd = 1;
   
   header->hb4 &= ~HB4_AD;
+  
   len = ansp - (unsigned char *)header;
   
   if (have_pseudoheader)
-    {
-      len = add_pseudoheader(header, len, (unsigned char *)limit, 0, NULL, 0, sec_reqd);
-      if (sec_reqd && sec_data)
-	header->hb4 |= HB4_AD;
-
-    }
+    len = add_pseudoheader(header, len, (unsigned char *)limit, 0, NULL, 0, sec_reqd);
+  
+  if (sec_reqd && sec_data)
+    header->hb4 |= HB4_AD;
   
   return len;
 }
