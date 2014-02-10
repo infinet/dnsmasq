@@ -1168,6 +1168,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 			       type_covered == T_DNSKEY || type_covered == T_PTR)) 
 			    {
 			      a.addr.dnssec.type = type_covered;
+			      a.addr.dnssec.class = class1;
 			      
 			      algo = *p2++;
 			      p2 += 13; /* labels, orig_ttl, expiration, inception */

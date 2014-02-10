@@ -1551,37 +1551,33 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	}
 
 #ifdef HAVE_DNSSEC
-      if (option_bool(OPT_DNSSEC_VALID) && (qtype == T_DNSKEY || qtype == T_DS || qtype == T_RRSIG))
+      if (option_bool(OPT_DNSSEC_VALID) && (qtype == T_DNSKEY || qtype == T_DS))
 	{
-	  int gotone = 0, have_rrsig = 0;
+	  int gotone = 0;
 	  struct blockdata *keydata;
 
 	  /* Do we have RRSIG? Can't do DS or DNSKEY otherwise. */
-	  crecp = NULL;
-	  while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY | F_DS)))
-	    if (crecp->uid == qclass && (qtype == T_RRSIG || crecp->addr.sig.type_covered == qtype))
-	      {
-		have_rrsig = 1;
-		break;
-	      }
-	  
-	  if (qtype == T_RRSIG && have_rrsig)
+	  if (sec_reqd)
 	    {
-	      ans = gotone = 1;
-	      auth = 0;
-	    }
-	  else if (qtype == T_DS && have_rrsig)
-	    {
-	      auth = 0;
 	      crecp = NULL;
-	      while ((crecp = cache_find_by_name(crecp, name, now, F_DS)))
-		if (crecp->uid == qclass)
-		  {
-		    ans = gotone = 1;
-		    if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.ds.keydata, crecp->addr.ds.keylen, NULL)))
-		      {			     			      
-			struct all_addr a;
-			a.addr.keytag =  crecp->addr.ds.keytag;
+	      while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY | F_DS)))
+		if (crecp->uid == qclass && crecp->addr.sig.type_covered == qtype)
+		  break;
+	    }
+	  
+	  if (!sec_reqd || crecp)
+	    {
+	      if (qtype == T_DS)
+		{
+		  crecp = NULL;
+		  while ((crecp = cache_find_by_name(crecp, name, now, F_DS)))
+		    if (crecp->uid == qclass)
+		      {
+			gotone = 1;
+			if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.ds.keydata, crecp->addr.ds.keylen, NULL)))
+			  {			     			      
+			    struct all_addr a;
+			    a.addr.keytag =  crecp->addr.ds.keytag;
 			    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DS keytag %u");
 			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 						    crec_ttl(crecp, now), &nameoffset,
@@ -1589,52 +1585,52 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 						    crecp->addr.ds.keytag, crecp->addr.ds.algo, crecp->addr.ds.digest, crecp->addr.ds.keylen, keydata))
 			      anscount++;
 			    
-		      } 
-		  }
-	    }
-	  else if (qtype == T_DNSKEY)
-	    {
-	      crecp = NULL;
-	      while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY)))
-		if (crecp->uid == qclass)
-		  {
-		    if ((crecp->flags & F_CONFIG) || have_rrsig) /* Return configured keys without an RRISG */
+			  } 
+		      }
+		}
+	      else /* DNSKEY */
+		{
+		  crecp = NULL;
+		  while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY)))
+		    if (crecp->uid == qclass)
 		      {
-			if (!(crecp->flags & F_CONFIG))
-			  auth = 0, gotone = 1;
-			ans = 1;
-			if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->addr.key.keylen, NULL)))
-			  {			     			      
-			    struct all_addr a;
-			    a.addr.keytag =  crecp->addr.key.keytag;
-			    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DNSKEY keytag %u");
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						    crec_ttl(crecp, now), &nameoffset,
-						    T_DNSKEY, qclass, "sbbt", 
-						    crecp->addr.key.flags, 3, crecp->addr.key.algo, crecp->addr.key.keylen, keydata))
-			      anscount++;
+			if (!(crecp->flags & F_CONFIG)) /* Don't return configured keys - send upstream instead */
+			  {
+			    gotone = 1;
+			    if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->addr.key.keylen, NULL)))
+			      {			     			      
+				struct all_addr a;
+				a.addr.keytag =  crecp->addr.key.keytag;
+				log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DNSKEY keytag %u");
+				if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							crec_ttl(crecp, now), &nameoffset,
+							T_DNSKEY, qclass, "sbbt", 
+							crecp->addr.key.flags, 3, crecp->addr.key.algo, crecp->addr.key.keylen, keydata))
+				  anscount++;
+			      }
 			  }
 		      }
-		  }
+		}
 	    }
-	      
+	  
 	  /* Now do RRSIGs */
 	  if (gotone)
 	    {
-	      crecp = NULL;
-	      while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY | F_DS)))
-		if (crecp->uid == qclass && (qtype == T_RRSIG || (sec_reqd && crecp->addr.sig.type_covered == qtype)) &&
-		    !dryrun &&
-		    (keydata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL)))
-		  {
-		    if (qtype == T_RRSIG)
-		      log_query(F_RRNAME, name, NULL, querystr("rrsig", crecp->addr.sig.type_covered));
-		    if ((keydata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL)) &&
+	      ans = 1;
+	      auth = 0;
+	      if (!dryrun && sec_reqd)
+		{
+		  crecp = NULL;
+		  while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY | F_DS)))
+		    if (crecp->uid == qclass && crecp->addr.sig.type_covered == qtype &&
+			(keydata = blockdata_retrieve(crecp->addr.sig.keydata, crecp->addr.sig.keylen, NULL)))
+		      {
 			add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
 					    crec_ttl(crecp, now), &nameoffset,
-					    T_RRSIG, qclass, "t", crecp->addr.sig.keylen, keydata))
-		      anscount++;
-		  }
+					    T_RRSIG, qclass, "t", crecp->addr.sig.keylen, keydata);
+			anscount++;
+		      }
+		}
 	    }
 	}
 #endif	     

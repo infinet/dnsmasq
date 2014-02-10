@@ -460,7 +460,7 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
     return NULL;
   
   /* First remove any expired entries and entries for the name/address we
-     are currently inserting. Fail is we attempt to delete a name from
+     are currently inserting. Fail if we attempt to delete a name from
      /etc/hosts or DHCP. */
   if (!cache_scan_free(name, addr, now, flags))
     {
