@@ -1452,7 +1452,8 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
 
 /* return zero if we can't answer from cache, or packet size if we can */
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
-		      struct in_addr local_addr, struct in_addr local_netmask, time_t now) 
+		      struct in_addr local_addr, struct in_addr local_netmask, 
+		      time_t now, int *ad_reqd) 
 {
   char *name = daemon->namebuff;
   unsigned char *p, *ansp, *pheader;
@@ -1471,7 +1472,10 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   /* Don't return AD set if checking disabled. */
   if (header->hb4 & HB4_CD)
     sec_data = 0;
-
+  
+  /* RFC 6840 5.7 */
+  *ad_reqd = header->hb4 & HB4_AD;
+  
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
      the query. We check to see if the do bit is set, if so we always
@@ -1490,6 +1494,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
       GETSHORT(flags, pheader);
       
       sec_reqd = flags & 0x8000; /* do bit */ 
+      *ad_reqd = 1;
 
       /* If our client is advertising a larger UDP packet size
 	 than we allow, trim it so that we don't get an overlarge
@@ -2257,19 +2262,15 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   header->nscount = htons(0);
   header->arcount = htons(addncount);
 
-  /* RFC 6840 5.7 */
-  if (header->hb4 & HB4_AD)
-    sec_reqd = 1;
-  
-  header->hb4 &= ~HB4_AD;
-  
   len = ansp - (unsigned char *)header;
   
   if (have_pseudoheader)
     len = add_pseudoheader(header, len, (unsigned char *)limit, 0, NULL, 0, sec_reqd);
   
-  if (sec_reqd && sec_data)
+  if (*ad_reqd && sec_data)
     header->hb4 |= HB4_AD;
+  else
+    header->hb4 &= ~HB4_AD;
   
   return len;
 }

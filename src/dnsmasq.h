@@ -539,6 +539,7 @@ struct hostsfile {
 #define FREC_HAS_SUBNET         4
 #define FREC_DNSKEY_QUERY       8
 #define FREC_DS_QUERY          16
+#define FREC_AD_QUESTION       32
 
 #ifdef HAVE_DNSSEC
 #define HASH_SIZE 20 /* SHA-1 digest size */
@@ -1041,7 +1042,8 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff,
 		      time_t now, char **ipsets, int is_sign, int checkrebind,
 		      int no_cache, int secure, int *doctored);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
-		   struct in_addr local_addr, struct in_addr local_netmask, time_t now);
+		      struct in_addr local_addr, struct in_addr local_netmask, 
+		      time_t now, int *ad_reqd);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,

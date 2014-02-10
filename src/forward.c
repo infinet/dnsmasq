@@ -234,7 +234,8 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp,
 
 static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 struct all_addr *dst_addr, unsigned int dst_iface,
-			 struct dns_header *header, size_t plen, time_t now, struct frec *forward)
+			 struct dns_header *header, size_t plen, time_t now, 
+			 struct frec *forward, int ad_reqd)
 {
   char *domain = NULL;
   int type = 0, norebind = 0;
@@ -331,6 +332,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	    forward->flags |= FREC_NOREBIND;
 	  if (header->hb4 & HB4_CD)
 	    forward->flags |= FREC_CHECKING_DISABLED;
+	  if (ad_reqd)
+	    forward->flags |= FREC_AD_QUESTION;
 #ifdef HAVE_DNSSEC
 	  forward->work_counter = DNSSEC_WORK;
 #endif
@@ -503,12 +506,14 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 }
 
 static size_t process_reply(struct dns_header *header, time_t now, struct server *server, size_t n, int check_rebind, 
-			    int no_cache, int cache_secure, int check_subnet, union mysockaddr *query_source)
+			    int no_cache, int cache_secure, int ad_reqd, int check_subnet, union mysockaddr *query_source)
 {
   unsigned char *pheader, *sizep;
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
+
+  (void)ad_reqd;
 
 #ifdef HAVE_IPSET
   /* Similar algorithm to search_servers. */
@@ -535,15 +540,13 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 
   if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)))
     {
-      if (!is_sign)
-	{
-	  unsigned short udpsz;
-	  unsigned char *psave = sizep;
-	  
-	  GETSHORT(udpsz, sizep);
-	  if (udpsz > daemon->edns_pktsz)
-	    PUTSHORT(daemon->edns_pktsz, psave);
-	}
+      unsigned short udpsz;
+      unsigned char *psave = sizep;
+      
+      GETSHORT(udpsz, sizep);
+
+      if (!is_sign && udpsz > daemon->edns_pktsz)
+	PUTSHORT(daemon->edns_pktsz, psave);
       
       if (check_subnet && !check_source(header, plen, pheader, query_source))
 	{
@@ -551,7 +554,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  return 0;
 	}
     }
-      
+  
   /* RFC 4035 sect 4.6 para 3 */
   if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
      header->hb4 &= ~HB4_AD;
@@ -619,7 +622,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   if (option_bool(OPT_DNSSEC_VALID))
     header->hb4 &= ~HB4_AD;
   
-  if (!(header->hb4 & HB4_CD) && cache_secure)
+  if (!(header->hb4 & HB4_CD) && ad_reqd && cache_secure)
     header->hb4 |= HB4_AD;
 #endif
 
@@ -705,7 +708,7 @@ void reply_query(int fd, int family, time_t now)
 	  if ((nn = resize_packet(header, (size_t)n, pheader, plen)))
 	    {
 	      header->hb3 &= ~(HB3_QR | HB3_TC);
-	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward);
+	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, 0);
 	      return;
 	    }
 	}
@@ -914,17 +917,17 @@ void reply_query(int fd, int family, time_t now)
 	    cache_secure = 1;
 	  else if (status == STAT_BOGUS)
 	    no_cache_dnssec = 1;
-	  
-	  /* restore CD bit to the value in the query */
-	  if (forward->flags & FREC_CHECKING_DISABLED)
-	    header->hb4 |= HB4_CD;
-	  else
-	    header->hb4 &= ~HB4_CD;
 	}
-#endif
+#endif     
+      
+      /* restore CD bit to the value in the query */
+      if (forward->flags & FREC_CHECKING_DISABLED)
+	header->hb4 |= HB4_CD;
+      else
+	header->hb4 &= ~HB4_CD;
       
       if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, no_cache_dnssec, cache_secure,
-			      forward->flags & FREC_HAS_SUBNET, &forward->source)))
+			      forward->flags & FREC_AD_QUESTION, forward->flags & FREC_HAS_SUBNET, &forward->source)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
@@ -1166,8 +1169,9 @@ void receive_query(struct listener *listen, time_t now)
   else
 #endif
     {
+      int ad_reqd;
       m = answer_request(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, 
-			 dst_addr_4, netmask, now);
+			 dst_addr_4, netmask, now, &ad_reqd);
       
       if (m >= 1)
 	{
@@ -1176,7 +1180,7 @@ void receive_query(struct listener *listen, time_t now)
 	  daemon->local_answer++;
 	}
       else if (forward_query(listen->fd, &source_addr, &dst_addr, if_index,
-			     header, (size_t)n, now, NULL))
+			     header, (size_t)n, now, NULL, ad_reqd))
 	daemon->queries_forwarded++;
       else
 	daemon->local_answer++;
@@ -1268,7 +1272,7 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, check_subnet, no_cache_dnssec = 0, cache_secure = 0;
+  int checking_disabled, ad_question, check_subnet, no_cache_dnssec = 0, cache_secure = 0;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -1346,7 +1350,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	{
 	  /* m > 0 if answered from cache */
 	  m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
-			     dst_addr_4, netmask, now);
+			     dst_addr_4, netmask, now, &ad_question);
 	  
 	  /* Do this by steam now we're not in the select() loop */
 	  check_log_writer(NULL); 
@@ -1526,7 +1530,7 @@ unsigned char *tcp_request(int confd, time_t now,
 
 		      m = process_reply(header, now, last_server, (unsigned int)m, 
 					option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
-					cache_secure, check_subnet, &peer_addr); 
+					cache_secure, ad_question, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }
