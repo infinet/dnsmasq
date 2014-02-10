@@ -19,6 +19,7 @@
 #define CHILD_LIFETIME 150 /* secs 'till terminated (RFC1035 suggests > 120s) */
 #define EDNS_PKTSZ 4096 /* default max EDNS.0 UDP packet from RFC5625 */
 #define KEYBLOCK_LEN 35 /* choose to mininise fragmentation when storing DNSSEC keys */
+#define DNSSEC_WORK 50 /* Max number of queries to validate one question */
 #define TIMEOUT 10 /* drop UDP queries after TIMEOUT seconds */
 #define FORWARD_TEST 50 /* try all servers every 50 queries */
 #define FORWARD_TIME 20 /* or 20 seconds */

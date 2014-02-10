@@ -560,7 +560,7 @@ struct frec {
   time_t time;
   unsigned char *hash[HASH_SIZE];
 #ifdef HAVE_DNSSEC 
-  int class;
+  int class, work_counter;
   struct blockdata *stash; /* Saved reply, whilst we validate */
   size_t stash_len;
   struct frec *dependent; /* Query awaiting internally-generated DNSKEY or DS query */
