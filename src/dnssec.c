@@ -1374,12 +1374,12 @@ int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen)
     }
   else
     {
-      unsigned long ac;
+      unsigned long ac = flags + 0x300 + alg;
       int i;
 
-      ac = ((htons(flags) >> 8) | ((htons(flags) << 8) & 0xff00)) + 0x300 + alg;
       for (i = 0; i < keylen; ++i)
         ac += (i & 1) ? key[i] : key[i] << 8;
+
       ac += (ac >> 16) & 0xffff;
       return ac & 0xffff;
     }
