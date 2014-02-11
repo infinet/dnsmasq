@@ -13,7 +13,10 @@ Dnsmasq accepts DNS queries and either answers them from a small, local,
 cache or forwards them to a real, recursive, DNS server. It loads the
 contents of /etc/hosts so that local hostnames
 which do not appear in the global DNS can be resolved and also answers
-DNS queries for DHCP configured hosts. It can also act as the authoritative DNS server for one or more domains, allowing local names to appear in the global DNS.
+DNS queries for DHCP configured hosts. It can also act as the
+authoritative DNS server for one or more domains, allowing local names
+to appear in the global DNS. It can be configured to do DNSSEC
+validation.
 .PP
 The dnsmasq DHCP server supports static address assignments and multiple
 networks. It automatically
@@ -587,12 +590,15 @@ validation by clients more efficient. Note that validation by clients is the mos
 clients unable to do validation, use of the AD bit set by dnsmasq is useful, provided that the network between 
 the dnsmasq server and the client is trusted. Dnsmasq must be compiled with HAVE_DNSSEC enabled, and DNSSEC
 trust anchors provided, see 
-.B --dnsskey.
+.B --trust-anchor.
 Because the DNSSEC validation process uses the cache, it is not permitted to reduce the cache size below the default when DNSSEC is enabled.
 .TP
-.B --dnskey=[<class>],<domain>,<flags>,<algorithm>,<base64-key>
-Provide DNSKEY records to act a trust anchors for DNSSEC validation. Typically these will be the keys for root zone,
-but trust anchors for limited domains are also possible. 
+.B --trust-anchor=[<class>],<domain>,<key-tag>,<algorithm>,<digest-type>,<digest>
+Provide DS records to act a trust anchors for DNSSEC
+validation. Typically these will be the DS record(s) for Zone Signing
+key(s) of the root zone,
+but trust anchors for limited domains are also possible. The current
+root-zone trust anchors may be donwloaded from https://data.iana.org/root-anchors/root-anchors.xml 
 .TP
 .B --proxy-dnssec
 Copy the DNSSEC Authenticated Data bit from upstream servers to downstream clients and cache it.  This is an 
@@ -601,7 +607,10 @@ dnsmasq and the upstream servers, and the trustworthiness of the upstream server
 .TP
 .B --dnssec-debug
 Set debugging mode for the DNSSEC validation, set the Checking Disabled bit on upstream queries, 
-and don't convert BOGUS replies to SERVFAIL responses. 
+and don't convert replies which do not validate to responses with
+a return code of SERVFAIL. Note that
+setting this may affect DNS behaviour in bad ways, it is not an
+extra-logging flag and should not be set in production.
 .TP
 .B --auth-zone=<domain>[,<subnet>[/<prefix length>][,<subnet>[/<prefix length>].....]]
 Define a DNS zone for which dnsmasq acts as authoritative server. Locally defined DNS records which are in the domain

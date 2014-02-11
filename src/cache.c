@@ -985,7 +985,7 @@ void cache_reload(void)
   struct cname *a;
   struct interface_name *intr;
 #ifdef HAVE_DNSSEC
-  struct dnskey *key;
+  struct ds_config *ds;
 #endif
 
   cache_inserted = cache_live_freed = 0;
@@ -1031,17 +1031,17 @@ void cache_reload(void)
 	}
 
 #ifdef HAVE_DNSSEC
-  for (key = daemon->dnskeys; key; key = key->next)
+  for (ds = daemon->ds; ds; ds = ds->next)
     if ((cache = whine_malloc(sizeof(struct crec))) &&
-	(cache->addr.key.keydata = blockdata_alloc(key->key, key->keylen)))
+	(cache->addr.ds.keydata = blockdata_alloc(ds->digest, ds->digestlen)))
       {
-	cache->flags = F_FORWARD | F_IMMORTAL | F_DNSKEY | F_CONFIG | F_NAMEP;
-	cache->name.namep = key->name;
-	cache->addr.key.keylen = key->keylen;
-	cache->addr.key.algo = key->algo;
-	cache->addr.key.flags = key->flags;
-	cache->addr.key.keytag = dnskey_keytag(key->algo, key->flags, (unsigned char *)key->key, key->keylen);
-	cache->uid = key->class;
+	cache->flags = F_FORWARD | F_IMMORTAL | F_DS | F_CONFIG | F_NAMEP;
+	cache->name.namep = ds->name;
+	cache->addr.ds.keylen = ds->digestlen;
+	cache->addr.ds.algo = ds->algo;
+	cache->addr.ds.keytag = ds->keytag;
+	cache->addr.ds.digest = ds->digest_type;
+	cache->uid = ds->class;
 	cache_hash(cache);
       }
 #endif

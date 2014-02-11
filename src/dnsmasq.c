@@ -144,7 +144,7 @@ int main (int argc, char **argv)
   if (option_bool(OPT_DNSSEC_VALID))
     {
 #ifdef HAVE_DNSSEC
-      if (!daemon->dnskeys)
+      if (!daemon->ds)
 	die(_("No trust anchors provided for DNSSEC"), NULL, EC_BADCONF);
       
       if (daemon->cachesize < CACHESIZ)

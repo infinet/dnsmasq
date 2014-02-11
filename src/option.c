@@ -139,7 +139,7 @@ struct myoption {
 #define LOPT_QUIET_DHCP6  327
 #define LOPT_QUIET_RA     328
 #define LOPT_SEC_VALID    329
-#define LOPT_DNSKEY       330
+#define LOPT_TRUST_ANCHOR 330
 #define LOPT_DNSSEC_DEBUG 331
 
 #ifdef HAVE_GETOPT_LONG
@@ -277,7 +277,7 @@ static const struct myoption opts[] =
     { "ipset", 1, 0, LOPT_IPSET },
     { "synth-domain", 1, 0, LOPT_SYNTH },
     { "dnssec", 0, 0, LOPT_SEC_VALID },
-    { "dnskey", 1, 0, LOPT_DNSKEY },
+    { "trust-anchor", 1, 0, LOPT_TRUST_ANCHOR },
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
@@ -430,7 +430,7 @@ static struct {
   { LOPT_IPSET, ARG_DUP, "/<domain>/<ipset>[,<ipset>...]", gettext_noop("Specify ipsets to which matching domains should be added"), NULL },
   { LOPT_SYNTH, ARG_DUP, "<domain>,<range>,[<prefix>]", gettext_noop("Specify a domain and address range for synthesised names"), NULL },
   { LOPT_SEC_VALID, OPT_DNSSEC_VALID, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
-  { LOPT_DNSKEY, ARG_DUP, "<domain>,<algo>,<key>", gettext_noop("Specify trust anchor DNSKEY"), NULL },
+  { LOPT_TRUST_ANCHOR, ARG_DUP, "<domain>,[<class>],...", gettext_noop("Specify trust anchor key digest."), NULL },
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
@@ -586,6 +586,16 @@ static int atoi_check16(char *a, int *res)
   if (!(atoi_check(a, res)) ||
       *res < 0 ||
       *res > 0xffff)
+    return 0;
+
+  return 1;
+}
+
+static int atoi_check8(char *a, int *res)
+{
+  if (!(atoi_check(a, res)) ||
+      *res < 0 ||
+      *res > 0xff)
     return 0;
 
   return 1;
@@ -3675,10 +3685,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       }
 
 #ifdef HAVE_DNSSEC
-    case LOPT_DNSKEY:
+    case LOPT_TRUST_ANCHOR:
       {
-	struct dnskey *new = opt_malloc(sizeof(struct dnskey));
-      	char *key64, *algo = NULL;
+	struct ds_config *new = opt_malloc(sizeof(struct ds_config));
+      	char *cp, *cp1, *keyhex, *digest, *algo = NULL;
+	int len;
 	
 	new->class = C_IN;
 
@@ -3700,20 +3711,30 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      }
 	  }
 		  
-       	if (!comma || !algo || !(key64 = split(algo)) ||
-	    !atoi_check16(comma, &new->flags) || !atoi_check16(algo, &new->algo) ||
+       	if (!comma || !algo || !(digest = split(algo)) || !(keyhex = split(digest)) ||
+	    !atoi_check16(comma, &new->keytag) || 
+	    !atoi_check8(algo, &new->algo) ||
+	    !atoi_check8(digest, &new->digest_type) ||
 	    !(new->name = canonicalise_opt(arg)))
-	  ret_err(_("bad DNSKEY"));
+	  ret_err(_("bad trust anchor"));
 	    
 	/* Upper bound on length */
-	new->key = opt_malloc((3*strlen(key64)/4)+1);
-	unhide_metas(key64);
-	if ((new->keylen = parse_base64(key64, new->key)) == -1)
-	  ret_err(_("bad base64 in DNSKEY"));
+	len = (2*strlen(keyhex))+1;
+	new->digest = opt_malloc(len);
+	unhide_metas(keyhex);
+	/* 4034: "Whitespace is allowed within digits" */
+	for (cp = keyhex; *cp; )
+	  if (isspace(*cp))
+	    for (cp1 = cp; *cp1; cp1++)
+	      *cp1 = *(cp1+1);
+	  else
+	    cp++;
+	if ((new->digestlen = parse_hex(keyhex, (unsigned char *)new->digest, len, NULL, NULL)) == -1)
+	  ret_err(_("bad HEX in trust anchor"));
 	
-	new->next = daemon->dnskeys;
-	daemon->dnskeys = new;
-
+	new->next = daemon->ds;
+	daemon->ds = new;
+	
 	break;
       }
 #endif

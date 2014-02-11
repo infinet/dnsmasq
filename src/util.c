@@ -482,66 +482,6 @@ int parse_hex(char *in, unsigned char *out, int maxlen,
   return i;
 }
 
-#ifdef HAVE_DNSSEC
-static int charval(char c)
-{
-  if (c >= 'A' && c <= 'Z')
-    return c - 'A';
-  
-  if (c >= 'a' && c <= 'z')
-    return c - 'a' + 26;
-
-  if (c >= '0' && c <= '9')
-    return c - '0' + 52;
-
-  if (c == '+')
-    return 62;
-  
-  if (c == '/')
-    return 63;
-
-  if (c == '=')
-    return -1;
-
-  return -2;
-}
-
-int parse_base64(char *in, char *out)
-{
-  char *p = out;
-  int i, val[4];
-
-  while (*in)
-    {
-      for (i = 0; i < 4; i++)
-	{ 
-	  while (*in == ' ') 
-	    in++;
-	  if (*in == 0)
-	    return -1;
-	  if ((val[i] = charval(*in++)) == -2)
-	    return -1;
-	}
-          
-      while (*in == ' ') 
-	in++;
-      
-      if (val[1] == -1)
-	return -1; /* too much padding */
-      
-      *p++ = (val[0] << 2) | (val[1] >> 4);
-      
-      if (val[2] != -1)
-	*p++ = (val[1] << 4) | ( val[2] >> 2);
-
-      if (val[3] != -1)
-	*p++ = (val[2] << 6) | val[3];
-    }
-
-  return p - out;
-}
-#endif
-
 /* return 0 for no match, or (no matched octets) + 1 */
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, unsigned int mask)
 {

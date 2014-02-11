@@ -1599,20 +1599,17 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		  while ((crecp = cache_find_by_name(crecp, name, now, F_DNSKEY)))
 		    if (crecp->uid == qclass)
 		      {
-			if (!(crecp->flags & F_CONFIG)) /* Don't return configured keys - send upstream instead */
-			  {
-			    gotone = 1;
-			    if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->addr.key.keylen, NULL)))
-			      {			     			      
-				struct all_addr a;
-				a.addr.keytag =  crecp->addr.key.keytag;
-				log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DNSKEY keytag %u");
-				if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-							crec_ttl(crecp, now), &nameoffset,
-							T_DNSKEY, qclass, "sbbt", 
-							crecp->addr.key.flags, 3, crecp->addr.key.algo, crecp->addr.key.keylen, keydata))
-				  anscount++;
-			      }
+			gotone = 1;
+			if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.key.keydata, crecp->addr.key.keylen, NULL)))
+			  {			     			      
+			    struct all_addr a;
+			    a.addr.keytag =  crecp->addr.key.keytag;
+			    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DNSKEY keytag %u");
+			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						    crec_ttl(crecp, now), &nameoffset,
+						    T_DNSKEY, qclass, "sbbt", 
+						    crecp->addr.key.flags, 3, crecp->addr.key.algo, crecp->addr.key.keylen, keydata))
+			      anscount++;
 			  }
 		      }
 		}

@@ -295,10 +295,10 @@ struct cname {
   struct cname *next;
 }; 
 
-struct dnskey {
-  char *name, *key;
-  int keylen, class, algo, flags;
-  struct dnskey *next;
+struct ds_config {
+  char *name, *digest;
+  int digestlen, class, algo, keytag, digest_type;
+  struct ds_config *next;
 };
 
 #define ADDRLIST_LITERAL 1
@@ -930,7 +930,7 @@ extern struct daemon {
   struct prefix_class *prefix_classes;
 #endif
 #ifdef HAVE_DNSSEC
-  struct dnskey *dnskeys;
+  struct ds_config *ds;
 #endif
 
   /* globally used stuff for DNS */
@@ -1107,9 +1107,6 @@ void prettyprint_time(char *buf, unsigned int t);
 int prettyprint_addr(union mysockaddr *addr, char *buf);
 int parse_hex(char *in, unsigned char *out, int maxlen, 
 	      unsigned int *wildcard_mask, int *mac_type);
-#ifdef HAVE_DNSSEC
-int parse_base64(char *in, char *out);
-#endif
 int memcmp_masked(unsigned char *a, unsigned char *b, int len, 
 		  unsigned int mask);
 int expand_buf(struct iovec *iov, size_t size);
