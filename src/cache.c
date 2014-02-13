@@ -448,12 +448,14 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
   int freed_all = flags & F_REVERSE;
   int free_avail = 0;
 
-  if (daemon->max_cache_ttl != 0 && daemon->max_cache_ttl < ttl)
-    ttl = daemon->max_cache_ttl;
-
-  /* Don't log keys here, done elsewhere */
+  /* Don't log DNSSEC records here, done elsewhere */
   if (flags & (F_IPV4 | F_IPV6 | F_CNAME))
-    log_query(flags | F_UPSTREAM, name, addr, NULL);
+    {
+      log_query(flags | F_UPSTREAM, name, addr, NULL);
+      /* Don;t mess with TTL for DNSSEC records. */
+      if (daemon->max_cache_ttl != 0 && daemon->max_cache_ttl < ttl)
+	ttl = daemon->max_cache_ttl;
+    }
 
   /* if previous insertion failed give up now. */
   if (insert_error)
