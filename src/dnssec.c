@@ -21,6 +21,8 @@
 
 #include <nettle/rsa.h>
 #include <nettle/dsa.h>
+#include <nettle/ecdsa.h>
+#include <nettle/ecc-curve.h>
 #include <nettle/nettle-meta.h>
 #include <gmp.h>
 
@@ -194,7 +196,7 @@ static int dsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned
   
   if (key_len < (213 + (t * 24)))
     return 0;
-
+  
   mpz_import(key->q, 20, 1, 1, 0, 0, p); p += 20;
   mpz_import(key->p, 64 + (t*8), 1, 1, 0, 0, p); p += 64 + (t*8);
   mpz_import(key->g, 64 + (t*8), 1, 1, 0, 0, p); p += 64 + (t*8);
@@ -204,12 +206,81 @@ static int dsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned
   mpz_import(sig_struct->s, 20, 1, 1, 0, 0, sig+21);
   
   (void)algo;
-
+  
   return nettle_dsa_sha1_verify_digest(key, digest, sig_struct);
 } 
  
+static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+				unsigned char *digest, size_t digest_len, int algo)
+{
+  unsigned char *p;
+  unsigned int t;
+  struct ecc_point *key;
+
+  static struct ecc_point *key_256 = NULL, *key_384 = NULL;
+  static mpz_t x, y;
+  static struct dsa_signature *sig_struct;
+  
+  if (!sig_struct)
+    {
+      if (!(sig_struct = whine_malloc(sizeof(struct dsa_signature))))
+	return 0;
+      
+      nettle_dsa_signature_init(sig_struct);
+      mpz_init(x);
+      mpz_init(y);
+    }
+  
+  switch (algo)
+    {
+    case 13:
+      if (!key_256)
+	{
+	  if (!(key_256 = whine_malloc(sizeof(struct ecc_point))))
+	    return 0;
+	  
+	  nettle_ecc_point_init(key_256, &nettle_secp_256r1);
+	}
+      
+      key = key_256;
+      t = 32;
+      break;
+      
+    case 14:
+      if (!key_384)
+	{
+	  if (!(key_384 = whine_malloc(sizeof(struct ecc_point))))
+	    return 0;
+	  
+	  nettle_ecc_point_init(key_384, &nettle_secp_384r1);
+	}
+      
+      key = key_384;
+      t = 48;
+      break;
+        
+    default:
+      return 0;
+    }
+  
+  if (sig_len != 2*t || key_len != 2*t ||
+      (p = blockdata_retrieve(key_data, key_len, NULL)))
+    return 0;
+  
+  mpz_import(x, t , 1, 1, 0, 0, p);
+  mpz_import(y, t , 1, 1, 0, 0, p + t);
+
+  if (!ecc_point_set(key, x, y))
+    return 0;
+  
+  mpz_import(sig_struct->r, t, 1, 1, 0, 0, sig);
+  mpz_import(sig_struct->s, t, 1, 1, 0, 0, sig + t);
+  
+  return nettle_ecdsa_verify(key, digest_len, digest, sig_struct);
+} 
+ 
 static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
-		  unsigned char *digest, int algo)
+		  unsigned char *digest, size_t digest_len, int algo)
 {
   switch (algo)
     {
@@ -218,7 +289,10 @@ static int verify(struct blockdata *key_data, unsigned int key_len, unsigned cha
       
     case 3: case 6: 
       return dsa_verify(key_data, key_len, sig, sig_len, digest, algo);
-    }
+    
+    case 13: case 14:
+      return dnsmasq_ecdsa_verify(key_data, key_len, sig, sig_len, digest, digest_len, algo);
+}
   
   return 0;
 }
@@ -703,7 +777,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       if (key)
 	{
 	  if (algo_in == algo && keytag_in == key_tag &&
-	      verify(key, keylen, sig, sig_len, digest, algo))
+	      verify(key, keylen, sig, sig_len, digest, hash->digest_size, algo))
 	    return STAT_SECURE;
 	}
       else
@@ -713,7 +787,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	    if (crecp->addr.key.algo == algo && 
 		crecp->addr.key.keytag == key_tag &&
 		crecp->uid == class &&
-		verify(crecp->addr.key.keydata, crecp->addr.key.keylen, sig, sig_len, digest, algo))
+		verify(crecp->addr.key.keydata, crecp->addr.key.keylen, sig, sig_len, digest, hash->digest_size, algo))
 	      return STAT_SECURE;
 	}
     }
