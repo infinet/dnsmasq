@@ -256,7 +256,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   else if (forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
     {
 #ifdef HAVE_DNSSEC
-      /* If we've already got an answer to this query, but we're awaiting keys for vaildation,
+      /* If we've already got an answer to this query, but we're awaiting keys for validation,
 	 there's no point retrying the query, retry the key query instead...... */
       if (forward->blocking_query)
 	{
