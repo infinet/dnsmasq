@@ -1431,7 +1431,10 @@ unsigned char *tcp_request(int confd, time_t now,
 			  if (option_bool(OPT_DNSSEC_VALID))
 			    {
 			      size = add_do_bit(header, size, ((char *) header) + 65536);
-			      header->hb4 |= HB4_CD;
+			      /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
+				 this allows it to select auth servers when one is returning bad data. */
+			      if (option_bool(OPT_DNSSEC_DEBUG))
+				header->hb4 |= HB4_CD;
 			    }
 #endif
 			  
