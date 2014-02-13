@@ -1127,6 +1127,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   int type1, class1, rdlen1, type2, class2, rdlen2;
   int i, j, rc, have_nsec, have_nsec_equal, cname_count = 5;
 
+  if (RCODE(header) == SERVFAIL)
+    return STAT_BOGUS;
+  
   if ((RCODE(header) != NXDOMAIN && RCODE(header) != NOERROR) || ntohs(header->qdcount) != 1)
     return STAT_INSECURE;
   
