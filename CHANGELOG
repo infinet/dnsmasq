@@ -62,7 +62,9 @@ version 2.69
 	    an invaluable period of full-time work to get it to 
 	    a workable state.
  
-	    
+	    Add --rev-server. Thanks to Dave Taht for suggesting this.
+
+ 	    
 version 2.68
             Use random addresses for DHCPv6 temporary address
             allocations, instead of algorithmically determined stable

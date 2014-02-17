@@ -141,6 +141,7 @@ struct myoption {
 #define LOPT_SEC_VALID    329
 #define LOPT_TRUST_ANCHOR 330
 #define LOPT_DNSSEC_DEBUG 331
+#define LOPT_REV_SERV     332
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -178,6 +179,7 @@ static const struct myoption opts[] =
     { "pid-file", 2, 0, 'x' },
     { "strict-order", 0, 0, 'o' },
     { "server", 1, 0, 'S' },
+    { "rev-server", 1, 0, LOPT_REV_SERV },
     { "local", 1, 0, LOPT_LOCAL },
     { "address", 1, 0, 'A' },
     { "conf-file", 2, 0, 'C' },
@@ -348,6 +350,7 @@ static struct {
   { 'R', OPT_NO_RESOLV, NULL, gettext_noop("Do NOT read resolv.conf."), NULL },
   { 'r', ARG_DUP, "<path>", gettext_noop("Specify path to resolv.conf (defaults to %s)."), RESOLVFILE }, 
   { 'S', ARG_DUP, "/<domain>/<ipaddr>", gettext_noop("Specify address(es) of upstream servers with optional domains."), NULL },
+  { LOPT_REV_SERV, ARG_DUP, "<addr>/<prefix>,<ipaddr>", gettext_noop("Specify address of upstream servers for reverse address queries"), NULL },
   { LOPT_LOCAL, ARG_DUP, "/<domain>/", gettext_noop("Never forward queries to specified domains."), NULL },
   { 's', ARG_DUP, "<domain>[,<range>]", gettext_noop("Specify the domain to be assigned in DHCP leases."), NULL },
   { 't', ARG_ONE, "<host_name>", gettext_noop("Specify default target in an MX record."), NULL },
@@ -591,6 +594,7 @@ static int atoi_check16(char *a, int *res)
   return 1;
 }
 
+#ifdef HAVE_DNSSEC
 static int atoi_check8(char *a, int *res)
 {
   if (!(atoi_check(a, res)) ||
@@ -600,6 +604,7 @@ static int atoi_check8(char *a, int *res)
 
   return 1;
 }
+#endif
 	
 static void add_txt(char *name, char *txt)
 {
@@ -760,6 +765,54 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
     return _("bad address");
 
   return NULL;
+}
+
+static struct server *add_rev4(struct in_addr addr, int msize)
+{
+  struct server *serv = opt_malloc(sizeof(struct server));
+  in_addr_t  a = ntohl(addr.s_addr) >> 8;
+  char *p;
+
+  memset(serv, 0, sizeof(struct server));
+  p = serv->domain = opt_malloc(25); /* strlen("xxx.yyy.zzz.in-addr.arpa")+1 */
+  
+  if (msize == 24)
+    p += sprintf(p, "%d.", a & 0xff);
+  a = a >> 8;
+  if (msize != 8)
+    p += sprintf(p, "%d.", a & 0xff);
+  a = a >> 8;
+  p += sprintf(p, "%d.in-addr.arpa", a & 0xff);
+  
+  serv->flags = SERV_HAS_DOMAIN;
+  serv->next = daemon->servers;
+  daemon->servers = serv;
+
+  return serv;
+
+}
+
+static struct server *add_rev6(struct in6_addr *addr, int msize)
+{
+  struct server *serv = opt_malloc(sizeof(struct server));
+  char *p;
+  int i;
+				  
+  memset(serv, 0, sizeof(struct server));
+  p = serv->domain = opt_malloc(73); /* strlen("32*<n.>ip6.arpa")+1 */
+  
+  for (i = msize-1; i >= 0; i -= 4)
+    { 
+      int dig = ((unsigned char *)addr)[i>>3];
+      p += sprintf(p, "%.1x.", (i>>2) & 1 ? dig & 15 : dig >> 4);
+    }
+  p += sprintf(p, "ip6.arpa");
+  
+  serv->flags = SERV_HAS_DOMAIN;
+  serv->next = daemon->servers;
+  daemon->servers = serv;
+  
+  return serv;
 }
 
 #ifdef HAVE_DHCP
@@ -1824,34 +1877,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 				ret_err(gen_err);
 			      else
 				{
-				  /* generate the equivalent of
-				     local=/<domain>/
-				     local=/xxx.yyy.zzz.in-addr.arpa/ */
-				  struct server *serv = opt_malloc(sizeof(struct server));
-				  in_addr_t a = ntohl(new->start.s_addr) >> 8;
-				  char *p;
-				  
-				  memset(serv, 0, sizeof(struct server));
-				  serv->domain = d;
-				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
-				  serv->next = daemon->servers;
-				  daemon->servers = serv;
-				  
-				  serv = opt_malloc(sizeof(struct server));
-				  memset(serv, 0, sizeof(struct server));
-				  p = serv->domain = opt_malloc(25); /* strlen("xxx.yyy.zzz.in-addr.arpa")+1 */
-				  
-				  if (msize == 24)
-				    p += sprintf(p, "%d.", a & 0xff);
-				  a = a >> 8;
-				  if (msize != 8)
-				    p += sprintf(p, "%d.", a & 0xff);
-				  a = a >> 8;
-				  p += sprintf(p, "%d.in-addr.arpa", a & 0xff);
-				  
-				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
-				  serv->next = daemon->servers;
-				  daemon->servers = serv;
+				   /* generate the equivalent of
+				      local=/<domain>/
+				      local=/xxx.yyy.zzz.in-addr.arpa/ */
+				  struct server *serv = add_rev4(new->start, msize);
+				  serv->flags |= SERV_NO_ADDR;
 				}
 			    }
 			}
@@ -1887,29 +1917,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 				  /* generate the equivalent of
 				     local=/<domain>/
 				     local=/xxx.yyy.zzz.ip6.arpa/ */
-				  struct server *serv = opt_malloc(sizeof(struct server));
-				  char *p;
-				  
-				  memset(serv, 0, sizeof(struct server));
-				  serv->domain = d;
-				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
-				  serv->next = daemon->servers;
-				  daemon->servers = serv;
-
-				  serv = opt_malloc(sizeof(struct server));
-				  memset(serv, 0, sizeof(struct server));
-				  p = serv->domain = opt_malloc(73); /* strlen("32*<n.>ip6.arpa")+1 */
-				  
-				  for (i = msize-1; i >= 0; i -= 4)
-				    { 
-				      int dig = ((unsigned char *)&new->start6)[i>>3];
-				      p += sprintf(p, "%.1x.", (i>>2) & 1 ? dig & 15 : dig >> 4);
-				    }
-				  p += sprintf(p, "ip6.arpa");
-				  
-				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
-				  serv->next = daemon->servers;
-				  daemon->servers = serv;
+				  struct server *serv = add_rev6(&new->start6, msize);
+				  serv->flags |= SERV_NO_ADDR;
 				}
 			    }
 			}
@@ -2177,6 +2186,37 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  }
 	serv->next = daemon->servers;
 	daemon->servers = newlist;
+	break;
+      }
+
+    case LOPT_REV_SERV: /* --rev-server */
+      {
+	char *string;
+	int size;
+	struct server *serv;
+	struct in_addr addr4;
+#ifdef HAVE_IPV6
+	struct in6_addr addr6;
+#endif
+ 
+	unhide_metas(arg);
+	if (!arg || !(comma=split(arg)) || !(string = split_chr(arg, '/')) || !atoi_check(string, &size))
+	  ret_err(gen_err);
+
+	if (inet_pton(AF_INET, arg, &addr4))
+	  serv = add_rev4(addr4, size);
+#ifdef HAVE_IPV6
+	else if (inet_pton(AF_INET6, arg, &addr6))
+	  serv = add_rev6(&addr6, size);
+#endif
+	else
+	  ret_err(gen_err);
+ 
+	string = parse_server(comma, &serv->addr, &serv->source_addr, serv->interface, &serv->flags);
+	
+	if (string)
+	  ret_err(string);
+
 	break;
       }
 
