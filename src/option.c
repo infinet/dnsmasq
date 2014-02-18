@@ -689,6 +689,13 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
   char *scope_id;
 #endif
   
+  if (!arg || strlen(arg) == 0)
+    {
+      *flags |= SERV_NO_ADDR;
+      *interface = 0;
+      return NULL;
+    }
+
   if ((source = split_chr(arg, '@')) && /* is there a source. */
       (portno = split_chr(source, '#')) &&
       !atoi_check16(portno, &source_port))

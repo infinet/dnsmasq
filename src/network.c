@@ -1254,18 +1254,120 @@ void pre_allocate_sfds(void)
       }  
 }
 
+void mark_servers(int flag)
+{
+  struct server *serv;
+
+  /* mark everything with argument flag */
+  for (serv = daemon->servers; serv; serv = serv->next)
+    if (serv->flags & flag)
+      serv->flags |= SERV_MARK;
+}
+
+void cleanup_servers(void)
+{
+  struct server *serv, *tmp, **up;
+
+  /* unlink and free anything still marked. */
+  for (serv = daemon->servers, up = &daemon->servers; serv; serv = tmp) 
+    {
+      tmp = serv->next;
+      if (serv->flags & SERV_MARK)
+       {
+         server_gone(serv);
+         *up = serv->next;
+         if (serv->domain)
+	   free(serv->domain);
+	 free(serv);
+       }
+      else 
+       up = &serv->next;
+    }
+}
+
+void add_update_server(int flags,
+		       union mysockaddr *addr,
+		       union mysockaddr *source_addr,
+		       const char *interface,
+		       const char *domain)
+{
+  struct server *serv;
+  
+  /* See if there is a suitable candidate, and unmark */
+  for (serv = daemon->servers; serv; serv = serv->next)
+    if (serv->flags & SERV_MARK)
+      {
+	if (domain)
+	  {
+	    if (!(serv->flags & SERV_HAS_DOMAIN) || !hostname_isequal(domain, serv->domain))
+	      continue;
+	  }
+	else
+	  {
+	    if (serv->flags & SERV_HAS_DOMAIN)
+	      continue;
+	  }
+	
+	serv->flags &= ~SERV_MARK;
+	
+        break;
+      }
+  
+  if (!serv && (serv = whine_malloc(sizeof (struct server))))
+    {
+      /* Not found, create a new one. */
+      memset(serv, 0, sizeof(struct server));
+      
+      if (domain && !(serv->domain = whine_malloc(strlen(domain)+1)))
+	{
+	  free(serv);
+          serv = NULL;
+        }
+      else
+        {
+	  struct server *s;
+	  /* Add to the end of the chain, for order */
+	  if (!daemon->servers)
+	    daemon->servers = serv;
+	  else
+	    {
+	      for (s = daemon->servers; s->next; s = s->next);
+	      s->next = serv;
+	    }
+	  if (domain)
+	    strcpy(serv->domain, domain);
+	}
+    }
+  
+  if (serv)
+    {
+      serv->flags = flags;
+      serv->queries = serv->failed_queries = 0;
+      
+      if (domain)
+	serv->flags |= SERV_HAS_DOMAIN;
+      
+      if (interface)
+	strcpy(serv->interface, interface);
+      else
+	serv->interface[0] = 0;
+      
+      serv->addr = *addr;
+      serv->source_addr = *source_addr;
+    }
+}
 
 void check_servers(void)
 {
   struct irec *iface;
-  struct server *new, *tmp, *ret = NULL;
+  struct server *new, *tmp, **up;
   int port = 0;
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
   
-  for (new = daemon->servers; new; new = tmp)
+  for (up = &daemon->servers, new = daemon->servers; new; new = tmp)
     {
       tmp = new->next;
       
@@ -1277,6 +1379,7 @@ void check_servers(void)
 	  if (new->addr.sa.sa_family == AF_INET &&
 	      new->addr.in.sin_addr.s_addr == 0)
 	    {
+	      *up = tmp;
 	      free(new);
 	      continue;
 	    }
@@ -1287,6 +1390,7 @@ void check_servers(void)
 	  if (iface)
 	    {
 	      my_syslog(LOG_WARNING, _("ignoring nameserver %s - local interface"), daemon->namebuff);
+	      *up = tmp;
 	      free(new);
 	      continue;
 	    }
@@ -1299,14 +1403,11 @@ void check_servers(void)
 	      my_syslog(LOG_WARNING, 
 			_("ignoring nameserver %s - cannot make/bind socket: %s"),
 			daemon->namebuff, strerror(errno));
+	      *up = tmp;
 	      free(new);
 	      continue;
 	    }
 	}
-      
-      /* reverse order - gets it right. */
-      new->next = ret;
-      ret = new;
       
       if (!(new->flags & SERV_NO_REBIND))
 	{
@@ -1332,9 +1433,9 @@ void check_servers(void)
 	  else
 	    my_syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
 	}
+      
+      up = &new->next;
     }
-  
-  daemon->servers = ret;
 }
 
 /* Return zero if no servers found, in that case we keep polling.
@@ -1343,9 +1444,6 @@ int reload_servers(char *fname)
 {
   FILE *f;
   char *line;
-  struct server *old_servers = NULL;
-  struct server *new_servers = NULL;
-  struct server *serv;
   int gotone = 0;
 
   /* buff happens to be MAXDNAME long... */
@@ -1354,28 +1452,9 @@ int reload_servers(char *fname)
       my_syslog(LOG_ERR, _("failed to read %s: %s"), fname, strerror(errno));
       return 0;
     }
-  
-  /* move old servers to free list - we can reuse the memory 
-     and not risk malloc if there are the same or fewer new servers. 
-     Servers which were specced on the command line go to the new list. */
-  for (serv = daemon->servers; serv;)
-    {
-      struct server *tmp = serv->next;
-      if (serv->flags & SERV_FROM_RESOLV)
-	{
-	  serv->next = old_servers;
-	  old_servers = serv; 
-	  /* forward table rules reference servers, so have to blow them away */
-	  server_gone(serv);
-	}
-      else
-	{
-	  serv->next = new_servers;
-	  new_servers = serv;
-	}
-      serv = tmp;
-    }
-  
+   
+  mark_servers(SERV_FROM_RESOLV);
+    
   while ((line = fgets(daemon->namebuff, MAXDNAME, f)))
     {
       union mysockaddr addr, source_addr;
@@ -1434,38 +1513,12 @@ int reload_servers(char *fname)
 	continue;
 #endif 
 
-      if (old_servers)
-	{
-	  serv = old_servers;
-	  old_servers = old_servers->next;
-	}
-      else if (!(serv = whine_malloc(sizeof (struct server))))
-	continue;
-      
-      /* this list is reverse ordered: 
-	 it gets reversed again in check_servers */
-      serv->next = new_servers;
-      new_servers = serv;
-      serv->addr = addr;
-      serv->source_addr = source_addr;
-      serv->domain = NULL;
-      serv->interface[0] = 0;
-      serv->sfd = NULL;
-      serv->flags = SERV_FROM_RESOLV;
-      serv->queries = serv->failed_queries = 0;
+      add_update_server(SERV_FROM_RESOLV, &addr, &source_addr, NULL, NULL);
       gotone = 1;
     }
   
-  /* Free any memory not used. */
-  while (old_servers)
-    {
-      struct server *tmp = old_servers->next;
-      free(old_servers);
-      old_servers = tmp;
-    }
-
-  daemon->servers = new_servers;
   fclose(f);
+  cleanup_servers();
 
   return gotone;
 }
