@@ -21,8 +21,10 @@
 
 #include <nettle/rsa.h>
 #include <nettle/dsa.h>
-#include <nettle/ecdsa.h>
-#include <nettle/ecc-curve.h>
+#ifndef NO_NETTLE_ECC
+#  include <nettle/ecdsa.h>
+#  include <nettle/ecc-curve.h>
+#endif
 #include <nettle/nettle-meta.h>
 #include <gmp.h>
 
@@ -210,7 +212,9 @@ static int dsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned
   return nettle_dsa_sha1_verify_digest(key, digest, sig_struct);
 } 
  
-static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+#ifndef NO_NETTLE_ECC
+static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len, 
+				unsigned char *sig, size_t sig_len,
 				unsigned char *digest, size_t digest_len, int algo)
 {
   unsigned char *p;
@@ -278,7 +282,8 @@ static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len
   
   return nettle_ecdsa_verify(key, digest_len, digest, sig_struct);
 } 
- 
+#endif 
+
 static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
 		  unsigned char *digest, size_t digest_len, int algo)
 {
@@ -289,10 +294,12 @@ static int verify(struct blockdata *key_data, unsigned int key_len, unsigned cha
       
     case 3: case 6: 
       return dsa_verify(key_data, key_len, sig, sig_len, digest, algo);
-    
+ 
+#ifndef NO_NETTLE_ECC   
     case 13: case 14:
       return dnsmasq_ecdsa_verify(key_data, key_len, sig, sig_len, digest, digest_len, algo);
-}
+#endif
+    }
   
   return 0;
 }

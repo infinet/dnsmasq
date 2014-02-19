@@ -19,6 +19,10 @@ LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 
 DEB_COPTS = $(COPTS)
 
+# The nettle library in Debian is too old to include
+# ECC support.
+DEB_COPTS += -DNO_NETTLE_ECC
+
 TARGET = install-i18n
 
 DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
