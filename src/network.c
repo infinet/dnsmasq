@@ -1360,82 +1360,77 @@ void add_update_server(int flags,
 void check_servers(void)
 {
   struct irec *iface;
-  struct server *new, *tmp, **up;
+  struct server *serv;
   int port = 0;
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
   
-  for (up = &daemon->servers, new = daemon->servers; new; new = tmp)
+  for (serv = daemon->servers; serv; serv = serv->next)
     {
-      tmp = new->next;
-      
-      if (!(new->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
+       if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
 	{
-	  port = prettyprint_addr(&new->addr, daemon->namebuff);
+	  port = prettyprint_addr(&serv->addr, daemon->namebuff);
 
 	  /* 0.0.0.0 is nothing, the stack treats it like 127.0.0.1 */
-	  if (new->addr.sa.sa_family == AF_INET &&
-	      new->addr.in.sin_addr.s_addr == 0)
+	  if (serv->addr.sa.sa_family == AF_INET &&
+	      serv->addr.in.sin_addr.s_addr == 0)
 	    {
-	      *up = tmp;
-	      free(new);
+	      serv->flags |= SERV_MARK;
 	      continue;
 	    }
 
 	  for (iface = daemon->interfaces; iface; iface = iface->next)
-	    if (sockaddr_isequal(&new->addr, &iface->addr))
+	    if (sockaddr_isequal(&serv->addr, &iface->addr))
 	      break;
 	  if (iface)
 	    {
 	      my_syslog(LOG_WARNING, _("ignoring nameserver %s - local interface"), daemon->namebuff);
-	      *up = tmp;
-	      free(new);
+	      serv->flags |= SERV_MARK;
 	      continue;
 	    }
 	  
 	  /* Do we need a socket set? */
-	  if (!new->sfd && 
-	      !(new->sfd = allocate_sfd(&new->source_addr, new->interface)) &&
+	  if (!serv->sfd && 
+	      !(serv->sfd = allocate_sfd(&serv->source_addr, serv->interface)) &&
 	      errno != 0)
 	    {
 	      my_syslog(LOG_WARNING, 
 			_("ignoring nameserver %s - cannot make/bind socket: %s"),
 			daemon->namebuff, strerror(errno));
-	      *up = tmp;
-	      free(new);
+	      serv->flags |= SERV_MARK;
 	      continue;
 	    }
 	}
       
-      if (!(new->flags & SERV_NO_REBIND))
+      if (!(serv->flags & SERV_NO_REBIND))
 	{
-	  if (new->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_USE_RESOLV))
+	  if (serv->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_USE_RESOLV))
 	    {
 	      char *s1, *s2;
-	      if (!(new->flags & SERV_HAS_DOMAIN))
+	      if (!(serv->flags & SERV_HAS_DOMAIN))
 		s1 = _("unqualified"), s2 = _("names");
-	      else if (strlen(new->domain) == 0)
+	      else if (strlen(serv->domain) == 0)
 		s1 = _("default"), s2 = "";
 	      else
-		s1 = _("domain"), s2 = new->domain;
+		s1 = _("domain"), s2 = serv->domain;
 	      
-	      if (new->flags & SERV_NO_ADDR)
+	      if (serv->flags & SERV_NO_ADDR)
 		my_syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
-	      else if (new->flags & SERV_USE_RESOLV)
+	      else if (serv->flags & SERV_USE_RESOLV)
 		my_syslog(LOG_INFO, _("using standard nameservers for %s %s"), s1, s2);
-	      else if (!(new->flags & SERV_LITERAL_ADDRESS))
+	      else if (!(serv->flags & SERV_LITERAL_ADDRESS))
 		my_syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
 	    }
-	  else if (new->interface[0] != 0)
-	    my_syslog(LOG_INFO, _("using nameserver %s#%d(via %s)"), daemon->namebuff, port, new->interface); 
+	  else if (serv->interface[0] != 0)
+	    my_syslog(LOG_INFO, _("using nameserver %s#%d(via %s)"), daemon->namebuff, port, serv->interface); 
 	  else
 	    my_syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
 	}
-      
-      up = &new->next;
     }
+
+  cleanup_servers();
 }
 
 /* Return zero if no servers found, in that case we keep polling.
