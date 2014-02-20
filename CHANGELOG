@@ -63,6 +63,9 @@ version 2.69
 	    a workable state.
  
 	    Add --rev-server. Thanks to Dave Taht for suggesting this.
+	    
+	    Add --servers-file. Allows dynamic update of upstream servers 
+	    full access to configuration. 
 
  	    
 version 2.68

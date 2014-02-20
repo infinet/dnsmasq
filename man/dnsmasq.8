@@ -1678,6 +1678,13 @@ files. If extension(s) are given, any files which end in those
 extensions are skipped. Any files whose names end in ~ or start with . or start and end
 with # are always skipped. This flag may be given on the command
 line or in a configuration file.
+.TP
+.B --servers-file=<file>
+A special case of 
+.B --conf-file
+which differs in two respects. Firstly, only --server and --rev-server are allowed 
+in the configuration file included. Secondly, the file is re-read and the configuration
+therein is updated when dnsmasq recieves SIGHUP.
 .SH CONFIG FILE
 At startup, dnsmasq reads
 .I /etc/dnsmasq.conf,

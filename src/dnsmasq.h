@@ -456,6 +456,7 @@ union mysockaddr {
 #define SERV_COUNTED         512  /* workspace for log code */
 #define SERV_USE_RESOLV     1024  /* forward this domain in the normal way */
 #define SERV_NO_REBIND      2048  /* inhibit dns-rebind protection */
+#define SERV_FROM_FILE      4096  /* read from --servers-file */
 
 struct serverfd {
   int fd;
@@ -864,6 +865,7 @@ extern struct daemon {
   unsigned int options, options2;
   struct resolvc default_resolv, *resolv_files;
   time_t last_resolv;
+  char *servers_file;
   struct mx_srv_record *mxnames;
   struct naptr *naptr;
   struct txt_record *txt, *rr;
@@ -1130,6 +1132,7 @@ void read_opts (int argc, char **argv, char *compile_opts);
 char *option_string(int prot, unsigned int opt, unsigned char *val, 
 		    int opt_len, char *buf, int buf_len);
 void reread_dhcp(void);
+void read_servers_file(void);
 void set_option_bool(unsigned int opt);
 void reset_option_bool(unsigned int opt);
 struct hostsfile *expand_filelist(struct hostsfile *list);

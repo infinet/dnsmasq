@@ -1114,7 +1114,7 @@ static void async_event(int pipe, time_t now)
 {
   pid_t p;
   struct event_desc ev;
-  int i;
+  int i, check = 0;
   char *msg;
   
   /* NOTE: the memory used to return msg is leaked: use msgs in events only
@@ -1125,11 +1125,25 @@ static void async_event(int pipe, time_t now)
       {
       case EVENT_RELOAD:
 	clear_cache_and_reload(now);
-	if (daemon->port != 0 && daemon->resolv_files && option_bool(OPT_NO_POLL))
+
+	if (daemon->port != 0)
 	  {
-	    reload_servers(daemon->resolv_files->name);
-	    check_servers();
+	    if (daemon->resolv_files && option_bool(OPT_NO_POLL))
+	      {
+		reload_servers(daemon->resolv_files->name);
+		check = 1;
+	      }
+
+	    if (daemon->servers_file)
+	      {
+		read_servers_file();
+		check = 1;
+	      }
+
+	    if (check)
+	      check_servers();
 	  }
+
 #ifdef HAVE_DHCP
 	rerun_scripts();
 #endif

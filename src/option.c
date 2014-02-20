@@ -142,6 +142,7 @@ struct myoption {
 #define LOPT_TRUST_ANCHOR 330
 #define LOPT_DNSSEC_DEBUG 331
 #define LOPT_REV_SERV     332
+#define LOPT_SERVERS_FILE 333
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -158,6 +159,7 @@ static const struct myoption opts[] =
     { "user", 2, 0, 'u' },
     { "group", 2, 0, 'g' },
     { "resolv-file", 2, 0, 'r' },
+    { "servers-file", 1, 0, LOPT_SERVERS_FILE },
     { "mx-host", 1, 0, 'm' },
     { "mx-target", 1, 0, 't' },
     { "cache-size", 2, 0, 'c' },
@@ -349,6 +351,7 @@ static struct {
   { 'Q', ARG_ONE, "<integer>", gettext_noop("Force the originating port for upstream DNS queries."), NULL },
   { 'R', OPT_NO_RESOLV, NULL, gettext_noop("Do NOT read resolv.conf."), NULL },
   { 'r', ARG_DUP, "<path>", gettext_noop("Specify path to resolv.conf (defaults to %s)."), RESOLVFILE }, 
+  { LOPT_SERVERS_FILE, ARG_ONE, "<path>", gettext_noop("Specify path to file with server= options"), NULL },
   { 'S', ARG_DUP, "/<domain>/<ipaddr>", gettext_noop("Specify address(es) of upstream servers with optional domains."), NULL },
   { LOPT_REV_SERV, ARG_DUP, "<addr>/<prefix>,<ipaddr>", gettext_noop("Specify address of upstream servers for reverse address queries"), NULL },
   { LOPT_LOCAL, ARG_DUP, "/<domain>/", gettext_noop("Never forward queries to specified domains."), NULL },
@@ -1385,7 +1388,7 @@ void reset_option_bool(unsigned int opt)
     daemon->options2 &= ~(1u << (opt - 32));
 }
 
-static int one_opt(int option, char *arg, char *errstr, char *gen_err, int command_line)
+static int one_opt(int option, char *arg, char *errstr, char *gen_err, int command_line, int servers_only)
 {      
   int i;
   char *comma;
@@ -1588,6 +1591,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	daemon->resolv_files = list;
 	break;
       }
+
+    case LOPT_SERVERS_FILE:
+      daemon->servers_file = opt_string_alloc(arg);
+      break;
       
     case 'm':  /* --mx-host */
       {
@@ -2152,6 +2159,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    memset(newlist, 0, sizeof(struct server));
 	  }
 	
+	if (servers_only && option == 'S')
+	  newlist->flags |= SERV_FROM_FILE;
+	
 	if (option == 'A')
 	  {
 	    newlist->flags |= SERV_LITERAL_ADDRESS;
@@ -2223,7 +2233,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	if (string)
 	  ret_err(string);
-
+	
+	if (servers_only)
+	  serv->flags |= SERV_FROM_FILE;
+	
 	break;
       }
 
@@ -3801,12 +3814,13 @@ static void read_file(char *file, FILE *f, int hard_opt)
   
   while (fgets(buff, MAXDNAME, f))
     {
-      int white, i, option = hard_opt;
+      int white, i;
+      volatile int option = (hard_opt == LOPT_REV_SERV) ? 0 : hard_opt;
       char *errmess, *p, *arg = NULL, *start;
       size_t len;
 
       /* Memory allocation failure longjmps here if mem_recover == 1 */ 
-      if (option != 0)
+      if (option != 0 || hard_opt == LOPT_REV_SERV)
 	{
 	  if (setjmp(mem_jmp))
 	    continue;
@@ -3907,13 +3921,15 @@ static void read_file(char *file, FILE *f, int hard_opt)
 	    errmess = _("extraneous parameter");
 	  else if (opts[i].has_arg == 1 && !arg)
 	    errmess = _("missing parameter");
+	  else if (hard_opt == LOPT_REV_SERV && option != 'S' && option != LOPT_REV_SERV)
+	    errmess = _("illegal option");
 	}
 
     oops:
       if (errmess)
 	strcpy(daemon->namebuff, errmess);
 	  
-      if (errmess || !one_opt(option, arg, buff, _("error"), 0))
+      if (errmess || !one_opt(option, arg, buff, _("error"), 0, hard_opt == LOPT_REV_SERV))
 	{
 	  sprintf(daemon->namebuff + strlen(daemon->namebuff), _(" at line %d of %s"), lineno, file);
 	  if (hard_opt != 0)
@@ -4095,6 +4111,22 @@ struct hostsfile *expand_filelist(struct hostsfile *list)
   return list;
 }
 
+void read_servers_file(void)
+{
+  FILE *f;
+
+  if (!(f = fopen(daemon->servers_file, "r")))
+    {
+       my_syslog(LOG_ERR, _("cannot read %s: %s"), daemon->servers_file, strerror(errno));
+       return;
+    }
+  
+  mark_servers(SERV_FROM_FILE);
+  cleanup_servers();
+  
+  read_file(daemon->servers_file, f, LOPT_REV_SERV);
+}
+ 
 
 #ifdef HAVE_DHCP
 void reread_dhcp(void)
@@ -4288,9 +4320,9 @@ void read_opts(int argc, char **argv, char *compile_opts)
       else
 	{
 #ifdef HAVE_GETOPT_LONG
-	  if (!one_opt(option, arg, daemon->namebuff, _("try --help"), 1))
+	  if (!one_opt(option, arg, daemon->namebuff, _("try --help"), 1, 0))
 #else 
-	  if (!one_opt(option, arg, daemon->namebuff, _("try -w"), 1)) 
+	    if (!one_opt(option, arg, daemon->namebuff, _("try -w"), 1, 0)) 
 #endif  
 	    die(_("bad command line options: %s"), daemon->namebuff, EC_BADCONF);
 	}

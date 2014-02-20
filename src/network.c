@@ -1291,7 +1291,8 @@ void add_update_server(int flags,
 		       const char *interface,
 		       const char *domain)
 {
-  struct server *serv;
+  struct server *serv, *next = NULL;
+  char *domain_str = NULL;
   
   /* See if there is a suitable candidate, and unmark */
   for (serv = daemon->servers; serv; serv = serv->next)
@@ -1308,17 +1309,18 @@ void add_update_server(int flags,
 	      continue;
 	  }
 	
-	serv->flags &= ~SERV_MARK;
-	
         break;
       }
-  
-  if (!serv && (serv = whine_malloc(sizeof (struct server))))
+
+  if (serv)
+    {
+      domain_str = serv->domain;
+      next = serv->next;
+    }
+  else if ((serv = whine_malloc(sizeof (struct server))))
     {
       /* Not found, create a new one. */
-      memset(serv, 0, sizeof(struct server));
-      
-      if (domain && !(serv->domain = whine_malloc(strlen(domain)+1)))
+      if (domain && !(domain_str = whine_malloc(strlen(domain)+1)))
 	{
 	  free(serv);
           serv = NULL;
@@ -1335,25 +1337,27 @@ void add_update_server(int flags,
 	      s->next = serv;
 	    }
 	  if (domain)
-	    strcpy(serv->domain, domain);
+	    strcpy(domain_str, domain);
 	}
     }
   
   if (serv)
     {
+      memset(serv, 0, sizeof(struct server));
       serv->flags = flags;
+      serv->domain = domain_str;
+      serv->next = next;
       serv->queries = serv->failed_queries = 0;
       
       if (domain)
 	serv->flags |= SERV_HAS_DOMAIN;
       
       if (interface)
-	strcpy(serv->interface, interface);
-      else
-	serv->interface[0] = 0;
-      
-      serv->addr = *addr;
-      serv->source_addr = *source_addr;
+	strcpy(serv->interface, interface);      
+      if (addr)
+	serv->addr = *addr;
+      if (source_addr)
+	serv->source_addr = *source_addr;
     }
 }
 

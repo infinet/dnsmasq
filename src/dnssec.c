@@ -287,6 +287,8 @@ static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len
 static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
 		  unsigned char *digest, size_t digest_len, int algo)
 {
+  (void)digest_len;
+
   switch (algo)
     {
     case 1: case 5: case 7: case 8: case 10:
