@@ -1520,13 +1520,13 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
 	      {
 		/* Normal case, hash falls between NSEC3 name-hash and next domain name-hash,
 		   wrap around case, name-hash falls between NSEC3 name-hash and end */
-		if (memcmp(p, name, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
+		if (memcmp(p, digest, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
 		  return STAT_SECURE;
 	      }
 	    else 
 	      {
 		/* wrap around case, name falls between start and next domain name */
-		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, name, digest_size) > 0)
+		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, digest, digest_size) > 0)
 		  return STAT_SECURE;
 	      }
 	  }
@@ -1563,13 +1563,13 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
 	      {
 		/* Normal case, hash falls between NSEC3 name-hash and next domain name-hash,
 		   wrap around case, name-hash falls between NSEC3 name-hash and end */
-		if (memcmp(p, name, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
+		if (memcmp(p, digest, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
 		  return STAT_SECURE;
 	      }
 	    else 
 	      {
 		/* wrap around case, name falls between start and next domain name */
-		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, name, digest_size) > 0)
+		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, digest, digest_size) > 0)
 		  return STAT_SECURE;
 	      }
 	  }
