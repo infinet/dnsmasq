@@ -68,6 +68,7 @@
 #define T_RRSIG         46
 #define T_NSEC          47
 #define T_DNSKEY        48
+#define T_NSEC3         50
 #define	T_TKEY		249		
 #define	T_TSIG		250
 #define T_AXFR          252

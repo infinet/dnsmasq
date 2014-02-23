@@ -98,7 +98,10 @@ int main (int argc, char **argv)
   
 #ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
-    daemon->keyname = safe_malloc(MAXDNAME);
+    {
+      daemon->keyname = safe_malloc(MAXDNAME);
+      daemon->workspacename = safe_malloc(MAXDNAME);
+    }
 #endif
 
 #ifdef HAVE_DHCP

@@ -337,7 +337,7 @@ unsigned char *skip_questions(struct dns_header *header, size_t plen)
   return ansp;
 }
 
-static unsigned char *skip_section(unsigned char *ansp, int count, struct dns_header *header, size_t plen)
+unsigned char *skip_section(unsigned char *ansp, int count, struct dns_header *header, size_t plen)
 {
   int i, rdlen;
   
