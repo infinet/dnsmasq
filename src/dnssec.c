@@ -682,18 +682,18 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
     return STAT_INSECURE; 
   
   /* Sort RRset records into canonical order. 
-     Note that at this point keyname and name buffs are
+     Note that at this point keyname and daemon->workspacename buffs are
      unused, and used as workspace by the sort. */
-  sort_rrset(header, plen, rr_desc, rrsetidx, rrset, name, keyname);
+  sort_rrset(header, plen, rr_desc, rrsetidx, rrset, daemon->workspacename, keyname);
          
   /* Now try all the sigs to try and find one which validates */
   for (j = 0; j <sigidx; j++)
     {
-      unsigned char *psav, *sig;
+      unsigned char *psav, *sig, *digest;
       int i, wire_len, sig_len;
       const struct nettle_hash *hash;
       void *ctx;
-      unsigned char *digest;
+      char *name_start;
       u32 nsigttl;
       
       p = sigs[j];
@@ -710,7 +710,32 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       
       if (!extract_name(header, plen, &p, keyname, 1, 0))
 	return STAT_INSECURE;
+
+      /* RFC 4035 5.3.1 says that the Signer's Name field MUST equal
+	 the name of the zone containing the RRset. We can't tell that
+	 for certain, but we can check that  the RRset name is equal to
+	 or encloses the signers name, which should be enough to stop 
+	 an attacker using signatures made with the key of an unrelated 
+	 zone he controls. Note that the root key is always allowed. */
+      if (*keyname != 0)
+	{
+	  int failed = 0;
+	  
+	  for (name_start = name; !hostname_isequal(name_start, keyname); )
+	    if ((name_start = strchr(name_start, '.')))
+	      name_start++; /* chop a label off and try again */
+	    else
+	      {
+		failed = 1;
+		break;
+	      }
+
+	  /* Bad sig, try another */
+	  if (failed)
+	    continue;
+	}
       
+      /* Other 5.3.1 checks */
       if (!check_date_range(sig_inception, sig_expiration) ||
 	  labels > name_labels ||
 	  !(hash = hash_find(algo_digest_name(algo))) ||
@@ -735,13 +760,14 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	{
 	  int seg;
 	  unsigned char *end, *cp;
-	  char *name_start = name;
 	  u16 len, *dp;
-
+	  
 	  p = rrset[i];
 	  if (!extract_name(header, plen, &p, name, 1, 10)) 
 	    return STAT_INSECURE;
 
+	  name_start = name;
+	  
 	  /* if more labels than in RRsig name, hash *.<no labels in rrsig labels field>  4035 5.3.2 */
 	  if (labels < name_labels)
 	    {
