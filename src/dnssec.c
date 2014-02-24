@@ -1272,8 +1272,7 @@ static int prove_non_existance_nsec(struct dns_header *header, size_t plen, unsi
 	      if (p[0] == type >> 8)
 		{
 		  /* Does the NSEC say our type exists? */
-		  if (offset < p[1] &&
-		      (p[offset+2] & mask) != 0)
+		  if (offset < p[1] && (p[offset+2] & mask) != 0)
 		    return STAT_BOGUS;
 		  
 		  break; /* finshed checking */
@@ -1334,16 +1333,11 @@ static int hash_name(char *in, unsigned char **out, struct nettle_hash const *ha
 /* Decode base32 to first "." or end of string */
 static int base32_decode(char *in, unsigned char *out)
 {
-  int oc = 0, on = 0, c, mask, i;
+  int oc, on, c, mask, i;
   unsigned char *p = out;
  
-  while (1) 
+  for (c = *in, oc = 0, on = 0; c != 0 && c != '.'; c = *++in) 
     {
-      c = *in++;
-
-      if (c == 0 || c == '.')
-	break;
-
       if (c >= '0' && c <= '9')
 	c -= '0';
       else if (c >= 'a' && c <= 'v')
@@ -1355,12 +1349,12 @@ static int base32_decode(char *in, unsigned char *out)
       
       for (mask = 0x10, i = 0; i < 5; i++)
         {
-         if (c & mask)
-	   oc |= 1;
-	 mask = mask >> 1;
-	 if (((++on) & 7) == 0)
-	  *p++ = oc;
-	 oc = oc << 1;
+	  if (c & mask)
+	    oc |= 1;
+	  mask = mask >> 1;
+	  if (((++on) & 7) == 0)
+	    *p++ = oc;
+	  oc = oc << 1;
 	}
     }
   
@@ -1373,8 +1367,8 @@ static int base32_decode(char *in, unsigned char *out)
 static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
 				     char *workspace1, char *workspace2, char *name, int type)
 {
-  unsigned char *salt, *p, *digest, hash_len;
-  int digest_size, i, iterations, salt_len, algo = 0;
+  unsigned char *salt, *p, *digest;
+  int digest_len, i, iterations, salt_len, hash_len, base32_len, algo = 0;
   struct nettle_hash const *hash;
   char *closest_encloser, *next_closest, *wildcard;
  
@@ -1426,7 +1420,7 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
  
       p++; /* flags */
       
-      GETSHORT (this_iter, p);
+      GETSHORT(this_iter, p);
       if (this_iter != iterations)
 	continue;
 
@@ -1456,20 +1450,18 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
       if (*closest_encloser == '.')
 	closest_encloser++;
 
-      if ((digest_size = hash_name(closest_encloser, &digest, hash, salt, salt_len, iterations)) == 0)
+      if ((digest_len = hash_name(closest_encloser, &digest, hash, salt, salt_len, iterations)) == 0)
 	return STAT_INSECURE;
       
       for (i = 0; i < nsec_count; i++)
 	if ((p = nsecs[i]))
 	  {
-	    int base32_size;
-	    
 	    if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
-		!(base32_size = base32_decode(workspace1, (unsigned char *)workspace2)))
+		!(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
 	      return STAT_INSECURE;
 	  
-	    if (digest_size == base32_size &&
-		memcmp(digest, workspace2, digest_size) == 0)
+	    if (digest_len == base32_len &&
+		memcmp(digest, workspace2, digest_len) == 0)
 	      break; /* Gotit */
 	  }
       
@@ -1488,7 +1480,7 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
     {
       /* We found an NSEC3 whose hashed name exactly matches the query, so
 	 Now we just need to check the type map. p points to the RR data for the record. */
-      int hash_len, rdlen;
+      int rdlen;
       unsigned char *psave;
       int offset = (type & 0xff) >> 3;
       int mask = 0x80 >> (type & 0x07);
@@ -1510,9 +1502,8 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
 	  
 	  if (p[0] == type >> 8)
 	    {
-	      /* Does the NSEC say our type exists? */
-	      if (offset < p[1] &&
-		  (p[offset+2] & mask) != 0)
+	      /* Does the NSEC3 say our type exists? */
+	      if (offset < p[1] && (p[offset+2] & mask) != 0)
 		return STAT_BOGUS;
 	      
 	      break; /* finshed checking */
@@ -1526,16 +1517,14 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
     }
 
   /* Look for NSEC3 that proves the non-existance of the next-closest encloser */
-  if ((digest_size = hash_name(next_closest, &digest, hash, salt, salt_len, iterations)) == 0)
+  if ((digest_len = hash_name(next_closest, &digest, hash, salt, salt_len, iterations)) == 0)
     return STAT_INSECURE;
 
   for (i = 0; i < nsec_count; i++)
     if ((p = nsecs[i]))
       {
-	int base32_size;
-	
-	if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
-	    !(base32_size = base32_decode(workspace1, (unsigned char *)workspace2)))
+       	if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
+	    !(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
 	  return STAT_INSECURE;
 	   
 	p += 15 + salt_len; /* class, type, TTL, rdlen, algo, flags, iterations, salt_len, salt */
@@ -1544,19 +1533,19 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
 	if (!CHECK_LEN(header, p, plen, hash_len))
 	  return STAT_INSECURE;
 	
-	if (digest_size == base32_size && hash_len == base32_size)
+	if (digest_len == base32_len && hash_len == base32_len)
 	  {
-	    if (memcmp(workspace2, digest, digest_size) <= 0)
+	    if (memcmp(workspace2, digest, digest_len) <= 0)
 	      {
 		/* Normal case, hash falls between NSEC3 name-hash and next domain name-hash,
 		   wrap around case, name-hash falls between NSEC3 name-hash and end */
-		if (memcmp(p, digest, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
+		if (memcmp(p, digest, digest_len) > 0 || memcmp(workspace2, p, digest_len) > 0)
 		  return STAT_SECURE;
 	      }
 	    else 
 	      {
 		/* wrap around case, name falls between start and next domain name */
-		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, digest, digest_size) > 0)
+		if (memcmp(workspace2, p, digest_len) > 0 && memcmp(p, digest, digest_len) > 0)
 		  return STAT_SECURE;
 	      }
 	  }
@@ -1569,16 +1558,14 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
   wildcard--;
   *wildcard = '*';
   
-  if ((digest_size = hash_name(wildcard, &digest, hash, salt, salt_len, iterations)) == 0)
+  if ((digest_len = hash_name(wildcard, &digest, hash, salt, salt_len, iterations)) == 0)
     return STAT_INSECURE;
   
   for (i = 0; i < nsec_count; i++)
     if ((p = nsecs[i]))
       {
-	int base32_size;
-	
 	if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
-	    !(base32_size = base32_decode(workspace1, (unsigned char *)workspace2)))
+	    !(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
 	  return STAT_INSECURE;
 	   
 	p += 15 + salt_len; /* class, type, TTL, rdlen, algo, flags, iterations, salt_len, salt */
@@ -1587,19 +1574,19 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
 	if (!CHECK_LEN(header, p, plen, hash_len))
 	  return STAT_INSECURE;
 	
-	if (digest_size == base32_size && hash_len == base32_size)
+	if (digest_len == base32_len && hash_len == base32_len)
 	  {
-	    if (memcmp(workspace2, digest, digest_size) <= 0)
+	    if (memcmp(workspace2, digest, digest_len) <= 0)
 	      {
 		/* Normal case, hash falls between NSEC3 name-hash and next domain name-hash,
 		   wrap around case, name-hash falls between NSEC3 name-hash and end */
-		if (memcmp(p, digest, digest_size) > 0 || memcmp(workspace2, p, digest_size) > 0)
+		if (memcmp(p, digest, digest_len) > 0 || memcmp(workspace2, p, digest_len) > 0)
 		  return STAT_SECURE;
 	      }
 	    else 
 	      {
 		/* wrap around case, name falls between start and next domain name */
-		if (memcmp(workspace2, p, digest_size) > 0 && memcmp(p, digest, digest_size) > 0)
+		if (memcmp(workspace2, p, digest_len) > 0 && memcmp(p, digest, digest_len) > 0)
 		  return STAT_SECURE;
 	      }
 	  }
@@ -1671,9 +1658,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	      if (rc == STAT_SECURE_WILDCARD)
 		{
 		  /* An attacker replay a wildcard answer with a different
-		     answer and overlay an genuine RR. To prove this
+		     answer and overlay a genuine RR. To prove this
 		     hasn't happened, the answer must prove that
-		     a record doesn't exist. Check that here. */
+		     the gennuine record doesn't exist. Check that here. */
 		  if (!nsec_type)
 		    {
 		      nsec_type = find_nsec_records(header, plen, &nsecs, &nsec_count, class1);
