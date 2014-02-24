@@ -1231,7 +1231,7 @@ static int find_nsec_records(struct dns_header *header, size_t plen, unsigned ch
   return type_found;
 }
 
-static int prove_non_existance_nsec(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
+static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
 				    char *workspace1, char *workspace2, char *name, int type)
 {
   int i, rc, rdlen;
@@ -1364,7 +1364,7 @@ static int base32_decode(char *in, unsigned char *out)
   return p - out;
 }
 
-static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
+static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
 				     char *workspace1, char *workspace2, char *name, int type)
 {
   unsigned char *salt, *p, *digest;
@@ -1516,7 +1516,7 @@ static int prove_non_existance_nsec3(struct dns_header *header, size_t plen, uns
       return STAT_SECURE;
     }
 
-  /* Look for NSEC3 that proves the non-existance of the next-closest encloser */
+  /* Look for NSEC3 that proves the non-existence of the next-closest encloser */
   if ((digest_len = hash_name(next_closest, &digest, hash, salt, salt_len, iterations)) == 0)
     return STAT_INSECURE;
 
@@ -1672,9 +1672,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 		    }
 		  
 		  if (nsec_type == T_NSEC)
-		    rc = prove_non_existance_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
+		    rc = prove_non_existence_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
 		  else
-		    rc = prove_non_existance_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
+		    rc = prove_non_existence_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
 
 		  if (rc != STAT_SECURE)
 		    return rc;
@@ -1846,9 +1846,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
     }
   
   if (nsec_type == T_NSEC)
-    return prove_non_existance_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
+    return prove_non_existence_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
   else
-    return prove_non_existance_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
+    return prove_non_existence_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1);
 }
 
 /* Compute keytag (checksum to quickly index a key). See RFC4034 */
