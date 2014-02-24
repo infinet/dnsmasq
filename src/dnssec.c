@@ -860,7 +860,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
   GETSHORT(qclass, p);
   
   if (qtype != T_DNSKEY || qclass != class || ntohs(header->ancount) == 0)
-    return STAT_INSECURE;
+    return STAT_BOGUS;
 
    /* See if we have cached a DS record which validates this key */
   if (!(crecp = cache_find_by_name(NULL, name, now, F_DS)))
@@ -894,7 +894,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
       
       GETSHORT(flags, p);
       if (*p++ != 3)
-	return STAT_INSECURE;
+	return STAT_BOGUS;
       algo = *p++;
       keytag = dnskey_keytag(algo, flags, p, rdlen - 4);
       key = NULL;
@@ -984,7 +984,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 		  
 		  GETSHORT(flags, p);
 		  if (*p++ != 3)
-		    return STAT_INSECURE;
+		    return STAT_BOGUS;
 		  algo = *p++;
 		  keytag = dnskey_keytag(algo, flags, p, rdlen - 4);
 		  
@@ -1080,7 +1080,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   GETSHORT(qclass, p);
 
   if (qtype != T_DS || qclass != class || ntohs(header->ancount) == 0)
-    return STAT_INSECURE;
+    return STAT_BOGUS;
   
   val = dnssec_validate_reply(now, header, plen, name, keyname, NULL);
   
@@ -1255,6 +1255,10 @@ static int prove_non_existance_nsec(struct dns_header *header, size_t plen, unsi
       
       if (rc == 0)
 	{
+	  /* 4035 para 5.4. Last sentence */
+	  if (type == T_NSEC || type == T_RRSIG)
+	    return STAT_SECURE;
+
 	  /* NSEC with the same name as the RR we're testing, check
 	     that the type in question doesn't appear in the type map */
 	  rdlen -= p - psave;
