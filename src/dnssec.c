@@ -1072,10 +1072,10 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   GETSHORT(qtype, p);
   GETSHORT(qclass, p);
 
-  if (qtype != T_DS || qclass != class || ntohs(header->ancount) == 0)
-    return STAT_BOGUS;
-  
-  val = dnssec_validate_reply(now, header, plen, name, keyname, NULL);
+  if (qtype != T_DS || qclass != class)
+    val = STAT_BOGUS;
+  else
+    val = dnssec_validate_reply(now, header, plen, name, keyname, NULL);
   
   if (val == STAT_BOGUS)
     {
@@ -1083,7 +1083,11 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
       extract_name(header, plen, &p, name, 1, 4);
       log_query(F_UPSTREAM, name, NULL, "BOGUS DS");
     }
-
+  
+  /* proved that no DS exists, can't validate */
+  if (val == STAT_SECURE && ntohs(header->ancount) == 0)
+    return STAT_INSECURE;
+  
   return val;
 }
 
