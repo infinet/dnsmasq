@@ -601,11 +601,11 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
     
   if (family == parm->l3->sa.sa_family)
     {
-      if (family == AF_INET && memcmp (&parm->l3->in.sin_addr, addrp, INADDRSZ) == 0)
+      if (family == AF_INET && memcmp(&parm->l3->in.sin_addr, addrp, INADDRSZ) == 0)
 	match = 1;
 #ifdef HAVE_IPV6
       else
-	if (family == AF_INET6 && memcmp (&parm->l3->in6.sin6_addr, addrp, IN6ADDRSZ) == 0)
+	if (family == AF_INET6 && memcmp(&parm->l3->in6.sin6_addr, addrp, IN6ADDRSZ) == 0)
 	  match = 1;
 #endif
     }
@@ -1453,7 +1453,7 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
 /* return zero if we can't answer from cache, or packet size if we can */
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, 
-		      time_t now, int *ad_reqd) 
+		      time_t now, int *ad_reqd, int *do_bit) 
 {
   char *name = daemon->namebuff;
   unsigned char *p, *ansp, *pheader;
@@ -1475,7 +1475,8 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   
   /* RFC 6840 5.7 */
   *ad_reqd = header->hb4 & HB4_AD;
-  
+  *do_bit = 0;
+
   /* If there is an RFC2671 pseudoheader then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
      the query. We check to see if the do bit is set, if so we always
@@ -1493,7 +1494,8 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
       pheader += 2; /* ext_rcode */
       GETSHORT(flags, pheader);
       
-      sec_reqd = flags & 0x8000; /* do bit */ 
+      if ((sec_reqd = flags & 0x8000))
+	*do_bit = 1;/* do bit */ 
       *ad_reqd = 1;
 
       /* If our client is advertising a larger UDP packet size

@@ -542,6 +542,8 @@ struct hostsfile {
 #define FREC_DNSKEY_QUERY       8
 #define FREC_DS_QUERY          16
 #define FREC_AD_QUESTION       32
+#define FREC_DO_QUESTION       64
+#define FREC_ADDED_PHEADER    128
 
 #ifdef HAVE_DNSSEC
 #define HASH_SIZE 20 /* SHA-1 digest size */
@@ -1048,7 +1050,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff,
 		      int no_cache, int secure, int *doctored);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, 
-		      time_t now, int *ad_reqd);
+		      time_t now, int *ad_reqd, int *do_bit);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
@@ -1085,6 +1087,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char 
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
+size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);
 
 /* util.c */

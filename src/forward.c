@@ -235,7 +235,7 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp,
 static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 struct all_addr *dst_addr, unsigned int dst_iface,
 			 struct dns_header *header, size_t plen, time_t now, 
-			 struct frec *forward, int ad_reqd)
+			 struct frec *forward, int ad_reqd, int do_bit)
 {
   char *domain = NULL;
   int type = 0, norebind = 0;
@@ -336,8 +336,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	    forward->flags |= FREC_AD_QUESTION;
 #ifdef HAVE_DNSSEC
 	  forward->work_counter = DNSSEC_WORK;
+	  if (do_bit)
+	    forward->flags |= FREC_DO_QUESTION;
 #endif
-
+	  
 	  header->id = htons(forward->new_id);
 	  
 	  /* In strict_order mode, always try servers in the order 
@@ -393,11 +395,17 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
 	{
-	  plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
+	  size_t new_plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
+	 
 	  /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
 	     this allows it to select auth servers when one is returning bad data. */
 	  if (option_bool(OPT_DNSSEC_DEBUG))
 	    header->hb4 |= HB4_CD;
+
+	  if (new_plen != plen)
+	    forward->flags |= FREC_ADDED_PHEADER;
+
+	  plen = new_plen;
 	}
 #endif
 
@@ -506,7 +514,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 }
 
 static size_t process_reply(struct dns_header *header, time_t now, struct server *server, size_t n, int check_rebind, 
-			    int no_cache, int cache_secure, int ad_reqd, int check_subnet, union mysockaddr *query_source)
+			    int no_cache, int cache_secure, int ad_reqd, int do_bit, int added_pheader, int check_subnet, union mysockaddr *query_source)
 {
   unsigned char *pheader, *sizep;
   char **sets = 0;
@@ -552,6 +560,12 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	{
 	  my_syslog(LOG_WARNING, _("discarding DNS reply: subnet option mismatch"));
 	  return 0;
+	}
+      
+      if (added_pheader)
+	{
+	  pheader = 0; 
+	  header->arcount = htons(0);
 	}
     }
   
@@ -624,6 +638,10 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   
   if (!(header->hb4 & HB4_CD) && ad_reqd && cache_secure)
     header->hb4 |= HB4_AD;
+
+  /* If the requestor didn't set the DO bit, don't return DNSSEC info. */
+  if (!do_bit)
+    n = filter_rrsigs(header, n);
 #endif
 
   /* do this after extract_addresses. Ensure NODATA reply and remove
@@ -708,7 +726,7 @@ void reply_query(int fd, int family, time_t now)
 	  if ((nn = resize_packet(header, (size_t)n, pheader, plen)))
 	    {
 	      header->hb3 &= ~(HB3_QR | HB3_TC);
-	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, 0);
+	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, 0, 0);
 	      return;
 	    }
 	}
@@ -927,7 +945,8 @@ void reply_query(int fd, int family, time_t now)
 	header->hb4 &= ~HB4_CD;
       
       if ((nn = process_reply(header, now, server, (size_t)n, check_rebind, no_cache_dnssec, cache_secure,
-			      forward->flags & FREC_AD_QUESTION, forward->flags & FREC_HAS_SUBNET, &forward->source)))
+			      forward->flags & FREC_AD_QUESTION, forward->flags & FREC_DO_QUESTION, 
+			      forward->flags & FREC_ADDED_PHEADER, forward->flags & FREC_HAS_SUBNET, &forward->source)))
 	{
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
@@ -1169,9 +1188,9 @@ void receive_query(struct listener *listen, time_t now)
   else
 #endif
     {
-      int ad_reqd;
+      int ad_reqd, do_bit;
       m = answer_request(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, 
-			 dst_addr_4, netmask, now, &ad_reqd);
+			 dst_addr_4, netmask, now, &ad_reqd, &do_bit);
       
       if (m >= 1)
 	{
@@ -1180,7 +1199,7 @@ void receive_query(struct listener *listen, time_t now)
 	  daemon->local_answer++;
 	}
       else if (forward_query(listen->fd, &source_addr, &dst_addr, if_index,
-			     header, (size_t)n, now, NULL, ad_reqd))
+			     header, (size_t)n, now, NULL, ad_reqd, do_bit))
 	daemon->queries_forwarded++;
       else
 	daemon->local_answer++;
@@ -1272,7 +1291,8 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, ad_question, check_subnet, no_cache_dnssec = 0, cache_secure = 0;
+  int checking_disabled, ad_question, do_bit, added_pheader = 0;
+  int check_subnet, no_cache_dnssec = 0, cache_secure = 0;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -1350,7 +1370,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	{
 	  /* m > 0 if answered from cache */
 	  m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
-			     dst_addr_4, netmask, now, &ad_question);
+			     dst_addr_4, netmask, now, &ad_question, &do_bit);
 	  
 	  /* Do this by steam now we're not in the select() loop */
 	  check_log_writer(NULL); 
@@ -1430,11 +1450,17 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_DNSSEC
 			  if (option_bool(OPT_DNSSEC_VALID))
 			    {
-			      size = add_do_bit(header, size, ((char *) header) + 65536);
+			      size_t new_size = add_do_bit(header, size, ((char *) header) + 65536);
+			      
 			      /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
 				 this allows it to select auth servers when one is returning bad data. */
 			      if (option_bool(OPT_DNSSEC_DEBUG))
 				header->hb4 |= HB4_CD;
+			      
+			      if (size != new_size)
+				added_pheader = 1;
+			      
+			      size = new_size;
 			    }
 #endif
 			  
@@ -1533,7 +1559,7 @@ unsigned char *tcp_request(int confd, time_t now,
 
 		      m = process_reply(header, now, last_server, (unsigned int)m, 
 					option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec,
-					cache_secure, ad_question, check_subnet, &peer_addr); 
+					cache_secure, ad_question, do_bit, added_pheader, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }

@@ -472,6 +472,32 @@ static int get_rdata(struct dns_header *header, size_t plen, unsigned char *end,
     }
 }
 
+static int expand_workspace(unsigned char ***wkspc, int *sz, int new)
+{
+  unsigned char **p;
+  int new_sz = *sz;
+  
+  if (new_sz > new)
+    return 1;
+
+  if (new >= 100)
+    return 0;
+
+  new_sz += 5;
+  
+  if (!(p = whine_malloc((new_sz) * sizeof(unsigned char **))))
+    return 0;  
+  
+  if (*wkspc)
+    {
+      memcpy(p, *wkspc, *sz * sizeof(unsigned char **));
+      free(*wkspc);
+    }
+  
+  *wkspc = p;
+  *sz = new_sz;
+}
+
 /* Bubble sort the RRset into the canonical order. 
    Note that the byte-streams from two RRs may get unsynced: consider 
    RRs which have two domain-names at the start and then other data.
@@ -615,64 +641,31 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	{
 	  if (stype == type)
 	    {
-	      if (rrsetidx == rrset_sz)
-		{
-		  unsigned char **new;
-
-		  /* Protect against insane/maliciuos queries which bloat the workspace
-		     and eat CPU in the sort */
-		  if (rrsetidx >= 100)
-		    return STAT_INSECURE; 
-
-		  /* expand */
-		  if (!(new = whine_malloc((rrset_sz + 5) * sizeof(unsigned char **))))
-		    return STAT_INSECURE;
-		  
-		  if (rrset)
-		    {
-		      memcpy(new, rrset, rrset_sz * sizeof(unsigned char **));
-		      free(rrset);
-		    }
-		  
-		  rrset = new;
-		  rrset_sz += 5;
-		}
+	      if (!expand_workspace(&rrset, &rrset_sz, rrsetidx))
+		return STAT_INSECURE; 
+	      
 	      rrset[rrsetidx++] = pstart;
 	    }
 	  
 	  if (stype == T_RRSIG)
 	    {
-	       if (rdlen < 18)
-		 return STAT_INSECURE; /* bad packet */ 
-	         
-	       GETSHORT(type_covered, p);
-	       
-	       if (type_covered == type)
-		 {
-		   if (sigidx == sig_sz)
-		     {
-		       unsigned char **new;
-		       
-		       /* expand */
-		       if (!(new = whine_malloc((sig_sz + 5) * sizeof(unsigned char **))))
-			 return STAT_INSECURE;
-		       
-		       if (sigs)
-			 {
-			   memcpy(new, sigs, sig_sz * sizeof(unsigned char **));
-			   free(sigs);
-			 }
-		       
-		       sigs = new;
-		       sig_sz += 5;
-		     }
-		   
-		   sigs[sigidx++] = pdata;
-		 } 
-	       p = pdata + 2; /* restore for ADD_RDLEN */
+	      if (rdlen < 18)
+		return STAT_INSECURE; /* bad packet */ 
+	      
+	      GETSHORT(type_covered, p);
+	      
+	      if (type_covered == type)
+		{
+		  if (!expand_workspace(&sigs, &sig_sz, sigidx))
+		    return STAT_INSECURE; 
+		  
+		  sigs[sigidx++] = pdata;
+		} 
+	      
+	      p = pdata + 2; /* restore for ADD_RDLEN */
 	    }
 	}
-     
+      
       if (!ADD_RDLEN(header, p, plen, rdlen))
 	return STAT_INSECURE;
     }
@@ -1195,32 +1188,12 @@ static int find_nsec_records(struct dns_header *header, size_t plen, unsigned ch
 
 	  type_found = type;
 
-	  if (nsecs_found == nsecset_sz)
-	    {
-	      unsigned char **new;
-	      
-	      /* Protect against insane/malicious queries which bloat the workspace
-		 and eat CPU in the sort */
-	      if (nsecs_found >= 100)
-		return 0; 
-
-	      /* expand */
-	      if (!(new = whine_malloc((nsecset_sz + 5) * sizeof(unsigned char **))))
-		return 0;
-		  
-	      if (nsecset)
-		{
-		  memcpy(new, nsecset, nsecset_sz * sizeof(unsigned char **));
-		  free(nsecset);
-		}
-	      
-	      nsecset = new;
-	      nsecset_sz += 5;
-	    }
-
+	  if (!expand_workspace(&nsecset, &nsecset_sz, nsecs_found))
+	    return 0; 
+	  
 	  nsecset[nsecs_found++] = pstart;
 	}
-     
+      
       if (!ADD_RDLEN(header, p, plen, rdlen))
 	return 0;
     }
@@ -1906,6 +1879,235 @@ size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, i
   PUTSHORT(class, p);
 
   return add_do_bit(header, p - (unsigned char *)header, end);
+}
+
+/* Go through a domain name, find "pointers" and fix them up based on how many bytes
+   we've chopped out of the packet, or check they don't point into an elided part.  */
+static int check_name(unsigned char **namep, struct dns_header *header, size_t plen, int fixup, unsigned char **rrs, int rr_count)
+{
+  unsigned char *ansp = *namep;
+
+  while(1)
+    {
+      unsigned int label_type;
+      
+      if (!CHECK_LEN(header, ansp, plen, 1))
+	return 0;
+      
+      label_type = (*ansp) & 0xc0;
+
+      if (label_type == 0xc0)
+	{
+	  /* pointer for compression. */
+	  unsigned int offset, i;
+	  unsigned char *p;
+	  
+	  if (!CHECK_LEN(header, ansp, plen, 2))
+	    return 0;
+
+	  offset = ((*ansp++) & 0x3f) << 8;
+	  offset |= *ansp++;
+
+	  p = offset + (unsigned char *)header;
+	  
+	  for (i = 0; i < rr_count; i++)
+	    if (p < rrs[i])
+	      break;
+	    else
+	      if (i & 1)
+		offset -= rrs[i] - rrs[i-1];
+
+	  /* does the pointer end up in an elided RR? */
+	  if (i & 1)
+	    return -1;
+
+	  /* No, scale the pointer */
+	  if (fixup)
+	    {
+	      ansp -= 2;
+	      *ansp++ = (offset >> 8) | 0xc0;
+	      *ansp++ = offset & 0xff;
+	    }
+	  break;
+	}
+      else if (label_type == 0x80)
+	return 0; /* reserved */
+      else if (label_type == 0x40)
+	{
+	  /* Extended label type */
+	  unsigned int count;
+	  
+	  if (!CHECK_LEN(header, ansp, plen, 2))
+	    return 0;
+	  
+	  if (((*ansp++) & 0x3f) != 1)
+	    return 0; /* we only understand bitstrings */
+	  
+	  count = *(ansp++); /* Bits in bitstring */
+	  
+	  if (count == 0) /* count == 0 means 256 bits */
+	    ansp += 32;
+	  else
+	    ansp += ((count-1)>>3)+1;
+	}
+      else
+	{ /* label type == 0 Bottom six bits is length */
+	  unsigned int len = (*ansp++) & 0x3f;
+	  
+	  if (!ADD_RDLEN(header, ansp, plen, len))
+	    return 0;
+
+	  if (len == 0)
+	    break; /* zero length label marks the end. */
+	}
+    }
+
+  *namep = ansp;
+
+  return 1;
+}
+
+/* Go through RRs and check or fixup the domain names contained within */
+static int check_rrs(unsigned char *p, struct dns_header *header, size_t plen, int fixup, unsigned char **rrs, int rr_count)
+{
+  int i, type, class, rdlen;
+  
+  for (i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
+    {
+       if (type != T_NSEC && type != T_NSEC3 && type != T_RRSIG)
+	 {
+	   if (!check_name(&p, header, plen, fixup, rrs, rr_count))
+	     return 0;
+	 }
+       else
+	 {
+	   if (!(p = skip_name(p, header, plen, 10)))
+	     return 0;
+	 }
+      
+      GETSHORT(type, p); 
+      GETSHORT(class, p);
+      p += 4; /* TTL */
+      GETSHORT(rdlen, p);
+      
+      if (type != T_NSEC && type != T_NSEC3 && type != T_RRSIG)
+	{
+	  if (class == C_IN)
+	    {
+	      u16 *d;
+	      unsigned char *pp = p;
+	      
+	      for (d = get_desc(type); *d != (u16)-1; d++)
+		{
+		  if (*d != 0)
+		    pp += *d;
+		  else if (!check_name(&pp, header, plen, fixup, rrs, rr_count))
+		    return 0;
+		}
+	    }
+	}
+      
+      if (!ADD_RDLEN(header, p, plen, rdlen))
+	return 0;
+    }
+  
+  return 1;
+}
+	
+
+size_t filter_rrsigs(struct dns_header *header, size_t plen)
+{
+  static unsigned char **rrs;
+  static int rr_sz = 0;
+  
+  unsigned char *p = (unsigned char *)(header+1);
+  int i, rdlen, qtype, qclass, rr_found, chop_an, chop_ns;
+
+  if (ntohs(header->qdcount) != 1 ||
+      !(p = skip_name(p, header, plen, 4)))
+    return plen;
+  
+  GETSHORT(qtype, p);
+  GETSHORT(qclass, p);
+
+  /* First pass, find pointers to start and end of all the records we wish to elide:
+     records added for DNSSEC, unless explicity queried for */
+  for (rr_found = 0, chop_ns = 0, chop_an = 0, i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
+    {
+      unsigned char *pstart = p;
+      int type, class;
+
+      if (!(p = skip_name(p, header, plen, 10)))
+	return plen;
+      
+      GETSHORT(type, p); 
+      GETSHORT(class, p);
+      p += 4; /* TTL */
+      GETSHORT(rdlen, p);
+      
+      if ((type == T_NSEC || type == T_NSEC3 || type == T_RRSIG) && 
+	  (type != qtype || class != qclass))
+	{
+	  if (!expand_workspace(&rrs, &rr_sz, rr_found + 1))
+	    return plen; 
+	  
+	  rrs[rr_found++] = pstart;
+
+	  if (!ADD_RDLEN(header, p, plen, rdlen))
+	    return plen;
+	  
+	  rrs[rr_found++] = p;
+	  
+	  if (i < ntohs(header->ancount))
+	    chop_an++;
+	  else
+	    chop_ns++;
+	}
+      else if (!ADD_RDLEN(header, p, plen, rdlen))
+	return plen;
+    }
+  
+  /* Nothing to do. */
+  if (rr_found == 0)
+    return plen;
+
+  /* Second pass, look for pointers in names in the records we're keeping and make sure they don't
+     point to records we're going to elide. This is theoretically possible, but unlikely. If
+     it happens, we give up and leave the answer unchanged. */
+  p = (unsigned char *)(header+1);
+  
+  /* question first */
+  if (!check_name(&p, header, plen, 0, rrs, rr_found))
+    return plen;
+  p += 4; /* qclass, qtype */
+  
+  /* Now answers and NS */
+  if (!check_rrs(p, header, plen, 0, rrs, rr_found))
+    return plen;
+  
+  /* Third pass, elide records */
+  for (p = rrs[0], i = 1; i < rr_found; i += 2)
+    {
+      unsigned char *start = rrs[i];
+      unsigned char *end = (i != rr_found - 1) ? rrs[i+1] : ((unsigned char *)(header+1)) + plen;
+      
+      memmove(p, start, end-start);
+      p += end-start;
+    }
+     
+  plen = p - (unsigned char *)header;
+  header->ancount = htons(ntohs(header->ancount) - chop_an);
+  header->nscount = htons(ntohs(header->nscount) - chop_ns);
+  
+  /* Fourth pass, fix up pointers in the remaining records */
+  p = (unsigned char *)(header+1);
+  
+  check_name(&p, header, plen, 1, rrs, rr_found);
+  p += 4; /* qclass, qtype */
+  
+  check_rrs(p, header, plen, 1, rrs, rr_found);
+  
+  return plen;
 }
 
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name)
