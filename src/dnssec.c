@@ -855,13 +855,17 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
   if (qtype != T_DNSKEY || qclass != class || ntohs(header->ancount) == 0)
     return STAT_BOGUS;
 
-   /* See if we have cached a DS record which validates this key */
+  /* See if we have cached a DS record which validates this key */
   if (!(crecp = cache_find_by_name(NULL, name, now, F_DS)))
     {
       strcpy(keyname, name);
       return STAT_NEED_DS;
     }
-
+  
+  /* If we've cached that DS provably doesn't exist, result must be INSECURE */
+  if (crecp->flags & F_NEG)
+    return STAT_INSECURE;
+  
   /* NOTE, we need to find ONE DNSKEY which matches the DS */
   for (valid = 0, j = ntohs(header->ancount); j != 0 && !valid; j--) 
     {
@@ -998,7 +1002,6 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 			  recp1->addr.key.algo = algo;
 			  recp1->addr.key.keytag = keytag;
 			  recp1->addr.key.flags = flags;
-			  recp1->uid = class;
 			}
 		    }
 		}
@@ -1024,7 +1027,6 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 			    blockdata_free(key);
 			  else
 			    {
-			      crecp->uid = class;
 			      crecp->addr.sig.keydata = key;
 			      crecp->addr.sig.keylen = rdlen;
 			      crecp->addr.sig.keytag = keytag;
@@ -1054,7 +1056,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 /* The DNS packet is expected to contain the answer to a DS query
    Put all DSs in the answer which are valid into the cache.
    return codes:
-   STAT_INSECURE    bad packet, no DS in reply.
+   STAT_INSECURE    bad packet, no DS in reply, proven no DS in reply.
    STAT_SECURE      At least one valid DS found and in cache.
    STAT_BOGUS       At least one DS found, which fails validation.
    STAT_NEED_DNSKEY DNSKEY records to validate a DS not found, name in keyname
@@ -1063,10 +1065,10 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class)
 {
   unsigned char *p = (unsigned char *)(header+1);
-  int qtype, qclass, val;
+  int qtype, qclass, val, i;
 
   if (ntohs(header->qdcount) != 1 ||
-      !extract_name(header, plen, &p, name, 1, 4))
+      !(p = skip_name(p, header, plen, 4)))
     return STAT_INSECURE;
   
   GETSHORT(qtype, p);
@@ -1077,17 +1079,65 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   else
     val = dnssec_validate_reply(now, header, plen, name, keyname, NULL);
   
+  p = (unsigned char *)(header+1);
+  extract_name(header, plen, &p, name, 1, 4);
+  p += 4; /* qtype, qclass */
+  
   if (val == STAT_BOGUS)
-    {
-      p = (unsigned char *)(header+1);
-      extract_name(header, plen, &p, name, 1, 4);
-      log_query(F_UPSTREAM, name, NULL, "BOGUS DS");
-    }
+    log_query(F_UPSTREAM, name, NULL, "BOGUS DS");
   
-  /* proved that no DS exists, can't validate */
+  /* proved that no DS exists, cache neg answer, can't validate */
   if (val == STAT_SECURE && ntohs(header->ancount) == 0)
-    return STAT_INSECURE;
-  
+    {
+      int  rdlen, rc;
+      unsigned long ttl, minttl = ULONG_MAX;
+      struct all_addr a;
+      
+      for (i = ntohs(header->nscount); i != 0; i--)
+	{
+	  if (!(rc = extract_name(header, plen, &p, name, 0, 10)))
+	    return STAT_INSECURE;
+	  
+	  GETSHORT(qtype, p); 
+	  GETSHORT(qclass, p);
+	  GETLONG(ttl, p);
+	  GETSHORT(rdlen, p);
+
+	  if (!CHECK_LEN(header, p, plen, rdlen) || rdlen < 4)
+	    return STAT_INSECURE; /* bad packet */
+	  
+	  if (qclass != class || qtype != T_SOA || rc ==2)
+	    {
+	      p += rdlen;
+	      continue;
+	    }
+           
+	  if (ttl < minttl)
+	    minttl = ttl;
+	  
+	  /* MNAME */
+	  if (!(p = skip_name(p, header, plen, 0)))
+	    return STAT_INSECURE;
+	  /* RNAME */
+	  if (!(p = skip_name(p, header, plen, 20)))
+	    return STAT_INSECURE;
+	  p += 16; /* SERIAL REFRESH RETRY EXPIRE */
+	  
+	  GETLONG(ttl, p); /* minTTL */
+	  if (ttl < minttl)
+	    minttl = ttl;
+	}
+      
+      cache_start_insert();
+
+      a.addr.dnssec.class = class;
+      cache_insert(name, &a, now, ttl, F_FORWARD | F_DS | F_DNSSECOK | F_NEG | (RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0));
+	
+      cache_end_insert();
+
+      return STAT_INSECURE; 
+    }
+
   return val;
 }
 
@@ -1707,7 +1757,6 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 				  crecp->addr.ds.keydata = key;
 				  crecp->addr.ds.algo = algo;
 				  crecp->addr.ds.keytag = keytag;
-				  crecp->uid = class2;
 				  crecp->addr.ds.keylen = rdlen2 - 4; 
 				} 
 			    }
@@ -1737,7 +1786,6 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 				    blockdata_free(key);
 				  else
 				    {
-				      crecp->uid = class1;
 				      crecp->addr.sig.keydata = key;
 				      crecp->addr.sig.keylen = rdlen2;
 				      crecp->addr.sig.keytag = keytag;

@@ -564,7 +564,14 @@ struct crec *cache_insert(char *name, struct all_addr *addr,
     *cache_get_name(new) = 0;
 
   if (addr)
-    new->addr.addr = *addr;
+    {
+#ifdef HAVE_DNSSEC
+      if (flags & (F_DS | F_DNSKEY))
+	new->uid = addr->addr.dnssec.class;
+      else
+#endif
+	new->addr.addr = *addr;	
+    }
 
   new->ttd = now + (time_t)ttl;
   new->next = new_chain;
@@ -1304,25 +1311,16 @@ void dump_cache(time_t now)
 	    else if (cache->flags & F_DS)
 	      {
 		if (cache->flags & F_DNSKEY)
-		  {
-		    /* RRSIG */
-		    a = daemon->addrbuff;
-		    sprintf(a, "%5u %3u %s", cache->addr.sig.keytag,
-			    cache->addr.sig.algo, querystr("", cache->addr.sig.type_covered));
-		  }
-		else
-		  {
-		    a = daemon->addrbuff;
-		    sprintf(a, "%5u %3u %3u", cache->addr.ds.keytag,
-			    cache->addr.ds.algo, cache->addr.ds.digest);
-		  }
+		  /* RRSIG */
+		  sprintf(a, "%5u %3u %s", cache->addr.sig.keytag,
+			  cache->addr.sig.algo, querystr("", cache->addr.sig.type_covered));
+		else if (!(cache->flags & F_NEG))
+		  sprintf(a, "%5u %3u %3u", cache->addr.ds.keytag,
+			  cache->addr.ds.algo, cache->addr.ds.digest);
 	      }
 	    else if (cache->flags & F_DNSKEY)
-	      {
-		a = daemon->addrbuff;
-		sprintf(a, "%5u %3u %3u", cache->addr.key.keytag,
-			cache->addr.key.algo, cache->addr.key.flags);
-	      }
+	      sprintf(a, "%5u %3u %3u", cache->addr.key.keytag,
+		      cache->addr.key.algo, cache->addr.key.flags);
 #endif
 	    else if (!(cache->flags & F_NEG) || !(cache->flags & F_FORWARD))
 	      { 

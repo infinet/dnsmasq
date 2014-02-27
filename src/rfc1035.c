@@ -1580,19 +1580,29 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		  while ((crecp = cache_find_by_name(crecp, name, now, F_DS)))
 		    if (crecp->uid == qclass)
 		      {
-			gotone = 1;
-			if (!dryrun && (keydata = blockdata_retrieve(crecp->addr.ds.keydata, crecp->addr.ds.keylen, NULL)))
-			  {			     			      
-			    struct all_addr a;
-			    a.addr.keytag =  crecp->addr.ds.keytag;
-			    log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DS keytag %u");
-			    if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						    crec_ttl(crecp, now), &nameoffset,
-						    T_DS, qclass, "sbbt", 
-						    crecp->addr.ds.keytag, crecp->addr.ds.algo, crecp->addr.ds.digest, crecp->addr.ds.keylen, keydata))
-			      anscount++;
-			    
-			  } 
+			gotone = 1; 
+			if (!dryrun)
+			  {
+			    if (crecp->flags & F_NEG)
+			      {
+				if (crecp->flags & F_NXDOMAIN)
+				  nxdomain = 1;
+				log_query(F_UPSTREAM, name, NULL, "secure no DS");	
+			      }
+			    else if ((keydata = blockdata_retrieve(crecp->addr.ds.keydata, crecp->addr.ds.keylen, NULL)))
+			      {			     			      
+				struct all_addr a;
+				a.addr.keytag =  crecp->addr.ds.keytag;
+				log_query(F_KEYTAG | (crecp->flags & F_CONFIG), name, &a, "DS keytag %u");
+				if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+							crec_ttl(crecp, now), &nameoffset,
+							T_DS, qclass, "sbbt", 
+							crecp->addr.ds.keytag, crecp->addr.ds.algo, 
+							crecp->addr.ds.digest, crecp->addr.ds.keylen, keydata))
+				  anscount++;
+				
+			      } 
+			  }
 		      }
 		}
 	      else /* DNSKEY */
