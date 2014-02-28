@@ -232,7 +232,8 @@ struct event_desc {
 #define OPT_DNSSEC_VALID   45
 #define OPT_DNSSEC_PERMISS 46
 #define OPT_DNSSEC_DEBUG   47
-#define OPT_LAST           48
+#define OPT_DNSSEC_NO_SIGN 48 
+#define OPT_LAST           49
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -535,6 +536,10 @@ struct hostsfile {
 #define STAT_NEED_KEY           5
 #define STAT_TRUNCATED          6
 #define STAT_SECURE_WILDCARD    7
+#define STAT_NO_SIG             8
+#define STAT_NO_DS              9
+#define STAT_NEED_DS_NEG       10
+#define STAT_CHASE_CNAME       11
 
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
@@ -544,6 +549,7 @@ struct hostsfile {
 #define FREC_AD_QUESTION       32
 #define FREC_DO_QUESTION       64
 #define FREC_ADDED_PHEADER    128
+#define FREC_CHECK_NOSIGN     256
 
 #ifdef HAVE_DNSSEC
 #define HASH_SIZE 20 /* SHA-1 digest size */
@@ -1085,7 +1091,8 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr);
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
-int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class);
+int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class, int *neganswer);
+int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname);
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
 size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);

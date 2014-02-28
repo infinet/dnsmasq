@@ -608,6 +608,15 @@ key(s) of the root zone,
 but trust anchors for limited domains are also possible. The current
 root-zone trust anchors may be donwloaded from https://data.iana.org/root-anchors/root-anchors.xml 
 .TP
+.B --dnssec-check-unsigned
+As a default, dnsmasq does not check that unsigned DNS replies are
+legitimate: they are assumed to be valid and passed on (without the
+"authentic data" bit set, of course). This does not protect against an
+attacker forging unsigned replies for signed DNS zones, but it is
+fast. If this flag is set, dnsmasq will check the zones of unsigned
+replies, to ensure that unsigned replies are allowed in those
+zones. The cost of this is more upstream queries and slower performance.
+.TP
 .B --proxy-dnssec
 Copy the DNSSEC Authenticated Data bit from upstream servers to downstream clients and cache it.  This is an 
 alternative to having dnsmasq validate DNSSEC, but it depends on the security of the network between 

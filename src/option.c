@@ -143,6 +143,7 @@ struct myoption {
 #define LOPT_DNSSEC_DEBUG 331
 #define LOPT_REV_SERV     332
 #define LOPT_SERVERS_FILE 333
+#define LOPT_DNSSEC_CHECK 334
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -283,6 +284,7 @@ static const struct myoption opts[] =
     { "dnssec", 0, 0, LOPT_SEC_VALID },
     { "trust-anchor", 1, 0, LOPT_TRUST_ANCHOR },
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
+    { "dnssec-check-unsigned", 0, 0, LOPT_DNSSEC_CHECK },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
@@ -438,6 +440,7 @@ static struct {
   { LOPT_SEC_VALID, OPT_DNSSEC_VALID, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
   { LOPT_TRUST_ANCHOR, ARG_DUP, "<domain>,[<class>],...", gettext_noop("Specify trust anchor key digest."), NULL },
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
+  { LOPT_DNSSEC_CHECK, OPT_DNSSEC_NO_SIGN, NULL, gettext_noop("Ensure answers without DNSSEC are in unsigned zones."), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
 #endif
