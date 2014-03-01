@@ -917,8 +917,8 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
       searched_soa = 1;
       ttl = find_soa(header, qlen, name, doctored);
 #ifdef HAVE_DNSSEC
-      if (*doctored)
-	secure = 0;
+      if (*doctored && secure)
+	return 0;
 #endif
     }
   
@@ -988,9 +988,8 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		      
 		      if (aqtype == T_CNAME)
 			{
-			  if (!cname_count--)
-			    return 0; /* looped CNAMES */
-			  secflag = 0; /* no longer DNSSEC */
+			  if (!cname_count-- || secure)
+			    return 0; /* looped CNAMES, or DNSSEC, which we can't cache. */
 			  goto cname_loop;
 			}
 		      
