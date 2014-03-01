@@ -353,7 +353,7 @@ static void from_wire(char *name)
       l[len] = '.';
     }
 
-  if (l != name)
+  if ((char *)l != name)
     *(l-1) = 0;
 }
 

@@ -183,7 +183,7 @@ static void cache_blockdata_free(struct crec *crecp)
       else
 	blockdata_free(crecp->addr.key.keydata);
     }
-  else if (crecp->flags & F_DS)
+  else if ((crecp->flags & F_DS) && !(crecp->flags & F_NEG))
     blockdata_free(crecp->addr.ds.keydata);
 }
 #endif
