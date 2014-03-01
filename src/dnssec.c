@@ -353,7 +353,8 @@ static void from_wire(char *name)
       l[len] = '.';
     }
 
-  *(l-1) = 0;
+  if (l != name)
+    *(l-1) = 0;
 }
 
 /* Input in presentation format */
