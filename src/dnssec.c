@@ -1718,6 +1718,10 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
    
   if (neganswer && !have_answer)
     *neganswer = 1;
+
+  /* No data, therefore no sigs */
+  if (ntohs(header->ancount) + ntohs(header->nscount) == 0)
+    return STAT_NO_SIG;
   
   for (p1 = ans_start, i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
     {
