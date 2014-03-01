@@ -1102,7 +1102,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   
   if ((val == STAT_SECURE || val == STAT_INSECURE) && neganswer)
     {
-      int rdlen, flags =  F_FORWARD | F_DS | F_NEG ;
+      int rdlen, flags = F_FORWARD | F_DS | F_NEG;
       unsigned long ttl, minttl = ULONG_MAX;
       struct all_addr a;
 
@@ -2153,9 +2153,8 @@ static int check_rrs(unsigned char *p, struct dns_header *header, size_t plen, i
 	  if (class == C_IN)
 	    {
 	      u16 *d;
-	      unsigned char *pp = p;
-	      
-	      for (d = get_desc(type); *d != (u16)-1; d++)
+ 
+	      for (pp = p, d = get_desc(type); *d != (u16)-1; d++)
 		{
 		  if (*d != 0)
 		    pp += *d;
