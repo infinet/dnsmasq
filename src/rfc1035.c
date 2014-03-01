@@ -1241,7 +1241,7 @@ int check_for_local_domain(char *name, time_t now)
   struct ptr_record *ptr;
   struct naptr *naptr;
 
-  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6 | F_CNAME | F_NO_RR)) &&
+  if ((crecp = cache_find_by_name(NULL, name, now, F_IPV4 | F_IPV6 | F_CNAME | F_DS | F_NO_RR)) &&
       (crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)))
     return 1;
   
