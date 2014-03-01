@@ -927,7 +927,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
   
   for (i = ntohs(header->qdcount); i != 0; i--)
     {
-      int found = 0, cname_count = 10;
+      int found = 0, cname_count = CNAME_CHAIN;
       struct crec *cpp = NULL;
       int flags = RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0;
       int secflag = secure ?  F_DNSSECOK : 0;

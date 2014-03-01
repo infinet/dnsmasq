@@ -1653,7 +1653,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 {
   unsigned char *ans_start, *qname, *p1, *p2, **nsecs;
   int type1, class1, rdlen1, type2, class2, rdlen2, qclass, qtype;
-  int i, j, rc, nsec_count, cname_count = 10;
+  int i, j, rc, nsec_count, cname_count = CNAME_CHAIN;
   int nsec_type = 0, have_answer = 0;
 
   if (neganswer)
@@ -1930,7 +1930,7 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
 {
   unsigned char *p = (unsigned char *)(header+1);
   int type, class, qtype, qclass, rdlen, j, rc;
-  int cname_count = 10;
+  int cname_count = CNAME_CHAIN;
 
   /* Get question */
   if (!extract_name(header, plen, &p, name, 1, 4))
