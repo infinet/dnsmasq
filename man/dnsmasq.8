@@ -599,7 +599,15 @@ clients unable to do validation, use of the AD bit set by dnsmasq is useful, pro
 the dnsmasq server and the client is trusted. Dnsmasq must be compiled with HAVE_DNSSEC enabled, and DNSSEC
 trust anchors provided, see 
 .B --trust-anchor.
-Because the DNSSEC validation process uses the cache, it is not permitted to reduce the cache size below the default when DNSSEC is enabled.
+Because the DNSSEC validation process uses the cache, it is not
+permitted to reduce the cache size below the default when DNSSEC is
+enabled. The nameservers upstream of dnsmasq must be DNSSEC-capable,
+ie capable of returning DNSSEC records with data. If they are not,
+then dnsmasq will not be able to determine the trusted status of
+answers. In the default mode, this menas that all replies will be
+marked as untrusted. If 
+.B --dnssec-check-unsigned
+is set and the upstream servers don't support DNSSEC, then DNS service will be entirely broken.
 .TP
 .B --trust-anchor=[<class>],<domain>,<key-tag>,<algorithm>,<digest-type>,<digest>
 Provide DS records to act a trust anchors for DNSSEC
@@ -615,7 +623,10 @@ legitimate: they are assumed to be valid and passed on (without the
 attacker forging unsigned replies for signed DNS zones, but it is
 fast. If this flag is set, dnsmasq will check the zones of unsigned
 replies, to ensure that unsigned replies are allowed in those
-zones. The cost of this is more upstream queries and slower performance.
+zones. The cost of this is more upstream queries and slower
+performance. See also the warning about upstream servers in the
+section on 
+.B --dnssec
 .TP
 .B --proxy-dnssec
 Copy the DNSSEC Authenticated Data bit from upstream servers to downstream clients and cache it.  This is an 
