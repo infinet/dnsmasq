@@ -1918,14 +1918,14 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname)
 {
   unsigned char *p = (unsigned char *)(header+1);
-  int type, class, qtype, qclass, rdlen, j, rc;
+  int type, class, qclass, rdlen, j, rc;
   int cname_count = CNAME_CHAIN;
 
   /* Get question */
   if (!extract_name(header, plen, &p, name, 1, 4))
     return STAT_BOGUS;
   
-  GETSHORT(qtype, p);
+  p +=2; /* type */
   GETSHORT(qclass, p);
 
   while (1)
