@@ -67,7 +67,16 @@ version 2.69
 	    Add --servers-file. Allows dynamic update of upstream servers 
 	    full access to configuration. 
 
- 	    
+	    Add --local-service. Accept DNS queries only from hosts 
+            whose address is on a local subnet, ie a subnet for which 
+            an interface exists on the server. This option
+            only has effect is there are no --interface --except-interface,
+            --listen-address or --auth-server options. It is intended 
+            to be set as a default on installation, to allow
+            unconfigured installations to be useful but also safe from 
+	    being used for DNS amplification attacks.
+
+
 version 2.68
             Use random addresses for DHCPv6 temporary address
             allocations, instead of algorithmically determined stable

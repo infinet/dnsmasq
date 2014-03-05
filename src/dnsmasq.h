@@ -233,7 +233,8 @@ struct event_desc {
 #define OPT_DNSSEC_PERMISS 46
 #define OPT_DNSSEC_DEBUG   47
 #define OPT_DNSSEC_NO_SIGN 48 
-#define OPT_LAST           49
+#define OPT_LOCAL_SERVICE  49
+#define OPT_LAST           50
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -966,6 +967,7 @@ extern struct daemon {
   pid_t tcp_pids[MAX_PROCS];
   struct randfd randomsocks[RANDOM_SOCKS];
   int v6pktinfo; 
+  struct addrlist *interface_addrs; /* list of all addresses/prefix lengths associated with all local interfaces */
 
   /* DHCP state */
   int dhcpfd, helperfd, pxefd; 

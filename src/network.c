@@ -268,7 +268,40 @@ static int iface_allowed(struct iface_param *param, int if_index, char *label,
   
   if (!label)
     label = ifr.ifr_name;
+ 
+  /* maintain a list of all addresses on all interfaces for --local-service option */
+  if (option_bool(OPT_LOCAL_SERVICE))
+    {
+      struct addrlist *al;
 
+      if (param->spare)
+	{
+	  al = param->spare;
+	  param->spare = al->next;
+	}
+      else
+	al = whine_malloc(sizeof(struct addrlist));
+      
+      if (al)
+	{
+	  al->next = daemon->interface_addrs;
+	  daemon->interface_addrs = al;
+	  al->prefixlen = prefixlen;
+	  
+	  if (addr->sa.sa_family == AF_INET)
+	    {
+	      al->addr.addr.addr4 = addr->in.sin_addr;
+	      al->flags = 0;
+	    }
+#ifdef HAVE_IPV6
+	  else
+	    {
+	      al->addr.addr.addr6 = addr->in6.sin6_addr;
+	      al->flags = ADDRLIST_IPV6;
+	    } 
+#endif
+	}
+    }
   
 #ifdef HAVE_IPV6
   if (addr->sa.sa_family != AF_INET6 || !IN6_IS_ADDR_LINKLOCAL(&addr->in6.sin6_addr))
@@ -565,6 +598,15 @@ int enumerate_interfaces(int reset)
       intname->addr = NULL;
     }
 
+  /* Remove list of addresses of local interfaces */
+  for (addr = daemon->interface_addrs; addr; addr = tmp)
+    {
+      tmp = addr->next;
+      addr->next = spare;
+      spare = addr;
+    }
+  daemon->interface_addrs = NULL;
+  
 #ifdef HAVE_AUTH
   /* remove addresses stored against auth_zone subnets, but not 
    ones configured as address literals */
