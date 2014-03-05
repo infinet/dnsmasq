@@ -661,6 +661,9 @@ int main (int argc, char **argv)
 	my_syslog(LOG_INFO, _("DBus support enabled: bus connection pending"));
     }
 #endif
+
+  if (option_bool(OPT_LOCAL_SERVICE))
+    my_syslog(LOG_INFO, _("DNS service limited to local subnets"));
   
 #ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
