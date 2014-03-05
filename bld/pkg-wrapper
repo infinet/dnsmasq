@@ -14,8 +14,11 @@ if grep "^\#[[:space:]]*define[[:space:]]*$search" config.h >/dev/null 2>&1 || \
 
     if [ $op = "--copy" ]; then
 	pkg="$*"
+    elif grep "^\#[[:space:]]*define[[:space:]]*${search}_STATIC" config.h >/dev/null 2>&1 || \
+	      echo $in | grep ${search}_STATIC >/dev/null 2>&1; then
+	pkg=`$pkg  --static $op $*`
     else
-	pkg=`$pkg $op $*` 
+	pkg=`$pkg $op $*`
     fi
 
     if grep "^\#[[:space:]]*define[[:space:]]*${search}_STATIC" config.h >/dev/null 2>&1 || \
