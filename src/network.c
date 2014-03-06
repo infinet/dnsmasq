@@ -1570,7 +1570,8 @@ void newaddress(time_t now)
 {
   (void)now;
   
-  if (option_bool(OPT_CLEVERBIND) || daemon->doing_dhcp6 || daemon->relay6 || daemon->doing_ra)
+  if (option_bool(OPT_CLEVERBIND) || option_bool(OPT_LOCAL_SERVICE) ||
+      daemon->doing_dhcp6 || daemon->relay6 || daemon->doing_ra)
     enumerate_interfaces(0);
   
   if (option_bool(OPT_CLEVERBIND))
