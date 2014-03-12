@@ -1107,7 +1107,12 @@ void receive_query(struct listener *listen, time_t now)
 	}
       if (!addr)
 	{
-	  my_syslog(LOG_WARNING, _("Ignoring query from non-local network"));
+	  static int warned = 0;
+	  if (!warned)
+	    {
+	      my_syslog(LOG_WARNING, _("Ignoring query from non-local network"));
+	      warned = 1;
+	    }
 	  return;
 	}
     }
