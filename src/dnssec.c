@@ -827,7 +827,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  for (; crecp; crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY))
 	    if (crecp->addr.key.algo == algo && 
 		crecp->addr.key.keytag == key_tag &&
-		crecp->uid == class &&
+		crecp->uid == (unsigned int)class &&
 		verify(crecp->addr.key.keydata, crecp->addr.key.keylen, sig, sig_len, digest, hash->digest_size, algo))
 	      return (labels < name_labels) ? STAT_SECURE_WILDCARD : STAT_SECURE;
 	}
@@ -932,7 +932,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 	  
 	  if (recp1->addr.ds.algo == algo && 
 	      recp1->addr.ds.keytag == keytag &&
-	      recp1->uid == class &&
+	      recp1->uid == (unsigned int)class &&
 	      (hash = hash_find(ds_digest_name(recp1->addr.ds.digest))) &&
 	      hash_init(hash, &ctx, &digest))
 	    

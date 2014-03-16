@@ -24,7 +24,6 @@ static struct crec *new_chain = NULL;
 static int cache_inserted = 0, cache_live_freed = 0, insert_error;
 static union bigname *big_free = NULL;
 static int bignames_left, hash_size;
-static int uid = 1;
 
 /* type->string mapping: this is also used by the name-hash function as a mixing table. */
 static const struct {
@@ -73,6 +72,17 @@ static void cache_link(struct crec *crecp);
 static void rehash(int size);
 static void cache_hash(struct crec *crecp);
 
+static unsigned int next_uid(void)
+{
+  static unsigned int uid = 1;
+
+  /* uid == 0 used to indicate CNAME to interface name. */
+  if (uid == 0)
+    uid++;
+  
+  return uid++;
+}
+
 void cache_init(void)
 {
   struct crec *crecp;
@@ -88,7 +98,7 @@ void cache_init(void)
 	{
 	  cache_link(crecp);
 	  crecp->flags = 0;
-	  crecp->uid = uid++;
+	  crecp->uid = next_uid();
 	}
     }
   
@@ -192,10 +202,7 @@ static void cache_free(struct crec *crecp)
 {
   crecp->flags &= ~F_FORWARD;
   crecp->flags &= ~F_REVERSE;
-  crecp->uid = uid++; /* invalidate CNAMES pointing to this. */
-
-  if (uid == -1)
-    uid++;
+  crecp->uid = next_uid(); /* invalidate CNAMES pointing to this. */
 
   if (cache_tail)
     cache_tail->next = crecp;
@@ -256,7 +263,7 @@ char *cache_get_name(struct crec *crecp)
 
 char *cache_get_cname_target(struct crec *crecp)
 {
-  if (crecp->addr.cname.uid != -1)
+  if (crecp->addr.cname.uid != 0)
     return cache_get_name(crecp->addr.cname.target.cache);
 
   return crecp->addr.cname.target.int_name->name;
@@ -289,7 +296,7 @@ struct crec *cache_enumerate(int init)
 
 static int is_outdated_cname_pointer(struct crec *crecp)
 {
-  if (!(crecp->flags & F_CNAME) || crecp->addr.cname.uid == -1)
+  if (!(crecp->flags & F_CNAME) || crecp->addr.cname.uid == 0)
     return 0;
   
   /* NB. record may be reused as DS or DNSKEY, where uid is 
@@ -1034,7 +1041,7 @@ void cache_reload(void)
 	  cache->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG;
 	  cache->name.namep = a->alias;
 	  cache->addr.cname.target.int_name = intr;
-	  cache->addr.cname.uid = -1;
+	  cache->addr.cname.uid = 0;
 	  cache_hash(cache);
 	  add_hosts_cname(cache); /* handle chains */
 	}
@@ -1242,7 +1249,7 @@ void cache_add_dhcp_entry(char *host_name, int prot,
 	crec->ttd = ttd;
       crec->addr.addr = *host_address;
       crec->name.namep = host_name;
-      crec->uid = uid++;
+      crec->uid = next_uid();
       cache_hash(crec);
 
       add_dhcp_cname(crec, ttd);
