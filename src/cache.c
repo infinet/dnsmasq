@@ -74,13 +74,15 @@ static void cache_hash(struct crec *crecp);
 
 static unsigned int next_uid(void)
 {
-  static unsigned int uid = 1;
+  static unsigned int uid = 0;
 
+  uid++;
+  
   /* uid == 0 used to indicate CNAME to interface name. */
   if (uid == 0)
     uid++;
   
-  return uid++;
+  return uid;
 }
 
 void cache_init(void)
