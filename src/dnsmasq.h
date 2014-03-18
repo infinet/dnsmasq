@@ -427,6 +427,12 @@ struct crec {
 #define F_SECSTAT   (1u<<24)
 #define F_NO_RR     (1u<<25)
 
+/* Values of uid in crecs with F_CONFIG bit set. */
+#define SRC_INTERFACE 0
+#define SRC_CONFIG    1
+#define SRC_HOSTS     2
+#define SRC_AH        3
+
 
 /* struct sockaddr is not large enough to hold any address,
    and specifically not big enough to hold an IPv6 address.
@@ -525,7 +531,7 @@ struct hostsfile {
   struct hostsfile *next;
   int flags;
   char *fname;
-  int index; /* matches to cache entries for logging */
+  unsigned int index; /* matches to cache entries for logging */
 };
 
 
@@ -1005,7 +1011,7 @@ extern struct daemon {
 /* cache.c */
 void cache_init(void);
 void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg); 
-char *record_source(int index);
+char *record_source(unsigned int index);
 char *querystr(char *desc, unsigned short type);
 struct crec *cache_find_by_addr(struct crec *crecp,
 				struct all_addr *addr, time_t now, 
