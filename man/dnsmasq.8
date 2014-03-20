@@ -773,7 +773,7 @@ or from /etc/ethers will be served. A static-only subnet with address
 all zeros may be used as a "catch-all" address to enable replies to all
 Information-request packets on a subnet which is provided with
 stateless DHCPv6, ie
-.B --dhcp=range=::,static
+.B --dhcp-range=::,static
 
 For IPv4, the <mode> may be 
 .B proxy
@@ -1862,7 +1862,7 @@ which has tags will be used in preference  to an untagged
 .B dhcp-option,
 provided that _all_ the tags match somewhere in the
 set collected as described above. The prefix '!' on a tag means 'not'
-so --dhcp=option=tag:!purple,3,1.2.3.4 sends the option when the
+so --dhcp-option=tag:!purple,3,1.2.3.4 sends the option when the
 tag purple is not in the set of valid tags. (If using this in a
 command line rather than a configuration file, be sure to escape !,
 which is a shell metacharacter)
