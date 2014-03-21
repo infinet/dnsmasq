@@ -278,7 +278,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
 	  plen = forward->stash_len;
 	  
-	  if (forward->sentto->addr.sa.sa_family) 
+	  if (forward->sentto->addr.sa.sa_family == AF_INET) 
 	    log_query(F_DNSSEC | F_IPV4, "retry", (struct all_addr *)&forward->sentto->addr.in.sin_addr, "dnssec");
 #ifdef HAVE_IPV6
 	  else
@@ -299,7 +299,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  while (sendto(fd, (char *)header, plen, 0,
 			&forward->sentto->addr.sa,
-			    sa_len(&forward->sentto->addr)) == -1 && retry_send());
+			sa_len(&forward->sentto->addr)) == -1 && retry_send());
 	  
 	  return 1;
 	}
