@@ -25,6 +25,14 @@
 #conf-file=%%PREFIX%%/share/dnsmasq/trust-anchors.conf
 #dnssec
 
+# Replies which are not DNSSEC signed may be legitimate, because the domain
+# is unsigned, or may be forgeries. Setting this option tells dnsmasq to
+# check that an unsigned reply is OK, by finding a secure proof that a DS 
+# record somewhere between the root and the domain does not exist. 
+# The cost of setting this is that even queries in unsigned domains will need
+# one or more extra DNS queries to verify.
+#dnssec-check-unsigned
+
 # Uncomment this to filter useless windows-originated DNS requests
 # which can trigger dial-on-demand links needlessly.
 # Note that (amongst other things) this blocks all SRV requests,
