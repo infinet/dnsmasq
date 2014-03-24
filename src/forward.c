@@ -698,14 +698,20 @@ void reply_query(int fd, int family, time_t now)
     serveraddr.in6.sin6_flowinfo = 0;
 #endif
   
+  header = (struct dns_header *)daemon->packet;
+  
+  if (n < (int)sizeof(struct dns_header) || !(header->hb3 & HB3_QR))
+    return;
+  
   /* spoof check: answer must come from known server, */
   for (server = daemon->servers; server; server = server->next)
     if (!(server->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR)) &&
 	sockaddr_isequal(&server->addr, &serveraddr))
       break;
-   
-  header = (struct dns_header *)daemon->packet;
-
+  
+  if (!server)
+    return;
+  
 #ifdef HAVE_DNSSEC
   hash = hash_questions(header, n, daemon->namebuff);
 #else
@@ -713,11 +719,9 @@ void reply_query(int fd, int family, time_t now)
   crc = questions_crc(header, n, daemon->namebuff);
 #endif
   
-  if (!server ||
-      n < (int)sizeof(struct dns_header) || !(header->hb3 & HB3_QR) ||
-      !(forward = lookup_frec(ntohs(header->id), hash)))
+  if (!(forward = lookup_frec(ntohs(header->id), hash)))
     return;
-
+  
   if ((RCODE(header) == SERVFAIL || RCODE(header) == REFUSED) &&
       !option_bool(OPT_ORDER) &&
       forward->forwardall == 0)
