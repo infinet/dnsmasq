@@ -1394,8 +1394,11 @@ static int  tcp_check_for_unsigned_zone(time_t now, struct dns_header *header, s
       struct crec *crecp = cache_find_by_name(NULL, name_start, now, F_DS);
  
       if (--(*keycount) == 0)
-	return STAT_BOGUS;    
-      
+	{
+	  free(packet);
+	  return STAT_BOGUS;    
+	}
+
       if (crecp && (crecp->flags & F_DNSSECOK))
 	{
 	  free(packet);
