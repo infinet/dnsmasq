@@ -1417,42 +1417,44 @@ static int  tcp_check_for_unsigned_zone(time_t now, struct dns_header *header, s
       
       /* We rely on the question section coming back unchanged, ensure it is with the hash. */
       if ((newhash = hash_questions(header, (unsigned int)m, name)))
-	memcpy(hash, newhash, HASH_SIZE);
-      
-      *length = htons(m);
-      
-      if (read_write(server->tcpfd, packet, m + sizeof(u16), 0) &&
-	  read_write(server->tcpfd, &c1, 1, 1) &&
-	  read_write(server->tcpfd, &c2, 1, 1) &&
-	  read_write(server->tcpfd, payload, (c1 << 8) | c2, 1))
 	{
-	  m = (c1 << 8) | c2;
+	  memcpy(hash, newhash, HASH_SIZE);
+      
+	  *length = htons(m);
 	  
-	  newhash = hash_questions(header, (unsigned int)m, name);
-	  if (newhash && memcmp(hash, newhash, HASH_SIZE) == 0)
+	  if (read_write(server->tcpfd, packet, m + sizeof(u16), 0) &&
+	      read_write(server->tcpfd, &c1, 1, 1) &&
+	      read_write(server->tcpfd, &c2, 1, 1) &&
+	      read_write(server->tcpfd, payload, (c1 << 8) | c2, 1))
 	    {
-	      /* Note this trashes all three name workspaces */
-	      status = tcp_key_recurse(now, STAT_NEED_DS_NEG, header, m, class, name, keyname, server, keycount);
-	      	   
-	      /* We've found a DS which proves the bit of the DNS where the
-		 original query is, is unsigned, so the answer is OK, 
-		 if unvalidated. */
-	      if (status == STAT_NO_DS)
-		{
-		  free(packet);
-		  return STAT_INSECURE;
-		}
+	      m = (c1 << 8) | c2;
 	      
-	      /* No DS, not got to DNSSEC-land yet, go up. */
-	      if (status == STAT_INSECURE)
+	      newhash = hash_questions(header, (unsigned int)m, name);
+	      if (newhash && memcmp(hash, newhash, HASH_SIZE) == 0)
 		{
-		  p = (unsigned char *)(header+1);
+		  /* Note this trashes all three name workspaces */
+		  status = tcp_key_recurse(now, STAT_NEED_DS_NEG, header, m, class, name, keyname, server, keycount);
 		  
-		  if (extract_name(header, plen, &p, name, 1, 4) &&
-		      (name_start = strchr(name, '.')))
+		  /* We've found a DS which proves the bit of the DNS where the
+		     original query is, is unsigned, so the answer is OK, 
+		     if unvalidated. */
+		  if (status == STAT_NO_DS)
 		    {
-		      name_start++; /* chop a label off and try again */
-		      continue;
+		      free(packet);
+		      return STAT_INSECURE;
+		    }
+	      
+		  /* No DS, not got to DNSSEC-land yet, go up. */
+		  if (status == STAT_INSECURE)
+		    {
+		      p = (unsigned char *)(header+1);
+		      
+		      if (extract_name(header, plen, &p, name, 1, 4) &&
+			  (name_start = strchr(name, '.')))
+			{
+			  name_start++; /* chop a label off and try again */
+			  continue;
+			}
 		    }
 		}
 	    }
@@ -1731,6 +1733,8 @@ unsigned char *tcp_request(int confd, time_t now,
 		  unsigned char *newhash, hash[HASH_SIZE];
 		  if ((newhash = hash_questions(header, (unsigned int)size, daemon->keyname)))
 		    memcpy(hash, newhash, HASH_SIZE);
+		  else
+		    memset(hash, 0, HASH_SIZE);
 #else
 		  unsigned int crc = questions_crc(header, (unsigned int)size, daemon->namebuff);
 #endif		  
