@@ -751,7 +751,7 @@ void reply_query(int fd, int family, time_t now)
   
   if ((forward->sentto->flags & SERV_TYPE) == 0)
     {
-      if (RCODE(header) == SERVFAIL || RCODE(header) == REFUSED)
+      if (RCODE(header) == REFUSED)
 	server = NULL;
       else
 	{
@@ -774,8 +774,7 @@ void reply_query(int fd, int family, time_t now)
      we get a good reply from another server. Kill it when we've
      had replies from all to avoid filling the forwarding table when
      everything is broken */
-  if (forward->forwardall == 0 || --forward->forwardall == 1 || 
-      (RCODE(header) != REFUSED && RCODE(header) != SERVFAIL))
+  if (forward->forwardall == 0 || --forward->forwardall == 1 || RCODE(header) != SERVFAIL)
     {
       int check_rebind = 0, no_cache_dnssec = 0, cache_secure = 0;
 
@@ -788,7 +787,7 @@ void reply_query(int fd, int family, time_t now)
 	no_cache_dnssec = 1;
       
 #ifdef HAVE_DNSSEC
-      if (option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
+      if (server && option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
 	  int status;
 
