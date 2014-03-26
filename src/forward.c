@@ -1328,6 +1328,10 @@ static int send_check_sign(time_t now, struct dns_header *header, size_t plen, c
 	  continue;
 	}
 
+      /* Reached the root */
+      if (!name_start)
+	return STAT_BOGUS;
+
       strcpy(keyname, name_start);
       return STAT_NEED_DS_NEG;
     }
@@ -1410,6 +1414,13 @@ static int  tcp_check_for_unsigned_zone(time_t now, struct dns_header *header, s
 	{
 	  name_start++; /* chop a label off and try again */
 	  continue;
+	}
+
+      /* reached the root */
+      if (!name_start)
+	{
+	  free(packet);
+	  return STAT_BOGUS;
 	}
 
       m = dnssec_generate_query(header, ((char *) header) + 65536, name_start, class, T_DS, &server->addr);
