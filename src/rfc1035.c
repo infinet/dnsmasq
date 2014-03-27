@@ -1547,10 +1547,20 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		  ans = 1;
 		  if (!dryrun)
 		    {
+		      unsigned long ttl = daemon->local_ttl;
+		      int ok = 1;
 		      log_query(F_CONFIG | F_RRNAME, name, NULL, "<TXT>");
-		      if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-					      daemon->local_ttl, NULL,
-					      T_TXT, t->class, "t", t->len, t->txt))
+		      /* Dynamically generate stat record */
+		      if (t->stat != 0)
+			{
+			  ttl = 0;
+			  if (!cache_make_stat(t))
+			    ok = 0;
+			}
+		      
+		      if (ok && add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
+						    ttl, NULL,
+						    T_TXT, t->class, "t", t->len, t->txt))
 			anscount++;
 
 		    }

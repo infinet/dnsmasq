@@ -1753,12 +1753,22 @@ When it receives a SIGUSR1,
 writes statistics to the system log. It writes the cache size,
 the number of names which have had to removed from the cache before
 they expired in order to make room for new names and the total number
-of names that have been inserted into the cache. For each upstream
+of names that have been inserted into the cache. The number of cache hits and 
+misses and the number of authoritative queries answered are also given. For each upstream
 server it gives the number of queries sent, and the number which
 resulted in an error. In 
 .B --no-daemon
 mode or when full logging is enabled (-q), a complete dump of the
-contents of the cache is made.
+contents of the cache is made. 
+
+The cache statistics are also available in the DNS as answers to 
+queries of class CHAOS and type TXT in domain bind. The domain names are cachesize.bind, insertions.bind, evictions.bind, 
+misses.bind, hits.bind, auth.bind and servers.bind. An example command to query this, using the 
+.B dig
+utility would be
+
+dig +short chaos txt cachesize.bind
+
 .PP 
 When it receives SIGUSR2 and it is logging direct to a file (see
 .B --log-facility

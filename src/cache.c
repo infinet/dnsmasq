@@ -1262,6 +1262,101 @@ void cache_add_dhcp_entry(char *host_name, int prot,
 }
 #endif
 
+int cache_make_stat(struct txt_record *t)
+{ 
+  static char *buff = NULL;
+  static int bufflen = 60;
+  int len;
+  struct server *serv, *serv1;
+  char *p;
+
+  if (!buff && !(buff = whine_malloc(60)))
+    return 0;
+
+  p = buff;
+  
+  switch (t->stat)
+    {
+    case TXT_STAT_CACHESIZE:
+      sprintf(buff+1, "%d", daemon->cachesize);
+      break;
+
+    case TXT_STAT_INSERTS:
+      sprintf(buff+1, "%d", cache_inserted);
+      break;
+
+    case TXT_STAT_EVICTIONS:
+      sprintf(buff+1, "%d", cache_live_freed);
+      break;
+
+    case TXT_STAT_MISSES:
+      sprintf(buff+1, "%u", daemon->queries_forwarded);
+      break;
+
+    case TXT_STAT_HITS:
+      sprintf(buff+1, "%u", daemon->local_answer);
+      break;
+
+#ifdef HAVE_AUTH
+    case TXT_STAT_AUTH:
+      sprintf(buff+1, "%u", daemon->auth_answer);
+      break;
+#endif
+
+    case TXT_STAT_SERVERS:
+      /* sum counts from different records for same server */
+      for (serv = daemon->servers; serv; serv = serv->next)
+	serv->flags &= ~SERV_COUNTED;
+      
+      for (serv = daemon->servers; serv; serv = serv->next)
+	if (!(serv->flags & 
+	      (SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED | SERV_USE_RESOLV | SERV_NO_REBIND)))
+	  {
+	    char *new, *lenp;
+	    int port, newlen, bytes_avail, bytes_needed;
+	    unsigned int queries = 0, failed_queries = 0;
+	    for (serv1 = serv; serv1; serv1 = serv1->next)
+	      if (!(serv1->flags & 
+		    (SERV_NO_ADDR | SERV_LITERAL_ADDRESS | SERV_COUNTED | SERV_USE_RESOLV | SERV_NO_REBIND)) && 
+		  sockaddr_isequal(&serv->addr, &serv1->addr))
+		{
+		  serv1->flags |= SERV_COUNTED;
+		  queries += serv1->queries;
+		  failed_queries += serv1->failed_queries;
+		}
+	    port = prettyprint_addr(&serv->addr, daemon->addrbuff);
+	    lenp = p++; /* length */
+	    bytes_avail = (p - buff) + bufflen;
+	    bytes_needed = snprintf(p, bytes_avail, "%s#%d %u %u", daemon->addrbuff, port, queries, failed_queries);
+	    if (bytes_needed >= bytes_avail)
+	      {
+		/* expand buffer if necessary */
+		newlen = bytes_needed + 1 + bufflen - bytes_avail;
+		if (!(new = whine_malloc(newlen)))
+		  return 0;
+		memcpy(new, buff, bufflen);
+		free(buff);
+		p = new + (p - buff);
+		lenp = p - 1;
+		buff = new;
+		bufflen = newlen;
+		bytes_avail = (p - buff) + bufflen;
+		bytes_needed = snprintf(p, bytes_avail, "%s#%d %u %u", daemon->addrbuff, port, queries, failed_queries);
+	      }
+	    *lenp = bytes_needed;
+	    p += bytes_needed;
+	  }
+      t->txt = (unsigned char *)buff;
+      t->len = p - buff;
+      return 1;
+    }
+  
+  len = strlen(buff+1);
+  t->txt = (unsigned char *)buff;
+  t->len = len + 1;
+  *buff = len;
+  return 1;
+}
 
 void dump_cache(time_t now)
 {

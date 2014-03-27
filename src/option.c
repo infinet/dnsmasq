@@ -615,19 +615,24 @@ static int atoi_check8(char *a, int *res)
 }
 #endif
 	
-static void add_txt(char *name, char *txt)
+static void add_txt(char *name, char *txt, int stat)
 {
-  size_t len = strlen(txt);
   struct txt_record *r = opt_malloc(sizeof(struct txt_record));
+
+  if (txt)
+    {
+      size_t len = strlen(txt);
+      r->txt = opt_malloc(len+1);
+      r->len = len+1;
+      *(r->txt) = len;
+      memcpy((r->txt)+1, txt, len);
+    }
   
+  r->stat = stat;
   r->name = opt_string_alloc(name);
   r->next = daemon->txt;
   daemon->txt = r;
   r->class = C_CHAOS;
-  r->txt = opt_malloc(len+1);
-  r->len = len+1;
-  *(r->txt) = len;
-  memcpy((r->txt)+1, txt, len);
 }
 
 static void do_usage(void)
@@ -3609,7 +3614,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	new->next = daemon->txt;
 	daemon->txt = new;
 	new->class = C_IN;
-	
+	new->stat = 0;
+
 	if (!(new->name = canonicalise_opt(arg)))
 	  ret_err(_("bad TXT record"));
 	
@@ -4258,9 +4264,18 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->soa_refresh = SOA_REFRESH;
   daemon->soa_retry = SOA_RETRY;
   daemon->soa_expiry = SOA_EXPIRY;
-  add_txt("version.bind", "dnsmasq-" VERSION );
-  add_txt("authors.bind", "Simon Kelley");
-  add_txt("copyright.bind", COPYRIGHT);
+  add_txt("version.bind", "dnsmasq-" VERSION, 0 );
+  add_txt("authors.bind", "Simon Kelley", 0);
+  add_txt("copyright.bind", COPYRIGHT, 0);
+  add_txt("cachesize.bind", NULL, TXT_STAT_CACHESIZE);
+  add_txt("insertions.bind", NULL, TXT_STAT_INSERTS);
+  add_txt("evictions.bind", NULL, TXT_STAT_EVICTIONS);
+  add_txt("misses.bind", NULL, TXT_STAT_MISSES);
+  add_txt("hits.bind", NULL, TXT_STAT_HITS);
+#ifdef HAVE_AUTH
+  add_txt("auth.bind", NULL, TXT_STAT_AUTH);
+#endif
+  add_txt("servers.bind", NULL, TXT_STAT_SERVERS);
 
   while (1) 
     {

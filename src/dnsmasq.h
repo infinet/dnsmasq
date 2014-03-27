@@ -280,10 +280,19 @@ struct naptr {
   struct naptr *next;
 };
 
+#define TXT_STAT_CACHESIZE     1
+#define TXT_STAT_INSERTS       2
+#define TXT_STAT_EVICTIONS     3
+#define TXT_STAT_MISSES        4
+#define TXT_STAT_HITS          5
+#define TXT_STAT_AUTH          6
+#define TXT_STAT_SERVERS       7
+
 struct txt_record {
   char *name;
   unsigned char *txt;
   unsigned short class, len;
+  int stat;
   struct txt_record *next;
 };
 
@@ -1027,6 +1036,7 @@ void cache_add_dhcp_entry(char *host_name, int prot, struct all_addr *host_addre
 struct in_addr a_record_from_hosts(char *name, time_t now);
 void cache_unhash_dhcp(void);
 void dump_cache(time_t now);
+int cache_make_stat(struct txt_record *t);
 char *cache_get_name(struct crec *crecp);
 char *cache_get_cname_target(struct crec *crecp);
 struct crec *cache_enumerate(int init);
