@@ -853,6 +853,7 @@ void reply_query(int fd, int family, time_t now)
 		  *new = *forward; /* copy everything, then overwrite */
 		  new->next = next;
 		  new->blocking_query = NULL;
+		  new->sentto = server;
 		  new->rfd4 = NULL;
 #ifdef HAVE_IPV6
 		  new->rfd6 = NULL;
