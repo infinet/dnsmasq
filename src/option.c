@@ -64,87 +64,88 @@ struct myoption {
 #define OPTSTRING "951yZDNLERKzowefnbvhdkqr:m:p:c:l:s:i:t:u:g:a:x:S:C:A:T:H:Q:I:B:F:G:O:M:X:V:U:j:P:J:W:Y:2:4:6:7:8:0:3:"
 
 /* options which don't have a one-char version */
-#define LOPT_RELOAD       256
-#define LOPT_NO_NAMES     257
-#define LOPT_TFTP         258
-#define LOPT_SECURE       259
-#define LOPT_PREFIX       260
-#define LOPT_PTR          261
-#define LOPT_BRIDGE       262
-#define LOPT_TFTP_MAX     263
-#define LOPT_FORCE        264
-#define LOPT_NOBLOCK      265
-#define LOPT_LOG_OPTS     266
-#define LOPT_MAX_LOGS     267
-#define LOPT_CIRCUIT      268
-#define LOPT_REMOTE       269
-#define LOPT_SUBSCR       270
-#define LOPT_INTNAME      271
-#define LOPT_BANK         272
-#define LOPT_DHCP_HOST    273
-#define LOPT_APREF        274
-#define LOPT_OVERRIDE     275
-#define LOPT_TFTPPORTS    276
-#define LOPT_REBIND       277
-#define LOPT_NOLAST       278
-#define LOPT_OPTS         279
-#define LOPT_DHCP_OPTS    280
-#define LOPT_MATCH        281
-#define LOPT_BROADCAST    282
-#define LOPT_NEGTTL       283
-#define LOPT_ALTPORT      284
-#define LOPT_SCRIPTUSR    285
-#define LOPT_LOCAL        286
-#define LOPT_NAPTR        287
-#define LOPT_MINPORT      288
-#define LOPT_DHCP_FQDN    289
-#define LOPT_CNAME        290
-#define LOPT_PXE_PROMT    291
-#define LOPT_PXE_SERV     292
-#define LOPT_TEST         293
-#define LOPT_TAG_IF       294
-#define LOPT_PROXY        295
-#define LOPT_GEN_NAMES    296
-#define LOPT_MAXTTL       297
-#define LOPT_NO_REBIND    298
-#define LOPT_LOC_REBND    299
-#define LOPT_ADD_MAC      300
-#define LOPT_DNSSEC       301
-#define LOPT_INCR_ADDR    302
-#define LOPT_CONNTRACK    303
-#define LOPT_FQDN         304
-#define LOPT_LUASCRIPT    305
-#define LOPT_RA           306
-#define LOPT_DUID         307
-#define LOPT_HOST_REC     308
-#define LOPT_TFTP_LC      309
-#define LOPT_RR           310
-#define LOPT_CLVERBIND    311
-#define LOPT_MAXCTTL      312
-#define LOPT_AUTHZONE     313
-#define LOPT_AUTHSERV     314
-#define LOPT_AUTHTTL      315
-#define LOPT_AUTHSOA      316
-#define LOPT_AUTHSFS      317
-#define LOPT_AUTHPEER     318
-#define LOPT_IPSET        319
-#define LOPT_SYNTH        320
+#define LOPT_RELOAD        256
+#define LOPT_NO_NAMES      257
+#define LOPT_TFTP          258
+#define LOPT_SECURE        259
+#define LOPT_PREFIX        260
+#define LOPT_PTR           261
+#define LOPT_BRIDGE        262
+#define LOPT_TFTP_MAX      263
+#define LOPT_FORCE         264
+#define LOPT_NOBLOCK       265
+#define LOPT_LOG_OPTS      266
+#define LOPT_MAX_LOGS      267
+#define LOPT_CIRCUIT       268
+#define LOPT_REMOTE        269
+#define LOPT_SUBSCR        270
+#define LOPT_INTNAME       271
+#define LOPT_BANK          272
+#define LOPT_DHCP_HOST     273
+#define LOPT_APREF         274
+#define LOPT_OVERRIDE      275
+#define LOPT_TFTPPORTS     276
+#define LOPT_REBIND        277
+#define LOPT_NOLAST        278
+#define LOPT_OPTS          279
+#define LOPT_DHCP_OPTS     280
+#define LOPT_MATCH         281
+#define LOPT_BROADCAST     282
+#define LOPT_NEGTTL        283
+#define LOPT_ALTPORT       284
+#define LOPT_SCRIPTUSR     285
+#define LOPT_LOCAL         286
+#define LOPT_NAPTR         287
+#define LOPT_MINPORT       288
+#define LOPT_DHCP_FQDN     289
+#define LOPT_CNAME         290
+#define LOPT_PXE_PROMT     291
+#define LOPT_PXE_SERV      292
+#define LOPT_TEST          293
+#define LOPT_TAG_IF        294
+#define LOPT_PROXY         295
+#define LOPT_GEN_NAMES     296
+#define LOPT_MAXTTL        297
+#define LOPT_NO_REBIND     298
+#define LOPT_LOC_REBND     299
+#define LOPT_ADD_MAC       300
+#define LOPT_DNSSEC        301
+#define LOPT_INCR_ADDR     302
+#define LOPT_CONNTRACK     303
+#define LOPT_FQDN          304
+#define LOPT_LUASCRIPT     305
+#define LOPT_RA            306
+#define LOPT_DUID          307
+#define LOPT_HOST_REC      308
+#define LOPT_TFTP_LC       309
+#define LOPT_RR            310
+#define LOPT_CLVERBIND     311
+#define LOPT_MAXCTTL       312
+#define LOPT_AUTHZONE      313
+#define LOPT_AUTHSERV      314
+#define LOPT_AUTHTTL       315
+#define LOPT_AUTHSOA       316
+#define LOPT_AUTHSFS       317
+#define LOPT_AUTHPEER      318
+#define LOPT_IPSET         319
+#define LOPT_SYNTH         320
 #ifdef OPTION6_PREFIX_CLASS 
-#define LOPT_PREF_CLSS    321
+#define LOPT_PREF_CLSS     321
 #endif
-#define LOPT_RELAY        323
-#define LOPT_RA_PARAM     324
-#define LOPT_ADD_SBNET    325
-#define LOPT_QUIET_DHCP   326
-#define LOPT_QUIET_DHCP6  327
-#define LOPT_QUIET_RA     328
-#define LOPT_SEC_VALID    329
-#define LOPT_TRUST_ANCHOR 330
-#define LOPT_DNSSEC_DEBUG 331
-#define LOPT_REV_SERV     332
-#define LOPT_SERVERS_FILE 333
-#define LOPT_DNSSEC_CHECK 334
+#define LOPT_RELAY         323
+#define LOPT_RA_PARAM      324
+#define LOPT_ADD_SBNET     325
+#define LOPT_QUIET_DHCP    326
+#define LOPT_QUIET_DHCP6   327
+#define LOPT_QUIET_RA      328
+#define LOPT_SEC_VALID     329
+#define LOPT_TRUST_ANCHOR  330
+#define LOPT_DNSSEC_DEBUG  331
+#define LOPT_REV_SERV      332
+#define LOPT_SERVERS_FILE  333
+#define LOPT_DNSSEC_CHECK  334
 #define LOPT_LOCAL_SERVICE 335
+#define LOPT_DNSSEC_TIME   336
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -287,6 +288,7 @@ static const struct myoption opts[] =
     { "trust-anchor", 1, 0, LOPT_TRUST_ANCHOR },
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
     { "dnssec-check-unsigned", 0, 0, LOPT_DNSSEC_CHECK },
+    { "dnssec-no-timecheck", 0, 0, LOPT_DNSSEC_TIME },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
@@ -443,6 +445,7 @@ static struct {
   { LOPT_TRUST_ANCHOR, ARG_DUP, "<domain>,[<class>],...", gettext_noop("Specify trust anchor key digest."), NULL },
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
   { LOPT_DNSSEC_CHECK, OPT_DNSSEC_NO_SIGN, NULL, gettext_noop("Ensure answers without DNSSEC are in unsigned zones."), NULL },
+  { LOPT_DNSSEC_TIME, OPT_DNSSEC_TIME, NULL, gettext_noop("Don't check DNSSEC signature timestamps until first cache-reload"), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
 #endif

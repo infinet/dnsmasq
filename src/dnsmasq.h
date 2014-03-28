@@ -164,6 +164,7 @@ struct event_desc {
 #define EVENT_FORK_ERR  18
 #define EVENT_LUA_ERR   19
 #define EVENT_TFTP_ERR  20
+#define EVENT_INIT      21
 
 /* Exit codes. */
 #define EC_GOOD        0
@@ -230,7 +231,7 @@ struct event_desc {
 #define OPT_QUIET_DHCP6    43
 #define OPT_QUIET_RA	   44
 #define OPT_DNSSEC_VALID   45
-#define OPT_DNSSEC_PERMISS 46
+#define OPT_DNSSEC_TIME    46
 #define OPT_DNSSEC_DEBUG   47
 #define OPT_DNSSEC_NO_SIGN 48 
 #define OPT_LOCAL_SERVICE  49

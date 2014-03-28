@@ -636,6 +636,15 @@ performance. See also the warning about upstream servers in the
 section on 
 .B --dnssec
 .TP
+.B --dnssec-no-timecheck
+DNSSEC signatures are only valid for specified time windows, and should be rejected outside those windows. This generates an
+interesting chicken-and-egg problem for machines which don't have a hardware real time clock. For these machines to determine the correct 
+time typically requires use of NTP and therefore DNS, but validating DNS requires that the correct time is already known. Setting this flag
+removes the time-window checks (but not other DNSSEC validation.) only until the dnsmasq process receives SIGHUP. The intention is
+that dnsmasq should be started with this flag when the platform determines that reliable time is not currently available. As soon as 
+reliable time is established, a SIGHUP should be sent to dnsmasq, which enables time checking, and purges the cache of DNS records
+which have not been throughly checked.
+.TP
 .B --proxy-dnssec
 Copy the DNSSEC Authenticated Data bit from upstream servers to downstream clients and cache it.  This is an 
 alternative to having dnsmasq validate DNSSEC, but it depends on the security of the network between 

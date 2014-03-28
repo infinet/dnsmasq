@@ -390,7 +390,13 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
 /* Check whether today/now is between date_start and date_end */
 static int check_date_range(unsigned long date_start, unsigned long date_end)
 {
-  unsigned long curtime = time(0);
+  unsigned long curtime;
+
+  /* Checking timestamps may be temporarily disabled */
+  if (option_bool(OPT_DNSSEC_TIME))
+    return 1;
+  
+  curtime = time(0);
   
   /* We must explicitly check against wanted values, because of SERIAL_UNDEF */
   return serial_compare_32(curtime, date_start) == SERIAL_GT
