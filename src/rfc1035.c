@@ -1102,7 +1102,10 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 			{
 			  ipsets_cur = ipsets;
 			  while (*ipsets_cur)
-			    add_to_ipset(*ipsets_cur++, &addr, flags, 0);
+			    {
+			      log_query(F_IPSET, name, &addr, *ipsets_cur);
+			      add_to_ipset(*ipsets_cur++, &addr, flags, 0);
+			    }
 			}
 #endif
 		      

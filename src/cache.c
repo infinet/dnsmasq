@@ -1609,6 +1609,13 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
       source = arg;
       verb = "to";
     }
+  else if (flags & F_IPSET)
+    {
+      source = "ipset add";
+      dest = name;
+      name = arg;
+      verb = daemon->addrbuff;
+    }
   else
     source = "cached";
   

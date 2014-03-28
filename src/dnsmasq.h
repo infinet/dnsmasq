@@ -436,6 +436,7 @@ struct crec {
 #define F_KEYTAG    (1u<<23)
 #define F_SECSTAT   (1u<<24)
 #define F_NO_RR     (1u<<25)
+#define F_IPSET     (1u<<26)
 
 /* Values of uid in crecs with F_CONFIG bit set. */
 #define SRC_INTERFACE 0
