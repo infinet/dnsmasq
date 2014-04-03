@@ -80,6 +80,10 @@ version 2.69
 	    encountered. Thanks to Andy and the rt-n56u project for
 	    find this and helping to chase it down.
 
+	    Fix wrong RCODE in authoritative DNS replies to PTR queries. The
+	    correct answer was included, but the RCODE was set to NXDOMAIN.
+	    Thanks to Craig McQueen for spotting this.
+
 
 version 2.68
             Use random addresses for DHCPv6 temporary address
