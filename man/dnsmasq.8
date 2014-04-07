@@ -675,7 +675,7 @@ Interface-name and address-literal subnet specifications may be used
 freely in the same --auth-zone declaration.
 
 The subnet(s) are also used to define in-addr.arpa and
-ipv6.arpa domains which are served for reverse-DNS queries. If not
+ip6.arpa domains which are served for reverse-DNS queries. If not
 specified, the prefix length defaults to 24 for IPv4 and 64 for IPv6.
 For IPv4 subnets, the prefix length should be have the value 8, 16 or 24
 unless you are familiar with RFC 2317 and have arranged the
@@ -2033,7 +2033,7 @@ to particular hosts then
 will do so.
 
 Dnsmasq acts as an authoritative server for  in-addr.arpa and
-ipv6.arpa domains associated with the subnets given in auth-zone
+ip6.arpa domains associated with the subnets given in auth-zone
 declarations, so reverse (address to name) lookups can be simply
 configured with a suitable NS record, for instance in this example,
 where we allow 1.2.3.0/24 addresses.
