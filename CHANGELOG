@@ -28,9 +28,9 @@ version 2.69
 	    
 	    make dnsmasq COPTS='-DHAVE_DNSSEC -DHAVE_DNSSEC_STATIC'
 	    
-	    which bloats the dnsmasq binary to over a megabyte, but
-	    saves the size of the shared libraries which are five
-	    times that size.
+	    which bloats the dnsmasq binary, but saves the size of 
+	    the shared libraries which are much bigger.
+
 	    To enable, DNSSEC, you will need a set of
 	    trust-anchors. Now that the TLDs are signed, this can be
 	    the keys for the root zone, and for convenience they are
@@ -56,6 +56,36 @@ version 2.69
 	    downstream validators. Setting --log-queries will show 
 	    DNSSEC in action.
 
+	    If a domain is returned from an upstream nameserver without 
+	    DNSSEC signature, dnsmasq by default trusts this. This 
+	    means that for unsigned zone (still the majority) there 
+	    is effectively no cost for having DNSSEC enabled. Of course
+	    this allows an attacker to replace a signed record with a 
+	    false unsigned record. This is addressed by the 
+	    --dnssec-check-unsigned flag, which instructs dnsmasq
+	    to prove that an unsigned record is legitimate, by finding  
+	    a secure proof that the zone containing the record is not
+	    signed. Doing this has costs (typically one or two extra
+	    upstream queries). It also has a nasty failure mode if
+	    dnsmasq's upstream nameservers are not DNSSEC capable. 
+	    Without --dnssec-check-unsigned using such an upstream
+	    server will simply result in not queries being validated; 
+	    with --dnssec-check-unsigned enabled and a 
+	    DNSSEC-ignorant upstream server, _all_ queries will fail.
+
+	    Note that DNSSEC requires that the local time is valid and 
+	    accurate, if not then DNSSEC validation will fail. NTP 
+	    should be running. This presents a problem for routers
+	    without a battery-backed clock. To set the time needs NTP 
+	    to do DNS lookups, but lookups will fail until NTP has run.
+	    To address this, there's a flag, --dnssec-no-timecheck 
+	    which disables the time checks (only) in DNSSEC. When dnsmasq
+	    is started and the clock is not synced, this flag should
+	    be used. As soon as the clock is synced, SIGHUP dnsmasq. 
+	    The SIGHUP clears the cache of partially-validated data and
+	    resets the no-timecheck flag, so that all DNSSEC checks 
+	    henceforward will be complete.
+	    
 	    The development of DNSSEC in dnsmasq was started by 
 	    Giovanni Bajo, to whom huge thanks are owed. It has been
 	    supported by Comcast, whose techfund grant has allowed for 
@@ -83,6 +113,9 @@ version 2.69
 	    Fix wrong RCODE in authoritative DNS replies to PTR queries. The
 	    correct answer was included, but the RCODE was set to NXDOMAIN.
 	    Thanks to Craig McQueen for spotting this.
+
+	    Make statistics available as DNS queries in the .bind TLD as 
+	    well as logging them.
 
 
 version 2.68
