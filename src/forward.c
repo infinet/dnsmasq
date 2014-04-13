@@ -535,20 +535,23 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   (void) do_bit;
 
 #ifdef HAVE_IPSET
-  /* Similar algorithm to search_servers. */
-  struct ipsets *ipset_pos;
-  unsigned int namelen = strlen(daemon->namebuff);
-  unsigned int matchlen = 0;
-  for (ipset_pos = daemon->ipsets; ipset_pos; ipset_pos = ipset_pos->next) 
+  if (daemon->ipsets && extract_request(header, n, daemon->namebuff, NULL))
     {
-      unsigned int domainlen = strlen(ipset_pos->domain);
-      char *matchstart = daemon->namebuff + namelen - domainlen;
-      if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
-	  (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
-	  domainlen >= matchlen) 
+      /* Similar algorithm to search_servers. */
+      struct ipsets *ipset_pos;
+      unsigned int namelen = strlen(daemon->namebuff);
+      unsigned int matchlen = 0;
+      for (ipset_pos = daemon->ipsets; ipset_pos; ipset_pos = ipset_pos->next) 
 	{
-	  matchlen = domainlen;
-	  sets = ipset_pos->sets;
+	  unsigned int domainlen = strlen(ipset_pos->domain);
+	  char *matchstart = daemon->namebuff + namelen - domainlen;
+	  if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
+	      (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
+	      domainlen >= matchlen) 
+	    {
+	      matchlen = domainlen;
+	      sets = ipset_pos->sets;
+	    }
 	}
     }
 #endif
