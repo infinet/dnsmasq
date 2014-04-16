@@ -1,3 +1,9 @@
+version 2.70
+            Fix crash, introduced in 2.69, on TCP request when dnsmasq
+	    compiled with DNSSEC support, but running without DNSSEC
+	    enabled. Thanks to Manish Sing for spotting that one.
+
+
 version 2.69
 	    Implement dynamic interface discovery on *BSD. This allows
 	    the contructor: syntax to be used in dhcp-range for DHCPv6

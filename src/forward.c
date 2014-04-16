@@ -1745,7 +1745,7 @@ unsigned char *tcp_request(int confd, time_t now,
 		  struct server *firstsendto = NULL;
 #ifdef HAVE_DNSSEC
 		  unsigned char *newhash, hash[HASH_SIZE];
-		  if ((newhash = hash_questions(header, (unsigned int)size, daemon->keyname)))
+		  if ((newhash = hash_questions(header, (unsigned int)size, daemon->namebuff)))
 		    memcpy(hash, newhash, HASH_SIZE);
 		  else
 		    memset(hash, 0, HASH_SIZE);
