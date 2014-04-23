@@ -3,6 +3,9 @@ version 2.70
 	    compiled with DNSSEC support, but running without DNSSEC
 	    enabled. Thanks to Manish Sing for spotting that one.
 
+	    Fix regression which broke ipset functionality. Thanks to 
+	    Wang Jian for the bug report.
+
 
 version 2.69
 	    Implement dynamic interface discovery on *BSD. This allows
