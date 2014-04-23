@@ -1,11 +1,19 @@
+dnsmasq (2.70-1) unstable; urgency=low
+
+   * New upstream.
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 23 Apr 2014 15:14:42 +0000
+
 dnsmasq (2.69-1) unstable; urgency=low
 
    * New upstream.
    * Set --local-service. (closes: #732610)
-     This tells dnsmasq to ignore DNS requests that don't come from a local network.
-     It's automatically ignored if  --interface --except-interface, --listen-address
-     or --auth-server exist in the configuration, so for most installations, it will
-     have no effect, but for otherwise-unconfigured installations, it stops dnsmasq
+     This tells dnsmasq to ignore DNS requests that don't come
+     from a local network. It's automatically ignored if
+     --interface --except-interface, --listen-address or
+     --auth-server exist in the configuration, so for most
+     installations, it will have no effect, but for
+     otherwise-unconfigured installations, it stops dnsmasq
      from being vulnerable to DNS-reflection attacks.
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 4 Feb 2014 16:28:12 +0000
