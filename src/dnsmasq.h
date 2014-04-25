@@ -823,7 +823,7 @@ struct dhcp_context {
 #define CONTEXT_NETMASK        (1u<<1)
 #define CONTEXT_BRDCAST        (1u<<2)
 #define CONTEXT_PROXY          (1u<<3)
-#define CONTEXT_RA_ONLY        (1u<<4)
+#define CONTEXT_RA_ROUTER      (1u<<4)
 #define CONTEXT_RA_DONE        (1u<<5)
 #define CONTEXT_RA_NAME        (1u<<6)
 #define CONTEXT_RA_STATELESS   (1u<<7)
@@ -837,7 +837,6 @@ struct dhcp_context {
 #define CONTEXT_USED           (1u<<15)
 #define CONTEXT_OLD            (1u<<16)
 #define CONTEXT_V6             (1u<<17)
-
 
 struct ping_result {
   struct in_addr addr;

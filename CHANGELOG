@@ -1,3 +1,7 @@
+version 2.71
+	   Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.
+
+
 version 2.70
             Fix crash, introduced in 2.69, on TCP request when dnsmasq
 	    compiled with DNSSEC support, but running without DNSSEC
