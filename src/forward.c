@@ -1347,13 +1347,20 @@ static int do_check_sign(time_t now, struct dns_header *header, size_t plen, cha
 { 
   char *name_start;
   unsigned char *p;
-  int status = dnssec_validate_ds(now, header, plen, name, keyname, class);
-  
-  if (status != STAT_INSECURE)
-    {
-      if (status == STAT_NO_DS)
-	status = STAT_INSECURE;
-      return status;
+  int status;
+
+  /* In this case only, a SERVFAIL reply allows us to continue up the tree, looking for a 
+     suitable NSEC reply to DS queries. */
+  if (RCODE(header) != SERVFAIL)
+    { 
+      status = dnssec_validate_ds(now, header, plen, name, keyname, class);
+      
+      if (status != STAT_INSECURE)
+	{
+	  if (status == STAT_NO_DS)
+	    status = STAT_INSECURE;
+	  return status;
+	}
     }
   
   p = (unsigned char *)(header+1);
