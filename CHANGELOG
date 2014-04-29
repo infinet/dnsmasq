@@ -1,3 +1,17 @@
+version 2.71
+            Subtle change to error handling to help DNSSEC validation 
+	    when servers fail to provide NODATA answers for 
+	    non-existent DS records.
+
+	    Tweak code which removes DNSSEC records from answers when
+	    not required. Fixes broken answers when additional section
+	    has real records in it. Thanks to Marco Davids for the bug 
+	    report.
+
+	    Fix DNSSEC validation of ANY queries. Thanks to Marco Davids
+	    for spotting that too.
+
+
 version 2.70
             Fix crash, introduced in 2.69, on TCP request when dnsmasq
 	    compiled with DNSSEC support, but running without DNSSEC
