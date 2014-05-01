@@ -2222,7 +2222,7 @@ size_t filter_rrsigs(struct dns_header *header, size_t plen)
 	  
 	  if (i < ntohs(header->ancount))
 	    chop_an++;
-	  else if (i < ntohs(header->nscount))
+	  else if (i < (ntohs(header->nscount) + ntohs(header->ancount)))
 	    chop_ns++;
 	  else
 	    chop_ar++;
