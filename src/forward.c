@@ -588,7 +588,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
      header->hb4 &= ~HB4_AD;
   
   if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
-    return n;
+    return resize_packet(header, n, pheader, plen);
   
   /* Complain loudly if the upstream server is non-recursive. */
   if (!(header->hb4 & HB4_RA) && RCODE(header) == NOERROR && ntohs(header->ancount) == 0 &&
