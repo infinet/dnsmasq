@@ -1,3 +1,11 @@
+dnsmasq (2.70-2) unstable; urgency=low
+
+   * Ensure daemon not stared if dnsmasq package has been removed,
+     even if dnsmasq-base is still installed. (closes: #746941)
+   * Tidy cruft in initscript. (closes: #746940)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Sun, 04 May 2014 21:34:11 +0000
+
 dnsmasq (2.70-1) unstable; urgency=low
 
    * New upstream.

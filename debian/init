@@ -29,6 +29,12 @@ if [ -r /etc/default/locale ]; then
         export LANG
 fi
 
+# /etc/dnsmasq.d/README is a non-conffile installed by the dnsmasq package.
+# Should the dnsmasq package be removed, the following test ensures that
+# the daemon is no longer started, even if the dnsmasq-base package is
+# still in place.
+test -e /etc/dnsmasq.d/README || exit 0
+
 test -x $DAEMON || exit 0
 
 # Provide skeleton LSB log functions for backports which don't have LSB functions.
@@ -152,9 +158,6 @@ stop()
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
 	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /var/run/dnsmasq/$NAME.pid --name $NAME
-	RETVAL="$?"
-	[ "$RETVAL" = 2 ] && return 2
-	return "$RETVAL"
 }
 
 stop_resolvconf()
