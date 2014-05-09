@@ -13,9 +13,8 @@ ExecStartPre=/usr/sbin/dnsmasq --test
 # itself, when called with the "systemd-exec" function.
 #
 # It also adds the command-line flags
-#    --keep-in-foreground --pid-file --enable-dbus 
-# to disable writing a pid-file (not needed with systemd) and 
-# enable DBus by default because we use DBus activation.
+#    --keep-in-foreground --enable-dbus 
+# to enable DBus by default because we use DBus activation.
 #
 ExecStart=/etc/init.d/dnsmasq systemd-exec
 

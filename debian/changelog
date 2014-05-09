@@ -1,3 +1,10 @@
+dnsmasq (2.70-3) unstable; urgency=low
+
+   * Write a pid-file, even when being started using systemd, since
+     other components may wish to signal dnsmasq.
+	
+ -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 09 May 2014 20:45:11 +0000
+
 dnsmasq (2.70-2) unstable; urgency=low
 
    * Ensure daemon not stared if dnsmasq package has been removed,
