@@ -11,6 +11,10 @@ version 2.71
 	    Fix DNSSEC validation of ANY queries. Thanks to Marco Davids
 	    for spotting that too.
 
+	    Fix total DNS failure and 100% CPU use if cachesize set to zero,
+	    regression introduced in 2.69. Thanks to James Hunt and
+	    the Ubuntu crowd for assistance in fixing this.
+
 
 version 2.70
             Fix crash, introduced in 2.69, on TCP request when dnsmasq
