@@ -1,9 +1,14 @@
-dnsmasq (2.70-3) unstable; urgency=low
+dnsmasq (2.70-3) unstable; urgency=medium
 
    * Write a pid-file, even when being started using systemd, since
      other components may wish to signal dnsmasq.
-	
- -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 09 May 2014 20:45:11 +0000
+   * Enable dnsmasq systemd unit on install. Otherwise dnsmasq does not run on
+     fresh installations (without administrator handholding) and even worse it
+     is disabled on systems switching from sysv to systemd. Modify
+     postinst/postrm exactly as dh_systemd would, add dependency on
+     init-system-helpers. Closes: #724602
+
+ -- Simon Kelley <simon@thekelleys.org.uk> Sun, 11 May 2014 17:45:21 +0000
 
 dnsmasq (2.70-2) unstable; urgency=low
 
