@@ -277,6 +277,12 @@ case "$1" in
 	stop_resolvconf
 	;;
   systemd-exec)
+# /var/run may be volatile, so we need to ensure that
+        # /var/run/dnsmasq exists here as well as in postinst
+        if [ ! -d /var/run/dnsmasq ]; then
+           mkdir /var/run/dnsmasq || return 2
+           chown dnsmasq:nogroup /var/run/dnsmasq || return 2
+        fi
 # Enable DBus by default because we use DBus activation with systemd.
 	exec $DAEMON --keep-in-foreground --enable-dbus \
 	    -x /var/run/dnsmasq/$NAME.pid \
