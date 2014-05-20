@@ -11,11 +11,13 @@
 
 package=dnsmasq-base
 
-CFLAGS = $(shell export DEB_BUILD_OPTIONS=$(DEB_BUILD_OPTIONS); dpkg-buildflags --get CFLAGS)
-CFLAGS += $(shell dpkg-buildflags --get CPPFLAGS)
+dpkg_buildflags := DEB_BUILD_MAINT_OPTIONS="hardening=+all" dpkg-buildflags
+
+CFLAGS = $(shell $(dpkg_buildflags) --get CFLAGS)
+CFLAGS += $(shell $(dpkg_buildflags) --get CPPFLAGS)
 CFLAGS += -Wall -W
 
-LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
+LDFLAGS = $(shell $(dpkg_buildflags) --get LDFLAGS)
 
 DEB_COPTS = $(COPTS)
 
