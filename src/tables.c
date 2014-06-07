@@ -1,5 +1,7 @@
 /* tables.c is Copyright (c) 2014 Sven Falempin  All Rights Reserved.
 
+   Author's email: sfalempin@citypassenger.com 
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 dated June, 1991, or
