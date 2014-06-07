@@ -7,6 +7,9 @@ version 2.72
 	    Fix race condition which could lock up dnsmasq when an 
 	    interface goes down and up rapidly. Thanks to Conrad 
 	    Kostecki for helping to chase this down.
+
+	    Add DBus methods SetFilterWin2KOption and SetBogusPrivOption
+	    Thanks to the Smoothwall project for the patch.
 	    
 
 version 2.71
