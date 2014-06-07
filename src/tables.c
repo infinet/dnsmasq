@@ -1,4 +1,4 @@
-/* tables.c is Copyright (c) 2014 Dohnuts All Rights Reserved.
+/* tables.c is Copyright (c) 2014 Sven Falempin  All Rights Reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
