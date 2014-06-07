@@ -708,19 +708,11 @@ static int construct_worker(struct in6_addr *local, int prefix,
 
 void dhcp_construct_contexts(time_t now)
 { 
-  static int active = 0;
   struct dhcp_context *context, *tmp, **up;
   struct cparam param;
   param.newone = 0;
   param.newname = 0;
   param.now = now;
-
-  /* Various calls that we make may end up calling iface_enumerate(), which can then 
-     call us again, We're NOT re-entrant, so ignore a second invokation. */
-  if (active)
-    return;
-
-  active = 1;
 
   for (context = daemon->dhcp6; context; context = context->next)
     if (context->flags & CONTEXT_CONSTRUCTED)
@@ -779,8 +771,6 @@ void dhcp_construct_contexts(time_t now)
 	/* Not doing DHCP, so no lease system, manage alarms for ra only */
 	send_alarm(periodic_ra(now), now);
     }
-
-  active = 0;
 }
 
 #endif

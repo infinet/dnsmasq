@@ -4,6 +4,10 @@ version 2.72
 	    Add support for "ipsets" in *BSD, using pf. Thanks to 
 	    Sven Falempim for the patch.
 
+	    Fix race condition which could lock up dnsmasq when an 
+	    interface goes down and up rapidly. Thanks to Conrad 
+	    Kostecki for helping to chase this down.
+	    
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 
