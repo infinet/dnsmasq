@@ -156,13 +156,16 @@ static void dbus_read_servers(DBusMessage *message)
 	      dbus_message_iter_get_basic(&iter, &p[i]);
 	      dbus_message_iter_next (&iter);
 	      if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_BYTE)
-		break;
+		{
+		  i++;
+		  break;
+		}
 	    }
 
 #ifndef HAVE_IPV6
 	  my_syslog(LOG_WARNING, _("attempt to set an IPv6 server address via DBus - no IPv6 support"));
 #else
-	  if (i == sizeof(struct in6_addr)-1)
+	  if (i == sizeof(struct in6_addr))
 	    {
 	      memcpy(&addr.in6.sin6_addr, p, sizeof(struct in6_addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
