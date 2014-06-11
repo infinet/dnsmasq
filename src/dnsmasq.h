@@ -1150,6 +1150,7 @@ void bump_maxfd(int fd, int *max);
 int read_write(int fd, unsigned char *packet, int size, int rw);
 
 int wildcard_match(const char* wildcard, const char* match);
+int wildcard_matchn(const char* wildcard, const char* match, int num);
 
 /* log.c */
 void die(char *message, char *arg1, int exit_code);
