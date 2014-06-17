@@ -105,6 +105,8 @@ HAVE_AUTH
    define this to include the facility to act as an authoritative DNS
    server for one or more zones.
 
+HAVE_DNSSEC
+   include DNSSEC validator.
 
 NO_IPV6
 NO_TFTP
@@ -117,6 +119,11 @@ NO_AUTH
    otherwise be enabled automatically (HAVE_IPV6, >2Gb file sizes) or 
    which are enabled  by default in the distributed source tree. Building dnsmasq
    with something like "make COPTS=-DNO_SCRIPT" will do the trick.
+
+NO_NETTLE_ECC
+   Don't include the ECDSA cypher in DNSSEC validation. Needed for older Nettle versions.
+NO_GMP
+   Don't use and link against libgmp, Useful if nettle is built with --enable-mini-gmp.
 
 LEASEFILE
 CONFFILE

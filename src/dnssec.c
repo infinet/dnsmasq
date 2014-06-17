@@ -26,7 +26,8 @@
 #  include <nettle/ecc-curve.h>
 #endif
 #include <nettle/nettle-meta.h>
-#include <gmp.h>
+#include <nettle/bignum.h>
+
 
 #define SERIAL_UNDEF  -100
 #define SERIAL_EQ        0
