@@ -319,6 +319,18 @@ time_t dnsmasq_time(void)
 #endif
 }
 
+int netmask_length(struct in_addr mask)
+{
+  int zero_count = 0;
+
+  while (0x0 == (mask.s_addr & 0x1)) {
+    mask.s_addr >>= 1;
+    ++zero_count;
+  }
+
+  return 32 - zero_count;
+}
+
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask)
 {
   return (a.s_addr & mask.s_addr) == (b.s_addr & mask.s_addr);
