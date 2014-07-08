@@ -268,6 +268,7 @@ HAVE_SOCKADDR_SA_LEN
 /* Select the RFC_3542 version of the IPv6 socket API. 
    Define before netinet6/in6.h is included. */
 #define __APPLE_USE_RFC_3542 
+#define NO_IPSET
 
 #elif defined(__NetBSD__)
 #define HAVE_BSD_NETWORK
