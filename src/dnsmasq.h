@@ -641,6 +641,8 @@ struct dhcp_lease {
   unsigned char *extradata;
   unsigned int extradata_len, extradata_size;
   int last_interface;
+  int new_interface;     /* save possible originated interface */
+  int new_prefixlen;     /* and its prefix length */
 #ifdef HAVE_DHCP6
   struct in6_addr addr6;
   int iaid;
@@ -1132,6 +1134,7 @@ int sa_len(union mysockaddr *addr);
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2);
 int hostname_isequal(const char *a, const char *b);
 time_t dnsmasq_time(void);
+int netmask_length(struct in_addr mask);
 int is_same_net(struct in_addr a, struct in_addr b, struct in_addr mask);
 #ifdef HAVE_IPV6
 int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen);
@@ -1244,6 +1247,7 @@ char *host_from_dns(struct in_addr addr);
 #ifdef HAVE_DHCP
 void lease_update_file(time_t now);
 void lease_update_dns(int force);
+void lease_update_interface(time_t now);
 void lease_init(time_t now);
 struct dhcp_lease *lease4_allocate(struct in_addr addr);
 #ifdef HAVE_DHCP6
