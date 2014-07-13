@@ -352,20 +352,20 @@ static int find_interface_v4(struct in_addr local, int if_index, char *label,
 			     struct in_addr netmask, struct in_addr broadcast, void *vparam)
 {
   struct dhcp_lease *lease;
-  int prefix;
+  int prefix = netmask_length(netmask);
 
   (void) label;
   (void) broadcast;
   (void) vparam;
 
   for (lease = leases; lease; lease = lease->next)
-    if (!(lease->flags & (LEASE_TA | LEASE_NA))) {
-      prefix = netmask_length(netmask);
-      if (is_same_net(local, lease->addr, netmask) && prefix > lease->new_prefixlen) {
-        lease->new_interface = if_index;
+    if (!(lease->flags & (LEASE_TA | LEASE_NA)) &&
+	is_same_net(local, lease->addr, netmask) && 
+	prefix > lease->new_prefixlen) 
+      {
+	lease->new_interface = if_index;
         lease->new_prefixlen = prefix;
       }
-    }
 
   return 1;
 }
@@ -425,11 +425,19 @@ void lease_update_slaac(time_t now)
    start-time. */
 void lease_find_interfaces(time_t now)
 {
+  struct dhcp_lease *lease;
+  
+  for (lease = leases; lease; lease = lease->next)
+    lease->new_prefixlen = lease->new_interface = 0;
+
   iface_enumerate(AF_INET, &now, find_interface_v4);
 #ifdef HAVE_DHCP6
   iface_enumerate(AF_INET6, &now, find_interface_v6);
 #endif
-  lease_update_interface(now);
+
+  for (lease = leases; lease; lease = lease->next)
+    if (lease->new_interface != 0) 
+      lease_set_interface(lease, lease->new_interface, now);
 }
 
 #ifdef HAVE_DHCP6
@@ -501,16 +509,6 @@ void lease_update_dns(int force)
 	}
       
       dns_dirty = 0;
-    }
-}
-
-void lease_update_interface(time_t now)
-{
-  struct dhcp_lease *lease;
-
-  for (lease = leases; lease; lease = lease->next)
-    if (lease->new_interface > 0) {
-      lease_set_interface(lease, lease->new_interface, now);
     }
 }
 

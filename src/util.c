@@ -323,11 +323,12 @@ int netmask_length(struct in_addr mask)
 {
   int zero_count = 0;
 
-  while (0x0 == (mask.s_addr & 0x1)) {
-    mask.s_addr >>= 1;
-    ++zero_count;
-  }
-
+  while (0x0 == (mask.s_addr & 0x1) && zero_count < 32) 
+    {
+      mask.s_addr >>= 1;
+      zero_count++;
+    }
+  
   return 32 - zero_count;
 }
 

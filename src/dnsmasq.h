@@ -1247,7 +1247,6 @@ char *host_from_dns(struct in_addr addr);
 #ifdef HAVE_DHCP
 void lease_update_file(time_t now);
 void lease_update_dns(int force);
-void lease_update_interface(time_t now);
 void lease_init(time_t now);
 struct dhcp_lease *lease4_allocate(struct in_addr addr);
 #ifdef HAVE_DHCP6
