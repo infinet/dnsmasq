@@ -237,7 +237,8 @@ struct event_desc {
 #define OPT_DNSSEC_DEBUG   47
 #define OPT_DNSSEC_NO_SIGN 48 
 #define OPT_LOCAL_SERVICE  49
-#define OPT_LAST           50
+#define OPT_LOOP_DETECT    50
+#define OPT_LAST           51
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -478,6 +479,7 @@ union mysockaddr {
 #define SERV_USE_RESOLV     1024  /* forward this domain in the normal way */
 #define SERV_NO_REBIND      2048  /* inhibit dns-rebind protection */
 #define SERV_FROM_FILE      4096  /* read from --servers-file */
+#define SERV_LOOP           8192  /* server causes forwarding loop */
 
 struct serverfd {
   int fd;
@@ -498,6 +500,9 @@ struct server {
   char *domain; /* set if this server only handles a domain. */ 
   int flags, tcpfd;
   unsigned int queries, failed_queries;
+#ifdef HAVE_LOOP
+  u32 uid;
+#endif
   struct server *next; 
 };
 
@@ -1123,6 +1128,7 @@ unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name
 /* util.c */
 void rand_init(void);
 unsigned short rand16(void);
+u32 rand32(void);
 u64 rand64(void);
 int legal_hostname(char *c);
 char *canonicalise(char *s, int *nomem);
@@ -1188,6 +1194,8 @@ int send_from(int fd, int nowild, char *packet, size_t len,
 	       union mysockaddr *to, struct all_addr *source,
 	       unsigned int iface);
 void resend_query();
+struct randfd *allocate_rfd(int family);
+void free_rfd(struct randfd *rfd);
 
 /* network.c */
 int indextoname(int fd, int index, char *name);
@@ -1453,3 +1461,10 @@ void slaac_add_addrs(struct dhcp_lease *lease, time_t now, int force);
 time_t periodic_slaac(time_t now, struct dhcp_lease *leases);
 void slaac_ping_reply(struct in6_addr *sender, unsigned char *packet, char *interface, struct dhcp_lease *leases);
 #endif
+
+/* loop.c */
+#ifdef HAVE_LOOP
+void loop_send_probes();
+int detect_loop(char *query, int type);
+#endif
+

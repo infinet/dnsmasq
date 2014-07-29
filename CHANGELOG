@@ -20,6 +20,13 @@ version 2.72
 	    longer prefix length.) Thanks to Lung-Pin Chang for the 
 	    patch.
 	    
+	    Add a mode which detects and removes DNS forwarding loops, ie 
+	    a query sent to an upstream server returns as a new query to 
+	    dnsmasq, and would therefore be forwarded again, resulting in 
+	    a query which loops many times before being dropped. Upstream
+	    servers which loop back are disabled and this event is logged.
+	    Thanks to Smoothwall for their sponsorship of this feature.
+
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 
