@@ -1297,14 +1297,14 @@ void mark_servers(int flag)
 
   /* mark everything with argument flag */
   for (serv = daemon->servers; serv; serv = serv->next)
-    if (serv->flags & flag)
-      {
+    {
+      if (serv->flags & flag)
 	serv->flags |= SERV_MARK;
 #ifdef HAVE_LOOP
-	/* Give looped servers another chance */
-	serv->flags &= ~SERV_LOOP;
+      /* Give looped servers another chance */
+      serv->flags &= ~SERV_LOOP;
 #endif
-      }
+    }
 }
 
 void cleanup_servers(void)
