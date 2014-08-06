@@ -599,7 +599,7 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname)
    if (lease->flags & (LEASE_TA | LEASE_NA))
      {
        print_mac(mac, lease->clid, lease->clid_len);
-       inet_ntop(AF_INET6, lease->hwaddr, daemon->addrbuff, ADDRSTRLEN);
+       inet_ntop(AF_INET6, &lease->addr6, daemon->addrbuff, ADDRSTRLEN);
      }
    else
 #endif
