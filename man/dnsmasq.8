@@ -334,6 +334,16 @@ it will send queries to just one server. Setting this flag forces
 dnsmasq to send all queries to all available servers. The reply from
 the server which answers first will be returned to the original requester.
 .TP
+.B --dns-loop-detect
+Enable code to detect DNS forwarding loops; ie the situation where a query sent to one 
+of the upstream server eventually returns as a new query to the dnsmasq instance. The
+process works by generating TXT queries of the form <hex>.test and sending them to
+each upstream server. The hex is a UID which encodes the instance of dnsmasq sending the query
+and the upstream server to which it was sent. If the query returns to the server which sent it, then
+the upstream server through which it was sent is disabled and this event is logged. Each time the
+set of upstream servers changes, the test is re-run on all of them, including ones which
+were previously disabled.
+.TP
 .B --stop-dns-rebind
 Reject (and log) addresses from upstream nameservers which are in the
 private IP ranges. This blocks an attack where a browser behind a

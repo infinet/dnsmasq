@@ -22,7 +22,6 @@ static struct frec *lookup_frec_by_sender(unsigned short id,
 					  void *hash);
 static unsigned short get_id(void);
 static void free_frec(struct frec *f);
-static struct randfd *allocate_rfd(int family);
 
 #ifdef HAVE_DNSSEC
 static int tcp_key_recurse(time_t now, int status, struct dns_header *header, size_t n, 
@@ -427,7 +426,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  
 	  if (type == (start->flags & SERV_TYPE) &&
 	      (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)) &&
-	      !(start->flags & SERV_LITERAL_ADDRESS))
+	      !(start->flags & (SERV_LITERAL_ADDRESS | SERV_LOOP)))
 	    {
 	      int fd;
 
@@ -1271,6 +1270,12 @@ void receive_query(struct listener *listen, time_t now)
 	      break;
 	    }
 #endif
+      
+#ifdef HAVE_LOOP
+      /* Check for forwarding loop */
+      if (detect_loop(daemon->namebuff, type))
+	return;
+#endif
     }
   
 #ifdef HAVE_AUTH
@@ -1782,7 +1787,8 @@ unsigned char *tcp_request(int confd, time_t now,
 		      
 		      /* server for wrong domain */
 		      if (type != (last_server->flags & SERV_TYPE) ||
-			  (type == SERV_HAS_DOMAIN && !hostname_isequal(domain, last_server->domain)))
+			  (type == SERV_HAS_DOMAIN && !hostname_isequal(domain, last_server->domain)) ||
+			  (last_server->flags & (SERV_LITERAL_ADDRESS | SERV_LOOP)))
 			continue;
 		      
 		      if (last_server->tcpfd == -1)
@@ -1958,7 +1964,7 @@ static struct frec *allocate_frec(time_t now)
   return f;
 }
 
-static struct randfd *allocate_rfd(int family)
+struct randfd *allocate_rfd(int family)
 {
   static int finger = 0;
   int i;
@@ -1993,19 +1999,22 @@ static struct randfd *allocate_rfd(int family)
 
   return NULL; /* doom */
 }
+
+void free_rfd(struct randfd *rfd)
+{
+  if (rfd && --(rfd->refcount) == 0)
+    close(rfd->fd);
+}
+
 static void free_frec(struct frec *f)
 {
-  if (f->rfd4 && --(f->rfd4->refcount) == 0)
-    close(f->rfd4->fd);
-    
+  free_rfd(f->rfd4);
   f->rfd4 = NULL;
   f->sentto = NULL;
   f->flags = 0;
   
 #ifdef HAVE_IPV6
-  if (f->rfd6 && --(f->rfd6->refcount) == 0)
-    close(f->rfd6->fd);
-    
+  free_rfd(f->rfd6);
   f->rfd6 = NULL;
 #endif
 

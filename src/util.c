@@ -81,6 +81,18 @@ unsigned short rand16(void)
   return (unsigned short) out[--outleft];
 }
 
+u32 rand32(void)
+{
+ if (!outleft) 
+    {
+      if (!++in[0]) if (!++in[1]) if (!++in[2]) ++in[3];
+      surf();
+      outleft = 8;
+    }
+  
+  return out[--outleft]; 
+}
+
 u64 rand64(void)
 {
   static int outleft = 0;
