@@ -28,6 +28,7 @@ Architecture: any
 Depends: adduser, ${shlibs:Depends}
 Breaks: dnsmasq (<< 2.63-1~)
 Replaces: dnsmasq (<< 2.63-1~)
+Recommends: dns-root-data
 Description: Small caching DNS proxy and DHCP/TFTP server
  This package contains the dnsmasq executable and documentation, but
  not the infrastructure required to run it as a system daemon. For

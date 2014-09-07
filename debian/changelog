@@ -1,6 +1,8 @@
 dnsmasq (2.72-1) unstable; urgency=low
 
    * New upstream.
+   * If dns-root-data package is installed, use it to set the DNSSEC
+     trust anchor(s). Recommend dns-root-data. (closes: #760460)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 20 May 2014 21:01:11 +0000
 
