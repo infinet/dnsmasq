@@ -1465,7 +1465,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	struct list {
 	  char *suffix;
 	  struct list *next;
-	} *ignore_suffix = NULL, *li;
+	} *ignore_suffix = NULL, *match_suffix = NULL, *li;
 	
 	comma = split(arg);
 	if (!(directory = opt_string_alloc(arg)))
@@ -1475,10 +1475,20 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    comma = split(arg);
 	    li = opt_malloc(sizeof(struct list));
-	    li->next = ignore_suffix;
-	    ignore_suffix = li;
-	    /* Have to copy: buffer is overwritten */
-	    li->suffix = opt_string_alloc(arg);
+	    if (*arg == '*')
+	      {
+		li->next = match_suffix;
+		match_suffix = li;
+		/* Have to copy: buffer is overwritten */
+		li->suffix = opt_string_alloc(arg+1);
+	      }
+	    else
+	      {
+		li->next = ignore_suffix;
+		ignore_suffix = li;
+		/* Have to copy: buffer is overwritten */
+		li->suffix = opt_string_alloc(arg);
+	      }
 	  };
 	
 	if (!(dir_stream = opendir(directory)))
@@ -1496,6 +1506,20 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		ent->d_name[0] == '.')
 	      continue;
 
+	    if (match_suffix)
+	      {
+		for (li = match_suffix; li; li = li->next)
+		  {
+		    /* check for required suffices */
+		    size_t ls = strlen(li->suffix);
+		    if (len > ls &&
+			strcmp(li->suffix, &ent->d_name[len - ls]) == 0)
+		      break;
+		  }
+		if (!li)
+		  continue;
+	      }
+	    
 	    for (li = ignore_suffix; li; li = li->next)
 	      {
 		/* check for proscribed suffices */

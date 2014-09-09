@@ -30,6 +30,10 @@ version 2.72
 	    Include an RFC4191 route information option in router 
 	    advertisements for the prefix we're advertising. Thanks to 
 	    Ilya Ponetaev for the patch.
+
+	    Extend --conf-dir to allow filtering of files. So
+	    --conf-dir=/etc/dnsmasq.d,\*.conf
+	    will load all the files in /etc/dnsmasq.d which end in .conf
  
 
 version 2.71
