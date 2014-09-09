@@ -27,6 +27,10 @@ version 2.72
 	    servers which loop back are disabled and this event is logged.
 	    Thanks to Smoothwall for their sponsorship of this feature.
 
+	    Include an RFC4191 route information option in router 
+	    advertisements for the prefix we're advertising. Thanks to 
+	    Ilya Ponetaev for the patch.
+ 
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 

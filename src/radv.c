@@ -32,7 +32,7 @@ struct ra_param {
   char *if_name;
   struct dhcp_netid *tags;
   struct in6_addr link_local, link_global, ula;
-  unsigned int glob_pref_time, link_pref_time, ula_pref_time, adv_interval;
+  unsigned int glob_pref_time, link_pref_time, ula_pref_time, adv_interval, prio;
 };
 
 struct search_param {
@@ -210,18 +210,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 #ifdef HAVE_LINUX_NETWORK
   FILE *f;
 #endif
- 
-  save_counter(0);
-  ra = expand(sizeof(struct ra_packet));
   
-  ra->type = ND_ROUTER_ADVERT;
-  ra->code = 0;
-  ra->hop_limit = hop_limit;
-  ra->flags = calc_prio(ra_param);
-  ra->lifetime = htons(calc_lifetime(ra_param));
-  ra->reachable_time = 0;
-  ra->retrans_time = 0;
-
   parm.ind = iface;
   parm.managed = 0;
   parm.other = 0;
@@ -232,7 +221,19 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   parm.now = now;
   parm.glob_pref_time = parm.link_pref_time = parm.ula_pref_time = 0;
   parm.adv_interval = calc_interval(ra_param);
+  parm.prio = calc_prio(ra_param);
   
+  save_counter(0);
+  ra = expand(sizeof(struct ra_packet));
+  
+  ra->type = ND_ROUTER_ADVERT;
+  ra->code = 0;
+  ra->hop_limit = hop_limit;
+  ra->flags = parm.prio;
+  ra->lifetime = htons(calc_lifetime(ra_param));
+  ra->reachable_time = 0;
+  ra->retrans_time = 0;
+
   /* set tag with name == interface */
   iface_id.net = iface_name;
   iface_id.next = NULL;
@@ -648,6 +649,32 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  inet_ntop(AF_INET6, local, daemon->addrbuff, ADDRSTRLEN);
 		  if (!option_bool(OPT_QUIET_RA))
 		    my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s", param->if_name, daemon->addrbuff); 		    
+		  
+		  /* Send Route Information option (RFC4191, 2.3) */
+		  put_opt6_char(ICMP6_OPT_RT_INFO);
+		  /* Length in units of 8 octets will be 1 (header) +
+		   * 0, 1 or 2 (0...128 bits / 64 bit per unit) */
+		  if (0 == prefix)
+		    put_opt6_char(1);
+		  else if (prefix < 65) 
+		    put_opt6_char(2);
+		  else
+		    put_opt6_char(3);
+		  
+		  put_opt6_char(prefix);
+		  /* Same priority and advertised prefix */
+		  put_opt6_char(param->prio);
+		  /* "valid lifetime" seems more reasonable than "preferred" */
+		  put_opt6_long(valid);
+		  /* Actual prefix, only necessary part
+		   * Don't append any data in case of prefix length == 0  */
+		  if (0 != prefix) 
+		    {
+		      if (prefix < 65)
+			put_opt6((void *)local, 8);
+		      else
+			put_opt6((void *)local, 16);
+		    }
 		}
 	    }
 	}
