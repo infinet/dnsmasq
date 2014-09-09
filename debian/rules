@@ -132,7 +132,9 @@ binary-arch:	checkroot
 	        -d debian/base/var/lib/misc
 	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
 ifeq (,$(findstring nodocs,$(DEB_BUILD_OPTIONS)))
-	install -m 644 doc.html debian/base/usr/share/doc/$(package)/.
+# Need to remove paypal links in Debian Package for policy reasons.
+	sed -e /\<H2\>Donations/Q -e /icon.png/d doc.html -e /favicon.ico/d >debian/base/usr/share/doc/$(package)/doc.html
+	echo "</BODY>" >>debian/base/usr/share/doc/$(package)/doc.html 
 	install -m 644 setup.html debian/base/usr/share/doc/$(package)/.
 	install -m 644 dnsmasq.conf.example debian/base/usr/share/doc/$(package)/examples/.
 	install -m 644 trust-anchors.conf debian/base/usr/share/$(package)/.
