@@ -1040,6 +1040,8 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
       
     case DHCP6CONFIRM:
       {
+	int good_addr = 0;
+
 	/* set reply message type */
 	*outmsgtypep = DHCP6REPLY;
 	
@@ -1064,9 +1066,14 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
 		    return 1;
 		  }
 
+		good_addr = 1;
 		log6_quiet(state, "DHCPREPLY", req_addr, state->hostname);
 	      }
 	  }	 
+	
+	/* No addresses, no reply: RFC 3315 18.2.2 */
+	if (!good_addr)
+	  return 0;
 
 	o1 = new_opt6(OPTION6_STATUS_CODE);
 	put_opt6_short(DHCP6SUCCESS );
