@@ -313,8 +313,8 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
   else if (msg_type != DHCP6IREQ)
     return 0;
 
-  /* server-id must match except for SOLICIT and CONFIRM messages */
-  if (msg_type != DHCP6SOLICIT && msg_type != DHCP6CONFIRM && msg_type != DHCP6IREQ &&
+  /* server-id must match except for SOLICIT, CONFIRM and REBIND messages */
+  if (msg_type != DHCP6SOLICIT && msg_type != DHCP6CONFIRM && msg_type != DHCP6IREQ && msg_type != DHCP6REBIND &&
       (!(opt = opt6_find(state->packet_options, state->end, OPTION6_SERVER_ID, 1)) ||
        opt6_len(opt) != daemon->duid_len ||
        memcmp(opt6_ptr(opt, 0), daemon->duid, daemon->duid_len) != 0))
