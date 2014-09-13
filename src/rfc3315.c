@@ -1240,6 +1240,12 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
 	      }
 	    
 	  }
+
+	/* We must anwser with 'success' in global section anyway */
+	o1 = new_opt6(OPTION6_STATUS_CODE);
+	put_opt6_short(DHCP6SUCCESS);
+	put_opt6_string(_("success"));
+	end_opt6(o1);
 	break;
       }
 
