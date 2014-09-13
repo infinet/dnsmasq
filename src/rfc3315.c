@@ -328,6 +328,7 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
       (msg_type == DHCP6REQUEST || msg_type == DHCP6RENEW || msg_type == DHCP6RELEASE || msg_type == DHCP6DECLINE))
     
     {  
+      *outmsgtypep = DHCP6REPLY;
       o1 = new_opt6(OPTION6_STATUS_CODE);
       put_opt6_short(DHCP6USEMULTI);
       put_opt6_string("Use multicast");
