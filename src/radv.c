@@ -649,32 +649,6 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  inet_ntop(AF_INET6, local, daemon->addrbuff, ADDRSTRLEN);
 		  if (!option_bool(OPT_QUIET_RA))
 		    my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s", param->if_name, daemon->addrbuff); 		    
-		  
-		  /* Send Route Information option (RFC4191, 2.3) */
-		  put_opt6_char(ICMP6_OPT_RT_INFO);
-		  /* Length in units of 8 octets will be 1 (header) +
-		   * 0, 1 or 2 (0...128 bits / 64 bit per unit) */
-		  if (0 == prefix)
-		    put_opt6_char(1);
-		  else if (prefix < 65) 
-		    put_opt6_char(2);
-		  else
-		    put_opt6_char(3);
-		  
-		  put_opt6_char(prefix);
-		  /* Same priority and advertised prefix */
-		  put_opt6_char(param->prio);
-		  /* "valid lifetime" seems more reasonable than "preferred" */
-		  put_opt6_long(valid);
-		  /* Actual prefix, only necessary part
-		   * Don't append any data in case of prefix length == 0  */
-		  if (0 != prefix) 
-		    {
-		      if (prefix < 65)
-			put_opt6((void *)local, 8);
-		      else
-			put_opt6((void *)local, 16);
-		    }
 		}
 	    }
 	}
