@@ -1118,7 +1118,7 @@ void receive_query(struct listener *listen, time_t now)
 	  struct in_addr netmask;
 	  for (addr = daemon->interface_addrs; addr; addr = addr->next)
 	    {
-	      netmask.s_addr = 0xffffffff << (32 - addr->prefixlen);
+	      netmask.s_addr = htonl(~(in_addr_t)0 << (32 - addr->prefixlen));
 	      if (!(addr->flags & ADDRLIST_IPV6) &&
 		  is_same_net(addr->addr.addr.addr4, source_addr.in.sin_addr, netmask))
 		break;
@@ -1652,7 +1652,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	  struct in_addr netmask;
 	  for (addr = daemon->interface_addrs; addr; addr = addr->next)
 	    {
-	      netmask.s_addr = 0xffffffff << (32 - addr->prefixlen);
+	      netmask.s_addr = htonl(~(in_addr_t)0 << (32 - addr->prefixlen));
 	      if (!(addr->flags & ADDRLIST_IPV6) && 
 		  is_same_net(addr->addr.addr.addr4, peer_addr.in.sin_addr, netmask))
 		break;

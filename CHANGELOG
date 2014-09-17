@@ -49,6 +49,9 @@ version 2.71
 	    regression introduced in 2.69. Thanks to James Hunt and
 	    the Ubuntu crowd for assistance in fixing this.
 
+	    Fix problem with --local-service option on big-endian platforms
+	    Thanks to Richard Genoud for the patch.
+
 
 version 2.70
             Fix crash, introduced in 2.69, on TCP request when dnsmasq
