@@ -570,18 +570,28 @@ void bump_maxfd(int fd, int *max)
 
 int retry_send(void)
 {
-   struct timespec waiter;
+  /* Linux kernels can return EAGAIN in perpetuity when calling
+     sendmsg() and the relevant interface has gone. Here we loop
+     retrying in EAGAIN for 1 second max, to avoid this hanging 
+     dnsmasq. */
+
+  static int retries = 0;
+  struct timespec waiter;
+
    if (errno == EAGAIN || errno == EWOULDBLOCK)
      {
        waiter.tv_sec = 0;
        waiter.tv_nsec = 10000;
        nanosleep(&waiter, NULL);
-       return 1;
+       if (retries++ < 1000)
+	 return 1;
      }
+
+   retries = 0;
    
    if (errno == EINTR)
      return 1;
-
+   
    return 0;
 }
 

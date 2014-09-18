@@ -33,6 +33,10 @@ version 2.72
  
             Fix bug when resulted in NXDOMAIN answers instead of NODATA in
             some circumstances.
+
+	    Fix bug which caused dnsmasq to become unresponsive if it 
+	    failed to send packets due to a network interface disappearing.
+	    Thanks to Niels Peen for spotting this.
 	    
 
 version 2.71
