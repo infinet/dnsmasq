@@ -37,7 +37,10 @@ version 2.72
 	    Fix bug which caused dnsmasq to become unresponsive if it 
 	    failed to send packets due to a network interface disappearing.
 	    Thanks to Niels Peen for spotting this.
-	    
+	    	    
+            Fix problem with --local-service option on big-endian platforms
+	    Thanks to Richard Genoud for the patch.
+
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 
@@ -55,9 +58,6 @@ version 2.71
 	    Fix total DNS failure and 100% CPU use if cachesize set to zero,
 	    regression introduced in 2.69. Thanks to James Hunt and
 	    the Ubuntu crowd for assistance in fixing this.
-
-	    Fix problem with --local-service option on big-endian platforms
-	    Thanks to Richard Genoud for the patch.
 
 
 version 2.70
