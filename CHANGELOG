@@ -31,6 +31,9 @@ version 2.72
 	    --conf-dir=/etc/dnsmasq.d,\*.conf
 	    will load all the files in /etc/dnsmasq.d which end in .conf
  
+            Fix bug when resulted in NXDOMAIN answers instead of NODATA in
+            some circumstances.
+	    
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 
