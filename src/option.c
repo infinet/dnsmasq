@@ -1474,22 +1474,25 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	for (arg = comma; arg; arg = comma) 
 	  {
 	    comma = split(arg);
-	    li = opt_malloc(sizeof(struct list));
-	    if (*arg == '*')
+	    if (strlen(arg) != 0)
 	      {
-		li->next = match_suffix;
-		match_suffix = li;
-		/* Have to copy: buffer is overwritten */
-		li->suffix = opt_string_alloc(arg+1);
+		li = opt_malloc(sizeof(struct list));
+		if (*arg == '*')
+		  {
+		    li->next = match_suffix;
+		    match_suffix = li;
+		    /* Have to copy: buffer is overwritten */
+		    li->suffix = opt_string_alloc(arg+1);
+		  }
+		else
+		  {
+		    li->next = ignore_suffix;
+		    ignore_suffix = li;
+		    /* Have to copy: buffer is overwritten */
+		    li->suffix = opt_string_alloc(arg);
+		  }
 	      }
-	    else
-	      {
-		li->next = ignore_suffix;
-		ignore_suffix = li;
-		/* Have to copy: buffer is overwritten */
-		li->suffix = opt_string_alloc(arg);
-	      }
-	  };
+	  }
 	
 	if (!(dir_stream = opendir(directory)))
 	  die(_("cannot access directory %s: %s"), directory, EC_FILE);
@@ -1555,7 +1558,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    free(ignore_suffix->suffix);
 	    free(ignore_suffix);
 	  }
-	      
+	for(; match_suffix; match_suffix = li)
+	  {
+	    li = match_suffix->next;
+	    free(match_suffix->suffix);
+	    free(match_suffix);
+	  }    
 	break;
       }
 
