@@ -23,7 +23,7 @@ DEB_COPTS = $(COPTS)
 
 TARGET = install-i18n
 
-DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
+DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 
 # Force package version based on git tags.
 ifneq (,$(filter gitversion,$(DEB_BUILD_OPTIONS)))
@@ -35,7 +35,7 @@ ifeq (,$(filter nodbus,$(DEB_BUILD_OPTIONS)))
 endif
 
 ifeq (,$(filter noconntrack,$(DEB_BUILD_OPTIONS)))
-ifeq ($(DEB_BUILD_ARCH_OS),linux)
+ifeq ($(DEB_HOST_ARCH_OS),linux)
      DEB_COPTS += -DHAVE_CONNTRACK
 endif
 endif
@@ -81,6 +81,11 @@ endif
 
 ifeq (,$(filter nodnssec,$(DEB_BUILD_OPTIONS)))
      DEB_COPTS += -DHAVE_DNSSEC
+endif
+
+ifneq ($(DEB_HOST_ARCH_OS),linux)
+     # For strlcpy in FreeBSD
+     LDFLAGS += -lbsd
 endif
 
 clean:
@@ -171,7 +176,7 @@ endif
 	chmod -R g-ws debian/base 
 	dpkg --build debian/base ..
 
-ifeq ($(DEB_BUILD_ARCH_OS),linux)
+ifeq ($(DEB_HOST_ARCH_OS),linux)
 	rm -rf debian/utils
 	install -m 755 -d debian/utils/DEBIAN \
                        -d debian/utils/usr/share/man/man1 \
