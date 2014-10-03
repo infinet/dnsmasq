@@ -1,3 +1,9 @@
+dnsmasq (2.73-1) unstable; urgency=low
+
+   * New upstream.
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 03 Oct 2014 08:49:42 +0000
+
 dnsmasq (2.72-2) unstable; urgency=low
 
    * Fix build in Debian-kFreeBSD. (closes: #763693)
