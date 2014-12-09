@@ -1048,7 +1048,7 @@ void receive_query(struct listener *listen, time_t now)
   /* packet buffer overwritten */
   daemon->srv_save = NULL;
   
-  dst_addr_4.s_addr = 0;
+  dst_addr_4.s_addr = dst_addr.addr.addr4.s_addr = 0;
   netmask.s_addr = 0;
   
   if (option_bool(OPT_NOWILD) && listen->iface)
@@ -1057,7 +1057,7 @@ void receive_query(struct listener *listen, time_t now)
      
       if (listen->family == AF_INET)
 	{
-	  dst_addr_4 = listen->iface->addr.in.sin_addr;
+	  dst_addr_4 = dst_addr.addr.addr4 = listen->iface->addr.in.sin_addr;
 	  netmask = listen->iface->netmask;
 	}
     }
