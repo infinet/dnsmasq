@@ -541,6 +541,10 @@ struct resolvc {
   int is_default, logged;
   time_t mtime;
   char *name;
+#ifdef HAVE_LINUX_NETWORK
+  int wd; /* inotify watch descriptor */
+  char *file; /* pointer to file part if path */
+#endif
 };
 
 /* adn-hosts parms from command-line (also dhcp-hostsfile and dhcp-optsfile */
@@ -998,7 +1002,7 @@ extern struct daemon {
   /* DHCP state */
   int dhcpfd, helperfd, pxefd; 
 #if defined(HAVE_LINUX_NETWORK)
-  int netlinkfd;
+  int netlinkfd, inotifyfd;
 #elif defined(HAVE_BSD_NETWORK)
   int dhcp_raw_fd, dhcp_icmp_fd, routefd;
 #endif
@@ -1469,3 +1473,8 @@ void loop_send_probes();
 int detect_loop(char *query, int type);
 #endif
 
+/* inotify.c */
+#ifdef HAVE_LINUX_NETWORK
+void inotify_dnsmasq_init();
+int inotify_check(void);
+#endif
