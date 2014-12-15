@@ -2,7 +2,11 @@ version 2.73
             Fix crash at startup when an empty suffix is supplied to
 	    --conf-dir, also trivial memory leak. Thanks to 
 	    Tomas Hozza for spotting this.
-	
+
+	    Remove floor of 4096 on advertised EDNS0 packet size when 
+	    DNSSEC in use, the original rationale for this has long gone.
+	    Thanks to Anders Kaseorg for spotting this.
+
 
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.
