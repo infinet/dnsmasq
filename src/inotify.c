@@ -41,29 +41,40 @@ void inotify_dnsmasq_init()
 
   inotify_buffer = safe_malloc(INOTIFY_SZ);
 
-  daemon->inotifyfd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
 
+  daemon->inotifyfd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+  
   if (daemon->inotifyfd == -1)
     die(_("failed to create inotify: %s"), NULL, EC_MISC);
-
+  
   for (res = daemon->resolv_files; res; res = res->next)
     {
-      char *d = strrchr(res->name, '/');
+      char *d = NULL, *path;
       
-      if (!d)
-	die(_("resolv-file %s not an absolute path"), res->name, EC_MISC);
-       
-      *d = 0; /* make ->name just directory */
-      res->wd = inotify_add_watch(daemon->inotifyfd, res->name, IN_CLOSE_WRITE | IN_MOVED_TO);
-      res->file = d+1; /* pointer to filename */
+      if (!(path = realpath(res->name, NULL)))
+	{
+	  /* realpath will fail if the file doesn't exist, but
+	     dnsmasq copes with missing files, so fall back 
+	     and assume that symlinks are not in use in that case. */
+	  if (errno == ENOENT)
+	    path = res->name;
+	  else
+	    die(_("cannot cannonicalise resolv-file %s: %s"), res->name, EC_MISC); 
+	}
       
-      if (res->wd == -1 && errno == ENOENT)
-	die(_("directory %s for resolv-file is missing, cannot poll"), res->name, EC_MISC);
-      
-      *d = '/'; /* restore name */
-      
-      if (res->wd == -1)
-	die(_("failed to create inotify for %s: %s"), res->name, EC_MISC);
+      if ((d = strrchr(path, '/')))
+	{
+	  *d = 0; /* make path just directory */
+	  res->wd = inotify_add_watch(daemon->inotifyfd, path, IN_CLOSE_WRITE | IN_MOVED_TO);
+	  res->file = d+1; /* pointer to filename */
+	  *d = '/';
+	  
+	  if (res->wd == -1 && errno == ENOENT)
+	    die(_("directory %s for resolv-file is missing, cannot poll"), res->name, EC_MISC);
+	  
+	  if (res->wd == -1)
+	    die(_("failed to create inotify for %s: %s"), res->name, EC_MISC);
+	}
     }
 }
 
