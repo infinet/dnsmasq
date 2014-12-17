@@ -1,6 +1,8 @@
 dnsmasq (2.73-1) unstable; urgency=low
 
    * New upstream.
+   * Tweak field width in cache dump to avoid truncating IPv6
+     addresses. (closes: #771557)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 03 Oct 2014 08:49:42 +0000
 
