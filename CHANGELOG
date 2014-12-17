@@ -14,6 +14,11 @@ version 2.73
 	    Fix breakage of --domain=<domain>,<subnet>,local - only reverse
 	    queries were intercepted. THis appears to have been broken 
 	    since 2.69. Thanks to Josh Stone for finding the bug.
+
+	    Eliminate IPv6 privacy addresses and deprecated addresses from
+	    the answers given by --interface-name. Note that reverse queries
+	    (ie looking for names, given addresses) are not affected. 
+	    Thanks to Michael Gorbach for the suggestion.
 	
 
 version 2.72
