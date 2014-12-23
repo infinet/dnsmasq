@@ -637,10 +637,13 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   struct crec *crecp = NULL;
   int type_covered, algo, labels, orig_ttl, sig_expiration, sig_inception, key_tag;
   u16 *rr_desc = get_desc(type);
-
+ 
+  if (wildcard_out)
+    *wildcard_out = NULL;
+  
   if (!(p = skip_questions(header, plen)))
     return STAT_BOGUS;
-
+  
   name_labels = count_labels(name); /* For 4035 5.3.2 check */
 
   /* look for RRSIGs for this RRset and get pointers to each RR in the set. */
