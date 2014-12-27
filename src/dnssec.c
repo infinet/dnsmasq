@@ -805,7 +805,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 		{
 		  while (*name_start != '.' && *name_start != 0)
 		    name_start++;
-		  if (k != 1)
+		  if (k != 1 && *name_start == '.')
 		    name_start++;
 		}
 	      
