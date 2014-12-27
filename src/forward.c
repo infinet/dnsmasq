@@ -724,6 +724,10 @@ void reply_query(int fd, int family, time_t now)
   if (!(forward = lookup_frec(ntohs(header->id), hash)))
     return;
   
+  if (daemon->ignore_addr && RCODE(header) == NOERROR &&
+      check_for_ignored_address(header, n, daemon->ignore_addr))
+    return;
+
   if ((RCODE(header) == SERVFAIL || RCODE(header) == REFUSED) &&
       !option_bool(OPT_ORDER) &&
       forward->forwardall == 0)

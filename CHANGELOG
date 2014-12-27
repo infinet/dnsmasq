@@ -22,6 +22,14 @@ version 2.73
 
 	    Fix crash in DNSSEC code with long RRs. Thanks to Marco Davids
 	    for the bug report.
+	    
+	    Add --ignore-address option. Ignore replies to A-record 
+	    queries which include the specified address. No error is
+	    generated, dnsmasq simply continues to listen for another 
+	    reply. This is useful to defeat blocking strategies which
+	    rely on quickly supplying a forged answer to a DNS 
+	    request for certain domains, before the correct answer can
+            arrive. Thanks to Glen Huang for the patch.
 	
 
 version 2.72

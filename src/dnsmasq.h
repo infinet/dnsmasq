@@ -930,7 +930,7 @@ extern struct daemon {
   char *runfile; 
   char *lease_change_command;
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers, *tftp_interfaces;
-  struct bogus_addr *bogus_addr;
+  struct bogus_addr *bogus_addr, *ignore_addr;
   struct server *servers;
   struct ipsets *ipsets;
   int log_fac; /* log facility */
@@ -1093,6 +1093,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		      time_t now, int *ad_reqd, int *do_bit);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
+int check_for_ignored_address(struct dns_header *header, size_t qlen, struct bogus_addr *baddr);
 unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
 				 size_t *len, unsigned char **p, int *is_sign);
 int check_for_local_domain(char *name, time_t now);
