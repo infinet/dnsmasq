@@ -148,10 +148,12 @@ $(copts_conf): $(hdrs)
 $(objs:.o=.c) $(hdrs):
 	ln -s $(top)/$(SRC)/$@ .
 
+$(objs): $(copts_conf) $(hdrs)
+
 .c.o:
 	$(CC) $(CFLAGS) $(COPTS) $(i18n) $(build_cflags) $(RPM_OPT_FLAGS) -c $<	
 
-dnsmasq : $(copts_conf) $(hdrs) $(objs)
+dnsmasq : $(objs)
 	$(CC) $(LDFLAGS) -o $@ $(objs) $(build_libs) $(LIBS) 
 
 dnsmasq.pot : $(objs:.o=.c) $(hdrs)
