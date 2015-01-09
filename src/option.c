@@ -149,6 +149,7 @@ struct myoption {
 #define LOPT_LOOP_DETECT   337
 #define LOPT_IGNORE_ADDR   338
 
+
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
 #else
@@ -160,7 +161,7 @@ static const struct myoption opts[] =
     { "no-poll", 0, 0, 'n' },
     { "help", 0, 0, 'w' },
     { "no-daemon", 0, 0, 'd' },
-    { "log-queries", 0, 0, 'q' },
+    { "log-queries", 2, 0, 'q' },
     { "user", 2, 0, 'u' },
     { "group", 2, 0, 'g' },
     { "resolv-file", 2, 0, 'r' },
@@ -357,7 +358,7 @@ static struct {
   { LOPT_FORCE, ARG_DUP, "<optspec>", gettext_noop("DHCP option sent even if the client does not request it."), NULL},
   { 'p', ARG_ONE, "<integer>", gettext_noop("Specify port to listen for DNS requests on (defaults to 53)."), NULL },
   { 'P', ARG_ONE, "<integer>", gettext_noop("Maximum supported UDP packet size for EDNS.0 (defaults to %s)."), "*" },
-  { 'q', OPT_LOG, NULL, gettext_noop("Log DNS queries."), NULL },
+  { 'q', ARG_DUP, NULL, gettext_noop("Log DNS queries."), NULL },
   { 'Q', ARG_ONE, "<integer>", gettext_noop("Force the originating port for upstream DNS queries."), NULL },
   { 'R', OPT_NO_RESOLV, NULL, gettext_noop("Do NOT read resolv.conf."), NULL },
   { 'r', ARG_DUP, "<path>", gettext_noop("Specify path to resolv.conf (defaults to %s)."), RESOLVFILE }, 
@@ -2421,6 +2422,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	ret_err(gen_err);
       break;  
     
+    case 'q': /* --log-queries */
+      set_option_bool(OPT_LOG);
+      if (arg && strcmp(arg, "extra") == 0)
+	set_option_bool(OPT_EXTRALOG);
+      break;
+
     case LOPT_MAX_LOGS:  /* --log-async */
       daemon->max_logs = LOG_MAX; /* default */
       if (arg && !atoi_check(arg, &daemon->max_logs))

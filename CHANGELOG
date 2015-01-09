@@ -40,6 +40,9 @@ version 2.73
 	    nameservers in the unsigned parts of the DNS tree 
 	    which don't respond well to DNSSEC queries.
 
+	    Add --log-queries=extra option, which makes logs easier
+	    to search automatically.
+
 	
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.

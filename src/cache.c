@@ -1638,7 +1638,16 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
   if (strlen(name) == 0)
     name = ".";
 
-  my_syslog(LOG_INFO, "%s %s %s %s", source, name, verb, dest);
+  if (option_bool(OPT_EXTRALOG))
+    {
+      prettyprint_addr(daemon->log_source_addr, daemon->addrbuff2);
+      if (flags & F_NOEXTRA)
+	my_syslog(LOG_INFO, "* %s %s %s %s %s", daemon->addrbuff2, source, name, verb, dest);
+      else
+	my_syslog(LOG_INFO, "%u %s %s %s %s %s", daemon->log_display_id, daemon->addrbuff2, source, name, verb, dest);
+    }
+  else
+    my_syslog(LOG_INFO, "%s %s %s %s", source, name, verb, dest);
 }
 
  
