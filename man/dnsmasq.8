@@ -81,6 +81,12 @@ the upstream DNS servers.
 .B --max-cache-ttl=<time>
 Set a maximum TTL value for entries in the cache.
 .TP
+.B --min-cache-ttl=<time>
+Extend short TTL values to the time given when caching them. Note that
+artificially extending TTL values is in general a bad idea, do not do it 
+unless you have a good reason, and understand what you are doing. 
+Dnsmasq limits the value of this option to one hour, unless recompiled.
+.TP
 .B --auth-ttl=<time>
 Set the TTL value returned in answers from the authoritative server.
 .TP
