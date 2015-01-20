@@ -53,6 +53,11 @@ version 2.73
 	    Cope with multiple interfaces with the same link-local 
 	    address. (IPv6 addresses are scoped, so this is allowed.)
 	    Thanks to Cory Benfield for help with this.
+
+	    Add --dhcp-hostsdir. This allows addition of new host
+	    configurations to a running dnsmasq instance much more 
+	    cheaply than having dnsmasq re-read all its existing
+	    configuration each time. 
 	
 	
 version 2.72

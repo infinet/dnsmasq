@@ -142,6 +142,9 @@ int main (int argc, char **argv)
       set_option_bool(OPT_NOWILD);
       reset_option_bool(OPT_CLEVERBIND);
     }
+
+  if (daemon->inotify_hosts)
+    die(_("dhcp-hostsdir not supported on this platform"), NULL, EC_BADCONF);
 #endif
   
   if (option_bool(OPT_DNSSEC_VALID))
@@ -316,13 +319,16 @@ int main (int argc, char **argv)
 #ifdef HAVE_DNSSEC
       blockdata_init();
 #endif
+    }
 
 #ifdef HAVE_LINUX_NETWORK
-      if (!option_bool(OPT_NO_POLL))
-	inotify_dnsmasq_init();
+  if ((!option_bool(OPT_NO_POLL) && daemon->port != 0) ||
+      daemon->dhcp || daemon->doing_dhcp6)
+    inotify_dnsmasq_init();
+  else
+    daemon->inotifyfd = -1;
 #endif
-    }
-    
+       
   if (option_bool(OPT_DBUS))
 #ifdef HAVE_DBUS
     {
@@ -745,7 +751,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_TFTP
-	if (option_bool(OPT_TFTP))
+  if (option_bool(OPT_TFTP))
     {
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)
@@ -870,7 +876,7 @@ int main (int argc, char **argv)
 #if defined(HAVE_LINUX_NETWORK)
       FD_SET(daemon->netlinkfd, &rset);
       bump_maxfd(daemon->netlinkfd, &maxfd);
-      if (daemon->port != 0 && !option_bool(OPT_NO_POLL))
+      if (daemon->inotifyfd != -1)
 	{
 	  FD_SET(daemon->inotifyfd, &rset);
 	  bump_maxfd(daemon->inotifyfd, &maxfd);
@@ -943,8 +949,11 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_LINUX_NETWORK
-      if (daemon->port != 0 && !option_bool(OPT_NO_POLL) && FD_ISSET(daemon->inotifyfd, &rset) && inotify_check())
-	poll_resolv(1, 1, now); 	  
+      if  (daemon->inotifyfd != -1 && FD_ISSET(daemon->inotifyfd, &rset) && inotify_check(now))
+	{
+	  if (daemon->port != 0 && !option_bool(OPT_NO_POLL))
+	    poll_resolv(1, 1, now);
+	} 	  
 #else
       /* Check for changes to resolv files once per second max. */
       /* Don't go silent for long periods if the clock goes backwards. */
@@ -1385,6 +1394,9 @@ void clear_cache_and_reload(time_t now)
       if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
       reread_dhcp();
+#ifdef HAVE_LINUX_NETWORK
+      set_dhcp_inotify();
+#endif
       dhcp_update_configs(daemon->dhcp_conf);
       lease_update_from_configs(); 
       lease_update_file(now); 
