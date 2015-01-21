@@ -59,6 +59,10 @@ version 2.73
 	    cheaply than having dnsmasq re-read all its existing
 	    configuration each time. 
 	
+	    Don't reply to DHCPv6 SOLICIT messages if we're not 
+	    configured to do stateful DHCPv6. Thanks to Win King Wan 
+	    for the patch.
+
 	
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.
