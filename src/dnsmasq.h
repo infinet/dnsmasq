@@ -544,7 +544,7 @@ struct resolvc {
   int is_default, logged;
   time_t mtime;
   char *name;
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
   int wd; /* inotify watch descriptor */
   char *file; /* pointer to file part if path */
 #endif
@@ -558,7 +558,7 @@ struct hostsfile {
   struct hostsfile *next;
   int flags;
   char *fname;
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
   int wd; /* inotify watch descriptor */
 #endif
   unsigned int index; /* matches to cache entries for logging */
@@ -1013,8 +1013,11 @@ extern struct daemon {
 
   /* DHCP state */
   int dhcpfd, helperfd, pxefd; 
+#ifdef HAVE_INOTIFY
+  int inotifyfd;
+#endif
 #if defined(HAVE_LINUX_NETWORK)
-  int netlinkfd, inotifyfd;
+  int netlinkfd;
 #elif defined(HAVE_BSD_NETWORK)
   int dhcp_raw_fd, dhcp_icmp_fd, routefd;
 #endif
@@ -1488,7 +1491,7 @@ int detect_loop(char *query, int type);
 #endif
 
 /* inotify.c */
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
 void inotify_dnsmasq_init();
 int inotify_check(time_t now);
 #  ifdef HAVE_DHCP

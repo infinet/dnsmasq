@@ -142,7 +142,9 @@ int main (int argc, char **argv)
       set_option_bool(OPT_NOWILD);
       reset_option_bool(OPT_CLEVERBIND);
     }
+#endif
 
+#ifndef HAVE_INOTIFY
   if (daemon->inotify_hosts)
     die(_("dhcp-hostsdir not supported on this platform"), NULL, EC_BADCONF);
 #endif
@@ -321,7 +323,7 @@ int main (int argc, char **argv)
 #endif
     }
 
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
   if ((!option_bool(OPT_NO_POLL) && daemon->port != 0) ||
       daemon->dhcp || daemon->doing_dhcp6)
     inotify_dnsmasq_init();
@@ -802,7 +804,7 @@ int main (int argc, char **argv)
   
   pid = getpid();
   
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
   /* Using inotify, have to select a resolv file at startup */
   poll_resolv(1, 0, now);
 #endif
@@ -872,15 +874,18 @@ int main (int argc, char **argv)
 	  bump_maxfd(daemon->icmp6fd, &maxfd); 
 	}
 #endif
-
-#if defined(HAVE_LINUX_NETWORK)
-      FD_SET(daemon->netlinkfd, &rset);
-      bump_maxfd(daemon->netlinkfd, &maxfd);
+    
+#ifdef HAVE_INOTIFY
       if (daemon->inotifyfd != -1)
 	{
 	  FD_SET(daemon->inotifyfd, &rset);
 	  bump_maxfd(daemon->inotifyfd, &maxfd);
 	}
+#endif
+
+#if defined(HAVE_LINUX_NETWORK)
+      FD_SET(daemon->netlinkfd, &rset);
+      bump_maxfd(daemon->netlinkfd, &maxfd);
 #elif defined(HAVE_BSD_NETWORK)
       FD_SET(daemon->routefd, &rset);
       bump_maxfd(daemon->routefd, &maxfd);
@@ -948,7 +953,7 @@ int main (int argc, char **argv)
 	route_sock();
 #endif
 
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
       if  (daemon->inotifyfd != -1 && FD_ISSET(daemon->inotifyfd, &rset) && inotify_check(now))
 	{
 	  if (daemon->port != 0 && !option_bool(OPT_NO_POLL))
@@ -1394,7 +1399,7 @@ void clear_cache_and_reload(time_t now)
       if (option_bool(OPT_ETHERS))
 	dhcp_read_ethers();
       reread_dhcp();
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
       set_dhcp_inotify();
 #endif
       dhcp_update_configs(daemon->dhcp_conf);

@@ -15,7 +15,7 @@
 */
 
 #include "dnsmasq.h"
-#ifdef HAVE_LINUX_NETWORK
+#ifdef HAVE_INOTIFY
 
 #include <sys/inotify.h>
 
@@ -216,5 +216,5 @@ static void check_for_dhcp_inotify(struct inotify_event *in, time_t now)
 
 #endif /* DHCP */
 
-#endif  /* LINUX_NETWORK */
+#endif  /* INOTIFY */
   
