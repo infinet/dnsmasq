@@ -156,6 +156,7 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp,
 	      flags = F_NOERR;
 	  } 
       }
+  //TODO add fast hash lookup
     else if (serv->flags & SERV_HAS_DOMAIN)
       {
 	unsigned int domainlen = strlen(serv->domain);
@@ -538,6 +539,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   (void) do_bit;
 
 #ifdef HAVE_IPSET
+  // TODO add hash lookup
   if (daemon->ipsets && extract_request(header, n, daemon->namebuff, NULL))
     {
       /* Similar algorithm to search_servers. */
