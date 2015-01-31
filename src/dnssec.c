@@ -1,5 +1,5 @@
 /* dnssec.c is Copyright (c) 2012 Giovanni Bajo <rasky@develer.com>
-           and Copyright (c) 2012-2014 Simon Kelley
+           and Copyright (c) 2012-2015 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
