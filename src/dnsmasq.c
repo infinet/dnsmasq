@@ -145,8 +145,8 @@ int main (int argc, char **argv)
 #endif
 
 #ifndef HAVE_INOTIFY
-  if (daemon->inotify_hosts)
-    die(_("dhcp-hostsdir not supported on this platform"), NULL, EC_BADCONF);
+  if (daemon->dynamic_dirs)
+    die(_("dhcp-hostsdir, dhcp-optsdir and hostsdir are not supported on this platform"), NULL, EC_BADCONF);
 #endif
   
   if (option_bool(OPT_DNSSEC_VALID))
@@ -324,8 +324,7 @@ int main (int argc, char **argv)
     }
 
 #ifdef HAVE_INOTIFY
-  if ((!option_bool(OPT_NO_POLL) && daemon->port != 0) ||
-      daemon->dhcp || daemon->doing_dhcp6)
+  if (daemon->port != 0 || daemon->dhcp || daemon->doing_dhcp6)
     inotify_dnsmasq_init();
   else
     daemon->inotifyfd = -1;
@@ -1400,7 +1399,7 @@ void clear_cache_and_reload(time_t now)
 	dhcp_read_ethers();
       reread_dhcp();
 #ifdef HAVE_INOTIFY
-      set_dhcp_inotify();
+      set_dynamic_inotify(AH_DHCP_HST | AH_DHCP_OPT, 0, NULL, 0);
 #endif
       dhcp_update_configs(daemon->dhcp_conf);
       lease_update_from_configs(); 
