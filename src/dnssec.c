@@ -275,7 +275,7 @@ static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len
     }
   
   if (sig_len != 2*t || key_len != 2*t ||
-      (p = blockdata_retrieve(key_data, key_len, NULL)))
+      !(p = blockdata_retrieve(key_data, key_len, NULL)))
     return 0;
   
   mpz_import(x, t , 1, 1, 0, 0, p);
