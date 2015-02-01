@@ -531,7 +531,6 @@ struct dict_node {
   int sub_maxjump;      /* max jumps for insertion, upsize when reach */
   char **sets;          /* ipsets names end with NULL ptr */
   int    sets_count;
-  int level;            /* unused */
   struct dict_node **sub;
 };
 
@@ -1386,14 +1385,10 @@ int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, 
 #endif
 
 /* dict.c */
-void upsize_dicttree (struct dict_node *np);
-void add_dicttree (struct dict_node *node, struct dict_node *sub);
-struct dict_node *new_dictnode (char *label, int len, int level);
-struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
+struct dict_node *new_dictnode (char *label, int len);
 struct dict_node *lookup_domain(struct dict_node *root, char *domain);
 struct dict_node *match_domain_ipsets (struct dict_node *root, char *domain);
-int add_domain(struct dict_node *root, char *domain);
-struct dict_node *add_or_replace_dictnode (struct dict_node *node, char *label);
+struct dict_node *add_domain (struct dict_node *root, char *domain);
 void free_dicttree (struct dict_node *node);
 
 /* helper.c */

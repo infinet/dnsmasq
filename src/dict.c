@@ -25,6 +25,12 @@
 #define FNV_32_PRIME  ((uint32_t)0x01000193)
 #define max(A, B) ((A) > (B) ? (A) : (B))
 
+/* prototypes */
+static struct dict_node *add_or_replace_dictnode (struct dict_node *node, char *label);
+static struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
+static void add_dicttree (struct dict_node *node, struct dict_node *sub);
+static void upsize_dicttree (struct dict_node *np);
+
 /* hash function 1 for double hashing
  * 32 bit Fowler/Noll/Vo hash */
 static inline uint32_t fnv_32_hash (char *str)
@@ -80,8 +86,6 @@ static inline void memcpy_lower (void *dst, void *src, int len)
       *++d = '\0';
 }
 
-
-
 struct dict_node * init_sub_dictnode (struct dict_node *node)
 {
   unsigned n;
@@ -99,7 +103,7 @@ struct dict_node * init_sub_dictnode (struct dict_node *node)
 }
 
 /* allocate and initialize a new node */
-struct dict_node * new_dictnode (char *label, int label_len, int level)
+struct dict_node * new_dictnode (char *label, int label_len)
 {
   struct dict_node *node;
 
@@ -124,7 +128,6 @@ struct dict_node * new_dictnode (char *label, int label_len, int level)
   node->sub_slots = 0;
   node->sub_loadmax = 0;
   node->sub_maxjump = 0;
-  node->level = level;
   node->sub = NULL;
   node->sets = NULL;
   node->sets_count = 0;
@@ -132,11 +135,10 @@ struct dict_node * new_dictnode (char *label, int label_len, int level)
   return node;
 }
 
-
 /* double the slots of dns node, it calls with add_dicttree each other
  * the table size starts with 2^2, so that the new size remains 2^x, the
  * double hash used is choosed to work with 2^n slots and perform well */
-void upsize_dicttree (struct dict_node *np)
+static void upsize_dicttree (struct dict_node *np)
 {
   struct dict_node **oldnodes;
   unsigned i, oldsize;
@@ -163,7 +165,7 @@ void upsize_dicttree (struct dict_node *np)
 }
 
 /* add a sub-node, upsize if needed, calls with upsize_dicttree each other */
-void add_dicttree (struct dict_node *node, struct dict_node *sub)
+static void add_dicttree (struct dict_node *node, struct dict_node *sub)
 {
   int n;
   uint32_t dh, idx;
@@ -204,7 +206,8 @@ void add_dicttree (struct dict_node *node, struct dict_node *sub)
 /* add a new subnode to node, or update the attr of the subnode with same
  * label
  * return the subnode */
-struct dict_node * add_or_replace_dictnode (struct dict_node *node, char *label)
+static struct dict_node *add_or_replace_dictnode (struct dict_node *node,
+                                                  char *label)
 {
   struct dict_node *np;
 
@@ -214,7 +217,7 @@ struct dict_node * add_or_replace_dictnode (struct dict_node *node, char *label)
         {
           init_sub_dictnode (node);
         }
-      np = new_dictnode (label, strlen (label), node->level + 1);
+      np = new_dictnode (label, strlen (label));
       add_dicttree (node, np);
     }
 
@@ -223,7 +226,7 @@ struct dict_node * add_or_replace_dictnode (struct dict_node *node, char *label)
 }
 
 /* lookup the label in node's sub, return pointer if found, NULL if not */
-struct dict_node * lookup_dictnode (struct dict_node *node, char *label)
+static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
 {
   uint32_t h1, h2, dh, idx;
   struct dict_node *np;
@@ -351,8 +354,8 @@ struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 }
 
 /* add a domain pattern in the form of google.com to root
- * return number of levels in that pattern, the level is unused now */
-int add_domain (struct dict_node *root, char *domain)
+ * return the node with lowest hierarchy */
+struct dict_node *add_domain (struct dict_node *root, char *domain)
 {
   char buf[MAXDNAME];
   char *labels[MAXLABELS];
@@ -384,7 +387,7 @@ int add_domain (struct dict_node *root, char *domain)
       node = add_or_replace_dictnode (node, labels[i]);
     }
 
-  return node->level;
+  return node;
 }
 
 /* free node and all sub-nodes recursively. Unused. */

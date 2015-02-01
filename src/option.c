@@ -2347,7 +2347,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         char *domain = NULL;
 
         if (daemon->dh_ipsets == NULL)
-          daemon->dh_ipsets = new_dictnode (NULL, 0, 0);
+          daemon->dh_ipsets = new_dictnode (NULL, 0);
 
         if (arg && *arg == '/')
           {
