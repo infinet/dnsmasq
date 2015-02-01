@@ -2208,6 +2208,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_LOCAL:     /*  --local */
     case 'A':            /*  --address */
     case LOPT_NO_REBIND: /*  --rebind-domain-ok */
+      //TODO fast hash lookup
       {
 	struct server *serv, *newlist = NULL;
 	
@@ -2343,7 +2344,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         char **sets, **sets_pos;
         int sets_count = 0;
         unhide_metas (arg);
-        struct dict_node *np;
+        struct dict_node *np = NULL;
+        struct ipsets_names *obj;
         char *domain = NULL;
 
         if (daemon->dh_ipsets == NULL)
@@ -2366,7 +2368,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   option = '?';
 
                 if (domain != NULL)
-                  add_domain (daemon->dh_ipsets, domain);
+                  np = add_domain (daemon->dh_ipsets, domain);
 
                 arg = end;
               }
@@ -2394,11 +2396,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         while (end);
 
         *sets_pos = NULL;
-        if (domain != NULL)
+        if (np != NULL)
           {
-            np = lookup_domain (daemon->dh_ipsets, domain);
-            np->sets = sets;
-            np->sets_count = sets_count;
+            obj = opt_malloc(sizeof(struct ipsets_names));
+            obj->sets = sets;
+            obj->count = sets_count;
+            np->obj = (void *) obj;
           }
 
         break;

@@ -535,6 +535,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   int munged = 0, is_sign;
   size_t plen; 
   struct dict_node *np;
+  struct ipsets_names *obj;
 
   (void)ad_reqd;
   (void) do_bit;
@@ -544,7 +545,10 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     {
       np = match_domain_ipsets(daemon->dh_ipsets, daemon->namebuff);
       if (np != NULL)
-        sets = np->sets;
+        {
+          obj = (struct ipsets_names *) np->obj;
+          sets = obj->sets;
+        }
     }
 #endif
   

@@ -129,8 +129,7 @@ struct dict_node * new_dictnode (char *label, int label_len)
   node->sub_loadmax = 0;
   node->sub_maxjump = 0;
   node->sub = NULL;
-  node->sets = NULL;
-  node->sets_count = 0;
+  node->obj = NULL;
 
   return node;
 }
@@ -304,7 +303,7 @@ struct dict_node * match_domain_ipsets (struct dict_node *root, char *domain)
       if (node == NULL)
           break;
 
-      if (node->sets != NULL)
+      if (node->obj != NULL)
           res = node;
     }
 
@@ -406,8 +405,8 @@ void free_dicttree (struct dict_node *node)
               if (np->label != NULL)
                 free (np->label);
 
-              if (np->sets != NULL)
-                free (np->sets);
+              if (np->obj != NULL)
+                free (np->obj);
 
               free_dicttree (np);
             }

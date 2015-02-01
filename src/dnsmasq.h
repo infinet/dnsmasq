@@ -517,21 +517,26 @@ struct ipsets {
 };
 
 /* a dictionary node for open addressing hash table
- * it has a key, "label", and several values.
+ * it has a key, "label", and a value "obj" as container, there are several
+ * other values for maintaining the hash table and lookup
  *
  * For ipsets match, only INSERT and LOOKUP operation needed
  */
 struct dict_node {
   char *label;          /* key */
+  void *obj;            /* the value, can point to anything */
   uint32_t h1;          /* from hash function 1, fnv_32_hash */
   uint32_t h2;          /* from hash function 2, bernstein_odd */
-  int sub_count;        /* items stored in sub */
   unsigned sub_slots;   /* size of hash table sub */
+  int sub_count;        /* items stored in sub */
   int sub_loadmax;      /* max items stored before upsize sub */
   int sub_maxjump;      /* max jumps for insertion, upsize when reach */
-  char **sets;          /* ipsets names end with NULL ptr */
-  int    sets_count;
   struct dict_node **sub;
+};
+
+struct ipsets_names {
+  char **sets;          /* ipsets names end with NULL ptr */
+  int    count;
 };
 
 struct irec {
