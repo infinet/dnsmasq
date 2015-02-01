@@ -534,30 +534,17 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
+  struct dict_node *np;
 
   (void)ad_reqd;
   (void) do_bit;
 
 #ifdef HAVE_IPSET
-  // TODO add hash lookup
-  if (daemon->ipsets && extract_request(header, n, daemon->namebuff, NULL))
+  if (daemon->dh_ipsets && extract_request(header, n, daemon->namebuff, NULL))
     {
-      /* Similar algorithm to search_servers. */
-      struct ipsets *ipset_pos;
-      unsigned int namelen = strlen(daemon->namebuff);
-      unsigned int matchlen = 0;
-      for (ipset_pos = daemon->ipsets; ipset_pos; ipset_pos = ipset_pos->next) 
-	{
-	  unsigned int domainlen = strlen(ipset_pos->domain);
-	  char *matchstart = daemon->namebuff + namelen - domainlen;
-	  if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
-	      (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
-	      domainlen >= matchlen) 
-	    {
-	      matchlen = domainlen;
-	      sets = ipset_pos->sets;
-	    }
-	}
+      np = match_domain_ipsets(daemon->dh_ipsets, daemon->namebuff);
+      if (np != NULL)
+        sets = np->sets;
     }
 #endif
   

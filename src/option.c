@@ -2338,65 +2338,70 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       break;
 #else
       {
-	 struct ipsets ipsets_head;
-	 struct ipsets *ipsets = &ipsets_head;
-	 int size;
-	 char *end;
-	 char **sets, **sets_pos;
-	 memset(ipsets, 0, sizeof(struct ipsets));
-	 unhide_metas(arg);
-	 if (arg && *arg == '/') 
-	   {
-	     arg++;
-	     while ((end = split_chr(arg, '/'))) 
-	       {
-		 char *domain = NULL;
-		 /* elide leading dots - they are implied in the search algorithm */
-		 while (*arg == '.')
-		   arg++;
-		 /* # matches everything and becomes a zero length domain string */
-		 if (strcmp(arg, "#") == 0 || !*arg)
-		   domain = "";
-		 else if (strlen(arg) != 0 && !(domain = canonicalise_opt(arg)))
-		   option = '?';
-		 ipsets->next = opt_malloc(sizeof(struct ipsets));
-		 ipsets = ipsets->next;
-		 memset(ipsets, 0, sizeof(struct ipsets));
-		 ipsets->domain = domain;
-		 arg = end;
-	       }
-	   } 
-	 else 
-	   {
-	     ipsets->next = opt_malloc(sizeof(struct ipsets));
-	     ipsets = ipsets->next;
-	     memset(ipsets, 0, sizeof(struct ipsets));
-	     ipsets->domain = "";
-	   }
-	 if (!arg || !*arg)
-	   {
-	     option = '?';
-	     break;
-	   }
-	 size = 2;
-	 for (end = arg; *end; ++end) 
-	   if (*end == ',')
-	       ++size;
-     
-	 sets = sets_pos = opt_malloc(sizeof(char *) * size);
-	 
-	 do {
-	   end = split(arg);
-	   *sets_pos++ = opt_string_alloc(arg);
-	   arg = end;
-	 } while (end);
-	 *sets_pos = 0;
-	 for (ipsets = &ipsets_head; ipsets->next; ipsets = ipsets->next)
-	   ipsets->next->sets = sets;
-	 ipsets->next = daemon->ipsets;
-	 daemon->ipsets = ipsets_head.next;
-	 
-	 break;
+        int size;
+        char *end;
+        char **sets, **sets_pos;
+        int sets_count = 0;
+        unhide_metas (arg);
+        struct dict_node *np;
+        char *domain = NULL;
+
+        if (daemon->dh_ipsets == NULL)
+          daemon->dh_ipsets = new_dictnode (NULL, 0, 0);
+
+        if (arg && *arg == '/')
+          {
+            arg++;
+            while ((end = split_chr (arg, '/')))
+              {
+                /* elide leading dots - they are implied in the search algorithm */
+                while (*arg == '.')
+                  arg++;
+                /* # matches everything and becomes a zero length domain string */
+                if (strcmp (arg, "#") == 0 || !*arg)
+                  /* ignore match all domain directive # for now */
+                  /* domain = ""; */
+                  ;
+                else if (strlen (arg) != 0 && !(domain = canonicalise_opt (arg)))
+                  option = '?';
+
+                if (domain != NULL)
+                  add_domain (daemon->dh_ipsets, domain);
+
+                arg = end;
+              }
+          }
+
+        if (!arg || !*arg)
+          {
+            option = '?';
+            break;
+          }
+        size = 2;
+        for (end = arg; *end; ++end)
+          if (*end == ',')
+            ++size;
+
+        sets = sets_pos = opt_malloc (sizeof (char *) * size);
+
+        do
+          {
+            end = split (arg);
+            *sets_pos++ = opt_string_alloc (arg);
+            sets_count++;
+            arg = end;
+          }
+        while (end);
+
+        *sets_pos = NULL;
+        if (domain != NULL)
+          {
+            np = lookup_domain (daemon->dh_ipsets, domain);
+            np->sets = sets;
+            np->sets_count = sets_count;
+          }
+
+        break;
       }
 #endif
       

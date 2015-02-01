@@ -516,6 +516,25 @@ struct ipsets {
   struct ipsets *next;
 };
 
+/* a dictionary node for open addressing hash table
+ * it has a key, "label", and several values.
+ *
+ * For ipsets match, only INSERT and LOOKUP operation needed
+ */
+struct dict_node {
+  char *label;          /* key */
+  uint32_t h1;          /* from hash function 1, fnv_32_hash */
+  uint32_t h2;          /* from hash function 2, bernstein_odd */
+  int sub_count;        /* items stored in sub */
+  unsigned sub_slots;   /* size of hash table sub */
+  int sub_loadmax;      /* max items stored before upsize sub */
+  int sub_maxjump;      /* max jumps for insertion, upsize when reach */
+  char **sets;          /* ipsets names end with NULL ptr */
+  int    sets_count;
+  int level;            /* unused */
+  struct dict_node **sub;
+};
+
 struct irec {
   union mysockaddr addr;
   struct in_addr netmask; /* only valid for IPv4 */
@@ -942,6 +961,8 @@ extern struct daemon {
   struct bogus_addr *bogus_addr, *ignore_addr;
   struct server *servers;
   struct ipsets *ipsets;
+  struct dict_node *dh_ipsets;
+  struct dict_node *dh_ipsets_names;
   int log_fac; /* log facility */
   char *log_file; /* optional log file */
   int max_logs;  /* queue limit */
@@ -1363,6 +1384,17 @@ void emit_dbus_signal(int action, struct dhcp_lease *lease, char *hostname);
 void ipset_init(void);
 int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, int remove);
 #endif
+
+/* dict.c */
+void upsize_dicttree (struct dict_node *np);
+void add_dicttree (struct dict_node *node, struct dict_node *sub);
+struct dict_node *new_dictnode (char *label, int len, int level);
+struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
+struct dict_node *lookup_domain(struct dict_node *root, char *domain);
+struct dict_node *match_domain_ipsets (struct dict_node *root, char *domain);
+int add_domain(struct dict_node *root, char *domain);
+struct dict_node *add_or_replace_dictnode (struct dict_node *node, char *label);
+void free_dicttree (struct dict_node *node);
 
 /* helper.c */
 #if defined(HAVE_SCRIPT)
