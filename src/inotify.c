@@ -194,7 +194,19 @@ int inotify_check(time_t now)
 		    strcat(path, in->name);
 		    
 		    if (ah->flags & AH_HOSTS)
-		      read_hostsfile(path, ah->index, 0, NULL, 0);
+		      {
+			read_hostsfile(path, ah->index, 0, NULL, 0);
+#ifdef HAVE_DHCP
+			if (daemon->dhcp || daemon->doing_dhcp6) 
+			  {
+			    /* Propogate the consequences of loading a new dhcp-host */
+			    dhcp_update_configs(daemon->dhcp_conf);
+			    lease_update_from_configs(); 
+			    lease_update_file(now); 
+			    lease_update_dns(1);
+			  }
+#endif
+		      }
 #ifdef HAVE_DHCP
 		    else if (ah->flags & AH_DHCP_HST)
 		      {
