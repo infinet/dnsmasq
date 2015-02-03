@@ -192,7 +192,9 @@ int inotify_check(time_t now)
 		    strcpy(path, ah->fname);
 		    strcat(path, "/");
 		    strcat(path, in->name);
-		    
+		     
+		    my_syslog(LOG_INFO, _("inotify, new or changed file %s"), path);
+
 		    if (ah->flags & AH_HOSTS)
 		      {
 			read_hostsfile(path, ah->index, 0, NULL, 0);

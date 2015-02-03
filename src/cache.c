@@ -1022,11 +1022,10 @@ int read_hostsfile(char *filename, unsigned int index, int cache_size, struct cr
   fclose(f);
   
   if (rhash)
-    {
-      rehash(name_count); 
-      my_syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
-    }
-
+    rehash(name_count); 
+  
+  my_syslog(LOG_INFO, _("read %s - %d addresses"), filename, addr_count);
+  
   return name_count;
 }
 	    

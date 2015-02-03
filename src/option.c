@@ -4068,11 +4068,13 @@ static void read_file(char *file, FILE *f, int hard_opt)
 #ifdef HAVE_DHCP
 int option_read_dynfile(char *file, int flags)
 {
+  my_syslog(MS_DHCP | LOG_INFO, _("read %s"), file);
+  
   if (flags & AH_DHCP_HST)
     return one_file(file, LOPT_BANK);
   else if (flags & AH_DHCP_OPT)
     return one_file(file, LOPT_OPTS);
-
+  
   return 0;
 }
 #endif
