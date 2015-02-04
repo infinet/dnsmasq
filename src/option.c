@@ -2210,11 +2210,74 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_NO_REBIND: /*  --rebind-domain-ok */
       //TODO fast hash lookup
       {
-	struct server *serv, *newlist = NULL;
-	
 	unhide_metas(arg);
+
+        char *start_addr;
+        char *err;
+        struct server newlist;
+        struct dict_node *np;
+        struct special_domain *obj;
+
+        memset(&newlist, 0, sizeof(struct server));
+#ifdef HAVE_LOOP
+        newlist.uid = rand32();
+#endif
+        if (arg == NULL)
+           break;
+
+         // scan the address part first
+         // --xxxx=/example.org/ample.com/temple.net/address-of-server
+         //                                          ^
+        start_addr = NULL;
+        if (strchr(arg, '/') == NULL) {
+            // --xxxx=example.org (only availabe for --rebind-domain-ok)
+            if (option == LOPT_NO_REBIND)
+                newlist.flags |= SERV_NO_REBIND;
+            else if (option == 'S')
+                // --server=8.8.8.8
+                start_addr = arg;
+
+        } else {
+            for (start_addr = arg; 
+                 (start_addr = strchr(start_addr, '/')) != NULL; ) ;
+            start_addr++;
+        }
+
+        /* --xxxx=/example.org/# , here "#" means use standard server*/
+        if (start_addr != NULL) {
+            if (*start_addr == '#') {
+                newlist.flags |= SERV_USE_RESOLV;
+
+            /* --xxxx=/example.org/here-is-empty */
+            } else if (*start_addr == '\0') {
+                if (!(newlist.flags & SERV_NO_REBIND))
+                  newlist.flags |= SERV_NO_ADDR; /* no server */
+
+            } else {
+                /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port */
+                err = parse_server(arg, &newlist.addr, &newlist.source_addr, newlist.interface, &newlist.flags);
+                if (err)
+                  ret_err(err);
+
+            }
+
+        }
+        // --server
+	if (servers_only && option == 'S')
+	  newlist.flags |= SERV_FROM_FILE;
 	
-	if (arg && (*arg == '/' || option == LOPT_NO_REBIND))
+        // --rebind-domain-ok
+	if (option == LOPT_NO_REBIND)
+	  newlist.flags |= SERV_NO_REBIND;
+
+        // --address will be handled inside the domain dict_node
+	
+
+        // the arg pattern can be
+        // --xxxx=example.org (only availabe for --rebind-domain-ok) or
+        // --xxxx=/example.org/ or
+        // --xxxx=/example.org/ample.com/temple.net/
+	if (*arg == '/' || option == LOPT_NO_REBIND)
 	  {
 	    int rebind = !(*arg == '/');
 	    char *end = NULL;
@@ -2230,75 +2293,49 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  domain = "";
 		else if (strlen (arg) != 0 && !(domain = canonicalise_opt(arg)))
 		  option = '?';
-		serv = opt_malloc(sizeof(struct server));
-		memset(serv, 0, sizeof(struct server));
-		serv->next = newlist;
-		newlist = serv;
-		serv->domain = domain;
-		serv->flags = domain ? SERV_HAS_DOMAIN : SERV_FOR_NODOTS;
+
+
+                np = add_or_lookup_domain(daemon->dh_special_domains, domain);
+
+                if (np->obj == NULL) {
+                    obj = opt_malloc(sizeof(struct special_domain));
+                    memset(obj, 0, sizeof(struct special_domain));
+                    obj->domain_flags = 0;
+                } else {
+                    obj = (struct special_domain *) np->obj;
+                }
+
+                if (option == 'A') {
+                    obj->server = NULL;
+                    obj->domain_flags = SERV_LITERAL_ADDRESS;
+                    memcpy(&obj->addr, &newlist.addr, sizeof(union mysockaddr));
+                } else if (option == 'S') {
+                    // pointer to one of servers in daemon->servers link list,
+                    // no memory is leaked if obj->server been overwritten
+                    obj->server = lookup_or_install_new_server(&newlist);
+                }
+
+                if (option == LOPT_NO_REBIND) {
+                    // the rebind flag here instead of the one in struct server
+                    // will be used by forward
+                    obj->domain_flags |= SERV_NO_REBIND;
+                }
+
+                if (option == LOPT_LOCAL) {
+                    obj->domain_flags |= SERV_NO_ADDR;
+                }
+
+		//newlist.flags |= domain ? SERV_HAS_DOMAIN : SERV_FOR_NODOTS;
+                np->obj = (void *) obj;
+
 		arg = end;
 		if (rebind)
 		  break;
 	      }
-	    if (!newlist)
-	      ret_err(gen_err);
-	  }
-	else
-	  {
-	    newlist = opt_malloc(sizeof(struct server));
-	    memset(newlist, 0, sizeof(struct server));
-#ifdef HAVE_LOOP
-	    newlist->uid = rand32();
-#endif
-	  }
-	
-	if (servers_only && option == 'S')
-	  newlist->flags |= SERV_FROM_FILE;
-	
-	if (option == 'A')
-	  {
-	    newlist->flags |= SERV_LITERAL_ADDRESS;
-	    if (!(newlist->flags & SERV_TYPE))
-	      ret_err(gen_err);
-	  }
-	else if (option == LOPT_NO_REBIND)
-	  newlist->flags |= SERV_NO_REBIND;
-	
-	if (!arg || !*arg)
-	  {
-	    if (!(newlist->flags & SERV_NO_REBIND))
-	      newlist->flags |= SERV_NO_ADDR; /* no server */
-	    if (newlist->flags & SERV_LITERAL_ADDRESS)
-	      ret_err(gen_err);
 	  }
 
-	else if (strcmp(arg, "#") == 0)
-	  {
-	    newlist->flags |= SERV_USE_RESOLV; /* treat in ordinary way */
-	    if (newlist->flags & SERV_LITERAL_ADDRESS)
-	      ret_err(gen_err);
-	  }
-	else
-	  {
-	    char *err = parse_server(arg, &newlist->addr, &newlist->source_addr, newlist->interface, &newlist->flags);
-	    if (err)
-	      ret_err(err);
-	  }
-	
-	serv = newlist;
-	while (serv->next)
-	  {
-	    serv->next->flags = serv->flags;
-	    serv->next->addr = serv->addr;
-	    serv->next->source_addr = serv->source_addr;
-	    strcpy(serv->next->interface, serv->interface);
-	    serv = serv->next;
-	  }
-	serv->next = daemon->servers;
-	daemon->servers = newlist;
-	break;
+        break;
       }
-
     case LOPT_REV_SERV: /* --rev-server */
       {
 	char *string;
@@ -2368,7 +2405,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   option = '?';
 
                 if (domain != NULL)
-                  np = add_domain (daemon->dh_ipsets, domain);
+                  np = add_or_lookup_domain (daemon->dh_ipsets, domain);
 
                 arg = end;
               }

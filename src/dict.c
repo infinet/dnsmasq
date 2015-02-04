@@ -25,8 +25,10 @@
 #define FNV_32_PRIME  ((uint32_t)0x01000193)
 #define max(A, B) ((A) > (B) ? (A) : (B))
 
+static char buf[MAXDNAME];
+
 /* prototypes */
-static struct dict_node *add_or_replace_dictnode (struct dict_node *node, char *label);
+static struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label);
 static struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
 static void add_dicttree (struct dict_node *node, struct dict_node *sub);
 static void upsize_dicttree (struct dict_node *np);
@@ -205,7 +207,7 @@ static void add_dicttree (struct dict_node *node, struct dict_node *sub)
 /* add a new subnode to node, or update the attr of the subnode with same
  * label
  * return the subnode */
-static struct dict_node *add_or_replace_dictnode (struct dict_node *node,
+static struct dict_node *add_or_lookup_dictnode (struct dict_node *node,
                                                   char *label)
 {
   struct dict_node *np;
@@ -254,13 +256,11 @@ static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
   return NULL;
 }
 
-
 /* look up the whole domain pattern by step over DNS name hierarchy top down.
  * for example, if the pattern is cn.debian.org, the lookup will start with
  * org, then debian, then cn */
-struct dict_node * match_domain_ipsets (struct dict_node *root, char *domain)
+struct dict_node * match_domain(struct dict_node *root, char *domain)
 {
-  char buf[MAXDNAME];
   char *labels[MAXLABELS];
   int i, label_num;
   int len = strlen (domain);
@@ -307,8 +307,8 @@ struct dict_node * match_domain_ipsets (struct dict_node *root, char *domain)
           res = node;
     }
 
-    if (res == NULL)
-      return NULL;
+  if (res == NULL)
+    return NULL;
 
   return res;
 }
@@ -318,7 +318,6 @@ struct dict_node * match_domain_ipsets (struct dict_node *root, char *domain)
  * com, then google, then cache */
 struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 {
-  char buf[MAXDNAME];
   char *labels[MAXLABELS];
   int i, label_num;
   int len = strlen (domain);
@@ -354,9 +353,8 @@ struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 
 /* add a domain pattern in the form of google.com to root
  * return the node with lowest hierarchy */
-struct dict_node *add_domain (struct dict_node *root, char *domain)
+struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
 {
-  char buf[MAXDNAME];
   char *labels[MAXLABELS];
   int i, label_num;
   int len = strlen (domain);
@@ -383,7 +381,7 @@ struct dict_node *add_domain (struct dict_node *root, char *domain)
   node = root;
   for (i = label_num - 1; i >= 0; i--)
     {
-      node = add_or_replace_dictnode (node, labels[i]);
+      node = add_or_lookup_dictnode (node, labels[i]);
     }
 
   return node;
@@ -415,4 +413,55 @@ void free_dicttree (struct dict_node *node)
     }
 
   free (node);
+}
+
+
+
+/* temp area * */
+
+/* only compare addr, source_addr, interface, and flags */
+static inline int is_same_server(struct server *s1, struct server *s2)
+{
+    if (memcmp(&s1->addr, &s2->addr, sizeof(union mysockaddr)) != 0)
+        return -1;
+
+    if (strncmp(s1->interface, s2->interface, IF_NAMESIZE + 1) != 0)
+        return -1;
+
+    if (s1->flags != s2->flags)
+        return -1;
+
+    return 0;
+}
+
+/* duplicate a struct server, but only copy addr, source_addr, interfaces, and
+ * flags
+ * return the allocated pointer */
+static inline struct server *serverdup(struct server *src)
+{
+    struct server *dst;
+
+    dst = safe_malloc(sizeof(struct server));
+    memcpy(dst, src, sizeof(struct server));
+
+    return dst;
+}
+
+struct server *lookup_or_install_new_server(struct server *serv)
+{
+    struct server *res;
+
+    res = NULL;
+    for (res = daemon->servers; res != NULL; res = res->next) {
+        if (is_same_server(res, serv))
+            break;
+    }
+
+    if (res == NULL) {
+        res = serverdup(serv);
+        res->next = daemon->servers;
+        daemon->servers = res;
+    }
+
+    return res;
 }

@@ -534,6 +534,13 @@ struct dict_node {
   struct dict_node **sub;
 };
 
+struct special_domain {
+  struct server *server;
+  union mysockaddr addr;
+  int domain_flags;
+};
+
+
 struct ipsets_names {
   char **sets;          /* ipsets names end with NULL ptr */
   int    count;
@@ -965,8 +972,11 @@ extern struct daemon {
   struct bogus_addr *bogus_addr, *ignore_addr;
   struct server *servers;
   struct ipsets *ipsets;
+
   struct dict_node *dh_ipsets;
   struct dict_node *dh_ipsets_names;
+  struct dict_node *dh_special_domains;
+
   int log_fac; /* log facility */
   char *log_file; /* optional log file */
   int max_logs;  /* queue limit */
@@ -1392,8 +1402,9 @@ int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, 
 /* dict.c */
 struct dict_node *new_dictnode (char *label, int len);
 struct dict_node *lookup_domain(struct dict_node *root, char *domain);
-struct dict_node *match_domain_ipsets (struct dict_node *root, char *domain);
-struct dict_node *add_domain (struct dict_node *root, char *domain);
+struct dict_node *match_domain(struct dict_node *root, char *domain);
+struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain);
+struct server *lookup_or_install_new_server(struct server *serv);
 void free_dicttree (struct dict_node *node);
 
 /* helper.c */
