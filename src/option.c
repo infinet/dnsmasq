@@ -1966,7 +1966,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 				  serv = opt_malloc(sizeof(struct server));
 				  memset(serv, 0, sizeof(struct server));
 				  serv->domain = d;
-				  serv->flags = SERV_HAS_DOMAIN | SERV_NO_ADDR;
+				  serv->flags =  SERV_HAS_DOMAIN | SERV_NO_ADDR;
 				  serv->next = daemon->servers;
 				  daemon->servers = serv;
 				}
@@ -2203,139 +2203,185 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	arg = comma;
       } while (arg);
       break;
-      
-    case 'S':            /*  --server */
-    case LOPT_LOCAL:     /*  --local */
-    case 'A':            /*  --address */
-    case LOPT_NO_REBIND: /*  --rebind-domain-ok */
-      //TODO fast hash lookup
-      {
-	unhide_metas(arg);
 
-        char *start_addr;
+    case 'S':                       /*  --server */
+    case LOPT_LOCAL:                /*  --local */
+    case 'A':                       /*  --address */
+    case LOPT_NO_REBIND:            /*  --rebind-domain-ok */
+      {
+        unhide_metas (arg);
+
+        char *start_addr, *s;
         char *err;
-        struct server newlist;
+        struct server newserv;
         struct dict_node *np;
         struct special_domain *obj;
 
-        memset(&newlist, 0, sizeof(struct server));
+        memset (&newserv, 0, sizeof (struct server));
 #ifdef HAVE_LOOP
-        newlist.uid = rand32();
+        newserv.uid = rand32 ();
 #endif
         if (arg == NULL)
-           break;
+          break;
 
-         // scan the address part first
-         // --xxxx=/example.org/ample.com/temple.net/address-of-server
-         //                                          ^
+        if (daemon->dh_special_domains == NULL)
+          daemon->dh_special_domains = new_dictnode (NULL, 0);
+
+        // scan the address part first
+        // --xxxx=/example.org/ample.com/temple.net/address-of-server
+        //                                          ^
         start_addr = NULL;
-        if (strchr(arg, '/') == NULL) {
+        if (strchr (arg, '/') == NULL)
+          {
             // --xxxx=example.org (only availabe for --rebind-domain-ok)
             if (option == LOPT_NO_REBIND)
-                newlist.flags |= SERV_NO_REBIND;
+              newserv.flags |= SERV_NO_REBIND;
             else if (option == 'S')
+              {
                 // --server=8.8.8.8
                 start_addr = arg;
+              }
 
-        } else {
-            for (start_addr = arg; 
-                 (start_addr = strchr(start_addr, '/')) != NULL; ) ;
+          }
+        else
+          {
+            for (s = arg; *s != '\0'; s++)
+              {
+                if (*s == '/')
+                  start_addr = s;
+              }
             start_addr++;
-        }
+          }
 
-        /* --xxxx=/example.org/# , here "#" means use standard server*/
-        if (start_addr != NULL) {
-            if (*start_addr == '#') {
-                newlist.flags |= SERV_USE_RESOLV;
+        /* --xxxx=/example.org/# , here "#" means use standard server */
+        if (start_addr != NULL)
+          {
+            if (*start_addr == '#')
+              {
+                newserv.flags |= SERV_USE_RESOLV;
 
+              }
+            else if (*start_addr == '\0')
             /* --xxxx=/example.org/here-is-empty */
-            } else if (*start_addr == '\0') {
-                if (!(newlist.flags & SERV_NO_REBIND))
-                  newlist.flags |= SERV_NO_ADDR; /* no server */
+              {
+                if (!(newserv.flags & SERV_NO_REBIND))
+                  newserv.flags |= SERV_NO_ADDR;        /* no server */
 
-            } else {
+                if (option == 'S')
+                  {
+                    ret_err ("--server must specify server address");
+                  }
+
+                if (option == 'A')
+                  {
+                    ret_err ("--address must specify address");
+                  }
+
+              }
+            else
+              {
                 /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port */
-                err = parse_server(arg, &newlist.addr, &newlist.source_addr, newlist.interface, &newlist.flags);
+                err =
+                  parse_server (start_addr, &newserv.addr, &newserv.source_addr,
+                                newserv.interface, &newserv.flags);
                 if (err)
-                  ret_err(err);
+                  ret_err (err);
 
-            }
+              }
 
-        }
+          }
         // --server
-	if (servers_only && option == 'S')
-	  newlist.flags |= SERV_FROM_FILE;
-	
+        if (servers_only && option == 'S')
+          newserv.flags |= SERV_FROM_FILE;
+
         // --rebind-domain-ok
-	if (option == LOPT_NO_REBIND)
-	  newlist.flags |= SERV_NO_REBIND;
+        if (option == LOPT_NO_REBIND)
+          newserv.flags |= SERV_NO_REBIND;
 
         // --address will be handled inside the domain dict_node
-	
+
 
         // the arg pattern can be
         // --xxxx=example.org (only availabe for --rebind-domain-ok) or
         // --xxxx=/example.org/ or
         // --xxxx=/example.org/ample.com/temple.net/
-	if (*arg == '/' || option == LOPT_NO_REBIND)
-	  {
-	    int rebind = !(*arg == '/');
-	    char *end = NULL;
-	    if (!rebind)
-	      arg++;
-	    while (rebind || (end = split_chr(arg, '/')))
-	      {
-		char *domain = NULL;
-		/* elide leading dots - they are implied in the search algorithm */
-		while (*arg == '.') arg++;
-		/* # matches everything and becomes a zero length domain string */
-		if (strcmp(arg, "#") == 0)
-		  domain = "";
-		else if (strlen (arg) != 0 && !(domain = canonicalise_opt(arg)))
-		  option = '?';
+        if (*arg == '/' || option == LOPT_NO_REBIND)
+          {
+            int rebind = !(*arg == '/');
+            char *end = NULL;
+            if (!rebind)
+              arg++;
+            while (rebind || (end = split_chr (arg, '/')))
+              {
+                char *domain = NULL;
+                /* elide leading dots - they are implied in the search algorithm */
+                while (*arg == '.')
+                  arg++;
 
+                //TODO --address=/#/1.2.3.4
+                if (strcmp (arg, "#") == 0)
+                  domain = "";
+                else if (strlen (arg) != 0 && !(domain = canonicalise_opt (arg)))
+                  option = '?';
 
-                np = add_or_lookup_domain(daemon->dh_special_domains, domain);
+                np = add_or_lookup_domain (daemon->dh_special_domains, domain);
 
-                if (np->obj == NULL) {
-                    obj = opt_malloc(sizeof(struct special_domain));
-                    memset(obj, 0, sizeof(struct special_domain));
+                if (np->obj == NULL)
+                  {
+                    obj = opt_malloc (sizeof (struct special_domain));
+                    memset (obj, 0, sizeof (struct special_domain));
                     obj->domain_flags = 0;
-                } else {
+                  }
+                else
+                  {
                     obj = (struct special_domain *) np->obj;
-                }
+                  }
 
-                if (option == 'A') {
+                obj->domain_flags = newserv.flags;
+                if (option == 'A')
+                  {
                     obj->server = NULL;
-                    obj->domain_flags = SERV_LITERAL_ADDRESS;
-                    memcpy(&obj->addr, &newlist.addr, sizeof(union mysockaddr));
-                } else if (option == 'S') {
+                    obj->domain_flags |= SERV_LITERAL_ADDRESS;
+                    memcpy (&obj->addr, &newserv.addr, sizeof (union mysockaddr));
+                  }
+                else if (option == 'S')
+                  {
                     // pointer to one of servers in daemon->servers link list,
                     // no memory is leaked if obj->server been overwritten
-                    obj->server = lookup_or_install_new_server(&newlist);
-                }
+                    obj->server = lookup_or_install_new_server (&newserv);
+                    obj->server->flags |= SERV_HAS_DOMAIN;
+                    obj->server->domain = NULL;
 
-                if (option == LOPT_NO_REBIND) {
+                  }
+
+                if (option == LOPT_NO_REBIND)
+                  {
                     // the rebind flag here instead of the one in struct server
                     // will be used by forward
                     obj->domain_flags |= SERV_NO_REBIND;
-                }
+                  }
 
-                if (option == LOPT_LOCAL) {
+                if (option == LOPT_LOCAL)
+                  {
                     obj->domain_flags |= SERV_NO_ADDR;
-                }
+                  }
 
-		//newlist.flags |= domain ? SERV_HAS_DOMAIN : SERV_FOR_NODOTS;
+                //newserv.flags |= domain ? SERV_HAS_DOMAIN : SERV_FOR_NODOTS;
                 np->obj = (void *) obj;
 
-		arg = end;
-		if (rebind)
-		  break;
-	      }
-	  }
+                arg = end;
+                if (rebind)
+                  break;
+              }
+          }
+        else if ((strchr (arg, '/') == NULL && option == 'S'))
+          {
+            lookup_or_install_new_server (&newserv);
+          }
 
         break;
       }
+
     case LOPT_REV_SERV: /* --rev-server */
       {
 	char *string;

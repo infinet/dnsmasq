@@ -1,14 +1,14 @@
-### DNSMASQ fork for improving --ipsets and --server performance
+## DNSMASQ fork for improving --ipsets and --server performance
 
-## Current status
+### Current status
 
-The ipsets lookup has been rewritten. It scales pretty well even with thousands
-of --ipsets entries.
+The --ipsets and --server lookup has been rewritten. It scales well with thousands
+of --ipsets and --server entries.
 
-## In progress
 
-Still working on --server. 
+### In progress
 
+Still need test and tweak.
 
 
 [Contact me](mailto: weichen302@gmail.com)

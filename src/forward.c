@@ -118,91 +118,111 @@ int send_from(int fd, int nowild, char *packet, size_t len,
   
   return 1;
 }
-          
-static unsigned int search_servers(time_t now, struct all_addr **addrpp, 
-                                   unsigned int qtype, char *qdomain, int *type,
-                                   char **domain, int *norebind,
-                                   struct server **fwdserv)
-			      
+
+/* search domain pattern for --address, --local, --server, --rebind-domain-ok
+
+   if matches --address, the address is stored in addrpp
+
+   if matches --server, a pointer to one of servers in daemon->servers is
+   stored in fwdserv, unless --server=/example.org/#, in which case fwdserv
+   will be NULL, means use normal server
+
+   if matches --rebind-domain-ok, the pass in norebind will be set to 1
+
+   we find largest match, e.g. given pattern debian.org and cn.debian.org,
+   ftp.cn.debian.org  will match cn.debian.org
+ */
+static unsigned int
+search_servers (time_t now, struct all_addr **addrpp,
+                unsigned int qtype, char *qdomain, int *type,
+                char **domain, int *norebind, struct server **fwdserv)
 {
-  /* If the query ends in the domain in one of our servers, set
-     domain to point to that name. We find the largest match to allow both
-     domain.org and sub.domain.org to exist. */
+  unsigned int namelen = strlen (qdomain);
+  unsigned int flags = 0;
+  unsigned int sflag;
+  struct dict_node *np;
+  struct special_domain *obj;
 
-    unsigned int namelen = strlen (qdomain);
-    struct server *serv;
-    unsigned int flags = 0;
-    unsigned int sflag;
-    struct dict_node *np;
-    struct special_domain *obj;
+  *type = 0;
+  np = match_domain (daemon->dh_special_domains, qdomain);
+  if (np != NULL)
+    {
+      obj = (struct special_domain *) np->obj;
 
-    np = match_domain (daemon->dh_special_domains, qdomain);
-    if (np != NULL)
-      {
-        obj = (struct special_domain *) np->obj;
-        serv = obj->server;
-        *type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV |
-                                  SERV_NO_REBIND);
+      *type |= SERV_HAS_DOMAIN;
 
-        if (obj->domain_flags & SERV_NO_REBIND)
-          *norebind = 1;
+      if (obj->domain_flags & SERV_NO_REBIND)
+        *norebind = 1;
 
-        // no server, domain is local only
-        if (obj->domain_flags & SERV_NO_ADDR) {
+      // no server, domain is local only
+      if (obj->domain_flags & SERV_NO_ADDR)
+        {
           flags = F_NXDOMAIN;
-        } else if (obj->domain_flags == SERV_LITERAL_ADDRESS) {
-            // --address and AF matches
-            sflag = obj->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
-            if (sflag & qtype)
-              {
-                flags = sflag;
-                if (serv->addr.sa.sa_family == AF_INET)
-                  *addrpp = (struct all_addr *) &serv->addr.in.sin_addr;
-#ifdef HAVE_IPV6
-                else
-                  *addrpp = (struct all_addr *) &serv->addr.in6.sin6_addr;
-#endif
-              }
-        } else {
-            *fwdserv = obj->server;
-            flags = 0;
+
         }
-      }
-    else
-      {
-          *type = 0;  // use normal server
+      else if (obj->domain_flags & SERV_LITERAL_ADDRESS)
+        {
+          // --address and AF matches
+          sflag = obj->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
+          if (sflag & qtype)
+            {
+              flags = sflag;
+              if (obj->addr.sa.sa_family == AF_INET)
+                *addrpp = (struct all_addr *) &obj->addr.in.sin_addr;
+#ifdef HAVE_IPV6
+              else
+                *addrpp = (struct all_addr *) &obj->addr.in6.sin6_addr;
+#endif
+            }
+
+        }
+      else if (obj->domain_flags & SERV_USE_RESOLV)
+        {
+          // --server=8.8.8.8
+          *type = 0;                // use normal server
           *fwdserv = NULL;
-      }
 
+        }
+      else
+        {
+          *fwdserv = obj->server;
+          flags = 0;
+        }
+    }
+  else
+    {
+      *type = 0;    /* use normal servers for this domain */
+      *fwdserv = NULL;
+    }
 
-
-  /* have go through all servers in chain, now let's see what flag survive */
-  if (flags == 0 && !(qtype & F_QUERY) && 
-      option_bool(OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
+  if (flags == 0 && !(qtype & F_QUERY) &&
+      option_bool (OPT_NODOTS_LOCAL) && !strchr (qdomain, '.')
+      && namelen != 0)
     /* don't forward A or AAAA queries for simple names, except the empty name */
     flags = F_NOERR;
-  
-  if (flags == F_NXDOMAIN && check_for_local_domain(qdomain, now))
+
+  if (flags == F_NXDOMAIN && check_for_local_domain (qdomain, now))
     flags = F_NOERR;
 
   if (flags)
     {
       int logflags = 0;
-      
+
       if (flags == F_NXDOMAIN || flags == F_NOERR)
-	logflags = F_NEG | qtype;
-  
-      log_query(logflags | flags | F_CONFIG | F_FORWARD, qdomain, *addrpp, NULL);
+        logflags = F_NEG | qtype;
+
+      log_query (logflags | flags | F_CONFIG | F_FORWARD, qdomain, *addrpp,
+                 NULL);
     }
   else if ((*type) & SERV_USE_RESOLV)
     {
-      *type = 0; /* use normal servers for this domain */
+      *type = 0;    /* use normal servers for this domain */
       *domain = NULL;
     }
-  return  flags;
+
+  return flags;
 }
 
-//forward_query(-1, NULL, NULL, 0, header, nn, now, forward, 0, 0);
 static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 struct all_addr *dst_addr, unsigned int dst_iface,
 			 struct dns_header *header, size_t plen, time_t now, 
@@ -388,16 +408,29 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       // we have the server for our domain by lookup daemon->dh_special_domains
       int fd;
 
-      /* find server socket to use, may need to get random one. */
+      /* didn't find a server matches query domain */
+      if (fwdserv == NULL)
+        {
+          for (fwdserv = daemon->servers;
+               fwdserv != NULL; fwdserv = fwdserv->next)
+            {
+              //TODO figure out how to skip unresponsive server
+              if (!(fwdserv->flags & (SERV_HAS_DOMAIN | SERV_LOOP)))
+                {
+                  break;
+                }
+            }
+        }
+
       if (fwdserv->sfd)
         fd = fwdserv->sfd->fd;
-      else 
+      else
         {
 #ifdef HAVE_IPV6
           if (fwdserv->addr.sa.sa_family == AF_INET6)
             {
               if (forward->rfd6 == NULL)
-                  forward->rfd6 = allocate_rfd(AF_INET6);
+                forward->rfd6 = allocate_rfd (AF_INET6);
               daemon->rfd_save = forward->rfd6;
               fd = forward->rfd6->fd;
             }
@@ -405,30 +438,28 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #endif
             {
               if (forward->rfd4 == NULL)
-                  forward->rfd4 = allocate_rfd(AF_INET);
+                forward->rfd4 = allocate_rfd (AF_INET);
               daemon->rfd_save = forward->rfd4;
               fd = forward->rfd4->fd;
             }
 
 #ifdef HAVE_CONNTRACK
           /* Copy connection mark of incoming query to outgoing connection. */
-          if (option_bool(OPT_CONNTRACK))
+          if (option_bool (OPT_CONNTRACK))
             {
               unsigned int mark;
-              if (get_incoming_mark(&forward->source, &forward->dest, 0, &mark))
-                setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
+              if (get_incoming_mark (&forward->source, &forward->dest, 0, &mark))
+                setsockopt (fd, SOL_SOCKET, SO_MARK, &mark,
+                            sizeof (unsigned int));
             }
 #endif
         }
-      
 
-
-
-      if (sendto(fd, (char *)header, plen, 0,
-                 &fwdserv->addr.sa,
-                 sa_len(&fwdserv->addr)) == -1)
+      //TODO retry
+      if (sendto (fd, (char *) header, plen, 0,
+                  &fwdserv->addr.sa, sa_len (&fwdserv->addr)) == -1)
         {
-          retry_send();
+          retry_send ();
         }
 
       else
@@ -436,27 +467,27 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
           /* Keep info in case we want to re-send this packet */
           daemon->srv_save = fwdserv;
           daemon->packet_len = plen;
-          
+
           if (!gotname)
-            strcpy(daemon->namebuff, "query");
+            strcpy (daemon->namebuff, "query");
           if (fwdserv->addr.sa.sa_family == AF_INET)
-            log_query(F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff, 
-                      (struct all_addr *)&fwdserv->addr.in.sin_addr, NULL); 
+            log_query (F_SERVER | F_IPV4 | F_FORWARD, daemon->namebuff,
+                       (struct all_addr *) &fwdserv->addr.in.sin_addr, NULL);
 #ifdef HAVE_IPV6
           else
-            log_query(F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff, 
-                      (struct all_addr *)&fwdserv->addr.in6.sin6_addr, NULL);
-#endif 
+            log_query (F_SERVER | F_IPV6 | F_FORWARD, daemon->namebuff,
+                       (struct all_addr *) &fwdserv->addr.in6.sin6_addr, NULL);
+#endif
           fwdserv->queries++;
           forwarded = 1;
           forward->sentto = fwdserv;
-          if (forward->forwardall) 
-              forward->forwardall++;
+          if (forward->forwardall)
+            forward->forwardall++;
         }
 
       if (forwarded)
-	return 1;
-      
+        return 1;
+
       /* could not send on, prepare to return */ 
       header->id = htons(forward->orig_id);
       free_frec(forward); /* cancel */

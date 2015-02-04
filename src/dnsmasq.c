@@ -254,9 +254,6 @@ int main (int argc, char **argv)
     ipset_init();
 #endif
 
-  if (daemon->dh_special_domains == NULL)
-    daemon->dh_special_domains = new_dictnode(NULL, 0);
-
 #if  defined(HAVE_LINUX_NETWORK)
   netlink_init();
 #elif defined(HAVE_BSD_NETWORK)

@@ -423,15 +423,15 @@ void free_dicttree (struct dict_node *node)
 static inline int is_same_server(struct server *s1, struct server *s2)
 {
     if (memcmp(&s1->addr, &s2->addr, sizeof(union mysockaddr)) != 0)
-        return -1;
+        return 0;
 
     if (strncmp(s1->interface, s2->interface, IF_NAMESIZE + 1) != 0)
-        return -1;
+        return 0;
 
     if (s1->flags != s2->flags)
-        return -1;
+        return 0;
 
-    return 0;
+    return 1;
 }
 
 /* duplicate a struct server, but only copy addr, source_addr, interfaces, and
