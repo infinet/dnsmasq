@@ -28,7 +28,6 @@
 static char buf[MAXDNAME];
 
 /* prototypes */
-static struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label);
 static struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
 static void add_dicttree (struct dict_node *node, struct dict_node *sub);
 static void upsize_dicttree (struct dict_node *np);
@@ -207,8 +206,7 @@ static void add_dicttree (struct dict_node *node, struct dict_node *sub)
 /* add a new subnode to node, or update the attr of the subnode with same
  * label
  * return the subnode */
-static struct dict_node *add_or_lookup_dictnode (struct dict_node *node,
-                                                  char *label)
+struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label)
 {
   struct dict_node *np;
 
@@ -221,7 +219,6 @@ static struct dict_node *add_or_lookup_dictnode (struct dict_node *node,
       np = new_dictnode (label, strlen (label));
       add_dicttree (node, np);
     }
-
 
   return np;
 }
@@ -314,8 +311,8 @@ struct dict_node * match_domain(struct dict_node *root, char *domain)
 }
 
 /* look up the whole domain pattern by step over DNS name hierarchy top down.
- * for example, if the pattern is cache.google.com, the lookup will start with
- * com, then google, then cache */
+ * for example, if the pattern is cn.debian.org, the lookup will start with
+ * org, then debian, then cn */
 struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 {
   char *labels[MAXLABELS];
@@ -351,7 +348,7 @@ struct dict_node * lookup_domain (struct dict_node *root, char *domain)
   return i == -1 ? node : NULL;
 }
 
-/* add a domain pattern in the form of google.com to root
+/* add a domain pattern in the form of debian.org to root
  * return the node with lowest hierarchy */
 struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
 {
@@ -415,10 +412,6 @@ void free_dicttree (struct dict_node *node)
   free (node);
 }
 
-
-
-/* temp area * */
-
 /* only compare addr, source_addr, interface, and flags */
 static inline int is_same_server(struct server *s1, struct server *s2)
 {
@@ -447,6 +440,11 @@ static inline struct server *serverdup(struct server *src)
     return dst;
 }
 
+/* lookup server by compare addr, source_addr, interface, and flags with
+ * servers in daemon->servers link list. If no match found, then insert a new
+ * server
+ *
+ * Return the lookup result or the newly created server*/
 struct server *lookup_or_install_new_server(struct server *serv)
 {
     struct server *res;

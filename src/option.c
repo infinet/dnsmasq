@@ -2428,11 +2428,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         int sets_count = 0;
         unhide_metas (arg);
         struct dict_node *np = NULL;
+        struct dict_node *setname = NULL;
         struct ipsets_names *obj;
         char *domain = NULL;
 
         if (daemon->dh_ipsets == NULL)
           daemon->dh_ipsets = new_dictnode (NULL, 0);
+
+        if (daemon->dh_ipset_names == NULL)
+          daemon->dh_ipset_names = new_dictnode (NULL, 0);
 
         if (arg && *arg == '/')
           {
@@ -2472,7 +2476,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         do
           {
             end = split (arg);
-            *sets_pos++ = opt_string_alloc (arg);
+            // only store one copy of setname in daemon->dh_ipset_names
+            setname = add_or_lookup_dictnode(daemon->dh_ipset_names, arg);
+            *sets_pos++ = setname->label;
             sets_count++;
             arg = end;
           }

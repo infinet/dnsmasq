@@ -974,7 +974,7 @@ extern struct daemon {
   struct ipsets *ipsets;
 
   struct dict_node *dh_ipsets;
-  struct dict_node *dh_ipsets_names;
+  struct dict_node *dh_ipset_names;
   struct dict_node *dh_special_domains;
 
   int log_fac; /* log facility */
@@ -1401,6 +1401,7 @@ int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, 
 
 /* dict.c */
 struct dict_node *new_dictnode (char *label, int len);
+struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label);
 struct dict_node *lookup_domain(struct dict_node *root, char *domain);
 struct dict_node *match_domain(struct dict_node *root, char *domain);
 struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain);
