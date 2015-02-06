@@ -6,9 +6,10 @@ The --ipsets and --server lookup has been rewritten. It scales well with thousan
 of --ipsets and --server entries.
 
 
-### In progress
+### Issues
 
-Still need test and tweak.
+* `tcp_request` not working
+* `check_server` not print out server supported domains properly
 
 
 [Contact me](mailto: weichen302@gmail.com)
