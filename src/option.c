@@ -2214,7 +2214,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         char *start_addr, *s;
         char *err;
         struct server newserv;
-        struct dict_node *np;
+        struct dict_node *np = NULL;
         struct special_domain *obj;
 
         memset (&newserv, 0, sizeof (struct server));
@@ -2319,6 +2319,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 while (*arg == '.')
                   arg++;
 
+                // wrong config option --xxxx=/./1.2.3.4
+                if (strlen (arg) == 0)
+                  continue;
+
                 // --address=/#/1.2.3.4
                 // use label in the root node to mark #(match all domains)
                 if (strcmp (arg, "#") == 0)
@@ -2327,14 +2331,18 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                     free(np->label);
                     np->label = strdup("#");
                   }
-                else if (strlen (arg) != 0 && !(domain = canonicalise_opt (arg)))
+                else if (!(domain = canonicalise_opt (arg)))
                   {
                     option = '?';
                   }
-                else if (domain != NULL)
+                else
                   {
                     np = add_or_lookup_domain(daemon->dh_special_domains, domain);
                   }
+
+                // domain unrecognizable
+                if (np == NULL)
+                    continue;
 
                 if (np->obj == NULL)
                   {
