@@ -2348,8 +2348,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   {
                     // pointer to one of servers in daemon->servers link list,
                     // no memory is leaked if obj->server been overwritten
+                    newserv.flags |= SERV_HAS_DOMAIN;
                     obj->server = lookup_or_install_new_server (&newserv);
-                    obj->server->flags |= SERV_HAS_DOMAIN;
                     obj->server->domain = NULL;
 
                   }
