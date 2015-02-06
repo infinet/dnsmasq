@@ -263,6 +263,9 @@ struct dict_node * match_domain(struct dict_node *root, char *domain)
   int len = strlen (domain);
   struct dict_node *node, *res;
 
+  if (root == NULL)
+      return NULL;
+
   memset(buf, 0, sizeof(buf));
   memcpy_lower (buf, domain, len);
   /*

@@ -2280,7 +2280,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
               }
             else
               {
-                /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port */
+                /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port
+                 * --xxxx=8.8.8.8 */
                 err =
                   parse_server (start_addr, &newserv.addr, &newserv.source_addr,
                                 newserv.interface, &newserv.flags);
@@ -2318,13 +2319,22 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 while (*arg == '.')
                   arg++;
 
-                //TODO --address=/#/1.2.3.4
+                // --address=/#/1.2.3.4
+                // use label in the root node to mark #(match all domains)
                 if (strcmp (arg, "#") == 0)
-                  domain = "";
+                  {
+                    np = daemon->dh_special_domains;
+                    free(np->label);
+                    np->label = strdup("#");
+                  }
                 else if (strlen (arg) != 0 && !(domain = canonicalise_opt (arg)))
-                  option = '?';
-
-                np = add_or_lookup_domain (daemon->dh_special_domains, domain);
+                  {
+                    option = '?';
+                  }
+                else if (domain != NULL)
+                  {
+                    np = add_or_lookup_domain(daemon->dh_special_domains, domain);
+                  }
 
                 if (np->obj == NULL)
                   {
@@ -2374,6 +2384,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   break;
               }
           }
+        // --server=8.8.8.8
         else if ((strchr (arg, '/') == NULL && option == 'S'))
           {
             lookup_or_install_new_server (&newserv);

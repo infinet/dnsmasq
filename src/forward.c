@@ -144,7 +144,13 @@ search_servers (time_t now, struct all_addr **addrpp,
   struct special_domain *obj;
 
   *type = 0;
-  np = match_domain (daemon->dh_special_domains, qdomain);
+  /* label of root node is "#", means --address=/#/1.2.3.4 */
+  if (daemon->dh_special_domains && daemon->dh_special_domains->label &&
+                                    *daemon->dh_special_domains->label == '#')
+    np = daemon->dh_special_domains;
+  else
+    np = match_domain (daemon->dh_special_domains, qdomain);
+
   if (np != NULL)
     {
       obj = (struct special_domain *) np->obj;
