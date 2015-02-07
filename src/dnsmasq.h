@@ -1400,6 +1400,7 @@ int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, 
 #endif
 
 /* dict.c */
+#define MAXLABELS 128
 struct dict_node *new_dictnode (char *label, int len);
 struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label);
 struct dict_node *lookup_domain(struct dict_node *root, char *domain);
@@ -1407,6 +1408,8 @@ struct dict_node *match_domain(struct dict_node *root, char *domain);
 struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain);
 struct server *lookup_or_install_new_server(struct server *serv);
 void free_dicttree (struct dict_node *node);
+void print_server_special_domains(struct dict_node *node,
+                                  char *parents[], int current_level);
 
 /* helper.c */
 #if defined(HAVE_SCRIPT)

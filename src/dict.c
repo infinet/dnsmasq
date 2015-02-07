@@ -18,7 +18,6 @@
 
 #include "dnsmasq.h"
 
-#define MAXLABELS 128
 #define OPEN_ADDRESSING_MAXJUMP 7                /* no reason, just like 7 */
 #define OPEN_ADDRESSING_DEFAULT_SLOT 4
 #define FNV1_32A_INIT ((uint32_t)0x811c9dc5)
@@ -465,4 +464,49 @@ struct server *lookup_or_install_new_server(struct server *serv)
     }
 
     return res;
+}
+
+/* print the daemon->dh_special_domains tree recursively
+ *
+ * do we really need it?  */
+void print_server_special_domains (struct dict_node *node,
+                                   char *parents[], int current_level)
+{
+  struct dict_node *np;
+  struct special_domain *obj;
+  char buf[MAXDNAME];
+  char ip_buf[16];
+  int j, level;
+  int port = 0;
+  uint32_t i;
+
+  level = current_level + 1;
+  if (node->label != NULL)
+    {
+      parents[level] = node->label;
+      if (node->obj != NULL)
+        {
+          obj = (struct special_domain *) node->obj;
+          if (obj->domain_flags & SERV_HAS_DOMAIN)
+            {
+              memset (buf, 0, MAXDNAME);
+              for (j = level; j > 1; j--)
+                {
+                  strcat (buf, parents[j]);
+                  strcat (buf, ".");
+                }
+              buf[strlen (buf) - 1] = '\0';
+              port = prettyprint_addr (&obj->server->addr, ip_buf);
+              my_syslog(LOG_INFO, _("using nameserver %s#%d for domain %s"), 
+                                    ip_buf, port, buf);
+            }
+        }
+    }
+
+  if (node->sub_count > 0)
+    {
+      for (i = 0; i < node->sub_slots; i++)
+        if ((np = node->sub[i]) != NULL)
+          print_server_special_domains (np, parents, level);
+    }
 }

@@ -35,7 +35,6 @@ rules.
 ### Issues
 
 * `tcp_request` not working
-* `check_server` not print out server supported domains properly
 
 
 [Contact me](mailto: weichen302@gmail.com)

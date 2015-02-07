@@ -2369,7 +2369,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                     newserv.flags |= SERV_HAS_DOMAIN;
                     obj->server = lookup_or_install_new_server (&newserv);
                     obj->server->domain = NULL;
-
+                    obj->domain_flags |= SERV_HAS_DOMAIN;
                   }
 
                 if (option == LOPT_NO_REBIND)

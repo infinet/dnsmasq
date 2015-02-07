@@ -1422,6 +1422,10 @@ void check_servers(void)
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
   
+  char *levels[MAXLABELS];
+  struct dict_node *root = daemon->dh_special_domains;
+  print_server_special_domains(root, levels, 0);
+
   for (serv = daemon->servers; serv; serv = serv->next)
     {
        if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
@@ -1461,15 +1465,11 @@ void check_servers(void)
       
       if (!(serv->flags & SERV_NO_REBIND))
 	{
-	  if (serv->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_USE_RESOLV))
+	  if (serv->flags & (SERV_FOR_NODOTS | SERV_USE_RESOLV))
 	    {
 	      char *s1, *s2;
 	      if (!(serv->flags & SERV_HAS_DOMAIN))
 		s1 = _("unqualified"), s2 = _("names");
-              /*
-	      else if (strlen(serv->domain) == 0)
-		s1 = _("default"), s2 = "";
-                */
 	      else
 		s1 = _("domain"), s2 = serv->domain;
 	      
