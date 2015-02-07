@@ -989,6 +989,7 @@ the directory are read automatically, without the need to send SIGHUP.
 If a file is deleted for changed after it has been read by dnsmasq, then the
 host record it contained will remain until dnsmasq recieves a SIGHUP, or 
 is restarted; ie host records are only added dynamically.
+.TP
 .B --dhcp-optsdir=<path>
 This is equivalent to dhcp-optsfile, with the differences noted for --dhcp-hostsdir.
 .TP
