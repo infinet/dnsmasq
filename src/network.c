@@ -1422,7 +1422,7 @@ void check_servers(void)
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
   
-  char *levels[MAXLABELS];
+  char *levels[MAXLABELS + 1];  /* the root node starts at 1 */
   struct dict_node *root = daemon->dh_special_domains;
   print_server_special_domains(root, levels, 0);
 
