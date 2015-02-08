@@ -1,5 +1,5 @@
 /* dnssec.c is Copyright (c) 2012 Giovanni Bajo <rasky@develer.com>
-           and Copyright (c) 2012-2014 Simon Kelley
+           and Copyright (c) 2012-2015 Simon Kelley
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -275,7 +275,7 @@ static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len
     }
   
   if (sig_len != 2*t || key_len != 2*t ||
-      (p = blockdata_retrieve(key_data, key_len, NULL)))
+      !(p = blockdata_retrieve(key_data, key_len, NULL)))
     return 0;
   
   mpz_import(x, t , 1, 1, 0, 0, p);

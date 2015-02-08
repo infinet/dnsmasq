@@ -1,4 +1,4 @@
-/* dnsmasq is Copyright (c) 2000-2014 Simon Kelley
+/* dnsmasq is Copyright (c) 2000-2015 Simon Kelley
  
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define COPYRIGHT "Copyright (c) 2000-2014 Simon Kelley" 
+#define COPYRIGHT "Copyright (c) 2000-2015 Simon Kelley" 
 
 #ifndef NO_LARGEFILE
 /* Ensure we can use files >2GB (log files may grow this big) */
@@ -584,6 +584,9 @@ struct resolvc {
 #define AH_DIR      1
 #define AH_INACTIVE 2
 #define AH_WD_DONE  4
+#define AH_HOSTS    8
+#define AH_DHCP_HST 16
+#define AH_DHCP_OPT 32
 struct hostsfile {
   struct hostsfile *next;
   int flags;
@@ -1000,7 +1003,7 @@ extern struct daemon {
   int doing_ra, doing_dhcp6;
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *dhcp_gen_names; 
   struct dhcp_netid_list *force_broadcast, *bootp_dynamic;
-  struct hostsfile *dhcp_hosts_file, *dhcp_opts_file, *inotify_hosts;
+  struct hostsfile *dhcp_hosts_file, *dhcp_opts_file, *dynamic_dirs;
   int dhcp_max, tftp_max;
   int dhcp_server_port, dhcp_client_port;
   int start_tftp_port, end_tftp_port; 
@@ -1106,6 +1109,8 @@ int cache_make_stat(struct txt_record *t);
 char *cache_get_name(struct crec *crecp);
 char *cache_get_cname_target(struct crec *crecp);
 struct crec *cache_enumerate(int init);
+int read_hostsfile(char *filename, unsigned int index, int cache_size, 
+		   struct crec **rhash, int hashsz);
 
 /* blockdata.c */
 #ifdef HAVE_DNSSEC
@@ -1239,7 +1244,8 @@ void reset_option_bool(unsigned int opt);
 struct hostsfile *expand_filelist(struct hostsfile *list);
 char *parse_server(char *arg, union mysockaddr *addr, 
 		   union mysockaddr *source_addr, char *interface, int *flags);
-int option_read_hostsfile(char *file);
+int option_read_dynfile(char *file, int flags);
+
 /* forward.c */
 void reply_query(int fd, int family, time_t now);
 void receive_query(struct listener *listen, time_t now);
@@ -1541,7 +1547,5 @@ int detect_loop(char *query, int type);
 #ifdef HAVE_INOTIFY
 void inotify_dnsmasq_init();
 int inotify_check(time_t now);
-#  ifdef HAVE_DHCP
-void set_dhcp_inotify(void);
-#  endif
+void set_dynamic_inotify(int flag, int total_size, struct crec **rhash, int revhashsz);
 #endif
