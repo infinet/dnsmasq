@@ -1,19 +1,47 @@
-/* dict.c is Copyright (c) 2015 Chen Wei <weichen302@gmail.com>
+/*  dict.c is Copyright (c) 2015 Chen Wei <weichen302@gmail.com>
 
-   Use a dictionary like structure to store config options for fast lookup
+    Use cascade of open addressing hash tables to store config options that
+    involve domain names.
 
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; version 2 dated June, 1991, or
-   (at your option) version 3 dated 29 June, 2007.
+                       root
+                        |
+             +---------------------+
+            com                   org
+             |                     |
+    +------------------+     +-------------+
+    yahoo google twitter   debian       freebsd
+      |      |               |             |
+     www    mail          +---------+     www
+                          cn jp uk us
+                          |
+                         ftp
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+    The lookup steps over domain name hierarchy top-down. All labels are stored
+    in open addressing hash tables. Sub-level labels that belong to different
+    parent nodes are stored separately. e.g. yahoo, google, and twitter are in
+    one hash table, while debian and freebsd are in another.
 
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    The hash table size is power of 2, two hash functions are used to compute
+    hash bucket. For locating a particular label from hash table, two hash
+    values are compared first, only if they are match, should the more
+    expensive string comparison be used to confirm the search.
+
+    The search should take constant time regardless the size of --ipset and
+    --server rules.
+
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; version 2 dated June, 1991, or
+    (at your option) version 3 dated 29 June, 2007.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dnsmasq.h"
@@ -21,7 +49,6 @@
 #define OPEN_ADDRESSING_MAXJUMP 7                /* no reason, just like 7 */
 #define OPEN_ADDRESSING_DEFAULT_SLOT 4
 #define FNV1_32A_INIT ((uint32_t)0x811c9dc5)
-#define FNV_32_PRIME  ((uint32_t)0x01000193)
 #define max(A, B) ((A) > (B) ? (A) : (B))
 
 static char buf[MAXDNAME];
@@ -497,7 +524,7 @@ void print_server_special_domains (struct dict_node *node,
                 }
               buf[strlen (buf) - 1] = '\0';
               port = prettyprint_addr (&obj->server->addr, ip_buf);
-              my_syslog(LOG_INFO, _("using nameserver %s#%d for domain %s"), 
+              my_syslog(LOG_INFO, _("using nameserver %s#%d for domain %s"),
                                     ip_buf, port, buf);
             }
         }
