@@ -104,7 +104,8 @@ void set_dynamic_inotify(int flag, int total_size, struct crec **rhash, int revh
 	   ah->wd = inotify_add_watch(daemon->inotifyfd, ah->fname, IN_CLOSE_WRITE | IN_MOVED_TO);
 	   ah->flags |= AH_WD_DONE;
 	 }
-       /* Read contents of dir _after_ calling add_watch, in the ho[e of avoiding
+
+       /* Read contents of dir _after_ calling add_watch, in the hope of avoiding
 	  a race which misses files being added as we start */
        if (ah->wd == -1 || !(dir_stream = opendir(ah->fname)))
 	 {
