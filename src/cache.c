@@ -1133,17 +1133,18 @@ void cache_reload(void)
     {
       if (daemon->cachesize > 0)
 	my_syslog(LOG_INFO, _("cleared cache"));
-      return;
     }
-  
-  if (!option_bool(OPT_NO_HOSTS))
-    total_size = read_hostsfile(HOSTSFILE, SRC_HOSTS, total_size, (struct crec **)daemon->packet, revhashsz);
-  
-  daemon->addn_hosts = expand_filelist(daemon->addn_hosts);
-  for (ah = daemon->addn_hosts; ah; ah = ah->next)
-    if (!(ah->flags & AH_INACTIVE))
-      total_size = read_hostsfile(ah->fname, ah->index, total_size, (struct crec **)daemon->packet, revhashsz);
-  
+  else
+    {
+      if (!option_bool(OPT_NO_HOSTS))
+	total_size = read_hostsfile(HOSTSFILE, SRC_HOSTS, total_size, (struct crec **)daemon->packet, revhashsz);
+      
+      daemon->addn_hosts = expand_filelist(daemon->addn_hosts);
+      for (ah = daemon->addn_hosts; ah; ah = ah->next)
+	if (!(ah->flags & AH_INACTIVE))
+	  total_size = read_hostsfile(ah->fname, ah->index, total_size, (struct crec **)daemon->packet, revhashsz);
+    }
+
 #ifdef HAVE_INOTIFY
   set_dynamic_inotify(AH_HOSTS, total_size, (struct crec **)daemon->packet, revhashsz);
 #endif
