@@ -2354,6 +2354,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                     np = add_or_lookup_domain(daemon->dh_special_domains, domain);
                   }
 
+                free(domain);
                 // domain unrecognizable
                 if (np == NULL)
                     continue;
@@ -2489,6 +2490,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 
                 if (domain != NULL)
                   np = add_or_lookup_domain (daemon->dh_ipsets, domain);
+                free(domain);
 
                 arg = end;
               }
@@ -2517,12 +2519,18 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
           }
         while (end);
 
+        struct ipsets_names *old_obj;
         *sets_pos = NULL;
         if (np != NULL)
           {
             obj = opt_malloc(sizeof(struct ipsets_names));
             obj->sets = sets;
             obj->count = sets_count;
+            if (np->obj != NULL) {
+                old_obj = (struct ipsets_names *) np->obj;
+                free(old_obj->sets);
+                free(old_obj);
+            }
             np->obj = (void *) obj;
           }
 
@@ -4477,7 +4485,7 @@ void read_opts(int argc, char **argv, char *compile_opts)
 {
   char *buff = opt_malloc(MAXDNAME);
   int option, conffile_opt = '7', testmode = 0;
-  char *arg, *conffile = CONFFILE;
+  char *arg, *conffile = NULL;
       
   opterr = 0;
 
@@ -4592,7 +4600,15 @@ void read_opts(int argc, char **argv, char *compile_opts)
     }
 
   if (conffile)
-    one_file(conffile, conffile_opt);
+    {
+      one_file(conffile, conffile_opt);
+      free(conffile);
+    }
+  else
+    {
+      one_file(CONFFILE, conffile_opt);
+    }
+
 
   /* port might not be known when the address is parsed - fill in here */
   if (daemon->servers)
