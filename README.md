@@ -1,21 +1,24 @@
-## DNSMASQ fork for improving --ipsets and --server performance
+## DNSMASQ fork for improving --ipsets, --server, --address performance
 
 ### Current status
 
-The --ipsets and --server lookup has been rewritten. It scales well with thousands
-of --ipsets and --server entries.
+The --ipsets, --server, and --address lookup has been rewritten. It scales well
+with thousands of --ipsets and --server entries.
 
 
-               _______root_______
-              /                  \
+                       root
+                        |
+             +---------------------+
             com                   org
-          /  |  \                /    \
-         /   |   \              /      \
-    yahoo google twitter     debian  freebsd
-      |      |                  |        |
-     www    mail               cn       www
-                                |
-                               ftp
+             |                     |
+    +------------------+     +-------------+
+    yahoo google twitter   debian       freebsd
+      |      |               |             |
+     www    mail          +---------+     www
+                          cn jp uk us
+                          |
+                         ftp
+
 
 The lookup steps over domain name hierarchy top-down. All labels are stored in
 open addressing hash tables. Sub-level labels that belong to different parent
@@ -31,9 +34,9 @@ The search should take constant time regardless the size of --ipset and --server
 rules.
 
 
-### Issues
+### Precompiled binary
 
-
+for OpenWrt Attitude Adjustment (12.09 final) and Barrier Breaker (14.07) [ar71xx](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/)
 
 
 
