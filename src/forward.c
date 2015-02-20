@@ -31,8 +31,9 @@ static int send_check_sign(struct frec *forward, time_t now, struct dns_header *
 			   char *name, char *keyname);
 #endif
 static int tcp_conn_serv(struct server *serv, time_t now,
-                         unsigned char *packet, size_t payload_size,
-                         union mysockaddr *peer_addr);
+                unsigned char *packet, size_t payload_size,
+                union mysockaddr *peer_addr,
+                int *added_pheader, int *no_cache_dnssec, int *cache_secure);
 
 /* Send a UDP packet with its source address set as "source" 
    unless nowild is true, when we just send it with the kernel default */
@@ -1643,8 +1644,9 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
  *         0 on upstream response has 0 length DNS message, or DNSSEC error
  *         > 0 DNS message length received from upstream server */
 static int tcp_conn_serv(struct server *serv, time_t now,
-                         unsigned char *packet, size_t payload_size,
-                         union mysockaddr *peer_addr)
+                unsigned char *packet, size_t payload_size,
+                union mysockaddr *peer_addr,
+                int *added_pheader, int *no_cache_dnssec, int *cache_secure)
 {
   unsigned char *payload = packet + 2;        /* skip msg length field */
   struct dns_header *header = (struct dns_header *) payload;
@@ -1699,6 +1701,9 @@ static int tcp_conn_serv(struct server *serv, time_t now,
           return -1;
         }
 
+
+
+
 #ifdef HAVE_DNSSEC
       if (option_bool (OPT_DNSSEC_VALID))
         {
@@ -1712,11 +1717,14 @@ static int tcp_conn_serv(struct server *serv, time_t now,
             header->hb4 |= HB4_CD;
 
           if (payload_size != new_size)
-            added_pheader = 1;
+            *added_pheader = 1;
 
           payload_size = new_size;
         }
 #endif
+
+
+
     }
 
   /* get query name again for logging - may have been overwritten */
@@ -1768,10 +1776,10 @@ static int tcp_conn_serv(struct server *serv, time_t now,
       log_query (F_KEYTAG | F_SECSTAT, "result", NULL, result);
 
       if (status == STAT_BOGUS)
-        no_cache_dnssec = 1;
+        *no_cache_dnssec = 1;
 
       if (status == STAT_SECURE)
-        cache_secure = 1;
+        *cache_secure = 1;
     }
 #endif
 
@@ -1811,8 +1819,8 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, ad_question, do_bit, added_pheader = 0;
-  int check_subnet, no_cache_dnssec = 0, cache_secure = 0;
+  int checking_disabled, ad_question, do_bit, check_subnet;
+  int added_pheader = 0, no_cache_dnssec = 0, cache_secure = 0;
   size_t m;
   unsigned short qtype;
   unsigned int gotname;
@@ -1971,7 +1979,8 @@ unsigned char *tcp_request(int confd, time_t now,
                 {
                   /* --server=/example.org/1.2.3.4 */
                   serv = fwdserv;
-                  ret = tcp_conn_serv (serv, now, packet, size, &peer_addr);
+                  ret = tcp_conn_serv (serv, now, packet, size, &peer_addr,
+                          &added_pheader, &no_cache_dnssec, &cache_secure);
                 }
               else
                 {
@@ -2001,7 +2010,8 @@ unsigned char *tcp_request(int confd, time_t now,
                         continue;
 
                       serv = last_server;
-                      ret = tcp_conn_serv (serv, now, packet, size, &peer_addr);
+                      ret = tcp_conn_serv (serv, now, packet, size, &peer_addr,
+                              &added_pheader, &no_cache_dnssec, &cache_secure);
                       /* something wrong with tcp connect/read/write */
                       if (ret <= 0)
                         continue;
