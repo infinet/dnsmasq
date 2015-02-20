@@ -2217,11 +2217,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	arg = comma;
       } while (arg);
       break;
-
-    case 'S':                       /*  --server */
-    case LOPT_LOCAL:                /*  --local */
-    case 'A':                       /*  --address */
-    case LOPT_NO_REBIND:            /*  --rebind-domain-ok */
+      
+    case 'S':            /*  --server */
+    case LOPT_LOCAL:     /*  --local */
+    case 'A':            /*  --address */
+    case LOPT_NO_REBIND: /*  --rebind-domain-ok */
       {
         unhide_metas (arg);
 
@@ -2278,19 +2278,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
             else if (*start_addr == '\0')
             /* --xxxx=/example.org/here-is-empty */
               {
+                /* give --server domain but no ip means the domain is local and
+                 * it may answer queries from /etc/hosts or DHCP but should
+                 * never be forwarded to upstream servers */
                 if (!(newserv.flags & SERV_NO_REBIND))
                   newserv.flags |= SERV_NO_ADDR;        /* no server */
 
-                if (option == 'S')
-                  {
-                    ret_err ("--server must specify server address");
-                  }
-
                 if (option == 'A')
-                  {
-                    ret_err ("--address must specify address");
-                  }
-
+                  ret_err ("--address must specify address");
               }
             else
               {
@@ -2377,14 +2372,23 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                     obj->domain_flags |= SERV_LITERAL_ADDRESS;
                     memcpy (&obj->addr, &newserv.addr, sizeof (union mysockaddr));
                   }
-                else if (option == 'S')
+                else if (option == 'S' || option == LOPT_LOCAL)
                   {
-                    // pointer to one of servers in daemon->servers link list,
-                    // no memory is leaked if obj->server been overwritten
-                    newserv.flags |= SERV_HAS_DOMAIN;
-                    obj->server = lookup_or_install_new_server (&newserv);
-                    obj->server->domain = NULL;
-                    obj->domain_flags |= SERV_HAS_DOMAIN;
+                    if (newserv.flags & SERV_NO_ADDR)
+                      {
+                        obj->server = NULL;
+                        obj->domain_flags = SERV_NO_ADDR;
+                      }
+                    else
+                      {
+                        /* pointer to one of servers in daemon->servers link
+                         * list, no memory will be leaked if obj->server been
+                         * overwritten*/
+                        newserv.flags |= SERV_HAS_DOMAIN;
+                        obj->server = lookup_or_install_new_server (&newserv);
+                        obj->server->domain = NULL;
+                        obj->domain_flags |= SERV_HAS_DOMAIN;
+                      }
                   }
 
                 if (option == LOPT_NO_REBIND)
