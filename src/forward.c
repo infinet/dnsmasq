@@ -32,7 +32,7 @@ static int send_check_sign(struct frec *forward, time_t now, struct dns_header *
 #endif
 static int tcp_conn_serv(struct server *serv, time_t now,
                 unsigned char *packet, size_t payload_size,
-                union mysockaddr *peer_addr,
+                union mysockaddr *peer_addr, union mysockaddr *local_addr,
                 int *added_pheader, int *no_cache_dnssec, int *cache_secure);
 
 /* Send a UDP packet with its source address set as "source" 
@@ -1645,7 +1645,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
  *         > 0 DNS message length received from upstream server */
 static int tcp_conn_serv(struct server *serv, time_t now,
                 unsigned char *packet, size_t payload_size,
-                union mysockaddr *peer_addr,
+                union mysockaddr *peer_addr, union mysockaddr *local_addr,
                 int *added_pheader, int *no_cache_dnssec, int *cache_secure)
 {
   unsigned char *payload = packet + 2;        /* skip msg length field */
@@ -1687,7 +1687,7 @@ static int tcp_conn_serv(struct server *serv, time_t now,
 #endif
             local.addr.addr4 = local_addr->in.sin_addr;
 
-          if (get_incoming_mark (&peer_addr, &local, 1, &mark))
+          if (get_incoming_mark (peer_addr, &local, 1, &mark))
             setsockopt (serv->tcpfd, SOL_SOCKET, SO_MARK, &mark,
                         sizeof (unsigned int));
         }
@@ -1700,9 +1700,6 @@ static int tcp_conn_serv(struct server *serv, time_t now,
           serv->tcpfd = -1;
           return -1;
         }
-
-
-
 
 #ifdef HAVE_DNSSEC
       if (option_bool (OPT_DNSSEC_VALID))
@@ -1722,8 +1719,6 @@ static int tcp_conn_serv(struct server *serv, time_t now,
           payload_size = new_size;
         }
 #endif
-
-
 
     }
 
@@ -1979,7 +1974,8 @@ unsigned char *tcp_request(int confd, time_t now,
                 {
                   /* --server=/example.org/1.2.3.4 */
                   serv = fwdserv;
-                  ret = tcp_conn_serv (serv, now, packet, size, &peer_addr,
+                  ret = tcp_conn_serv (serv, now, packet, size,
+                          &peer_addr, local_addr,
                           &added_pheader, &no_cache_dnssec, &cache_secure);
                 }
               else
@@ -2010,7 +2006,8 @@ unsigned char *tcp_request(int confd, time_t now,
                         continue;
 
                       serv = last_server;
-                      ret = tcp_conn_serv (serv, now, packet, size, &peer_addr,
+                      ret = tcp_conn_serv (serv, now, packet, size,
+                              &peer_addr, local_addr,
                               &added_pheader, &no_cache_dnssec, &cache_secure);
                       /* something wrong with tcp connect/read/write */
                       if (ret <= 0)
