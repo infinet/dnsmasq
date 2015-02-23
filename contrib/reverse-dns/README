@@ -1,0 +1,18 @@
+Hi.
+
+To translate my routers netstat-nat output into names that actually talk
+to me I have started writing to simple shell scripts. They require 
+
+log-queries
+log-facility=/var/log/dnsmasq.log
+
+to be set. With
+
+netstat-nat -n -4 | reverse_replace.sh 
+
+I get retranslated output.
+
+Sincerely,
+Joachim
+
+
