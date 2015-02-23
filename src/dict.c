@@ -57,13 +57,14 @@ static char buf[MAXDNAME];
 static struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
 static void add_dicttree (struct dict_node *node, struct dict_node *sub);
 static void upsize_dicttree (struct dict_node *np);
+static inline void normalize_domain_name (char *dst, char *src, int len);
 
 /* hash function 1 for double hashing
  * 32 bit Fowler/Noll/Vo hash */
-static inline uint32_t fnv_32_hash (char *str)
+static inline uint32_t dblhash_1 (char *key)
 {
   uint32_t hval = FNV1_32A_INIT;
-  unsigned char *s = (unsigned char *) str;
+  unsigned char *s = (unsigned char *) key;
 
   while (*s)
     {
@@ -76,41 +77,49 @@ static inline uint32_t fnv_32_hash (char *str)
 }
 
 /* hash function 2 for double hashing
- * the modified Bernstein hash, return an odd number */
-static inline unsigned int bernstein_odd (char *key)
+ * modified Shift-Add-XOR hash, return an odd number */
+static inline uint32_t dblhash_2 (char *key)
 {
+  uint32_t h = 0;
   unsigned char *s = (unsigned char *) key;
-  unsigned int h = 0;
 
   while (*s)
-    h = 33 * h ^ *s++;
+    h ^= (h << 5) + (h >> 2) + *s++;
 
   return h % 2 ? h : h + 1;
 }
 
 /* convert domain to lower cases, remove leading blank, leading and trailing
  * dot, string end with \0 */
-static inline void memcpy_lower (void *dst, void *src, int len)
+static inline void normalize_domain_name (char *d, char *s, int len)
 {
-  char *d = (char *) dst;
-  char *s = (char *) src;
   int i;
 
   /* skip leading dot and blank */
-  for ( ; *s != '\0' && (*s == '.' || *s == '\t' || *s == ' '); s++ );
+  for ( ; *s != '\0' && (*s == '.' || *s == '\t' || *s == ' '); s++)
+    ;
 
-  for (i = 0; i < len; i++, d++, s++)
+  for (i = 0; i < len && *s != '\0'; i++, s++)
     {
       if (*s >= 'A' && *s <= 'Z')
-        *d = *s + 'a' - 'A';
+        d[i] = *s + 'a' - 'A';
       else
-        *d = *s;
+        d[i] = *s;
     }
 
-  if (*--d == '.')
-      *d = '\0';
+  /* should not happen since the source string limited to MAXDNAME */
+  if (i == len)
+    i--;
+
+  for ( ; d[i] == '.'; i--)
+    ;
+
+  if (i < (len - 1))
+    d[++i] = '\0';
   else
-      *++d = '\0';
+    /* something wrong with the source string(domain name), it exceeds
+     * MAXDNAME, terminate the dst string with '\0' anyway */
+    d[i] = '\0';
 }
 
 struct dict_node * init_sub_dictnode (struct dict_node *node)
@@ -147,8 +156,8 @@ struct dict_node * new_dictnode (char *label, int label_len)
   else
     {
       node->label = strdup (label);
-      node->h1 = fnv_32_hash (label);
-      node->h2 = bernstein_odd (label);
+      node->h1 = dblhash_1 (label);
+      node->h2 = dblhash_2 (label);
     }
 
   node->sub_count = 0;
@@ -203,7 +212,8 @@ static void add_dicttree (struct dict_node *node, struct dict_node *sub)
   dh = sub->h1;
   while (1)
     {
-      idx = dh % node->sub_slots;
+      /* eq to dh % node->sub_slots, since sub_slots is power of 2*/
+      idx = dh & (node->sub_slots - 1);
       if (node->sub[idx] == NULL)
         {
           node->sub[idx] = sub;
@@ -261,9 +271,9 @@ static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
       return NULL;
     }
 
-  dh = h1 = fnv_32_hash (label);
-  h2 = bernstein_odd (label);
-  idx = dh % node->sub_slots;
+  dh = h1 = dblhash_1 (label);
+  h2 = dblhash_2 (label);
+  idx = dh & (node->sub_slots - 1);
   while ((np = node->sub[idx]) != NULL)
     {
       if (np->h1 == h1 && np->h2 == h2)
@@ -273,7 +283,7 @@ static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
           }
 
       dh += h2;
-      idx = dh % node->sub_slots;
+      idx = dh & (node->sub_slots - 1);
     }
 
   return NULL;
@@ -286,21 +296,14 @@ struct dict_node * match_domain(struct dict_node *root, char *domain)
 {
   char *labels[MAXLABELS];
   int i, label_num;
-  int len = strlen (domain);
+  int len = (int) sizeof(buf);
   struct dict_node *node, *res;
 
   if (root == NULL)
       return NULL;
 
   memset(buf, 0, sizeof(buf));
-  memcpy_lower (buf, domain, len);
-  /*
-  remove the trailing dot, make the last label top domain
-  if (buf[len - 1] == '.')
-    buf[len - 1] = '\0';
-  else
-    buf[len] = '\0';
-  */
+  normalize_domain_name (buf, domain, len);
 
   for (i = 0; i < MAXLABELS; i++)
     labels[i] = NULL;
@@ -309,7 +312,7 @@ struct dict_node * match_domain(struct dict_node *root, char *domain)
   labels[label_num++] = &buf[0];
 
   /* split domain name into labels */
-  for (i = 0; buf[i] != '\0'; i++)
+  for (i = 0; i < len && buf[i] != '\0'; i++)
     {
       if (buf[i] == '.')
         {
@@ -346,11 +349,11 @@ struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 {
   char *labels[MAXLABELS];
   int i, label_num;
-  int len = strlen (domain);
+  int len = (int) sizeof(buf);
   struct dict_node *node;
 
   memset(buf, 0, sizeof(buf));
-  memcpy_lower (buf, domain, len);
+  normalize_domain_name (buf, domain, len);
 
   for (i = 0; i < MAXLABELS; i++)
     labels[i] = NULL;
@@ -359,7 +362,7 @@ struct dict_node * lookup_domain (struct dict_node *root, char *domain)
 
   labels[label_num++] = &buf[0];
 
-  for (i = 0; buf[i] != '\0'; i++)
+  for (i = 0; i < len && buf[i] != '\0'; i++)
     {
       if (buf[i] == '.')
         {
@@ -383,11 +386,11 @@ struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
 {
   char *labels[MAXLABELS];
   int i, label_num;
-  int len = strlen (domain);
+  int len = (int) sizeof(buf);
   struct dict_node *node;
 
   memset(buf, 0, sizeof(buf));
-  memcpy_lower (buf, domain, len);
+  normalize_domain_name (buf, domain, len);
 
   for (i = 0; i < MAXLABELS; i++)
     labels[i] = NULL;
@@ -395,7 +398,7 @@ struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
   label_num = 0;
   labels[label_num++] = &buf[0];
 
-  for (i = 0; buf[i] != '\0'; i++)
+  for (i = 0; i < len && buf[i] != '\0'; i++)
     {
       if (buf[i] == '.')
         {

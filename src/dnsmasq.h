@@ -525,8 +525,8 @@ struct ipsets {
 struct dict_node {
   char *label;          /* key */
   void *obj;            /* the value, can point to anything */
-  uint32_t h1;          /* from hash function 1, fnv_32_hash */
-  uint32_t h2;          /* from hash function 2, bernstein_odd */
+  uint32_t h1;          /* from hash function 1 */
+  uint32_t h2;          /* from hash function 2 */
   unsigned sub_slots;   /* size of hash table sub */
   int sub_count;        /* items stored in sub */
   int sub_loadmax;      /* max items stored before upsize sub */
