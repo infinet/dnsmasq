@@ -510,28 +510,20 @@ struct server {
   struct server *next; 
 };
 
-struct ipsets {
-  char **sets;
-  char *domain;
-  struct ipsets *next;
-};
-
-/* a dictionary node for open addressing hash table
- * it has a key, "label", and a value "obj" as container, there are several
- * other values for maintaining the hash table and lookup
- *
- * For ipsets match, only INSERT and LOOKUP operation needed
- */
-struct dict_node {
-  char *label;          /* key */
-  void *obj;            /* the value, can point to anything */
-  uint32_t h1;          /* from hash function 1 */
-  uint32_t h2;          /* from hash function 2 */
-  unsigned sub_slots;   /* size of hash table sub */
-  int sub_count;        /* items stored in sub */
-  int sub_loadmax;      /* max items stored before upsize sub */
-  int sub_maxjump;      /* max jumps for insertion, upsize when reach */
-  struct dict_node **sub;
+struct htree_node {
+  char *label;              /* key */
+  void *ptr;
+  uint32_t h1;              /* from hash function 1 */
+  /*
+   * hash value from hash function 2, used for double hashing in open
+   * addressing hash table
+   */
+  uint32_t h2;
+  struct htree_node **sub;  /* the hash table */
+  unsigned sub_size;        /* size of hash table */
+  int sub_count;            /* items stored in hash table */
+  int sub_loadmax;          /* max items stored before upsizing sub */
+  int sub_maxprobe;         /* max probes for insertion, upsizing upon reach */
 };
 
 struct special_domain {
@@ -539,7 +531,6 @@ struct special_domain {
   union mysockaddr addr;
   int domain_flags;
 };
-
 
 struct ipsets_names {
   char **sets;          /* ipsets names end with NULL ptr */
@@ -974,11 +965,12 @@ extern struct daemon {
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers, *tftp_interfaces;
   struct bogus_addr *bogus_addr, *ignore_addr;
   struct server *servers;
-  struct ipsets *ipsets;
 
-  struct dict_node *dh_ipsets;
-  struct dict_node *dh_ipset_names;
-  struct dict_node *dh_special_domains;
+  struct htree_node *htree_ipsets;  /* for --ipset domain names*/
+  /* setnames stored here to reduce redundancy */
+  struct htree_node *htree_ipset_names;
+  /* for --server/local/address/rebind-domain-ok domain names */
+  struct htree_node *htree_special_domains;
 
   int log_fac; /* log facility */
   char *log_file; /* optional log file */
@@ -1405,16 +1397,15 @@ void ipset_init(void);
 int add_to_ipset(const char *setname, const struct all_addr *ipaddr, int flags, int remove);
 #endif
 
-/* dict.c */
+/* htree.c */
 #define MAXLABELS 128
-struct dict_node *new_dictnode (char *label, int len);
-struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label);
-struct dict_node *lookup_domain(struct dict_node *root, char *domain);
-struct dict_node *match_domain(struct dict_node *root, char *domain);
-struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain);
+struct htree_node *htree_new_node(char *label, int len);
+struct htree_node *htree_find_or_add(struct htree_node *node, char *label);
+struct htree_node *domain_match(struct htree_node *root, char *domain);
+struct htree_node *domain_find_or_add(struct htree_node *root, char *domain);
 struct server *lookup_or_install_new_server(struct server *serv);
-void free_dicttree (struct dict_node *node);
-void print_server_special_domains(struct dict_node *node,
+void htree_free (struct htree_node *node);
+void print_server_special_domains(struct htree_node *node,
                                   char *parents[], int current_level);
 
 /* helper.c */

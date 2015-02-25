@@ -2228,7 +2228,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         char *start_addr, *s;
         char *err;
         struct server newserv;
-        struct dict_node *np = NULL;
+        struct htree_node *np = NULL;
         struct special_domain *obj;
 
         memset (&newserv, 0, sizeof (struct server));
@@ -2238,23 +2238,20 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         if (arg == NULL)
           break;
 
-        if (daemon->dh_special_domains == NULL)
-          daemon->dh_special_domains = new_dictnode (NULL, 0);
+        if (daemon->htree_special_domains == NULL)
+          daemon->htree_special_domains = htree_new_node (NULL, 0);
 
-        // scan the address part first
-        // --xxxx=/example.org/ample.com/temple.net/address-of-server
-        //                                          ^
+        /* scan the address part first
+         * --xxxx=/example.org/ample.com/temple.net/address-of-server
+         *                                          ^                */
         start_addr = NULL;
         if (strchr (arg, '/') == NULL)
           {
-            // --xxxx=example.org (only availabe for --rebind-domain-ok)
+            /* --xxxx=example.org (only availabe for --rebind-domain-ok) */
             if (option == LOPT_NO_REBIND)
               newserv.flags |= SERV_NO_REBIND;
             else if (option == 'S')
-              {
-                // --server=8.8.8.8
-                start_addr = arg;
-              }
+                start_addr = arg;  /* --server=8.8.8.8 */
 
           }
         else
@@ -2273,10 +2270,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
             if (*start_addr == '#')
               {
                 newserv.flags |= SERV_USE_RESOLV;
-
               }
-            else if (*start_addr == '\0')
+
             /* --xxxx=/example.org/here-is-empty */
+            else if (*start_addr == '\0')
               {
                 /* give --server domain but no ip means the domain is local and
                  * it may answer queries from /etc/hosts or DHCP but should
@@ -2287,10 +2284,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 if (option == 'A')
                   ret_err ("--address must specify address");
               }
+
+            /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port
+             * --xxxx=8.8.8.8 */
             else
               {
-                /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port
-                 * --xxxx=8.8.8.8 */
                 err =
                   parse_server (start_addr, &newserv.addr, &newserv.source_addr,
                                 newserv.interface, &newserv.flags);
@@ -2300,21 +2298,21 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
               }
 
           }
-        // --server
+        /* --server */
         if (servers_only && option == 'S')
           newserv.flags |= SERV_FROM_FILE;
 
-        // --rebind-domain-ok
+        /* --rebind-domain-ok */
         if (option == LOPT_NO_REBIND)
           newserv.flags |= SERV_NO_REBIND;
 
-        // --address will be handled inside the domain dict_node
+        /* --address will be handled inside the domain htree_node */
 
 
-        // the arg pattern can be
-        // --xxxx=example.org (only availabe for --rebind-domain-ok) or
-        // --xxxx=/example.org/ or
-        // --xxxx=/example.org/ample.com/temple.net/
+        /* the arg pattern can be
+         * --xxxx=example.org (only availabe for --rebind-domain-ok) or
+         * --xxxx=/example.org/ or
+         * --xxxx=/example.org/ample.com/temple.net/ */
         if (*arg == '/' || option == LOPT_NO_REBIND)
           {
             int rebind = !(*arg == '/');
@@ -2328,15 +2326,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 while (*arg == '.')
                   arg++;
 
-                // wrong config option --xxxx=/./1.2.3.4
+                /* wrong config option --xxxx=/./1.2.3.4 */
                 if (strlen (arg) == 0)
                   continue;
 
-                // --address=/#/1.2.3.4
-                // use label in the root node to mark #(match all domains)
+                /* --address=/#/1.2.3.4
+                 * use label in the root node to mark #(match all domains) */
                 if (strcmp (arg, "#") == 0)
                   {
-                    np = daemon->dh_special_domains;
+                    np = daemon->htree_special_domains;
                     free(np->label);
                     np->label = strdup("#");
                   }
@@ -2346,15 +2344,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   }
                 else
                   {
-                    np = add_or_lookup_domain(daemon->dh_special_domains, domain);
+                    np = domain_find_or_add(daemon->htree_special_domains, domain);
                   }
 
                 free(domain);
-                // domain unrecognizable
+                /* domain unrecognizable */
                 if (np == NULL)
                     continue;
 
-                if (np->obj == NULL)
+                if (np->ptr == NULL)
                   {
                     obj = opt_malloc (sizeof (struct special_domain));
                     memset (obj, 0, sizeof (struct special_domain));
@@ -2362,7 +2360,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   }
                 else
                   {
-                    obj = (struct special_domain *) np->obj;
+                    obj = (struct special_domain *) np->ptr;
                   }
 
                 obj->domain_flags = newserv.flags;
@@ -2383,7 +2381,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                       {
                         /* pointer to one of servers in daemon->servers link
                          * list, no memory will be leaked if obj->server been
-                         * overwritten*/
+                         * overwritten */
                         newserv.flags |= SERV_HAS_DOMAIN;
                         obj->server = lookup_or_install_new_server (&newserv);
                         obj->server->domain = NULL;
@@ -2393,8 +2391,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 
                 if (option == LOPT_NO_REBIND)
                   {
-                    // the rebind flag here instead of the one in struct server
-                    // will be used by forward
+                    /* the rebind flag here instead of the one in struct server
+                     * will be used by forward */
                     obj->domain_flags |= SERV_NO_REBIND;
                   }
 
@@ -2403,15 +2401,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                     obj->domain_flags |= SERV_NO_ADDR;
                   }
 
-                //newserv.flags |= domain ? SERV_HAS_DOMAIN : SERV_FOR_NODOTS;
-                np->obj = (void *) obj;
+                np->ptr = (void *) obj;
 
                 arg = end;
                 if (rebind)
                   break;
               }
           }
-        // --server=8.8.8.8
+        /* --server=8.8.8.8 */
         else if ((strchr (arg, '/') == NULL && option == 'S'))
           {
             lookup_or_install_new_server (&newserv);
@@ -2465,16 +2462,16 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         char **sets, **sets_pos;
         int sets_count = 0;
         unhide_metas (arg);
-        struct dict_node *np = NULL;
-        struct dict_node *setname = NULL;
+        struct htree_node *np = NULL;
+        struct htree_node *setname = NULL;
         struct ipsets_names *obj;
         char *domain = NULL;
 
-        if (daemon->dh_ipsets == NULL)
-          daemon->dh_ipsets = new_dictnode (NULL, 0);
+        if (daemon->htree_ipsets == NULL)
+          daemon->htree_ipsets = htree_new_node (NULL, 0);
 
-        if (daemon->dh_ipset_names == NULL)
-          daemon->dh_ipset_names = new_dictnode (NULL, 0);
+        if (daemon->htree_ipset_names == NULL)
+          daemon->htree_ipset_names = htree_new_node (NULL, 0);
 
         if (arg && *arg == '/')
           {
@@ -2493,7 +2490,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   option = '?';
 
                 if (domain != NULL)
-                  np = add_or_lookup_domain (daemon->dh_ipsets, domain);
+                  np = domain_find_or_add (daemon->htree_ipsets, domain);
                 free(domain);
 
                 arg = end;
@@ -2515,8 +2512,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         do
           {
             end = split (arg);
-            // only store one copy of setname in daemon->dh_ipset_names
-            setname = add_or_lookup_dictnode(daemon->dh_ipset_names, arg);
+            // only store one copy of setname in daemon->htree_ipset_names
+            setname = htree_find_or_add(daemon->htree_ipset_names, arg);
             *sets_pos++ = setname->label;
             sets_count++;
             arg = end;
@@ -2530,12 +2527,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
             obj = opt_malloc(sizeof(struct ipsets_names));
             obj->sets = sets;
             obj->count = sets_count;
-            if (np->obj != NULL) {
-                old_obj = (struct ipsets_names *) np->obj;
+            if (np->ptr != NULL) {
+                old_obj = (struct ipsets_names *) np->ptr;
                 free(old_obj->sets);
                 free(old_obj);
             }
-            np->obj = (void *) obj;
+            np->ptr = (void *) obj;
           }
 
         break;

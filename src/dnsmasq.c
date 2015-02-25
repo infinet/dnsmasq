@@ -250,7 +250,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_IPSET
-  if (daemon->dh_ipsets)
+  if (daemon->htree_ipsets)
     ipset_init();
 #endif
 

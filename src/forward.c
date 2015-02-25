@@ -130,9 +130,9 @@ int send_from(int fd, int nowild, char *packet, size_t len,
    stored in fwdserv, unless --server=/example.org/#, in which case fwdserv
    will be NULL, means use normal server
 
-   if matches --rebind-domain-ok, the pass in norebind will be set to 1
+   if matches --rebind-domain-ok, the passed in norebind will be set to 1
 
-   we find largest match, e.g. given pattern debian.org and cn.debian.org,
+   we find longest match, e.g. given pattern debian.org and cn.debian.org,
    ftp.cn.debian.org  will match cn.debian.org
  */
 static unsigned int
@@ -143,27 +143,27 @@ search_servers (time_t now, struct all_addr **addrpp,
   unsigned int namelen = strlen (qdomain);
   unsigned int flags = 0;
   unsigned int sflag;
-  struct dict_node *np;
+  struct htree_node *np;
   struct special_domain *obj;
 
   *type = 0;
   /* label of root node is "#", means --address=/#/1.2.3.4 */
-  if (daemon->dh_special_domains && daemon->dh_special_domains->label &&
-                                    *daemon->dh_special_domains->label == '#')
-    np = daemon->dh_special_domains;
+  if (daemon->htree_special_domains && daemon->htree_special_domains->label &&
+                                    *daemon->htree_special_domains->label == '#')
+    np = daemon->htree_special_domains;
   else
-    np = match_domain (daemon->dh_special_domains, qdomain);
+    np = domain_match (daemon->htree_special_domains, qdomain);
 
   if (np != NULL)
     {
-      obj = (struct special_domain *) np->obj;
+      obj = (struct special_domain *) np->ptr;
 
       *type |= SERV_HAS_DOMAIN;
 
       if (obj->domain_flags & SERV_NO_REBIND)
         *norebind = 1;
 
-      // no server, domain is local only
+      /* no server, domain is local only */
       if (obj->domain_flags & SERV_NO_ADDR)
         {
           flags = F_NXDOMAIN;
@@ -171,7 +171,7 @@ search_servers (time_t now, struct all_addr **addrpp,
         }
       else if (obj->domain_flags & SERV_LITERAL_ADDRESS)
         {
-          // --address and AF matches
+          /* --address and AF matches */
           sflag = obj->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
           if (sflag & qtype)
             {
@@ -187,8 +187,8 @@ search_servers (time_t now, struct all_addr **addrpp,
         }
       else if (obj->domain_flags & SERV_USE_RESOLV)
         {
-          // --server=8.8.8.8
-          *type = 0;                // use normal server
+          /* --server=8.8.8.8 */
+          *type = 0;  /* use normal server */
           *fwdserv = NULL;
 
         }
@@ -200,7 +200,7 @@ search_servers (time_t now, struct all_addr **addrpp,
     }
   else
     {
-      *type = 0;    /* use normal servers for this domain */
+      *type = 0;  /* use normal servers for this domain */
       *fwdserv = NULL;
     }
 
@@ -414,7 +414,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	}
 #endif
 
-      // we have the server for our domain by lookup daemon->dh_special_domains
+      /* we have the server for our domain by lookup
+       * daemon->htree_special_domains */
       int fd;
 
       /* didn't find a server matches query domain */
@@ -464,7 +465,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #endif
         }
 
-      //TODO how to retry here?
+      //TODO are we retry correctly here?
       if (sendto (fd, (char *) header, plen, 0,
                   &fwdserv->addr.sa, sa_len (&fwdserv->addr)) == -1)
         {
@@ -519,19 +520,19 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
-  struct dict_node *np;
+  struct htree_node *np;
   struct ipsets_names *obj;
 
   (void)ad_reqd;
   (void) do_bit;
 
 #ifdef HAVE_IPSET
-  if (daemon->dh_ipsets && extract_request(header, n, daemon->namebuff, NULL))
+  if (daemon->htree_ipsets && extract_request(header, n, daemon->namebuff, NULL))
     {
-      np = match_domain(daemon->dh_ipsets, daemon->namebuff);
+      np = domain_match(daemon->htree_ipsets, daemon->namebuff);
       if (np != NULL)
         {
-          obj = (struct ipsets_names *) np->obj;
+          obj = (struct ipsets_names *) np->ptr;
           sets = obj->sets;
         }
     }

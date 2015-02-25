@@ -1423,7 +1423,7 @@ void check_servers(void)
     enumerate_interfaces(0);
   
   char *levels[MAXLABELS + 1];  /* the root node starts at 1 */
-  struct dict_node *root = daemon->dh_special_domains;
+  struct htree_node *root = daemon->htree_special_domains;
   print_server_special_domains(root, levels, 0);
 
   for (serv = daemon->servers; serv; serv = serv->next)

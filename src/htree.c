@@ -1,4 +1,4 @@
-/*  dict.c is Copyright (c) 2015 Chen Wei <weichen302@gmail.com>
+/*  htree.c Chen Wei <weichen302@gmail.com>
 
     Use cascade of open addressing hash tables to store config options that
     involve domain names.
@@ -26,9 +26,6 @@
     values are compared first, only if they are match, should the more
     expensive string comparison be used to confirm the search.
 
-    The search should take constant time regardless the size of --ipset and
-    --server rules.
-
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,17 +43,17 @@
 
 #include "dnsmasq.h"
 
-#define OPEN_ADDRESSING_MAXJUMP 7                /* no reason, just like 7 */
-#define OPEN_ADDRESSING_DEFAULT_SLOT 4
+#define OPEN_ADDRESSING_MAXPROBE 7
+#define OPEN_ADDRESSING_DEFAULT_SIZE 4
 #define FNV1_32A_INIT ((uint32_t)0x811c9dc5)
 #define max(A, B) ((A) > (B) ? (A) : (B))
 
 static char buf[MAXDNAME];
 
 /* prototypes */
-static struct dict_node *lookup_dictnode (struct dict_node *node, char *label);
-static void add_dicttree (struct dict_node *node, struct dict_node *sub);
-static void upsize_dicttree (struct dict_node *np);
+static struct htree_node *htree_find (struct htree_node *node, char *label);
+static void htree_add (struct htree_node *node, struct htree_node *sub);
+static void htree_upsizing (struct htree_node *np);
 static inline void normalize_domain_name (char *dst, char *src, int len);
 
 /* hash function 1 for double hashing
@@ -90,7 +87,7 @@ static inline uint32_t dblhash_2 (char *key)
 }
 
 /* convert domain to lower cases, remove leading blank, leading and trailing
- * dot, string end with \0 */
+ * dot. End string with \0 */
 static inline void normalize_domain_name (char *d, char *s, int len)
 {
   int i;
@@ -122,28 +119,28 @@ static inline void normalize_domain_name (char *d, char *s, int len)
     d[i] = '\0';
 }
 
-struct dict_node * init_sub_dictnode (struct dict_node *node)
+struct htree_node * htree_init_sub (struct htree_node *node)
 {
   unsigned n;
 
   if (node->sub != NULL)
     return node;
 
-  node->sub_slots = OPEN_ADDRESSING_DEFAULT_SLOT;
-  node->sub_loadmax = node->sub_slots * 3 / 4;        // loading factor 0.75
-  node->sub = safe_malloc (node->sub_slots * sizeof (struct dict_node *));
-  for (n = 0; n < node->sub_slots; n++)
+  node->sub_size = OPEN_ADDRESSING_DEFAULT_SIZE;
+  node->sub_loadmax = node->sub_size * 3 / 4;    /* max loading factor 0.75 */
+  node->sub = safe_malloc (node->sub_size * sizeof (struct htree_node *));
+  for (n = 0; n < node->sub_size; n++)
     node->sub[n] = NULL;
 
   return node;
 }
 
 /* allocate and initialize a new node */
-struct dict_node * new_dictnode (char *label, int label_len)
+struct htree_node * htree_new_node (char *label, int label_len)
 {
-  struct dict_node *node;
+  struct htree_node *node;
 
-  node = safe_malloc (sizeof (struct dict_node));
+  node = safe_malloc (sizeof (struct htree_node));
   if (node == NULL)
     return NULL;
 
@@ -161,59 +158,59 @@ struct dict_node * new_dictnode (char *label, int label_len)
     }
 
   node->sub_count = 0;
-  node->sub_slots = 0;
+  node->sub_size = 0;
   node->sub_loadmax = 0;
-  node->sub_maxjump = 0;
+  node->sub_maxprobe = 0;
   node->sub = NULL;
-  node->obj = NULL;
+  node->ptr = NULL;
 
   return node;
 }
 
-/* double the slots of dns node, it calls with add_dicttree each other
- * the table size starts with 2^2, so that the new size remains 2^x, the
- * double hash used is choosed to work with 2^n slots and perform well */
-static void upsize_dicttree (struct dict_node *np)
+/* double the size of hash table attached to a htree_node, it calls with
+ * htree_add with each other. The table size starts with 2^2, so that the new
+ * size remains 2^x, the double hash used is chosen to work with 2^n slots */
+static void htree_upsizing (struct htree_node *np)
 {
-  struct dict_node **oldnodes;
+  struct htree_node **oldnodes;
   unsigned i, oldsize;
 
-  oldsize = np->sub_slots;
+  oldsize = np->sub_size;
   oldnodes = np->sub;
-  np->sub_slots = oldsize * 2;
-  np->sub_loadmax = np->sub_slots * 3 / 4;
+  np->sub_size = oldsize * 2;
+  np->sub_loadmax = np->sub_size * 3 / 4;
   np->sub_count = 0;
-  np->sub_maxjump = 0;
-  np->sub = safe_malloc (np->sub_slots * sizeof (struct dict_node *));
-  for (i = 0; i < np->sub_slots; i++)
+  np->sub_maxprobe = 0;
+  np->sub = safe_malloc (np->sub_size * sizeof (struct htree_node *));
+  for (i = 0; i < np->sub_size; i++)
     np->sub[i] = NULL;
 
   for (i = 0; i < oldsize; i++)
     {
       if (oldnodes[i] != NULL)
         {
-          add_dicttree (np, oldnodes[i]);
+          htree_add (np, oldnodes[i]);
         }
     }
 
   free (oldnodes);
 }
 
-/* add a sub-node, upsize if needed, calls with upsize_dicttree each other */
-static void add_dicttree (struct dict_node *node, struct dict_node *sub)
+/* add a sub-node, upsize if needed, calls with htree_upsizing with each other */
+static void htree_add (struct htree_node *node, struct htree_node *sub)
 {
   int n;
   uint32_t dh, idx;
 
   if (node->sub == NULL)
-    init_sub_dictnode (node);
+    htree_init_sub (node);
 
   n = 0;
   dh = sub->h1;
   while (1)
     {
-      /* eq to dh % node->sub_slots, since sub_slots is power of 2*/
-      idx = dh & (node->sub_slots - 1);
+      /* eq to dh % node->sub_size, since sub_size is power of 2*/
+      idx = dh & (node->sub_size - 1);
       if (node->sub[idx] == NULL)
         {
           node->sub[idx] = sub;
@@ -227,63 +224,56 @@ static void add_dicttree (struct dict_node *node, struct dict_node *sub)
         }
     }
 
-  node->sub_maxjump = max (n, node->sub_maxjump);
-  /* If it takes a lots of jumps to find an empty slot, or the used slots
-   * close to loading max, upsize the table */
-  if (node->sub_maxjump > OPEN_ADDRESSING_MAXJUMP ||
+  node->sub_maxprobe = max (n, node->sub_maxprobe);
+  /*
+   * If it takes a lots of probes to find an empty slot, or the used slots
+   * close to loading max, upsize the table
+   */
+  if (node->sub_maxprobe > OPEN_ADDRESSING_MAXPROBE ||
       node->sub_count > node->sub_loadmax)
     {
-      upsize_dicttree (node);
+      htree_upsizing (node);
     }
 
   return;
 }
 
-/* add a new subnode to node, or update the attr of the subnode with same
- * label
- * return the subnode */
-struct dict_node *add_or_lookup_dictnode (struct dict_node *node, char *label)
+struct htree_node *htree_find_or_add (struct htree_node *node, char *label)
 {
-  struct dict_node *np;
+  struct htree_node *np;
 
-  if ((np = lookup_dictnode (node, label)) == NULL)
+  if ((np = htree_find (node, label)) == NULL)
     {
       if (node->sub == NULL)
-        {
-          init_sub_dictnode (node);
-        }
-      np = new_dictnode (label, strlen (label));
-      add_dicttree (node, np);
+        htree_init_sub (node);
+      np = htree_new_node (label, strlen (label));
+      htree_add (node, np);
     }
 
   return np;
 }
 
-/* lookup the label in node's sub, return pointer if found, NULL if not */
-static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
+/* lookup the label in node's sub, return the pointer, NULL if not found */
+static struct htree_node *htree_find (struct htree_node *node, char *label)
 {
   uint32_t h1, h2, dh, idx;
-  struct dict_node *np;
+  struct htree_node *np;
 
   /* this domain doesn't have sub-domains */
   if (node->sub == NULL)
-    {
-      return NULL;
-    }
+    return NULL;
 
   dh = h1 = dblhash_1 (label);
   h2 = dblhash_2 (label);
-  idx = dh & (node->sub_slots - 1);
+  idx = dh & (node->sub_size - 1);
   while ((np = node->sub[idx]) != NULL)
     {
       if (np->h1 == h1 && np->h2 == h2)
         if (strcmp (np->label, label) == 0)
-          {
-            return np;
-          }
+          return np;
 
       dh += h2;
-      idx = dh & (node->sub_slots - 1);
+      idx = dh & (node->sub_size - 1);
     }
 
   return NULL;
@@ -291,16 +281,16 @@ static struct dict_node *lookup_dictnode (struct dict_node *node, char *label)
 
 /* look up the whole domain pattern by step over DNS name hierarchy top down.
  * for example, if the pattern is cn.debian.org, the lookup will start with
- * org, then debian, then cn */
-struct dict_node * match_domain(struct dict_node *root, char *domain)
+ * org, then debian, then cn. The longest pattern wins. */
+struct htree_node * domain_match(struct htree_node *root, char *domain)
 {
   char *labels[MAXLABELS];
   int i, label_num;
   int len = (int) sizeof(buf);
-  struct dict_node *node, *res;
+  struct htree_node *node, *res;
 
   if (root == NULL)
-      return NULL;
+    return NULL;
 
   memset(buf, 0, sizeof(buf));
   normalize_domain_name (buf, domain, len);
@@ -325,69 +315,27 @@ struct dict_node * match_domain(struct dict_node *root, char *domain)
   res = NULL;
   for (i = label_num - 1; i >= 0; i--)
     {
-      node = lookup_dictnode (node, labels[i]);
-
-      /* match longest pattern, e.g. for pattern debian.org and cn.debian.org,
-       * domain name ftp.cn.debian.org will match pattern cn.debian.org */
+      node = htree_find (node, labels[i]);
       if (node == NULL)
-          break;
+        break;
 
-      if (node->obj != NULL)
-          res = node;
+      /* repeatedly overwrite with node that has option set while walk down the
+       * domain name tree to match config option with longest pattern */
+      if (node->ptr != NULL)
+        res = node;
     }
-
-  if (res == NULL)
-    return NULL;
 
   return res;
 }
 
-/* look up the whole domain pattern by step over DNS name hierarchy top down.
- * for example, if the pattern is cn.debian.org, the lookup will start with
- * org, then debian, then cn */
-struct dict_node * lookup_domain (struct dict_node *root, char *domain)
+/* add a domain pattern in the form of debian.org to root or find the node
+ * match the domain pattern (for modify) */
+struct htree_node *domain_find_or_add (struct htree_node *root, char *domain)
 {
   char *labels[MAXLABELS];
   int i, label_num;
   int len = (int) sizeof(buf);
-  struct dict_node *node;
-
-  memset(buf, 0, sizeof(buf));
-  normalize_domain_name (buf, domain, len);
-
-  for (i = 0; i < MAXLABELS; i++)
-    labels[i] = NULL;
-
-  label_num = 0;
-
-  labels[label_num++] = &buf[0];
-
-  for (i = 0; i < len && buf[i] != '\0'; i++)
-    {
-      if (buf[i] == '.')
-        {
-          buf[i] = '\0';
-          labels[label_num++] = &buf[i + 1];
-        }
-    }
-
-  node = root;
-  for (i = label_num - 1; i >= 0 && node != NULL; i--)
-    {
-      node = lookup_dictnode (node, labels[i]);
-    }
-
-  return i == -1 ? node : NULL;
-}
-
-/* add a domain pattern in the form of debian.org to root
- * return the node with lowest hierarchy */
-struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
-{
-  char *labels[MAXLABELS];
-  int i, label_num;
-  int len = (int) sizeof(buf);
-  struct dict_node *node;
+  struct htree_node *node;
 
   memset(buf, 0, sizeof(buf));
   normalize_domain_name (buf, domain, len);
@@ -409,22 +357,20 @@ struct dict_node *add_or_lookup_domain (struct dict_node *root, char *domain)
 
   node = root;
   for (i = label_num - 1; i >= 0; i--)
-    {
-      node = add_or_lookup_dictnode (node, labels[i]);
-    }
+    node = htree_find_or_add (node, labels[i]);
 
   return node;
 }
 
 /* free node and all sub-nodes recursively. Unused. */
-void free_dicttree (struct dict_node *node)
+void htree_free (struct htree_node *node)
 {
-  struct dict_node *np;
+  struct htree_node *np;
   unsigned i;
 
   if (node->sub_count > 0)
     {
-      for (i = 0; i < node->sub_slots; i++)
+      for (i = 0; i < node->sub_size; i++)
         {
           np = node->sub[i];
           if (np != NULL)
@@ -432,10 +378,10 @@ void free_dicttree (struct dict_node *node)
               if (np->label != NULL)
                 free (np->label);
 
-              if (np->obj != NULL)
-                free (np->obj);
+              if (np->ptr != NULL)
+                free (np->ptr);
 
-              free_dicttree (np);
+              htree_free (np);
             }
         }
       free (node->sub);
@@ -476,7 +422,7 @@ static inline struct server *serverdup(struct server *src)
  * servers in daemon->servers link list. If no match found, then insert a new
  * server
  *
- * Return the lookup result or the newly created server*/
+ * Return the lookup result or the newly created server */
 struct server *lookup_or_install_new_server(struct server *serv)
 {
     struct server *res;
@@ -496,13 +442,11 @@ struct server *lookup_or_install_new_server(struct server *serv)
     return res;
 }
 
-/* print the daemon->dh_special_domains tree recursively
- *
- * do we really need it?  */
-void print_server_special_domains (struct dict_node *node,
+/* print the daemon->htree_special_domains tree recursively */
+void print_server_special_domains (struct htree_node *node,
                                    char *parents[], int current_level)
 {
-  struct dict_node *np;
+  struct htree_node *np;
   struct special_domain *obj;
   char buf[MAXDNAME];
   char ip_buf[16];
@@ -514,9 +458,9 @@ void print_server_special_domains (struct dict_node *node,
   if (node->label != NULL)
     {
       parents[level] = node->label;
-      if (node->obj != NULL)
+      if (node->ptr != NULL)
         {
-          obj = (struct special_domain *) node->obj;
+          obj = (struct special_domain *) node->ptr;
           if (obj->domain_flags & SERV_HAS_DOMAIN)
             {
               memset (buf, 0, MAXDNAME);
@@ -535,7 +479,7 @@ void print_server_special_domains (struct dict_node *node,
 
   if (node->sub_count > 0)
     {
-      for (i = 0; i < node->sub_slots; i++)
+      for (i = 0; i < node->sub_size; i++)
         if ((np = node->sub[i]) != NULL)
           print_server_special_domains (np, parents, level);
     }
