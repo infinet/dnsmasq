@@ -127,7 +127,7 @@ struct htree_node * htree_init_sub (struct htree_node *node)
     return node;
 
   node->sub_size = OPEN_ADDRESSING_DEFAULT_SIZE;
-  node->sub_loadmax = node->sub_size * 3 / 4;    /* max loading factor 0.75 */
+  node->sub_loadmax = node->sub_size * 4 / 5;    /* max loading factor 0.8 */
   node->sub = safe_malloc (node->sub_size * sizeof (struct htree_node *));
   for (n = 0; n < node->sub_size; n++)
     node->sub[n] = NULL;
@@ -449,7 +449,7 @@ void print_server_special_domains (struct htree_node *node,
   struct htree_node *np;
   struct special_domain *obj;
   char buf[MAXDNAME];
-  char ip_buf[16];
+  char ip_buf[ADDRSTRLEN];
   int j, level;
   int port = 0;
   uint32_t i;
