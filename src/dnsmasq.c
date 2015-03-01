@@ -58,6 +58,9 @@ int main (int argc, char **argv)
   struct dhcp_context *context;
   struct dhcp_relay *relay;
 #endif
+#ifdef HAVE_DNSSEC
+  int badtime;
+#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -369,7 +372,11 @@ int main (int argc, char **argv)
 
   if (baduser)
     die(_("unknown user or group: %s"), baduser, EC_BADCONF);
-   
+
+#ifdef HAVE_DNSSEC  
+  badtime = setup_timestamp(ent_pw->pw_uid);
+#endif
+
   /* implement group defaults, "dip" if available, or group associated with uid */
   if (!daemon->group_set && !gp)
     {
@@ -689,6 +696,8 @@ int main (int argc, char **argv)
       my_syslog(LOG_INFO, _("DNSSEC validation enabled"));
       if (option_bool(OPT_DNSSEC_TIME))
 	my_syslog(LOG_INFO, _("DNSSEC signature timestamps not checked until first cache reload"));
+      if (badtime)
+	my_syslog(LOG_INFO, _("DNSSEC signature timestamps not checked until system time valid"));
     }
 #endif
 

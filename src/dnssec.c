@@ -34,6 +34,7 @@
 #include <nettle/dsa-compat.h>
 #endif
 
+#include <utime.h>
 
 #define SERIAL_UNDEF  -100
 #define SERIAL_EQ        0
@@ -394,16 +395,87 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
   return SERIAL_UNDEF;
 }
 
+/* Called at startup. If the timestamp file is configured and exists, put its mtime on
+   timestamp_time. If it doesn't exist, create it, and set the mtime to 1-1-2015.
+   Change the ownership to the user we'll be running as, so that we can update the mtime.
+*/
+static time_t timestamp_time;
+static int back_to_the_future;
+
+int setup_timestamp(uid_t uid)
+{
+  struct stat statbuf;
+  
+  back_to_the_future = 0;
+  
+  if (!option_bool(OPT_DNSSEC_VALID) || !daemon->timestamp_file)
+    return 0;
+  
+  if (stat(daemon->timestamp_file, &statbuf) != -1)
+    {
+      timestamp_time = statbuf.st_mtime;
+    check_and_exit:
+      if (difftime(timestamp_time, time(0)) <=  0)
+	{
+	  /* time already OK, update timestamp, and do key checking from the start. */
+	  if (utime(daemon->timestamp_file, NULL) == -1)
+	    my_syslog(LOG_ERR, _("failed to update mtime on %s: %s"), daemon->timestamp_file, strerror(errno));
+	  back_to_the_future = 1;
+	  return 0;
+	}
+      return 1;
+    }
+  
+  if (errno == ENOENT)
+    {
+      int fd = open(daemon->timestamp_file, O_WRONLY | O_CREAT | O_NONBLOCK, 0666);
+      if (fd != -1)
+	{
+	  struct utimbuf timbuf;
+
+	  close(fd);
+	  
+	  timestamp_time = timbuf.actime = timbuf.modtime = 1420070400; /* 1-1-2015 */
+	  if (utime(daemon->timestamp_file, &timbuf) == 0 &&
+	      (getuid() != 0 || chown(daemon->timestamp_file, uid, -1) == 0))
+	    goto check_and_exit;
+	}
+    }
+
+  die(_("Cannot create timestamp file %s: %s" ), daemon->timestamp_file, EC_BADCONF);
+  return 0;
+}
+
 /* Check whether today/now is between date_start and date_end */
 static int check_date_range(unsigned long date_start, unsigned long date_end)
 {
-  unsigned long curtime;
-
+  unsigned long curtime = time(0);
+ 
   /* Checking timestamps may be temporarily disabled */
-  if (option_bool(OPT_DNSSEC_TIME))
+    
+  /* If the current time if _before_ the timestamp
+     on our persistent timestamp file, then assume the
+     time if not yet correct, and don't check the
+     key timestamps. As soon as the current time is
+     later then the timestamp, update the timestamp
+     and start checking keys */
+  if (daemon->timestamp_file)
+    {
+      if (back_to_the_future == 0 && difftime(timestamp_time, curtime) <= 0)
+	{
+	  if (utime(daemon->timestamp_file, NULL) != 0)
+	    my_syslog(LOG_ERR, _("failed to update mtime on %s: %s"), daemon->timestamp_file, strerror(errno));
+	  
+	  back_to_the_future = 1;	
+	  set_option_bool(OPT_DNSSEC_TIME);
+	  queue_event(EVENT_RELOAD); /* purge cache */
+	} 
+
+      if (back_to_the_future == 0)
+	return 1;
+    }
+  else if (option_bool(OPT_DNSSEC_TIME))
     return 1;
-  
-  curtime = time(0);
   
   /* We must explicitly check against wanted values, because of SERIAL_UNDEF */
   return serial_compare_32(curtime, date_start) == SERIAL_GT

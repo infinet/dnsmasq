@@ -66,6 +66,12 @@ version 2.73
 	    for the patch.
 
 	    Fix broken DNSSEC validation of ECDSA signatures.
+
+	    Add --dnssec-timestamp option, which provides an automatic
+	    way to detect when the system time becomes valid after boot
+	    on systems without an RTC, whilst allowing DNS queries before the
+	    clock is valid so that NTP can run. Thanks to
+	    Kevin Darbyshire-Bryant for developing this idea.
 	
 	
 version 2.72

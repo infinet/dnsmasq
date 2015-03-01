@@ -152,6 +152,7 @@ struct myoption {
 #define LOPT_DHCP_INOTIFY  340
 #define LOPT_DHOPT_INOTIFY 341
 #define LOPT_HOST_INOTIFY  342
+#define LOPT_DNSSEC_STAMP  343
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -300,6 +301,7 @@ static const struct myoption opts[] =
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
     { "dnssec-check-unsigned", 0, 0, LOPT_DNSSEC_CHECK },
     { "dnssec-no-timecheck", 0, 0, LOPT_DNSSEC_TIME },
+    { "dnssec-timestamp", 1, 0, LOPT_DNSSEC_STAMP },
 #ifdef OPTION6_PREFIX_CLASS 
     { "dhcp-prefix-class", 1, 0, LOPT_PREF_CLSS },
 #endif
@@ -463,6 +465,7 @@ static struct {
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
   { LOPT_DNSSEC_CHECK, OPT_DNSSEC_NO_SIGN, NULL, gettext_noop("Ensure answers without DNSSEC are in unsigned zones."), NULL },
   { LOPT_DNSSEC_TIME, OPT_DNSSEC_TIME, NULL, gettext_noop("Don't check DNSSEC signature timestamps until first cache-reload"), NULL },
+  { LOPT_DNSSEC_STAMP, ARG_ONE, "<path>", gettext_noop("Timestamp file to verify system clock for DNSSEC"), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
 #endif
@@ -3867,6 +3870,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       }
 
 #ifdef HAVE_DNSSEC
+    case LOPT_DNSSEC_STAMP:
+      daemon->timestamp_file = opt_string_alloc(arg); 
+      break;
+
     case LOPT_TRUST_ANCHOR:
       {
 	struct ds_config *new = opt_malloc(sizeof(struct ds_config));
