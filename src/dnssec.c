@@ -402,7 +402,7 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
 static time_t timestamp_time;
 static int back_to_the_future;
 
-int setup_timestamp(uid_t uid)
+int setup_timestamp(struct passwd *ent_pw)
 {
   struct stat statbuf;
   
@@ -437,7 +437,7 @@ int setup_timestamp(uid_t uid)
 	  
 	  timestamp_time = timbuf.actime = timbuf.modtime = 1420070400; /* 1-1-2015 */
 	  if (utime(daemon->timestamp_file, &timbuf) == 0 &&
-	      (getuid() != 0 || chown(daemon->timestamp_file, uid, -1) == 0))
+	      (!ent_pw || getuid() != 0 || chown(daemon->timestamp_file, ent_pw->pw_uid, -1) == 0))
 	    goto check_and_exit;
 	}
     }

@@ -374,7 +374,7 @@ int main (int argc, char **argv)
     die(_("unknown user or group: %s"), baduser, EC_BADCONF);
 
 #ifdef HAVE_DNSSEC  
-  badtime = setup_timestamp(ent_pw->pw_uid);
+  badtime = setup_timestamp(ent_pw);
 #endif
 
   /* implement group defaults, "dip" if available, or group associated with uid */
