@@ -1,18 +1,18 @@
-Hi.
+The script reads stdin and replaces all IP addresses with names before
+outputting it again. IPs from private networks are reverse looked  up
+via dns. Other IP adresses are searched for in the dnsmasq query log.
+This gives names (CNAMEs if I understand DNS correctly) that are closer
+to the name the client originally asked for then the names obtained by
+reverse lookup. Just run
 
-To translate my routers netstat-nat output into names that actually talk
-to me I have started writing to simple shell scripts. They require 
+netstat -n -4 | ./reverse_replace.sh 
+
+to see what it does. It needs 
 
 log-queries
 log-facility=/var/log/dnsmasq.log
 
-to be set. With
+in the dnsmasq configuration.
 
-netstat-nat -n -4 | reverse_replace.sh 
-
-I get retranslated output.
-
-Sincerely,
-Joachim
-
+The script runs on debian (with ash installed) and on busybox.
 
