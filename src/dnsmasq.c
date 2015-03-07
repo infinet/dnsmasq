@@ -58,9 +58,6 @@ int main (int argc, char **argv)
   struct dhcp_context *context;
   struct dhcp_relay *relay;
 #endif
-#ifdef HAVE_DNSSEC
-  int badtime;
-#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -156,10 +153,10 @@ int main (int argc, char **argv)
     {
 #ifdef HAVE_DNSSEC
       if (!daemon->ds)
-	die(_("No trust anchors provided for DNSSEC"), NULL, EC_BADCONF);
+	die(_("no trust anchors provided for DNSSEC"), NULL, EC_BADCONF);
       
       if (daemon->cachesize < CACHESIZ)
-	die(_("Cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
+	die(_("cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
 #else 
       die(_("DNSSEC not available: set HAVE_DNSSEC in src/config.h"), NULL, EC_BADCONF);
 #endif
@@ -172,10 +169,10 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_CONNTRACK
   if (option_bool(OPT_CONNTRACK) && (daemon->query_port != 0 || daemon->osport))
-    die (_("Cannot use --conntrack AND --query-port"), NULL, EC_BADCONF); 
+    die (_("cannot use --conntrack AND --query-port"), NULL, EC_BADCONF); 
 #else
   if (option_bool(OPT_CONNTRACK))
-    die(_("Conntrack support not available: set HAVE_CONNTRACK in src/config.h"), NULL, EC_BADCONF);
+    die(_("conntrack support not available: set HAVE_CONNTRACK in src/config.h"), NULL, EC_BADCONF);
 #endif
 
 #ifdef HAVE_SOLARIS_NETWORK
@@ -195,7 +192,7 @@ int main (int argc, char **argv)
 
 #ifndef HAVE_LOOP
   if (option_bool(OPT_LOOP_DETECT))
-    die(_("Loop detection not available: set HAVE_LOOP in src/config.h"), NULL, EC_BADCONF);
+    die(_("loop detection not available: set HAVE_LOOP in src/config.h"), NULL, EC_BADCONF);
 #endif
   
   now = dnsmasq_time();
@@ -372,10 +369,6 @@ int main (int argc, char **argv)
 
   if (baduser)
     die(_("unknown user or group: %s"), baduser, EC_BADCONF);
-
-#ifdef HAVE_DNSSEC  
-  badtime = setup_timestamp(ent_pw);
-#endif
 
   /* implement group defaults, "dip" if available, or group associated with uid */
   if (!daemon->group_set && !gp)
@@ -693,10 +686,23 @@ int main (int argc, char **argv)
 #ifdef HAVE_DNSSEC
   if (option_bool(OPT_DNSSEC_VALID))
     {
+      int rc;
+
+      /* Delay creating the timestamp file until here, after we've changed user, so that
+	 it has the correct owner to allow updating the mtime later. 
+	 This means we have to report fatal errors via the pipe. */
+      if ((rc = setup_timestamp()) == -1)
+	{
+	  send_event(err_pipe[1], EVENT_TIME_ERR, errno, daemon->timestamp_file);
+	  _exit(0);
+	}
+      
       my_syslog(LOG_INFO, _("DNSSEC validation enabled"));
+      
       if (option_bool(OPT_DNSSEC_TIME))
 	my_syslog(LOG_INFO, _("DNSSEC signature timestamps not checked until first cache reload"));
-      if (badtime)
+      
+      if (rc == 1)
 	my_syslog(LOG_INFO, _("DNSSEC signature timestamps not checked until system time valid"));
     }
 #endif
@@ -1170,6 +1176,9 @@ static void fatal_event(struct event_desc *ev, char *msg)
 
     case EVENT_TFTP_ERR:
       die(_("TFTP directory %s inaccessible: %s"), msg, EC_FILE);
+    
+    case EVENT_TIME_ERR:
+      die(_("cannot create timestamp file %s: %s" ), msg, EC_BADCONF);
     }
 }	
       

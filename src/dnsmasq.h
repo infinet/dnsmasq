@@ -167,6 +167,7 @@ struct event_desc {
 #define EVENT_INIT      21
 #define EVENT_NEWADDR   22
 #define EVENT_NEWROUTE  23
+#define EVENT_TIME_ERR  24
 
 /* Exit codes. */
 #define EC_GOOD        0
@@ -1152,7 +1153,7 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
 size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);
-int setup_timestamp(struct passwd *ent_pw);
+int setup_timestamp(void);
 
 /* util.c */
 void rand_init(void);

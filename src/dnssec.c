@@ -397,18 +397,21 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
 
 /* Called at startup. If the timestamp file is configured and exists, put its mtime on
    timestamp_time. If it doesn't exist, create it, and set the mtime to 1-1-2015.
-   Change the ownership to the user we'll be running as, so that we can update the mtime.
+   return -1 -> Cannot create file.
+           0 -> not using timestamp, or timestamp exists and is in past.
+           1 -> timestamp exists and is in future.
 */
+
 static time_t timestamp_time;
 static int back_to_the_future;
 
-int setup_timestamp(struct passwd *ent_pw)
+int setup_timestamp(void)
 {
   struct stat statbuf;
   
   back_to_the_future = 0;
   
-  if (!option_bool(OPT_DNSSEC_VALID) || !daemon->timestamp_file)
+  if (!daemon->timestamp_file)
     return 0;
   
   if (stat(daemon->timestamp_file, &statbuf) != -1)
@@ -428,7 +431,8 @@ int setup_timestamp(struct passwd *ent_pw)
   
   if (errno == ENOENT)
     {
-      int fd = open(daemon->timestamp_file, O_WRONLY | O_CREAT | O_NONBLOCK, 0666);
+      /* NB. for explanation of O_EXCL flag, see comment on pidfile in dnsmasq.c */ 
+      int fd = open(daemon->timestamp_file, O_WRONLY | O_CREAT | O_NONBLOCK | O_EXCL, 0666);
       if (fd != -1)
 	{
 	  struct utimbuf timbuf;
@@ -436,14 +440,12 @@ int setup_timestamp(struct passwd *ent_pw)
 	  close(fd);
 	  
 	  timestamp_time = timbuf.actime = timbuf.modtime = 1420070400; /* 1-1-2015 */
-	  if (utime(daemon->timestamp_file, &timbuf) == 0 &&
-	      (!ent_pw || getuid() != 0 || chown(daemon->timestamp_file, ent_pw->pw_uid, -1) == 0))
+	  if (utime(daemon->timestamp_file, &timbuf) == 0)
 	    goto check_and_exit;
 	}
     }
 
-  die(_("Cannot create timestamp file %s: %s" ), daemon->timestamp_file, EC_BADCONF);
-  return 0;
+  return -1;
 }
 
 /* Check whether today/now is between date_start and date_end */
