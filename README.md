@@ -39,11 +39,12 @@ For OpenWrt Attitude Adjustment (12.09 final) and Barrier Breaker (14.07)
 [ar71xx](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/). DNSSEC is
 disabled.
 
+
     sha1sum
-    d9376f269e14eeb2823df1c1d12ec6168914927b  dnsmasq-ipset_2.72-4_ar71xx_Attitude_Adjustment_12.09.ipk
-    5b5e677c7115ce35eaa2624861c8f291153a2a8c  dnsmasq-ipset_2.72-4_ar71xx_Barrier_Breaker_14.07.ipk
+    1770fb227bfbf67459aecce8f3116556355adde4  dnsmasq-ipset_2.73test6_ar71xx_Attitude_Adjustment_12.09.ipk
+    980a022d018a7e2d30d3ca8577e093e59df67425  dnsmasq-ipset_2.73test6_ar71xx_Barrier_Breaker_14.07.ipk
 
     md5sum
-    8717aec763d90061d157d28f5ba6a959  dnsmasq-ipset_2.72-4_ar71xx_Attitude_Adjustment_12.09.ipk
-    dba2b0a803afbd8f4ebe67bf0a1cce6b  dnsmasq-ipset_2.72-4_ar71xx_Barrier_Breaker_14.07.ipk
+    cafb043b046df36f9b137b55cf0a98ff  dnsmasq-ipset_2.73test6_ar71xx_Attitude_Adjustment_12.09.ipk
+    49798f6c45399fd935d09396bde560b9  dnsmasq-ipset_2.73test6_ar71xx_Barrier_Breaker_14.07.ipk
 
