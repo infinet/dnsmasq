@@ -225,9 +225,9 @@ void dhcp6_packet(time_t now)
   if (port != 0)
     {
       from.sin6_port = htons(port);
-      while (sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, save_counter(0), 
-		    0, (struct sockaddr *)&from, sizeof(from)) == -1 &&
-	   retry_send());
+      while (retry_send(sendto(daemon->dhcp6fd, daemon->outpacket.iov_base, 
+			       save_counter(0), 0, (struct sockaddr *)&from, 
+			       sizeof(from))));
     }
 }
 

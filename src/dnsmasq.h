@@ -1177,7 +1177,7 @@ int is_same_net6(struct in6_addr *a, struct in6_addr *b, int prefixlen);
 u64 addr6part(struct in6_addr *addr);
 void setaddr6part(struct in6_addr *addr, u64 host);
 #endif
-int retry_send(void);
+int retry_send(ssize_t rc);
 void prettyprint_time(char *buf, unsigned int t);
 int prettyprint_addr(union mysockaddr *addr, char *buf);
 int parse_hex(char *in, unsigned char *out, int maxlen, 

@@ -479,8 +479,9 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
       setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &iface, sizeof(iface));
     }
   
-  while (sendto(daemon->icmp6fd, daemon->outpacket.iov_base, save_counter(0), 0, 
-		(struct sockaddr *)&addr, sizeof(addr)) == -1 && retry_send());
+  while (retry_send(sendto(daemon->icmp6fd, daemon->outpacket.iov_base, 
+			   save_counter(0), 0, (struct sockaddr *)&addr, 
+			   sizeof(addr))));
   
 }
 

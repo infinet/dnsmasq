@@ -169,10 +169,10 @@ int iface_enumerate(int family, void *parm, int (*callback)())
   req.g.rtgen_family = family; 
 
   /* Don't block in recvfrom if send fails */
-  while((len = sendto(daemon->netlinkfd, (void *)&req, sizeof(req), 0, 
-		      (struct sockaddr *)&addr, sizeof(addr))) == -1 && retry_send());
-  
-  if (len == -1)
+  while(retry_send(sendto(daemon->netlinkfd, (void *)&req, sizeof(req), 0, 
+			  (struct sockaddr *)&addr, sizeof(addr))));
+
+  if (errno != 0)
     return 0;
     
   while (1)

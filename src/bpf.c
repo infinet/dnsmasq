@@ -359,7 +359,7 @@ void send_via_bpf(struct dhcp_packet *mess, size_t len,
   iov[3].iov_base = mess;
   iov[3].iov_len = len;
 
-  while (writev(daemon->dhcp_raw_fd, iov, 4) == -1 && retry_send());
+  while (retry_send(writev(daemon->dhcp_raw_fd, iov, 4)));
 }
 
 #endif /* defined(HAVE_BSD_NETWORK) && defined(HAVE_DHCP) */

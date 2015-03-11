@@ -45,8 +45,9 @@ void loop_send_probes()
 	     fd = rfd->fd;
 	   }
 
-	 while (sendto(fd, daemon->packet, len, 0, &serv->addr.sa, sa_len(&serv->addr)) == -1 && retry_send());
-
+	 while (retry_send(sendto(fd, daemon->packet, len, 0, 
+				  &serv->addr.sa, sa_len(&serv->addr))));
+	 
 	 free_rfd(rfd);
        }
 }

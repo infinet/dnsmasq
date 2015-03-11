@@ -443,7 +443,7 @@ void dhcp_packet(time_t now, int pxe_fd)
   setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, &iface_index, sizeof(iface_index));
 #endif
   
-  while(sendmsg(fd, &msg, 0) == -1 && retry_send());
+  while(retry_send(sendmsg(fd, &msg, 0)));
 }
  
 /* check against secondary interface addresses */
