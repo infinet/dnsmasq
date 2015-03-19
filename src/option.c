@@ -2284,8 +2284,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  {
 	    if (!(newlist->flags & SERV_NO_REBIND))
 	      newlist->flags |= SERV_NO_ADDR; /* no server */
-	    if (newlist->flags & SERV_LITERAL_ADDRESS)
-	      ret_err(gen_err);
 	  }
 
 	else if (strcmp(arg, "#") == 0)

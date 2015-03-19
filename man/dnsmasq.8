@@ -460,7 +460,7 @@ but provides some syntactic sugar to make specifying address-to-name queries eas
 is exactly equivalent to 
 .B --server=/3.2.1.in-addr.arpa/192.168.0.1
 .TP
-.B \-A, --address=/<domain>/[domain/]<ipaddr>
+.B \-A, --address=/<domain>/[domain/][<ipaddr>]
 Specify an IP address to return for any host in the given domains.
 Queries in the domains are never forwarded and always replied to
 with the specified IP address which may be IPv4 or IPv6. To give
@@ -472,7 +472,10 @@ domain specification works in the same was as for --server, with the
 additional facility that /#/ matches any domain. Thus
 --address=/#/1.2.3.4 will always return 1.2.3.4 for any query not
 answered from /etc/hosts or DHCP and not sent to an upstream
-nameserver by a more specific --server directive.
+nameserver by a more specific --server directive. As for --server,
+one or more domains with no address returns a no-such-domain answer, so
+--address=/example.com/ is equivalent to --server=/example.com/ and returns 
+NXDOMAIN for example.com and all its subdomains.
 .TP
 .B --ipset=/<domain>/[domain/]<ipset>[,<ipset>]
 Places the resolved IP addresses of queries for the specified domains
