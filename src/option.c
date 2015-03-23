@@ -2271,22 +2271,21 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 /* --server=/example.org/# , "#" means use standard server */
                 if (option == 'S')
                   newserv.flags |= SERV_USE_RESOLV;
-                /* --address=/malware.com/# , "#" means return NXDOMAIN */
-                else if (option == 'A')
-                  newserv.flags |= SERV_NXDOMAIN;
-              }
+               }
 
             /* --xxxx=/example.org/here-is-empty */
-            else if (*start_addr == '\0')
+            else if (*start_addr == '\0'
+                     || *start_addr == ' ' || *start_addr == '\t')
               {
+                /* --address=/malware.com/ , return NXDOMAIN */
+                if (option == 'A')
+                  newserv.flags |= SERV_NXDOMAIN;
+
                 /* give --server domain but no ip means the domain is local and
                  * it may answer queries from /etc/hosts or DHCP but should
                  * never be forwarded to upstream servers */
-                if (!(newserv.flags & SERV_NO_REBIND))
+                else if (!(newserv.flags & SERV_NO_REBIND))
                   newserv.flags |= SERV_NO_ADDR;        /* no server */
-
-                if (option == 'A')
-                  ret_err ("--address must specify address");
               }
 
             /* --xxxx=/example.org/8.8.8.8#53@source-ip|interface#port
