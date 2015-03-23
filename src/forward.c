@@ -164,10 +164,9 @@ search_servers (time_t now, struct all_addr **addrpp,
         *norebind = 1;
 
       /* no server, domain is local only */
-      if (obj->domain_flags & SERV_NO_ADDR)
+      if (obj->domain_flags & SERV_NO_ADDR || obj->domain_flags & SERV_NXDOMAIN)
         {
           flags = F_NXDOMAIN;
-
         }
       else if (obj->domain_flags & SERV_LITERAL_ADDRESS)
         {
@@ -210,7 +209,9 @@ search_servers (time_t now, struct all_addr **addrpp,
     /* don't forward A or AAAA queries for simple names, except the empty name */
     flags = F_NOERR;
 
-  if (flags == F_NXDOMAIN && check_for_local_domain (qdomain, now))
+  if (flags == F_NXDOMAIN
+      && !(obj->domain_flags & SERV_NXDOMAIN)
+      && check_for_local_domain (qdomain, now))
     flags = F_NOERR;
 
   if (flags)
@@ -1827,7 +1828,8 @@ unsigned char *tcp_request(int confd, time_t now,
   /* largest field in header is 16-bits, so this is still sufficiently aligned */
   struct dns_header *header = (struct dns_header *)payload;
   u16 *length = (u16 *)packet;
-  struct server *last_server, *fwdserv, *serv;
+  struct server *last_server, *serv;
+  struct server *fwdserv = NULL;
   struct in_addr dst_addr_4;
   union mysockaddr peer_addr;
   socklen_t peer_len = sizeof(union mysockaddr);

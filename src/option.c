@@ -2264,12 +2264,16 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
             start_addr++;
           }
 
-        /* --xxxx=/example.org/# , here "#" means use standard server */
         if (start_addr != NULL)
           {
             if (*start_addr == '#')
               {
-                newserv.flags |= SERV_USE_RESOLV;
+                /* --server=/example.org/# , "#" means use standard server */
+                if (option == 'S')
+                  newserv.flags |= SERV_USE_RESOLV;
+                /* --address=/malware.com/# , "#" means return NXDOMAIN */
+                else if (option == 'A')
+                  newserv.flags |= SERV_NXDOMAIN;
               }
 
             /* --xxxx=/example.org/here-is-empty */
