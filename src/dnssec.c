@@ -2032,7 +2032,8 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   /* NXDOMAIN or NODATA reply, prove that (name, class1, type1) can't exist */
   /* First marshall the NSEC records, if we've not done it previously */
   if (!nsec_type && !(nsec_type = find_nsec_records(header, plen, &nsecs, &nsec_count, qclass)))
-    return STAT_BOGUS; /* No NSECs */
+    return STAT_NO_SIG; /* No NSECs, this is probably a dangling CNAME pointing into
+			   an unsigned zone. Return STAT_NO_SIG to cause this to be proved. */
    
   /* Get name of missing answer */
   if (!extract_name(header, plen, &qname, name, 1, 0))
