@@ -16,6 +16,7 @@
 
 #include "dnsmasq.h"
 
+/* isExtract == 2 -> DNSSEC mode, no bitstrings, no ascii checks. */
 int extract_name(struct dns_header *header, size_t plen, unsigned char **pp, 
 		 char *name, int isExtract, int extrabytes)
 {
@@ -86,7 +87,7 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	  if ((l & 0x3f) != 1)
 	    return 0; /* we only understand bitstrings */
 
-	  if (!isExtract)
+	  if (isExtract != 1)
 	    return 0; /* Cannot compare bitsrings */
 	  
 	  count = *p++;
@@ -128,7 +129,7 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	    if (isExtract)
 	      {
 		unsigned char c = *p;
-		if (isascii(c) && !iscntrl(c) && c != '.')
+		if ((isExtract == 2 || (isascii(c) && !iscntrl(c))) && c != '.')
 		  *cp++ = *p;
 		else
 		  return 0;
