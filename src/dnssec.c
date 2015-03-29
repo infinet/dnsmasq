@@ -552,7 +552,7 @@ static int get_rdata(struct dns_header *header, size_t plen, unsigned char *end,
  
   (*desc)++;
   
-  if (d == 0 && extract_name(header, plen, p, buff, 2, 0))
+  if (d == 0 && extract_name(header, plen, p, buff, 1, 0))
     /* domain-name, canonicalise */
     return to_wire(buff);
   else
@@ -811,7 +811,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       GETLONG(sig_inception, p);
       GETSHORT(key_tag, p);
       
-      if (!extract_name(header, plen, &p, keyname, 2, 0))
+      if (!extract_name(header, plen, &p, keyname, 1, 0))
 	return STAT_BOGUS;
 
       /* RFC 4035 5.3.1 says that the Signer's Name field MUST equal
@@ -866,7 +866,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  u16 len, *dp;
 	  
 	  p = rrset[i];
-	  if (!extract_name(header, plen, &p, name, 2, 10)) 
+	  if (!extract_name(header, plen, &p, name, 1, 10)) 
 	    return STAT_BOGUS;
 
 	  name_start = name;
@@ -923,7 +923,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       
       /* namebuff used for workspace above, restore to leave unchanged on exit */
       p = (unsigned char*)(rrset[0]);
-      extract_name(header, plen, &p, name, 2, 0);
+      extract_name(header, plen, &p, name, 1, 0);
 
       if (key)
 	{
@@ -963,7 +963,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
   struct all_addr a;
 
   if (ntohs(header->qdcount) != 1 ||
-      !extract_name(header, plen, &p, name, 2, 4))
+      !extract_name(header, plen, &p, name, 1, 4))
     return STAT_BOGUS;
 
   GETSHORT(qtype, p);
@@ -1202,7 +1202,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
     val = STAT_BOGUS;
   
   p = (unsigned char *)(header+1);
-  extract_name(header, plen, &p, name, 2, 4);
+  extract_name(header, plen, &p, name, 1, 4);
   p += 4; /* qtype, qclass */
   
   if (!(p = skip_section(p, ntohs(header->ancount), header, plen)))
@@ -1419,12 +1419,12 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
   for (i = 0; i < nsec_count; i++)
     {
       p = nsecs[i];
-      if (!extract_name(header, plen, &p, workspace1, 2, 10))
+      if (!extract_name(header, plen, &p, workspace1, 1, 10))
 	return STAT_BOGUS;
       p += 8; /* class, type, TTL */
       GETSHORT(rdlen, p);
       psave = p;
-      if (!extract_name(header, plen, &p, workspace2, 2, 10))
+      if (!extract_name(header, plen, &p, workspace2, 1, 10))
 	return STAT_BOGUS;
       
       rc = hostname_cmp(workspace1, name);
@@ -1553,7 +1553,7 @@ static int check_nsec3_coverage(struct dns_header *header, size_t plen, int dige
   for (i = 0; i < nsec_count; i++)
     if ((p = nsecs[i]))
       {
-       	if (!extract_name(header, plen, &p, workspace1, 2, 0) ||
+       	if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
 	    !(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
 	  return 0;
 	
@@ -1730,7 +1730,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       for (i = 0; i < nsec_count; i++)
 	if ((p = nsecs[i]))
 	  {
-	    if (!extract_name(header, plen, &p, workspace1, 2, 0) ||
+	    if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
 		!(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
 	      return STAT_BOGUS;
 	  
@@ -1796,7 +1796,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 
   qname = p1 = (unsigned char *)(header+1);
   
-  if (!extract_name(header, plen, &p1, name, 2, 4))
+  if (!extract_name(header, plen, &p1, name, 1, 4))
     return STAT_BOGUS;
 
   GETSHORT(qtype, p1);
@@ -1836,7 +1836,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	      qname = p1;
 	      
 	      /* looped CNAMES */
-	      if (!cname_count-- || !extract_name(header, plen, &p1, name, 2, 0))
+	      if (!cname_count-- || !extract_name(header, plen, &p1, name, 1, 0))
 		return STAT_BOGUS;
 	       
 	      p1 = ans_start;
@@ -1857,7 +1857,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   
   for (p1 = ans_start, i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
     {
-      if (!extract_name(header, plen, &p1, name, 2, 10))
+      if (!extract_name(header, plen, &p1, name, 1, 10))
 	return STAT_BOGUS; /* bad packet */
       
       GETSHORT(type1, p1);
@@ -2039,7 +2039,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 			   an unsigned zone. Return STAT_NO_SIG to cause this to be proved. */
    
   /* Get name of missing answer */
-  if (!extract_name(header, plen, &qname, name, 2, 0))
+  if (!extract_name(header, plen, &qname, name, 1, 0))
     return STAT_BOGUS;
   
   if (nsec_type == T_NSEC)
@@ -2061,7 +2061,7 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
   int cname_count = CNAME_CHAIN;
 
   /* Get question */
-  if (!extract_name(header, plen, &p, name, 2, 4))
+  if (!extract_name(header, plen, &p, name, 1, 4))
     return STAT_BOGUS;
   
   p +=2; /* type */
@@ -2102,7 +2102,7 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
 
 	  /* Loop down CNAME chain/ */
 	  if (!cname_count-- || 
-	      !extract_name(header, plen, &p, name, 2, 0) ||
+	      !extract_name(header, plen, &p, name, 1, 0) ||
 	      !(p = skip_questions(header, plen)))
 	    return STAT_BOGUS;
 	  
@@ -2419,7 +2419,7 @@ unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name
   
   for (q = ntohs(header->qdcount); q != 0; q--) 
     {
-      if (!extract_name(header, plen, &p, name, 2, 4))
+      if (!extract_name(header, plen, &p, name, 1, 4))
 	break; /* bad packet */
       
       len = to_wire(name);
