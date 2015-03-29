@@ -1404,9 +1404,10 @@ int cache_make_stat(struct txt_record *t)
 static char *sanitise(char *name)
 {
   unsigned char *r;
-  for (r = (unsigned char *)name; *r; r++)
-    if (!isprint((int)*r))
-      return "<name unprintable>";
+  if (name)
+    for (r = (unsigned char *)name; *r; r++)
+      if (!isprint((int)*r))
+	return "<name unprintable>";
 
   return name;
 }
