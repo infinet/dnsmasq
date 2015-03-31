@@ -58,6 +58,9 @@ int main (int argc, char **argv)
   struct dhcp_context *context;
   struct dhcp_relay *relay;
 #endif
+#ifdef HAVE_TFTP
+  int tftp_prefix_missing = 0;
+#endif
 
 #ifdef LOCALEDIR
   setlocale(LC_ALL, "");
@@ -636,7 +639,7 @@ int main (int argc, char **argv)
 #endif
 
 #ifdef HAVE_TFTP
-      if (option_bool(OPT_TFTP))
+  if (option_bool(OPT_TFTP))
     {
       DIR *dir;
       struct tftp_prefix *p;
@@ -645,24 +648,33 @@ int main (int argc, char **argv)
 	{
 	  if (!((dir = opendir(daemon->tftp_prefix))))
 	    {
-	      send_event(err_pipe[1], EVENT_TFTP_ERR, errno, daemon->tftp_prefix);
-	      _exit(0);
+	      tftp_prefix_missing = 1;
+	      if (!option_bool(OPT_TFTP_NO_FAIL))
+	        {
+	          send_event(err_pipe[1], EVENT_TFTP_ERR, errno, daemon->tftp_prefix);
+	          _exit(0);
+	        }
 	    }
 	  closedir(dir);
 	}
-
+      
       for (p = daemon->if_prefix; p; p = p->next)
 	{
+	  p->missing = 0;
 	  if (!((dir = opendir(p->prefix))))
-	   {
-	     send_event(err_pipe[1], EVENT_TFTP_ERR, errno, p->prefix);
-	     _exit(0);
-	   } 
+	    {
+	      p->missing = 1;
+	      if (!option_bool(OPT_TFTP_NO_FAIL))
+		{
+		  send_event(err_pipe[1], EVENT_TFTP_ERR, errno, p->prefix);
+		  _exit(0);
+		}
+	    } 
 	  closedir(dir);
 	}
     }
 #endif
-
+  
   if (daemon->port == 0)
     my_syslog(LOG_INFO, _("started, version %s DNS disabled"), VERSION);
   else if (daemon->cachesize != 0)
@@ -772,7 +784,8 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_TFTP
   if (option_bool(OPT_TFTP))
-    {
+    { 
+      struct tftp_prefix *p;
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)
 	max_fd = FD_SETSIZE;
@@ -782,7 +795,14 @@ int main (int argc, char **argv)
 		daemon->tftp_prefix ? _("root is ") : _("enabled"),
 		daemon->tftp_prefix ? daemon->tftp_prefix: "",
 		option_bool(OPT_TFTP_SECURE) ? _("secure mode") : "");
+       
+      if (tftp_prefix_missing)
+	my_syslog(MS_TFTP | LOG_WARNING, _("warning: %s inaccessible"), daemon->tftp_prefix);
       
+      for (p = daemon->if_prefix; p; p = p->next)
+	if (p->missing)
+	   my_syslog(MS_TFTP | LOG_WARNING, _("warning: TFTP directory %s inaccessible"), p->prefix);
+
       /* This is a guess, it assumes that for small limits, 
 	 disjoint files might be served, but for large limits, 
 	 a single file will be sent to may clients (the file only needs

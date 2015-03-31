@@ -72,6 +72,9 @@ version 2.73
 	    on systems without an RTC, whilst allowing DNS queries before the
 	    clock is valid so that NTP can run. Thanks to
 	    Kevin Darbyshire-Bryant for developing this idea.
+
+	    Add --tftp-no-fail option. Thanks to Stefan Tomanek for
+	    the patch.
 	
 	
 version 2.72
