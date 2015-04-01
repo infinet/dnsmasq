@@ -345,7 +345,7 @@ int main (int argc, char **argv)
 #else
   die(_("DBus not available: set HAVE_DBUS in src/config.h"), NULL, EC_BADCONF);
 #endif
-  
+
   if (daemon->port != 0)
     pre_allocate_sfds();
 
@@ -657,7 +657,7 @@ int main (int argc, char **argv)
 	    }
 	  closedir(dir);
 	}
-      
+
       for (p = daemon->if_prefix; p; p = p->next)
 	{
 	  p->missing = 0;
@@ -669,12 +669,12 @@ int main (int argc, char **argv)
 		  send_event(err_pipe[1], EVENT_TFTP_ERR, errno, p->prefix);
 		  _exit(0);
 		}
-	    } 
+	    }
 	  closedir(dir);
 	}
     }
 #endif
-  
+
   if (daemon->port == 0)
     my_syslog(LOG_INFO, _("started, version %s DNS disabled"), VERSION);
   else if (daemon->cachesize != 0)
@@ -784,7 +784,7 @@ int main (int argc, char **argv)
 
 #ifdef HAVE_TFTP
   if (option_bool(OPT_TFTP))
-    { 
+    {
       struct tftp_prefix *p;
 #ifdef FD_SETSIZE
       if (FD_SETSIZE < (unsigned)max_fd)
@@ -795,10 +795,10 @@ int main (int argc, char **argv)
 		daemon->tftp_prefix ? _("root is ") : _("enabled"),
 		daemon->tftp_prefix ? daemon->tftp_prefix: "",
 		option_bool(OPT_TFTP_SECURE) ? _("secure mode") : "");
-       
+
       if (tftp_prefix_missing)
 	my_syslog(MS_TFTP | LOG_WARNING, _("warning: %s inaccessible"), daemon->tftp_prefix);
-      
+
       for (p = daemon->if_prefix; p; p = p->next)
 	if (p->missing)
 	   my_syslog(MS_TFTP | LOG_WARNING, _("warning: TFTP directory %s inaccessible"), p->prefix);
