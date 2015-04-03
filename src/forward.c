@@ -530,7 +530,8 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   size_t plen; 
 
   (void)ad_reqd;
-  (void) do_bit;
+  (void)do_bit;
+  (void)bogusanswer;
 
 #ifdef HAVE_IPSET
   if (daemon->ipsets && extract_request(header, n, daemon->namebuff, NULL))
