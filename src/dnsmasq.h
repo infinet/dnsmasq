@@ -583,6 +583,7 @@ struct hostsfile {
 #define STAT_NO_NS             10
 #define STAT_NEED_DS_NEG       11
 #define STAT_CHASE_CNAME       12
+#define STAT_INSECURE_DS       13
 
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
