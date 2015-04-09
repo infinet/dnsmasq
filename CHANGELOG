@@ -125,6 +125,9 @@ version 2.72
             Fix problem with --local-service option on big-endian platforms
 	    Thanks to Richard Genoud for the patch.
 
+	    Fix crash on receipt of certain malformed DNS requests. Thanks
+	    to Nick Sampanis for spotting the problem.
+	
 
 version 2.71
             Subtle change to error handling to help DNSSEC validation 
