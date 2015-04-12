@@ -141,7 +141,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	      for (zone = daemon->auth_zones; zone; zone = zone->next)
 		if ((subnet = find_subnet(zone, flag, &addr)))
 		  break;
-	      
+			
 	      if (!zone)
 		{
 		  auth = 0;
@@ -186,7 +186,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  
 	  if (intr)
 	    {
-	      if (in_zone(zone, intr->name, NULL))
+	      if (local_query || in_zone(zone, intr->name, NULL))
 		{	
 		  found = 1;
 		  log_query(flag | F_REVERSE | F_CONFIG, intr->name, &addr, NULL);
@@ -208,8 +208,11 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 		    *p = 0; /* must be bare name */
 		  
 		  /* add  external domain */
-		  strcat(name, ".");
-		  strcat(name, zone->domain);
+		  if (zone)
+		    {
+		      strcat(name, ".");
+		      strcat(name, zone->domain);
+		    }
 		  log_query(flag | F_DHCP | F_REVERSE, name, &addr, record_source(crecp->uid));
 		  found = 1;
 		  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
@@ -217,7 +220,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 					  T_PTR, C_IN, "d", name))
 		    anscount++;
 		}
-	      else if (crecp->flags & (F_DHCP | F_HOSTS) && in_zone(zone, name, NULL))
+	      else if (crecp->flags & (F_DHCP | F_HOSTS) && (local_query || in_zone(zone, name, NULL)))
 		{
 		  log_query(crecp->flags & ~F_FORWARD, name, &addr, record_source(crecp->uid));
 		  found = 1;
