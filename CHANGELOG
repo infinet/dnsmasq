@@ -84,6 +84,9 @@ version 2.73
 
 	    Fix crash on receipt of certain malformed DNS requests.
 	    Thanks to Nick Sampanis for spotting the problem.
+	    Note that this is could allow the dnsmasq process's
+	    memory to be read by an attacker under certain
+	    circumstances, so it has a CVE, CVE-2015-3294 
 
             Fix crash in authoritative DNS code, if a .arpa zone 
 	    is declared as authoritative, and then a PTR query which
