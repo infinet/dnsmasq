@@ -655,7 +655,8 @@ int main (int argc, char **argv)
 	          _exit(0);
 	        }
 	    }
-	  closedir(dir);
+	  else
+	    closedir(dir);
 	}
 
       for (p = daemon->if_prefix; p; p = p->next)
@@ -670,7 +671,8 @@ int main (int argc, char **argv)
 		  _exit(0);
 		}
 	    }
-	  closedir(dir);
+	  else
+	    closedir(dir);
 	}
     }
 #endif
