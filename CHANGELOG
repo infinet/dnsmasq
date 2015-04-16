@@ -94,6 +94,14 @@ version 2.73
 	    in the auth-zone declaration. Thanks to Johnny S. Lee
 	    for the bugreport and initial patch.
 
+	    Fix authoritative DNS code to correctly reply to NS 
+	    and SOA queries for .arpa zones for which we are 
+	    declared authoritative by means of a subnet in auth-zone.
+	    Previously we provided correct answers to PTR queries
+	    in such zones (including NS and SOA) but not direct
+	    NS and SOA queries. Thanks to Johnny S. Lee for 
+	    pointing out the problem.
+
 	
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.

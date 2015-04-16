@@ -131,24 +131,27 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	  continue;
 	}
 
-      if (qtype == T_PTR)
+      if ((qtype == T_PTR || qtype == T_SOA || qtype == T_NS) &&
+	  (flag = in_arpa_name_2_addr(name, &addr)) &&
+	  !local_query)
 	{
-	  if (!(flag = in_arpa_name_2_addr(name, &addr)))
-	    continue;
-
-	  if (!local_query)
+	  for (zone = daemon->auth_zones; zone; zone = zone->next)
+	    if ((subnet = find_subnet(zone, flag, &addr)))
+	      break;
+	  
+	  if (!zone)
 	    {
-	      for (zone = daemon->auth_zones; zone; zone = zone->next)
-		if ((subnet = find_subnet(zone, flag, &addr)))
-		  break;
-			
-	      if (!zone)
-		{
-		  auth = 0;
-		  continue;
-		}
+	      auth = 0;
+	      continue;
 	    }
+	  else if (qtype == T_SOA)
+	    soa = 1, found = 1;
+	  else if (qtype == T_NS)
+	    ns = 1, found = 1;
+	}
 
+      if (qtype == T_PTR && flag)
+	{
 	  intr = NULL;
 
 	  if (flag == F_IPV4)
@@ -243,14 +246,20 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
 	}
       
     cname_restart:
-      for (zone = daemon->auth_zones; zone; zone = zone->next)
-	if (in_zone(zone, name, &cut))
-	  break;
-      
-      if (!zone)
+      if (found)
+	/* NS and SOA .arpa requests have set found above. */
+	cut = NULL;
+      else
 	{
-	  auth = 0;
-	  continue;
+	  for (zone = daemon->auth_zones; zone; zone = zone->next)
+	    if (in_zone(zone, name, &cut))
+	      break;
+	  
+	  if (!zone)
+	    {
+	      auth = 0;
+	      continue;
+	    }
 	}
 
       for (rec = daemon->mxnames; rec; rec = rec->next)
