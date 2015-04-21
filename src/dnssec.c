@@ -321,10 +321,18 @@ static int verify(struct blockdata *key_data, unsigned int key_len, unsigned cha
    thus generating names in canonical form.
    Calling to_wire followed by from_wire is almost an identity,
    except that the UC remains mapped to LC. 
+
+   Note that both /000 and '.' are allowed within labels. These get
+   represented in presentation format using NAME_ESCAPE as an escape
+   character. In theory, if all the characters in a name were /000 or
+   '.' or NAME_ESCAPE then all would have to be escaped, so the 
+   presentation format would be twice as long as the spec (1024). 
+   The buffers are all delcared as 2049 (allowing for the trailing zero) 
+   for this reason.
 */
 static int to_wire(char *name)
 {
-  unsigned char *l, *p, term;
+  unsigned char *l, *p, *q, term;
   int len;
 
   for (l = (unsigned char*)name; *l != 0; l = p)
@@ -332,7 +340,10 @@ static int to_wire(char *name)
       for (p = l; *p != '.' && *p != 0; p++)
 	if (*p >= 'A' && *p <= 'Z')
 	  *p = *p - 'A' + 'a';
-      
+	else if (*p == NAME_ESCAPE)
+	  for (q = p; *q; q++)
+	      *q = *(q+1);
+	       
       term = *p;
       
       if ((len = p - l) != 0)
@@ -351,13 +362,23 @@ static int to_wire(char *name)
 /* Note: no compression  allowed in input. */
 static void from_wire(char *name)
 {
-  unsigned char *l;
+  unsigned char *l, *p, *last;
   int len;
-
+  
+  for (last = (unsigned char *)name; *last != 0; last += *last+1);
+  
   for (l = (unsigned char *)name; *l != 0; l += len+1)
     {
       len = *l;
       memmove(l, l+1, len);
+      for (p = l; p < l + len; p++)
+	if (*p == '.' || *p == 0 || *p == NAME_ESCAPE)
+	  {
+	    memmove(p+1, p, 1 + last - p);
+	    len++;
+	    *p++ = NAME_ESCAPE;
+	  }
+	
       l[len] = '.';
     }
 
@@ -645,7 +666,7 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	      if (left1 != 0)
 		memmove(buff1, buff1 + len1 - left1, left1);
 	      
-	      if ((len1 = get_rdata(header, plen, end1, buff1 + left1, MAXDNAME - left1, &p1, &dp1)) == 0)
+	      if ((len1 = get_rdata(header, plen, end1, buff1 + left1, (MAXDNAME * 2) - left1, &p1, &dp1)) == 0)
 		{
 		  quit = 1;
 		  len1 = end1 - p1;
@@ -656,7 +677,7 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 	      if (left2 != 0)
 		memmove(buff2, buff2 + len2 - left2, left2);
 	      
-	      if ((len2 = get_rdata(header, plen, end2, buff2 + left2, MAXDNAME - left2, &p2, &dp2)) == 0)
+	      if ((len2 = get_rdata(header, plen, end2, buff2 + left2, (MAXDNAME *2) - left2, &p2, &dp2)) == 0)
 		{
 		  quit = 1;
 		  len2 = end2 - p2;
@@ -902,10 +923,11 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  
 	  end = p + rdlen;
 	  
-	  /* canonicalise rdata and calculate length of same, use name buffer as workspace */
+	  /* canonicalise rdata and calculate length of same, use name buffer as workspace.
+	     Note that name buffer is twice MAXDNAME long in DNSSEC mode. */
 	  cp = p;
 	  dp = rr_desc;
-	  for (len = 0; (seg = get_rdata(header, plen, end, name, MAXDNAME, &cp, &dp)) != 0; len += seg);
+	  for (len = 0; (seg = get_rdata(header, plen, end, name, MAXDNAME * 2, &cp, &dp)) != 0; len += seg);
 	  len += end - cp;
 	  len = htons(len);
 	  hash->update(ctx, 2, (unsigned char *)&len); 
@@ -913,7 +935,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  /* Now canonicalise again and digest. */
 	  cp = p;
 	  dp = rr_desc;
-	  while ((seg = get_rdata(header, plen, end, name, MAXDNAME, &cp, &dp)))
+	  while ((seg = get_rdata(header, plen, end, name, MAXDNAME * 2, &cp, &dp)))
 	    hash->update(ctx, seg, (unsigned char *)name);
 	  if (cp != end)
 	    hash->update(ctx, end - cp, cp);

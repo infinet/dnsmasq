@@ -128,6 +128,15 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	    if (isExtract)
 	      {
 		unsigned char c = *p;
+#ifdef HAVE_DNSSEC
+		if (option_bool(OPT_DNSSEC_VALID))
+		  {
+		    if (c == 0 || c == '.' || c == NAME_ESCAPE)
+		      *cp++ = NAME_ESCAPE;
+		    *cp++ = c;
+		  }
+		else
+#endif
 		if (c != 0 && c != '.')
 		  *cp++ = c;
 		else
@@ -144,9 +153,14 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 		    cp++;
 		    if (c1 >= 'A' && c1 <= 'Z')
 		      c1 += 'a' - 'A';
+#ifdef HAVE_DNSSEC
+		    if (option_bool(OPT_DNSSEC_VALID) && c1 == NAME_ESCAPE)
+		      c1 = *cp++;
+#endif
+		    
 		    if (c2 >= 'A' && c2 <= 'Z')
 		      c2 += 'a' - 'A';
-		    
+		     
 		    if (c1 != c2)
 		      retvalue =  2;
 		  }

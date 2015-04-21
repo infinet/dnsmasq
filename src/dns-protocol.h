@@ -142,3 +142,7 @@ struct dns_header {
 
 #define ADD_RDLEN(header, pp, plen, len) \
   (!CHECK_LEN(header, pp, plen, len) ? 0 : (((pp) += (len)), 1))
+
+/* Escape character in our presentation format for names.
+   Cannot be '.' or /000 and must be !isprint() */
+#define NAME_ESCAPE 1
