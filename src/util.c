@@ -229,7 +229,7 @@ unsigned char *do_rfc1035_name(unsigned char *p, char *sval)
 	{
 #ifdef HAVE_DNSSEC
 	  if (option_bool(OPT_DNSSEC_VALID) && *sval == NAME_ESCAPE)
-	    *p++ = *(++sval);
+	    *p++ = (*(++sval))-1;
 	  else
 #endif		
 	    *p++ = *sval;

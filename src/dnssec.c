@@ -341,9 +341,11 @@ static int to_wire(char *name)
 	if (*p >= 'A' && *p <= 'Z')
 	  *p = *p - 'A' + 'a';
 	else if (*p == NAME_ESCAPE)
-	  for (q = p; *q; q++)
+	  {
+	    for (q = p; *q; q++)
 	      *q = *(q+1);
-	       
+	    (*p)--;
+	  }
       term = *p;
       
       if ((len = p - l) != 0)
@@ -376,7 +378,8 @@ static void from_wire(char *name)
 	  {
 	    memmove(p+1, p, 1 + last - p);
 	    len++;
-	    *p++ = NAME_ESCAPE;
+	    *p++ = NAME_ESCAPE; 
+	    (*p)++;
 	  }
 	
       l[len] = '.';
