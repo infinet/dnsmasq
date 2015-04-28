@@ -1608,6 +1608,11 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
       GETSHORT(qtype, p); 
       GETSHORT(qclass, p);
 
+      /* Don't filter RRSIGS from answers to ANY queries, even if do-bit
+	 not set. */
+      if (qtype == T_ANY)
+	*do_bit = 1;
+
       ans = 0; /* have we answered this question */
       
       if (qtype == T_TXT || qtype == T_ANY)
