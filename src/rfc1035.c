@@ -1117,10 +1117,23 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		      memcpy(&addr, p1, addrlen);
 		      
 		      /* check for returned address in private space */
-		      if (check_rebind &&
-			  (flags & F_IPV4) &&
-			  private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
-			return 1;
+		      if (check_rebind)
+			{
+			  if ((flags & F_IPV4) &&
+			      private_net(addr.addr.addr4, !option_bool(OPT_LOCAL_REBIND)))
+			    return 1;
+			  
+#ifdef HAVE_IPV6
+			  if ((flags & F_IPV6) &&
+			      IN6_IS_ADDR_V4MAPPED(&addr.addr.addr6))
+			    {
+			      struct in_addr v4;
+			      v4.s_addr = ((const uint32_t *) (&addr.addr.addr6))[3];
+			      if (private_net(v4, !option_bool(OPT_LOCAL_REBIND)))
+				return 1;
+			    }
+#endif
+			}
 		      
 #ifdef HAVE_IPSET
 		      if (ipsets && (flags & (F_IPV4 | F_IPV6)))

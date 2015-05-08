@@ -115,6 +115,9 @@ version 2.73
 	    header to 1280 bytes. If it then answers, make that
 	    change permanent.
 
+	    Check IPv4-mapped IPv6 addresses when --stop-rebind
+	    is active. Thanks to Jordan Milne for spotting this.
+
 	
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.
