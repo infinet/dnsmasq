@@ -552,7 +552,7 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
 	return plen;
       *p++ = 0; /* empty name */
       PUTSHORT(T_OPT, p);
-      PUTSHORT(daemon->edns_pktsz, p); /* max packet length */
+      PUTSHORT(SAFE_PKTSZ, p); /* max packet length, this will be overwritten */
       PUTSHORT(0, p);    /* extended RCODE and version */
       PUTSHORT(set_do ? 0x8000 : 0, p); /* DO flag */
       lenp = p;
@@ -1537,7 +1537,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   unsigned short flag;
   int q, ans, anscount = 0, addncount = 0;
   int dryrun = 0, sec_reqd = 0, have_pseudoheader = 0;
-  int is_sign;
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0, sec_data = 1;
   struct mx_srv_record *rec;
@@ -1557,28 +1556,19 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
      forward rather than answering from the cache, which doesn't include
      security information, unless we're in DNSSEC validation mode. */
 
-  if (find_pseudoheader(header, qlen, NULL, &pheader, &is_sign))
+  if (find_pseudoheader(header, qlen, NULL, &pheader, NULL))
     { 
-      unsigned short udpsz, flags;
-      unsigned char *psave = pheader;
-
+      unsigned short flags;
+      
       have_pseudoheader = 1;
 
-      GETSHORT(udpsz, pheader);
-      pheader += 2; /* ext_rcode */
+      pheader += 4; /* udp size, ext_rcode */
       GETSHORT(flags, pheader);
       
       if ((sec_reqd = flags & 0x8000))
 	*do_bit = 1;/* do bit */ 
+
       *ad_reqd = 1;
-
-      /* If our client is advertising a larger UDP packet size
-	 than we allow, trim it so that we don't get an overlarge
-	 response from upstream */
-
-      if (!is_sign && (udpsz > daemon->edns_pktsz))
-	PUTSHORT(daemon->edns_pktsz, psave); 
-
       dryrun = 1;
     }
 

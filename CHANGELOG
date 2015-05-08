@@ -109,6 +109,12 @@ version 2.73
 	    by quiet-dhcp6. Thanks to J. Pablo Abonia for 
 	    spotting the problem.
 
+	    Try and handle net connections with broken fragmentation 
+	    that lose large UDP packets. If a server times out, 
+            reduce the maximum UDP packet size field in the EDNS0
+	    header to 1280 bytes. If it then answers, make that
+	    change permanent.
+
 	
 version 2.72
             Add ra-advrouter mode, for RFC-3775 mobile IPv6 support.
