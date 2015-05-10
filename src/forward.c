@@ -799,8 +799,10 @@ void reply_query(int fd, int family, time_t now)
     }
  
   /* We tried resending to this server with a smaller maximum size and got an answer.
-     Make that permanent. */
-  if (server && (forward->flags & FREC_TEST_PKTSZ))
+     Make that permanent. To avoid reduxing the packet size for an single dropped packet,
+     only do this when we get a truncated answer, or one larger than the safe size. */
+  if (server && (forward->flags & FREC_TEST_PKTSZ) && 
+      ((header->hb3 & HB3_TC) || n >= SAFE_PKTSZ))
     server->edns_pktsz = SAFE_PKTSZ;
   
   /* If the answer is an error, keep the forward record in place in case
