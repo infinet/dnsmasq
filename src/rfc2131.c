@@ -2275,16 +2275,16 @@ static void do_options(struct dhcp_context *context,
 	    t2val = hval;
 	}
        	  
+       /* ensure T1 is still < T2 */
+       if (t2val <= t1val)
+	 t1val = t2val - 1; 
+
        while (fuzz > (t1val/8))
 	 fuzz = fuzz/2;
 	 
        t1val -= fuzz;
        t2val -= fuzz;
        
-       /* ensure T1 is still < T2 */
-       if (t2val <= t1val)
-	 t1val = t2val - 1; 
-
        option_put(mess, end, OPTION_T1, 4, t1val);
        option_put(mess, end, OPTION_T2, 4, t2val);
     }
