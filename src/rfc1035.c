@@ -94,8 +94,8 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	    count = 256;
 	  digs = ((count-1)>>2)+1;
 	  
-	  /* output is \[x<hex>/siz]. which is digs+6/7/8 chars */
-	  namelen += digs+6;
+	  /* output is \[x<hex>/siz]. which is digs+7/8/9 chars */
+	  namelen += digs+7;
 	  if (count > 9)
 	    namelen++;
 	  if (count > 99)
@@ -125,8 +125,8 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	}
       else 
 	{ /* label_type = 0 -> label. */
-	  namelen += l;
-	  if (namelen+1 >= MAXDNAME)
+	  namelen += l + 1; /* include period */
+	  if (namelen >= MAXDNAME)
 	    return 0;
 	  if (!CHECK_LEN(header, p, plen, l))
 	    return 0;
