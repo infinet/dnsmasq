@@ -805,7 +805,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    if (service->type == type)
 	      break;
 	  
-	  if (!service || !service->basename)
+	  if (!service || !service->basename || !(context = narrow_context(context, mess->ciaddr, tagif_netid)))
 	    return 0;
 	  
 	  clear_packet(mess, end);
