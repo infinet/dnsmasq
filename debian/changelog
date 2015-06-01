@@ -1,6 +1,6 @@
 dnsmasq (2.73-1) unstable; urgency=low
 
-   * New upstream.
+   * New upstream. (closes: #786996)
    * Tweak field width in cache dump to avoid truncating IPv6
      addresses. (closes: #771557)
    * Add newline at the end of example config file. (LP: #1416895)
