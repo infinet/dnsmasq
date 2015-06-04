@@ -7,7 +7,7 @@ dnsmasq (2.73-1) unstable; urgency=low
    * Make Debian package build reproducible. (closes: #777323)
    * Add Requires=network.target to systemd unit.
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 11 Feb 2015 21:59:42 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 4 Jun 2015 22:31:42 +0000
 
 dnsmasq (2.72-3) unstable; urgency=medium
 
