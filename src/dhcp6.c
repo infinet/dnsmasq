@@ -165,7 +165,7 @@ void dhcp6_packet(time_t now)
 
       /* If the interface on which the DHCPv6 request was received is
          an alias of some other interface (as specified by the
-         --bridge-interfaces option), change parm.ind so that we look
+         --bridge-interface option), change parm.ind so that we look
          for DHCPv6 contexts associated with the aliased interface
          instead of with the aliasing one. */
       for (bridge = daemon->bridges; bridge; bridge = bridge->next)

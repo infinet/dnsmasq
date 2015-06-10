@@ -128,6 +128,12 @@ version 2.73
 
 	    Add AddDhcpLease and DeleteDhcpLease DBus methods. Thanks
 	    to Nicolas Cavallari for the patch.
+
+	    Allow configuration of router advertisements without the 
+	    "on-link" bit set. Thanks to Neil Jerram for the patch.
+
+	    Extend --bridge-interface to DHCPv6 and router 
+	    advertisements. Thanks to Neil Jerram for the patch.
 	
 	
 version 2.72
