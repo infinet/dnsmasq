@@ -313,8 +313,10 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
 		  opt->prefix_len = context->prefix;
-		  /* autonomous only if we're not doing dhcp, always set "on-link" */
-		  opt->flags = do_slaac ? 0xC0 : 0x80;
+		  /* autonomous only if we're not doing dhcp, set
+                     "on-link" unless "off-link" was specified */
+		  opt->flags = (do_slaac ? 0x40 : 0) |
+                    ((context->flags & CONTEXT_RA_OFF_LINK) ? 0 : 0x80);
 		  opt->valid_lifetime = htonl(context->saved_valid - old);
 		  opt->preferred_lifetime = htonl(0);
 		  opt->reserved = 0; 
@@ -514,6 +516,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 	  int deprecate  = 0;
 	  int constructed = 0;
 	  int adv_router = 0;
+	  int off_link = 0;
 	  unsigned int time = 0xffffffff;
 	  struct dhcp_context *context;
 	  
@@ -586,6 +589,7 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		      context->ra_time = 0;
 		    context->flags |= CONTEXT_RA_DONE;
 		    real_prefix = context->prefix;
+                    off_link = (context->flags & CONTEXT_RA_OFF_LINK);
 		  }
 
 		param->first = 0;	
@@ -636,8 +640,9 @@ static int add_prefixes(struct in6_addr *local,  int prefix,
 		  opt->type = ICMP6_OPT_PREFIX;
 		  opt->len = 4;
 		  opt->prefix_len = real_prefix;
-		  /* autonomous only if we're not doing dhcp, always set "on-link" */
-		  opt->flags = 0x80;
+		  /* autonomous only if we're not doing dhcp, set
+                     "on-link" unless "off-link" was specified */
+		  opt->flags = (off_link ? 0 : 0x80);
 		  if (do_slaac)
 		    opt->flags |= 0x40;
 		  if (adv_router)
