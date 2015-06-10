@@ -236,7 +236,9 @@ void dhcp_packet(time_t now, int pxe_fd)
 	  {
 	    if (!(iface_index = if_nametoindex(bridge->iface)))
 	      {
-		my_syslog(LOG_WARNING, _("unknown interface %s in bridge-interface"), ifr.ifr_name);
+		my_syslog(MS_DHCP | LOG_WARNING,
+			  _("unknown interface %s in bridge-interface"),
+			  bridge->iface);
 		return;
 	      }
 	    else 
