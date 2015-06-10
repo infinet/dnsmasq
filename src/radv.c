@@ -40,9 +40,18 @@ struct search_param {
   char name[IF_NAMESIZE+1];
 };
 
+struct alias_param {
+  int iface;
+  struct dhcp_bridge *bridge;
+  int num_alias_ifs;
+  int max_alias_ifs;
+  int *alias_ifs;
+};
+
 static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest);
 static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_addr *dest,
                     int send_iface);
+static int send_ra_to_aliases(int index, unsigned int type, char *mac, size_t maclen, void *parm);
 static int add_prefixes(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
 			unsigned int preferred, unsigned int valid, void *vparam);
@@ -723,6 +732,7 @@ time_t periodic_ra(time_t now)
   struct search_param param;
   struct dhcp_context *context;
   time_t next_event;
+  struct alias_param aparam;
     
   param.now = now;
   param.iface = 0;
@@ -770,12 +780,84 @@ time_t periodic_ra(time_t now)
 	    if (tmp->name && wildcard_match(tmp->name, param.name))
 	      break;
 	  if (!tmp)
-	    send_ra(now, param.iface, param.name, NULL); 
+            {
+              send_ra(now, param.iface, param.name, NULL); 
+
+              /* Also send on all interfaces that are aliases of this
+                 one. */
+              for (aparam.bridge = daemon->bridges;
+                   aparam.bridge;
+                   aparam.bridge = aparam.bridge->next)
+                if ((int)if_nametoindex(aparam.bridge->iface) == param.iface)
+                  {
+                    /* Count the number of alias interfaces for this
+                       'bridge', by calling iface_enumerate with
+                       send_ra_to_aliases and NULL alias_ifs. */
+                    aparam.iface = param.iface;
+                    aparam.alias_ifs = NULL;
+                    aparam.num_alias_ifs = 0;
+                    iface_enumerate(AF_LOCAL, &aparam, send_ra_to_aliases);
+                    my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s => %d alias(es)",
+                              param.name, daemon->addrbuff, aparam.num_alias_ifs);
+
+                    /* Allocate memory to store the alias interface
+                       indices. */
+                    aparam.alias_ifs = (int *)whine_malloc(aparam.num_alias_ifs *
+                                                           sizeof(int));
+                    if (aparam.alias_ifs)
+                      {
+                        /* Use iface_enumerate again to get the alias
+                           interface indices, then send on each of
+                           those. */
+                        aparam.max_alias_ifs = aparam.num_alias_ifs;
+                        aparam.num_alias_ifs = 0;
+                        iface_enumerate(AF_LOCAL, &aparam, send_ra_to_aliases);
+                        for (; aparam.num_alias_ifs; aparam.num_alias_ifs--)
+                          {
+                            my_syslog(MS_DHCP | LOG_INFO, "RTR-ADVERT(%s) %s => i/f %d",
+                                      param.name, daemon->addrbuff,
+                                      aparam.alias_ifs[aparam.num_alias_ifs - 1]);
+                            send_ra_alias(now,
+                                          param.iface,
+                                          param.name,
+                                          NULL,
+                                          aparam.alias_ifs[aparam.num_alias_ifs - 1]);
+                          }
+                        free(aparam.alias_ifs);
+                      }
+
+                    /* The source interface can only appear in at most
+                       one --bridge-interfaces. */
+                    break;
+                  }
+            }
 	}
     }      
   return next_event;
 }
-  
+
+static int send_ra_to_aliases(int index, unsigned int type, char *mac, size_t maclen, void *parm)
+{
+  struct alias_param *aparam = (struct alias_param *)parm;
+  char ifrn_name[IFNAMSIZ];
+  struct dhcp_bridge *alias;
+
+  (void)type;
+  (void)mac;
+  (void)maclen;
+
+  if (if_indextoname(index, ifrn_name))
+    for (alias = aparam->bridge->alias; alias; alias = alias->next)
+      if (wildcard_matchn(alias->iface, ifrn_name, IFNAMSIZ))
+        {
+          if (aparam->alias_ifs && (aparam->num_alias_ifs < aparam->max_alias_ifs))
+            aparam->alias_ifs[aparam->num_alias_ifs] = index;
+          aparam->num_alias_ifs++;
+        }
+
+  return 1;
+}
+
 static int iface_search(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
 			int preferred, int valid, void *vparam)
