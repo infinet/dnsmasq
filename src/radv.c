@@ -41,6 +41,8 @@ struct search_param {
 };
 
 static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest);
+static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_addr *dest,
+                    int send_iface);
 static int add_prefixes(struct in6_addr *local,  int prefix,
 			int scope, int if_index, int flags, 
 			unsigned int preferred, unsigned int valid, void *vparam);
@@ -181,6 +183,7 @@ void icmp6_packet(time_t now)
   else if (packet[0] == ND_ROUTER_SOLICIT)
     {
       char *mac = "";
+      struct dhcp_bridge *bridge, *alias;
       
       /* look for link-layer address option for logging */
       if (sz >= 16 && packet[8] == ICMP6_OPT_SOURCE_MAC && (packet[9] * 8) + 8 <= sz)
@@ -191,12 +194,37 @@ void icmp6_packet(time_t now)
          
       if (!option_bool(OPT_QUIET_RA))
 	my_syslog(MS_DHCP | LOG_INFO, "RTR-SOLICIT(%s) %s", interface, mac);
-      /* source address may not be valid in solicit request. */
-      send_ra(now, if_index, interface, !IN6_IS_ADDR_UNSPECIFIED(&from.sin6_addr) ? &from.sin6_addr : NULL);
+
+      /* If the incoming interface is an alias of some other one (as
+         specified by the --bridge-interfaces option), send an RA
+         using the context of the aliased interface. */
+      for (bridge = daemon->bridges; bridge; bridge = bridge->next)
+        {
+          int bridge_index = if_nametoindex(bridge->iface);
+          if (bridge_index)
+	    {
+	      for (alias = bridge->alias; alias; alias = alias->next)
+		if (wildcard_matchn(alias->iface, interface, IF_NAMESIZE))
+		  {
+		    /* Send an RA on if_index with information from
+		       bridge_index. */
+		    send_ra_alias(now, bridge_index, bridge->iface, NULL, if_index);
+		    break;
+		  }
+	      if (alias)
+		break;
+	    }
+        }
+
+      /* If the incoming interface wasn't an alias, send an RA using
+	 the context of the incoming interface. */
+      if (!bridge)
+	/* source address may not be valid in solicit request. */
+	send_ra(now, if_index, interface, !IN6_IS_ADDR_UNSPECIFIED(&from.sin6_addr) ? &from.sin6_addr : NULL);
     }
 }
 
-static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest)
+static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_addr *dest, int send_iface)
 {
   struct ra_packet *ra;
   struct ra_param parm;
@@ -370,7 +398,7 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
     }
 #endif
      
-  iface_enumerate(AF_LOCAL, &iface, add_lla);
+  iface_enumerate(AF_LOCAL, &send_iface, add_lla);
  
   /* RDNSS, RFC 6106, use relevant DHCP6 options */
   (void)option_filter(parm.tags, NULL, daemon->dhcp_opts6);
@@ -478,13 +506,20 @@ static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *de
   else
     {
       inet_pton(AF_INET6, ALL_NODES, &addr.sin6_addr); 
-      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &iface, sizeof(iface));
+      setsockopt(daemon->icmp6fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &send_iface, sizeof(send_iface));
     }
   
   while (retry_send(sendto(daemon->icmp6fd, daemon->outpacket.iov_base, 
 			   save_counter(0), 0, (struct sockaddr *)&addr, 
 			   sizeof(addr))));
   
+}
+
+static void send_ra(time_t now, int iface, char *iface_name, struct in6_addr *dest)
+{
+  /* Send an RA on the same interface that the RA content is based
+     on. */
+  send_ra_alias(now, iface, iface_name, dest, iface);
 }
 
 static int add_prefixes(struct in6_addr *local,  int prefix,
