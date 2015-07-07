@@ -1,3 +1,15 @@
+dnsmasq (2.74-1) unstable; urgency=low
+
+   * New upstream. 
+	
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 7 Jul 2015 21:54:11 +0000
+
+dnsmasq (2.73-2) unstable; urgency=low
+
+   * Fix behaviour of empty --conf-file (closes: #790341)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 7 Jul 2015 21:46:42 +0000
+
 dnsmasq (2.73-1) unstable; urgency=low
 
    * New upstream. (closes: #786996)
