@@ -577,7 +577,7 @@ void bump_maxfd(fd_set *set, int fd, int *max)
     {
       static int logged = 0;
       if (!logged)
-	my_syslog(LOG_ERR, _("File descriptor overflows FS_SET"));
+	my_syslog(LOG_ERR, _("File descriptor overflows FD_SET"));
       logged = 1;
     }
   else
