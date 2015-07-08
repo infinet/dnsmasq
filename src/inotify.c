@@ -42,14 +42,13 @@ static char *inotify_buffer;
    Return value is malloc'ed */
 static char *my_readlink(char *path)
 {
-  ssize_t rc;
-  size_t size = 64;
+  ssize_t rc, size = 64;
   char *buf;
 
   while (1)
     {
       buf = safe_malloc(size);
-      rc = readlink(path, buf, size);
+      rc = readlink(path, buf, (size_t)size);
       
       if (rc == -1)
 	{
