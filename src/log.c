@@ -424,10 +424,7 @@ void my_syslog(int priority, const char *format, ...)
 void set_log_writer(fd_set *set, int *maxfdp)
 {
   if (entries && log_fd != -1 && connection_good)
-    {
-      FD_SET(log_fd, set);
-      bump_maxfd(log_fd, maxfdp);
-    }
+    bump_maxfd(set, log_fd, maxfdp);
 }
 
 void check_log_writer(fd_set *set)

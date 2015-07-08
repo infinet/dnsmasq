@@ -902,48 +902,32 @@ int main (int argc, char **argv)
 #ifdef HAVE_DHCP
       if (daemon->dhcp || daemon->relay4)
 	{
-	  FD_SET(daemon->dhcpfd, &rset);
-	  bump_maxfd(daemon->dhcpfd, &maxfd);
+	  bump_maxfd(&rset, daemon->dhcpfd, &maxfd);
 	  if (daemon->pxefd != -1)
-	    {
-	      FD_SET(daemon->pxefd, &rset);
-	      bump_maxfd(daemon->pxefd, &maxfd);
-	    }
+	    bump_maxfd(&rset, daemon->pxefd, &maxfd);
 	}
 #endif
 
 #ifdef HAVE_DHCP6
       if (daemon->doing_dhcp6 || daemon->relay6)
-	{
-	  FD_SET(daemon->dhcp6fd, &rset);
-	  bump_maxfd(daemon->dhcp6fd, &maxfd);
-	}
-
+	bump_maxfd(&rset, daemon->dhcp6fd, &maxfd);
+	
       if (daemon->doing_ra)
-	{
-	  FD_SET(daemon->icmp6fd, &rset);
-	  bump_maxfd(daemon->icmp6fd, &maxfd); 
-	}
+	bump_maxfd(&rset, daemon->icmp6fd, &maxfd); 
 #endif
     
 #ifdef HAVE_INOTIFY
       if (daemon->inotifyfd != -1)
-	{
-	  FD_SET(daemon->inotifyfd, &rset);
-	  bump_maxfd(daemon->inotifyfd, &maxfd);
-	}
+	bump_maxfd(&rset, daemon->inotifyfd, &maxfd);
 #endif
 
 #if defined(HAVE_LINUX_NETWORK)
-      FD_SET(daemon->netlinkfd, &rset);
-      bump_maxfd(daemon->netlinkfd, &maxfd);
+      bump_maxfd(&rset, daemon->netlinkfd, &maxfd);
 #elif defined(HAVE_BSD_NETWORK)
-      FD_SET(daemon->routefd, &rset);
-      bump_maxfd(daemon->routefd, &maxfd);
+      bump_maxfd(&rset, daemon->routefd, &maxfd);
 #endif
       
-      FD_SET(piperead, &rset);
-      bump_maxfd(piperead, &maxfd);
+      bump_maxfd(&rset, piperead, &maxfd);
 
 #ifdef HAVE_DHCP
 #  ifdef HAVE_SCRIPT
@@ -954,10 +938,7 @@ int main (int argc, char **argv)
 #    endif
 
       if (!helper_buf_empty())
-	{
-	  FD_SET(daemon->helperfd, &wset);
-	  bump_maxfd(daemon->helperfd, &maxfd);
-	}
+	bump_maxfd(&wset, daemon->helperfd, &maxfd);
 #  else
       /* need this for other side-effects */
       while (do_script_run(now));
@@ -1482,8 +1463,7 @@ static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp)
   for (transfer = daemon->tftp_trans; transfer; transfer = transfer->next)
     {
       tftp++;
-      FD_SET(transfer->sockfd, set);
-      bump_maxfd(transfer->sockfd, maxfdp);
+      bump_maxfd(set, transfer->sockfd, maxfdp);
     }
 #endif
   
@@ -1492,45 +1472,32 @@ static int set_dns_listeners(time_t now, fd_set *set, int *maxfdp)
     get_new_frec(now, &wait, 0);
   
   for (serverfdp = daemon->sfds; serverfdp; serverfdp = serverfdp->next)
-    {
-      FD_SET(serverfdp->fd, set);
-      bump_maxfd(serverfdp->fd, maxfdp);
-    }
-
+    bump_maxfd(set, serverfdp->fd, maxfdp);
+    
   if (daemon->port != 0 && !daemon->osport)
     for (i = 0; i < RANDOM_SOCKS; i++)
       if (daemon->randomsocks[i].refcount != 0)
-	{
-	  FD_SET(daemon->randomsocks[i].fd, set);
-	  bump_maxfd(daemon->randomsocks[i].fd, maxfdp);
-	}
-  
+	bump_maxfd(set, daemon->randomsocks[i].fd, maxfdp);
+	  
   for (listener = daemon->listeners; listener; listener = listener->next)
     {
       /* only listen for queries if we have resources */
       if (listener->fd != -1 && wait == 0)
-	{
-	  FD_SET(listener->fd, set);
-	  bump_maxfd(listener->fd, maxfdp);
-	}
-
+	bump_maxfd(set, listener->fd, maxfdp);
+	
       /* death of a child goes through the select loop, so
 	 we don't need to explicitly arrange to wake up here */
       if  (listener->tcpfd != -1)
 	for (i = 0; i < MAX_PROCS; i++)
 	  if (daemon->tcp_pids[i] == 0)
 	    {
-	      FD_SET(listener->tcpfd, set);
-	      bump_maxfd(listener->tcpfd, maxfdp);
+	      bump_maxfd(set, listener->tcpfd, maxfdp);
 	      break;
 	    }
 
 #ifdef HAVE_TFTP
       if (tftp <= daemon->tftp_max && listener->tftpfd != -1)
-	{
-	  FD_SET(listener->tftpfd, set);
-	  bump_maxfd(listener->tftpfd, maxfdp);
-	}
+	bump_maxfd(set, listener->tftpfd, maxfdp);
 #endif
 
     }
@@ -1822,10 +1789,7 @@ int icmp_ping(struct in_addr addr)
       
 #ifdef HAVE_DHCP6
       if (daemon->doing_ra)
-	{
-	  FD_SET(daemon->icmp6fd, &rset);
-	  bump_maxfd(daemon->icmp6fd, &maxfd); 
-	}
+	bump_maxfd(&rset, daemon->icmp6fd, &maxfd); 
 #endif
       
       rc = select(maxfd+1, &rset, &wset, NULL, &tv);

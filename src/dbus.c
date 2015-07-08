@@ -760,15 +760,13 @@ void set_dbus_listeners(int *maxfdp,
 	unsigned int flags = dbus_watch_get_flags(w->watch);
 	int fd = dbus_watch_get_unix_fd(w->watch);
 	
-	bump_maxfd(fd, maxfdp);
-	
 	if (flags & DBUS_WATCH_READABLE)
-	  FD_SET(fd, rset);
+	  bump_maxfd(rset, fd, maxfdp);
 	
 	if (flags & DBUS_WATCH_WRITABLE)
-	  FD_SET(fd, wset);
+	  bump_maxfd(wset, fd, maxfdp);
 	
-	FD_SET(fd, eset);
+	bump_maxfd(eset, fd, maxfdp);
       }
 }
 
