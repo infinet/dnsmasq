@@ -1887,7 +1887,7 @@ unsigned char *tcp_request(int confd, time_t now,
 			     dst_addr_4, netmask, now, &ad_question, &do_bit);
 	  
 	  /* Do this by steam now we're not in the select() loop */
-	  check_log_writer(NULL); 
+	  check_log_writer(1); 
 	  
 	  if (m == 0)
 	    {
@@ -2108,7 +2108,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	    }
 	}
 	  
-      check_log_writer(NULL);
+      check_log_writer(1);
       
       *length = htons(m);
            

@@ -570,25 +570,6 @@ char *print_mac(char *buff, unsigned char *mac, int len)
   return buff;
 }
 
-void bump_maxfd(fd_set *set, int fd, int *max)
-{
-#ifdef FD_SETSIZE
-  if (fd >= FD_SETSIZE)
-    {
-      static int logged = 0;
-      if (!logged)
-	my_syslog(LOG_ERR, _("File descriptor overflows FD_SET"));
-      logged = 1;
-    }
-  else
- #endif
-    {
-      FD_SET(fd, set);
-      if (fd > *max)
-	*max = fd;
-    }
-}
-
 /* rc is return from sendto and friends.
    Return 1 if we should retry.
    Set errno to zero if we succeeded. */
