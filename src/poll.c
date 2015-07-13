@@ -102,8 +102,9 @@ void poll_listen(int fd, short event)
 	 {
 	   /* Array too small, extend. */
 	   struct pollfd *new;
-	   arrsize += 64;
-	   
+
+	   arrsize = (arrsize == 0) ? 64 : arrsize * 2;
+
 	   if (!(new = whine_malloc(arrsize * sizeof(struct pollfd))))
 	     return;
 
