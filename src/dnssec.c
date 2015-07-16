@@ -2172,6 +2172,10 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
 
 		  rc = validate_rrset(now, header, plen, class, nsec_type, daemon->workspacename, keyname, NULL, NULL, 0, 0, 0);
 
+		  /* NSECs can't be wildcards. */
+		  if (rc == STAT_SECURE_WILDCARD)
+		    rc = STAT_BOGUS;
+
 		  if (rc != STAT_SECURE)
 		    return rc;
 		}
