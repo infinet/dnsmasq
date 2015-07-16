@@ -2112,6 +2112,7 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
   unsigned char *p = (unsigned char *)(header+1);
   int type, class, qclass, rdlen, j, rc;
   int cname_count = CNAME_CHAIN;
+  char *wildname;
 
   /* Get question */
   if (!extract_name(header, plen, &p, name, 1, 4))
@@ -2145,7 +2146,46 @@ int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char 
 	    return STAT_INSECURE;
 	  
 	  /* validate CNAME chain, return if insecure or need more data */
-	  rc = validate_rrset(now, header, plen, class, type, name, keyname, NULL, NULL, 0, 0, 0);
+	  rc = validate_rrset(now, header, plen, class, type, name, keyname, &wildname, NULL, 0, 0, 0);
+	   
+	  if (rc == STAT_SECURE_WILDCARD)
+	    {
+	      int nsec_type, nsec_count, i;
+	      unsigned char **nsecs;
+
+	      /* An attacker can replay a wildcard answer with a different
+		 answer and overlay a genuine RR. To prove this
+		 hasn't happened, the answer must prove that
+		 the genuine record doesn't exist. Check that here. */
+	      if (!(nsec_type = find_nsec_records(header, plen, &nsecs, &nsec_count, class)))
+		return STAT_BOGUS; /* No NSECs or bad packet */
+	      
+	      /* Note that we're called here because something didn't validate in validate_reply,
+		 so we can't assume that any NSEC records have been validated. We do them by steam here */
+
+	      for (i = 0; i < nsec_count; i++)
+		{
+		  unsigned char *p1 = nsecs[i];
+		  
+		  if (!extract_name(header, plen, &p1, daemon->workspacename, 1, 0))
+		    return STAT_BOGUS;
+
+		  rc = validate_rrset(now, header, plen, class, nsec_type, daemon->workspacename, keyname, NULL, NULL, 0, 0, 0);
+
+		  if (rc != STAT_SECURE)
+		    return rc;
+		}
+
+	      if (nsec_type == T_NSEC)
+		rc = prove_non_existence_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type, NULL);
+	      else
+		rc = prove_non_existence_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, 
+					       keyname, name, type, wildname, NULL);
+	      
+	      if (rc != STAT_SECURE)
+		return rc;
+	    }
+	  
 	  if (rc != STAT_SECURE)
 	    {
 	      if (rc == STAT_NO_SIG)
