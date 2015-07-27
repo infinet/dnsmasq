@@ -1226,16 +1226,20 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   if (val == STAT_INSECURE)
     val = STAT_BOGUS;
 
-  if (val == STAT_NO_SIG)
-    return val;
-  
   p = (unsigned char *)(header+1);
   extract_name(header, plen, &p, name, 1, 4);
   p += 4; /* qtype, qclass */
   
   if (!(p = skip_section(p, ntohs(header->ancount), header, plen)))
     val = STAT_BOGUS;
-  
+   
+  /* If we return STAT_NO_SIG, name contains the name of the DS query */
+  if (val == STAT_NO_SIG)
+    {
+      *keyname = 0;
+      return val;
+    }  
+
   /* If the key needed to validate the DS is on the same domain as the DS, we'll
      loop getting nowhere. Stop that now. This can happen of the DS answer comes
      from the DS's zone, and not the parent zone. */
