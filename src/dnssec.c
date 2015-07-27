@@ -427,13 +427,12 @@ static int serial_compare_32(unsigned long s1, unsigned long s2)
 */
 
 static time_t timestamp_time;
-static int back_to_the_future;
 
 int setup_timestamp(void)
 {
   struct stat statbuf;
   
-  back_to_the_future = 0;
+  daemon->back_to_the_future = 0;
   
   if (!daemon->timestamp_file)
     return 0;
@@ -447,7 +446,7 @@ int setup_timestamp(void)
 	  /* time already OK, update timestamp, and do key checking from the start. */
 	  if (utime(daemon->timestamp_file, NULL) == -1)
 	    my_syslog(LOG_ERR, _("failed to update mtime on %s: %s"), daemon->timestamp_file, strerror(errno));
-	  back_to_the_future = 1;
+	  daemon->back_to_the_future = 1;
 	  return 0;
 	}
       return 1;
@@ -487,17 +486,17 @@ static int check_date_range(unsigned long date_start, unsigned long date_end)
      and start checking keys */
   if (daemon->timestamp_file)
     {
-      if (back_to_the_future == 0 && difftime(timestamp_time, curtime) <= 0)
+      if (daemon->back_to_the_future == 0 && difftime(timestamp_time, curtime) <= 0)
 	{
 	  if (utime(daemon->timestamp_file, NULL) != 0)
 	    my_syslog(LOG_ERR, _("failed to update mtime on %s: %s"), daemon->timestamp_file, strerror(errno));
 	  
-	  back_to_the_future = 1;	
+	  daemon->back_to_the_future = 1;
 	  set_option_bool(OPT_DNSSEC_TIME);
 	  queue_event(EVENT_RELOAD); /* purge cache */
 	} 
 
-      if (back_to_the_future == 0)
+      if (daemon->back_to_the_future == 0)
 	return 1;
     }
   else if (option_bool(OPT_DNSSEC_TIME))
