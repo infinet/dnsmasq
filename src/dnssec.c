@@ -34,8 +34,6 @@
 #include <nettle/dsa-compat.h>
 #endif
 
-#include <utime.h>
-
 #define SERIAL_UNDEF  -100
 #define SERIAL_EQ        0
 #define SERIAL_LT       -1
