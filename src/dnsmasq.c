@@ -1025,7 +1025,7 @@ int main (int argc, char **argv)
 #endif
 
 #  ifdef HAVE_SCRIPT
-      if (daemon->helperfd != -1 && poll_check(daemon->helperfd, POLLIN))
+      if (daemon->helperfd != -1 && poll_check(daemon->helperfd, POLLOUT))
 	helper_write();
 #  endif
 #endif
