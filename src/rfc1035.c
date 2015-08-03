@@ -728,7 +728,8 @@ int private_net(struct in_addr addr, int ban_localhost)
   in_addr_t ip_addr = ntohl(addr.s_addr);
 
   return
-    (((ip_addr & 0xFF000000) == 0x7F000000) && ban_localhost)  /* 127.0.0.0/8    (loopback) */ || 
+    (((ip_addr & 0xFF000000) == 0x7F000000) && ban_localhost)  /* 127.0.0.0/8    (loopback) */ ||
+    ((ip_addr & 0xFF000000) == 0x00000000)  /* RFC 5735 section 3. "here" network */ ||
     ((ip_addr & 0xFFFF0000) == 0xC0A80000)  /* 192.168.0.0/16 (private)  */ ||
     ((ip_addr & 0xFF000000) == 0x0A000000)  /* 10.0.0.0/8     (private)  */ ||
     ((ip_addr & 0xFFF00000) == 0xAC100000)  /* 172.16.0.0/12  (private)  */ ||
