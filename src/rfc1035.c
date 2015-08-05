@@ -629,26 +629,47 @@ struct subnet_opt {
 #endif
 };
 
+static void *get_addrp(union mysockaddr *addr, const short family) 
+{
+#ifdef HAVE_IPV6
+  if (family == AF_INET6)
+    return &addr->in6.sin6_addr;
+#endif
+
+  return &addr->in.sin_addr;
+}
+
 static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
 {
   /* http://tools.ietf.org/html/draft-vandergaast-edns-client-subnet-02 */
   
   int len;
   void *addrp;
+  int sa_family = source->sa.sa_family;
 
 #ifdef HAVE_IPV6
   if (source->sa.sa_family == AF_INET6)
     {
-      opt->family = htons(2);
-      opt->source_netmask = daemon->addr6_netmask;
-      addrp = &source->in6.sin6_addr;
+      opt->source_netmask = daemon->add_subnet6->mask;
+      if (daemon->add_subnet6->addr_used) 
+	{
+	  sa_family = daemon->add_subnet6->addr.sa.sa_family;
+	  addrp = get_addrp(&daemon->add_subnet6->addr, sa_family);
+	} 
+      else 
+	addrp = &source->in6.sin6_addr;
     }
   else
 #endif
     {
-      opt->family = htons(1);
-      opt->source_netmask = daemon->addr4_netmask;
-      addrp = &source->in.sin_addr;
+      opt->source_netmask = daemon->add_subnet4->mask;
+      if (daemon->add_subnet4->addr_used)
+	{
+	  sa_family = daemon->add_subnet4->addr.sa.sa_family;
+	  addrp = get_addrp(&daemon->add_subnet4->addr, sa_family);
+	} 
+      else 
+	addrp = &source->in.sin_addr;
     }
   
   opt->scope_netmask = 0;
@@ -656,6 +677,11 @@ static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
   
   if (opt->source_netmask != 0)
     {
+#ifdef HAVE_IPV6
+      opt->family = htons(sa_family == AF_INET6 ? 2 : 1);
+#else
+      opt->family = htons(1);
+#endif
       len = ((opt->source_netmask - 1) >> 3) + 1;
       memcpy(opt->addr, addrp, len);
       if (opt->source_netmask & 7)
@@ -2335,4 +2361,3 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   
   return len;
 }
-
