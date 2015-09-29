@@ -21,7 +21,7 @@ if [ -x /etc/init.d/dnsmasq ]; then
    update-rc.d dnsmasq defaults 15 85 >/dev/null
 
    if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
-      if [ -e /var/run/dnsmasq/dnsmasq.pid ]; then
+      if [ -e /run/dnsmasq/dnsmasq.pid ]; then
           ACTION=restart
       else
           ACTION=start

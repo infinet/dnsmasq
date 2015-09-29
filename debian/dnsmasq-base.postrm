@@ -7,5 +7,5 @@ if [ purge = "$1" ]; then
   else
      echo >&2 "not removing dnsmasq system account because deluser command was not found"
   fi
-  rm -rf /var/run/dnsmasq
+  rm -rf /run/dnsmasq
 fi

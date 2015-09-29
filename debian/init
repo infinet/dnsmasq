@@ -81,7 +81,7 @@ if [ ! "$RESOLV_CONF" ] &&
    [ "$IGNORE_RESOLVCONF" != "yes" ] &&
    [ -x /sbin/resolvconf ]
 then
-	RESOLV_CONF=/var/run/dnsmasq/resolv.conf
+	RESOLV_CONF=/run/dnsmasq/resolv.conf
 fi
 
 for INTERFACE in $DNSMASQ_INTERFACE; do
@@ -121,16 +121,16 @@ start()
 	#   1 if daemon was already running
 	#   2 if daemon could not be started
 
-        # /var/run may be volatile, so we need to ensure that
-        # /var/run/dnsmasq exists here as well as in postinst
-        if [ ! -d /var/run/dnsmasq ]; then
-           mkdir /var/run/dnsmasq || return 2
-           chown dnsmasq:nogroup /var/run/dnsmasq || return 2
+        # /run may be volatile, so we need to ensure that
+        # /run/dnsmasq exists here as well as in postinst
+        if [ ! -d /run/dnsmasq ]; then
+           mkdir /run/dnsmasq || return 2
+           chown dnsmasq:nogroup /run/dnsmasq || return 2
         fi
 
-	start-stop-daemon --start --quiet --pidfile /var/run/dnsmasq/$NAME.pid --exec $DAEMON --test > /dev/null || return 1
-	start-stop-daemon --start --quiet --pidfile /var/run/dnsmasq/$NAME.pid --exec $DAEMON -- \
-		-x /var/run/dnsmasq/$NAME.pid \
+	start-stop-daemon --start --quiet --pidfile /run/dnsmasq/$NAME.pid --exec $DAEMON --test > /dev/null || return 1
+	start-stop-daemon --start --quiet --pidfile /run/dnsmasq/$NAME.pid --exec $DAEMON -- \
+		-x /run/dnsmasq/$NAME.pid \
 	        ${MAILHOSTNAME:+ -m $MAILHOSTNAME} \
 		${MAILTARGET:+ -t $MAILTARGET} \
 		${DNSMASQ_USER:+ -u $DNSMASQ_USER} \
@@ -167,7 +167,7 @@ stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /var/run/dnsmasq/$NAME.pid --name $NAME
+	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile /run/dnsmasq/$NAME.pid --name $NAME
 }
 
 stop_resolvconf()
@@ -185,9 +185,9 @@ status()
 	#   1 if daemon is dead and pid file exists
 	#   3 if daemon is not running
 	#   4 if daemon status is unknown
-	start-stop-daemon --start --quiet --pidfile /var/run/dnsmasq/$NAME.pid --exec $DAEMON --test > /dev/null
+	start-stop-daemon --start --quiet --pidfile /run/dnsmasq/$NAME.pid --exec $DAEMON --test > /dev/null
 	case "$?" in
-		0) [ -e "/var/run/dnsmasq/$NAME.pid" ] && return 1 ; return 3 ;;
+		0) [ -e "/run/dnsmasq/$NAME.pid" ] && return 1 ; return 3 ;;
 		1) return 0 ;;
 		*) return 4 ;;
 	esac
@@ -278,7 +278,7 @@ case "$1" in
 	esac
 	;;
   dump-stats)
-        kill -s USR1 `cat /var/run/dnsmasq/$NAME.pid`
+        kill -s USR1 `cat /run/dnsmasq/$NAME.pid`
 	;;
   systemd-start-resolvconf)
 	start_resolvconf
@@ -287,13 +287,13 @@ case "$1" in
 	stop_resolvconf
 	;;
   systemd-exec)
-# /var/run may be volatile, so we need to ensure that
-        # /var/run/dnsmasq exists here as well as in postinst
-        if [ ! -d /var/run/dnsmasq ]; then
-           mkdir /var/run/dnsmasq || return 2
-           chown dnsmasq:nogroup /var/run/dnsmasq || return 2
+# /run may be volatile, so we need to ensure that
+        # /run/dnsmasq exists here as well as in postinst
+        if [ ! -d /run/dnsmasq ]; then
+           mkdir /run/dnsmasq || return 2
+           chown dnsmasq:nogroup /run/dnsmasq || return 2
         fi
-	exec $DAEMON -x /var/run/dnsmasq/$NAME.pid \
+	exec $DAEMON -x /run/dnsmasq/$NAME.pid \
 	    ${MAILHOSTNAME:+ -m $MAILHOSTNAME} \
 	    ${MAILTARGET:+ -t $MAILTARGET} \
 	    ${DNSMASQ_USER:+ -u $DNSMASQ_USER} \

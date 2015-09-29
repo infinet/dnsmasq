@@ -4,7 +4,7 @@ Requires=network.target
 
 [Service]
 Type=forking
-PIDFile=/var/run/dnsmasq/dnsmasq.pid
+PIDFile=/run/dnsmasq/dnsmasq.pid
 
 # Test the config file and refuse starting if it is not valid.
 ExecStartPre=/usr/sbin/dnsmasq --test

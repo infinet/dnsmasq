@@ -17,8 +17,8 @@ if [ "$1" = "configure" ]; then
   # dnsmasq-base, but it's much easier to create it here so that
   # we don't have synchronisation issues with the creation of the
   # dnsmasq user. 
-  if [ ! -d /var/run/dnsmasq ]; then
-    mkdir /var/run/dnsmasq
-    chown dnsmasq:nogroup /var/run/dnsmasq
+  if [ ! -d /run/dnsmasq ]; then
+    mkdir /run/dnsmasq
+    chown dnsmasq:nogroup /run/dnsmasq
   fi
 fi

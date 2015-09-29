@@ -1,6 +1,8 @@
 dnsmasq (2.76-1) unstable; urgency=low
 
    * New upstream. (closes: #798586)
+   * Use /run/dnsmasq directly, rather than relying on link from /var/run
+     to avoid problems before /var is mounted. (closes: #800351)
 	
  -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 10 Sep 2015 23:07:21 +0000
 

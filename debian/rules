@@ -134,7 +134,6 @@ binary-arch:	checkroot
 		-d debian/base/etc/dbus-1/system.d \
 	        -d debian/base/usr/share/doc/$(package) \
 		-d debian/base/usr/share/doc/$(package)/examples \
-	        -d debian/base/var/run \
 		-d debian/base/usr/share/$(package) \
 	        -d debian/base/var/lib/misc
 	make $(TARGET) PREFIX=/usr DESTDIR=`pwd`/debian/base CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc

@@ -13,7 +13,7 @@
 
 set -e
 
-RUN_DIR="/var/run/dnsmasq"
+RUN_DIR="/run/dnsmasq"
 RSLVRLIST_FILE="${RUN_DIR}/resolv.conf"
 TMP_FILE="${RSLVRLIST_FILE}_new.$$"
 MY_NAME_FOR_RESOLVCONF="dnsmasq"
