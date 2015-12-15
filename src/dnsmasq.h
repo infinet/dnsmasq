@@ -586,12 +586,8 @@ struct hostsfile {
 #define STAT_NEED_KEY           5
 #define STAT_TRUNCATED          6
 #define STAT_SECURE_WILDCARD    7
-#define STAT_NO_SIG             8
-#define STAT_NO_DS              9
-#define STAT_NO_NS             10
-#define STAT_NEED_DS_NEG       11
-#define STAT_CHASE_CNAME       12
-#define STAT_INSECURE_DS       13
+#define STAT_OK                 8
+#define STAT_ABANDONED          9
 
 #define FREC_NOREBIND           1
 #define FREC_CHECKING_DISABLED  2
@@ -601,8 +597,7 @@ struct hostsfile {
 #define FREC_AD_QUESTION       32
 #define FREC_DO_QUESTION       64
 #define FREC_ADDED_PHEADER    128
-#define FREC_CHECK_NOSIGN     256
-#define FREC_TEST_PKTSZ       512
+#define FREC_TEST_PKTSZ       256
 
 #ifdef HAVE_DNSSEC
 #define HASH_SIZE 20 /* SHA-1 digest size */
@@ -626,9 +621,7 @@ struct frec {
 #ifdef HAVE_DNSSEC 
   int class, work_counter;
   struct blockdata *stash; /* Saved reply, whilst we validate */
-  struct blockdata *orig_domain; /* domain of original query, whilst
-				    we're seeing is if in unsigned domain */
-  size_t stash_len, name_start, name_len;
+  size_t stash_len;
   struct frec *dependent; /* Query awaiting internally-generated DNSKEY or DS query */
   struct frec *blocking_query; /* Query which is blocking us. */
 #endif
@@ -1162,8 +1155,8 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr, int edns_pktsz);
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
-int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class, int *neganswer, int *nons);
-int dnssec_chase_cname(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname);
+int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class,
+			  int check_unsigned, int *neganswer, int *nons);
 int dnskey_keytag(int alg, int flags, unsigned char *rdata, int rdlen);
 size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);
