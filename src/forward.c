@@ -662,7 +662,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 
   /* If the requestor didn't set the DO bit, don't return DNSSEC info. */
   if (!do_bit)
-    n = filter_rrsigs(header, n);
+    n = rrfilter(header, n, 1);
 #endif
 
   /* do this after extract_addresses. Ensure NODATA reply and remove

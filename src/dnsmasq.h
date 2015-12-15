@@ -1513,3 +1513,8 @@ int poll_check(int fd, short event);
 void poll_listen(int fd, short event);
 int do_poll(int timeout);
 
+/* rrfilter.c */
+size_t rrfilter(struct dns_header *header, size_t plen, int mode);
+u16 *rrfilter_desc(int type);
+int expand_workspace(unsigned char ***wkspc, int *szp, int new);
+
