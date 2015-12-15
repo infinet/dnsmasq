@@ -398,14 +398,9 @@ struct crec {
       unsigned char algo;
       unsigned char digest; 
     } ds; 
-    struct {
-      struct blockdata *keydata;
-      unsigned short keylen, type_covered, keytag;
-      char algo;
-    } sig;
   } addr;
   time_t ttd; /* time to die */
-  /* used as class if DNSKEY/DS/RRSIG, index to source for F_HOSTS */
+  /* used as class if DNSKEY/DS, index to source for F_HOSTS */
   unsigned int uid; 
   unsigned short flags;
   union {
@@ -445,8 +440,7 @@ struct crec {
 #define F_SECSTAT   (1u<<24)
 #define F_NO_RR     (1u<<25)
 #define F_IPSET     (1u<<26)
-#define F_NSIGMATCH (1u<<27)
-#define F_NOEXTRA   (1u<<28)
+#define F_NOEXTRA   (1u<<27)
 
 /* Values of uid in crecs with F_CONFIG bit set. */
 #define SRC_INTERFACE 0

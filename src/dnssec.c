@@ -1004,7 +1004,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 {
   unsigned char *psave, *p = (unsigned char *)(header+1);
   struct crec *crecp, *recp1;
-  int rc, j, qtype, qclass, ttl, rdlen, flags, algo, valid, keytag, type_covered;
+  int rc, j, qtype, qclass, ttl, rdlen, flags, algo, valid, keytag;
   struct blockdata *key;
   struct all_addr a;
 
@@ -1115,7 +1115,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 
   if (valid)
     {
-      /* DNSKEY RRset determined to be OK, now cache it and the RRsigs that sign it. */
+      /* DNSKEY RRset determined to be OK, now cache it. */
       cache_start_insert();
       
       p = skip_questions(header, plen);
@@ -1155,7 +1155,10 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 		  if ((key = blockdata_alloc((char*)p, rdlen - 4)))
 		    {
 		      if (!(recp1 = cache_insert(name, &a, now, ttl, F_FORWARD | F_DNSKEY | F_DNSSECOK)))
-			blockdata_free(key);
+			{
+			  blockdata_free(key);
+			  return STAT_BOGUS;
+			}
 		      else
 			{
 			  a.addr.keytag = keytag;
@@ -1169,38 +1172,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 			}
 		    }
 		}
-	      else if (qtype == T_RRSIG)
-		{
-		  /* RRSIG, cache if covers DNSKEY RRset */
-		  if (rdlen < 18)
-		    return STAT_BOGUS; /* bad packet */
-		  
-		  GETSHORT(type_covered, p);
-		  
-		  if (type_covered == T_DNSKEY)
-		    {
-		      a.addr.dnssec.class = class;
-		      a.addr.dnssec.type = type_covered;
-		      
-		      algo = *p++;
-		      p += 13; /* labels, orig_ttl, expiration, inception */
-		      GETSHORT(keytag, p);	
-		      if ((key = blockdata_alloc((char*)psave, rdlen)))
-			{
-			  if (!(crecp = cache_insert(name, &a, now, ttl,  F_FORWARD | F_DNSKEY | F_DS)))
-			    blockdata_free(key);
-			  else
-			    {
-			      crecp->addr.sig.keydata = key;
-			      crecp->addr.sig.keylen = rdlen;
-			      crecp->addr.sig.keytag = keytag;
-			      crecp->addr.sig.type_covered = type_covered;
-			      crecp->addr.sig.algo = algo;
-			    }
-			}
-		    }
-		}
-	      
+	      	      
 	      p = psave;
 	    }
 
@@ -1326,7 +1298,8 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 	  cache_start_insert();
 	  
 	  a.addr.dnssec.class = class;
-	  cache_insert(name, &a, now, ttl, flags);
+	  if (!cache_insert(name, &a, now, ttl, flags))
+	    return STAT_BOGUS;
 	  
 	  cache_end_insert();  
 	  
@@ -2028,14 +2001,13 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	  /* Not done, validate now */
 	  if (j == i)
 	    {
-	      int ttl, keytag, algo, digest, type_covered, sigcnt, rrcnt;
+	      int ttl, keytag, algo, digest, sigcnt, rrcnt;
 	      unsigned char *psave;
 	      struct all_addr a;
 	      struct blockdata *key;
 	      struct crec *crecp;
 	      char *wildname;
-	      int have_wildcard = 0;
-
+	      
 	      if (!explore_rrset(header, plen, class1, type1, name, keyname, &sigcnt, &rrcnt))
 		return STAT_BOGUS;
 
@@ -2096,8 +2068,6 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 			    
 		  if (rc == STAT_SECURE_WILDCARD)
 		    {
-		      have_wildcard = 1;
-		      
 		      /* An attacker replay a wildcard answer with a different
 			 answer and overlay a genuine RR. To prove this
 			 hasn't happened, the answer must prove that
@@ -2119,7 +2089,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 			return rc;
 		    } 
 		  
-		  /* Cache RRsigs in answer section, and if we just validated a DS RRset, cache it */
+		  /* If we just validated a DS RRset, cache it */
 		  /* Also note if the RRset is the answer to the question, or the target of a CNAME */
 		  cache_start_insert();
 		  
@@ -2168,45 +2138,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 				    } 
 				}
 			    }
-			  else if (type2 == T_RRSIG)
-			    {
-			      if (rdlen2 < 18)
-				return STAT_BOGUS; /* bad packet */
-			      
-			      GETSHORT(type_covered, p2);
-			      
-			      if (type_covered == type1 && 
-				  (type_covered == T_A || type_covered == T_AAAA ||
-				   type_covered == T_CNAME || type_covered == T_DS || 
-				   type_covered == T_DNSKEY || type_covered == T_PTR)) 
-				{
-				  a.addr.dnssec.type = type_covered;
-				  a.addr.dnssec.class = class1;
-				  
-				  algo = *p2++;
-				  p2 += 13; /* labels, orig_ttl, expiration, inception */
-				  GETSHORT(keytag, p2);
-				  
-				  /* We don't cache sigs for wildcard answers, because to reproduce the
-				     answer from the cache will require one or more NSEC/NSEC3 records 
-				     which we don't cache. The lack of the RRSIG ensures that a query for
-				     this RRset asking for a secure answer will always be forwarded. */
-				  if (!have_wildcard && (key = blockdata_alloc((char*)psave, rdlen2)))
-				    {
-				      if (!(crecp = cache_insert(name, &a, now, ttl,  F_FORWARD | F_DNSKEY | F_DS)))
-					blockdata_free(key);
-				      else
-					{
-					  crecp->addr.sig.keydata = key;
-					  crecp->addr.sig.keylen = rdlen2;
-					  crecp->addr.sig.keytag = keytag;
-					  crecp->addr.sig.type_covered = type_covered;
-					  crecp->addr.sig.algo = algo;
-					}
-				    }
-				}
-			    }
-			  
+
 			  p2 = psave;
 			}
 		      
