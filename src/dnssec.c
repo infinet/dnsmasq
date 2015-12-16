@@ -763,10 +763,10 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
    STAT_NEED_KEY need DNSKEY to complete validation (name is returned in keyname)
    STAT_NEED_DS  need DS to complete validation (name is returned in keyname)
 
-   if key is non-NULL, use that key, which has the algo and tag given in the params of those names,
+   If key is non-NULL, use that key, which has the algo and tag given in the params of those names,
    otherwise find the key in the cache.
 
-   name is unchanged on exit. keyname is used as workspace and trashed.
+   Name is unchanged on exit. keyname is used as workspace and trashed.
 
    Call explore_rrset first to find and count RRs and sigs.
 */
@@ -919,6 +919,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   return STAT_BOGUS;
 }
  
+
 /* The DNS packet is expected to contain the answer to a DNSKEY query.
    Put all DNSKEYs in the answer which are valid into the cache.
    return codes:
@@ -1831,15 +1832,15 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
 
 /* Check signing status of name.
    returns:
-   STAT_SECURE zone is signed.
-   STAT_INSECURE zone proved unsigned.
-   STAT_NEED_DS require DS record of name returned in keyname.
-   
+   STAT_SECURE      zone is signed.
+   STAT_INSECURE    zone proved unsigned.
+   STAT_NEED_DS     require DS record of name returned in keyname.
+   STAT_NEED_DNSKEY require DNSKEY record of name returned in keyname.
    name returned unaltered.
 */
 static int zone_status(char *name, int class, char *keyname, time_t now)
 {
-  int name_start = strlen(name);
+  int secure_ds, name_start = strlen(name);
   struct crec *crecp;
   char *p;
   
@@ -1850,27 +1851,52 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
       if (!(crecp = cache_find_by_name(NULL, keyname, now, F_DS)))
 	return STAT_NEED_DS;
       else
-	do 
-	  {
-	    if (crecp->uid == (unsigned int)class)
-	      {
-		/* F_DNSSECOK misused in DS cache records to non-existance of NS record.
-		   F_NEG && !F_DNSSECOK implies that we've proved there's no DS record here,
-		   but that's because there's no NS record either, ie this isn't the start
-		   of a zone. We only prove that the DNS tree below a node is unsigned when
-		   we prove that we're at a zone cut AND there's no DS record.
-		*/	  
-		if (crecp->flags & F_NEG)
-		  {
-		    if (crecp->flags & F_DNSSECOK)
-		      return STAT_INSECURE; /* proved no DS here */
-		  }
-		else if (!ds_digest_name(crecp->addr.ds.digest) || !algo_digest_name(crecp->addr.ds.algo))
-		  return STAT_INSECURE; /* algo we can't use - insecure */
-	      }
-	  }
-	while ((crecp = cache_find_by_name(crecp, keyname, now, F_DS)));
-      
+	{
+	  secure_ds = 0;
+	  
+	  do 
+	    {
+	      if (crecp->uid == (unsigned int)class)
+		{
+		  /* F_DNSSECOK misused in DS cache records to non-existance of NS record.
+		     F_NEG && !F_DNSSECOK implies that we've proved there's no DS record here,
+		     but that's because there's no NS record either, ie this isn't the start
+		     of a zone. We only prove that the DNS tree below a node is unsigned when
+		     we prove that we're at a zone cut AND there's no DS record.
+		  */	  
+		  if (crecp->flags & F_NEG)
+		    {
+		      if (crecp->flags & F_DNSSECOK)
+			return STAT_INSECURE; /* proved no DS here */
+		    }
+		  else if (!ds_digest_name(crecp->addr.ds.digest) || !algo_digest_name(crecp->addr.ds.algo))
+		    return STAT_INSECURE; /* algo we can't use - insecure */
+		  else
+		    secure_ds = 1;
+		}
+	    }
+	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DS)));
+	}
+
+      if (secure_ds)
+	{
+	  /* We've found only DS records that attest to the DNSKEY RRset in the zone, so we believe
+	     that RRset is good. Furthermore the DNSKEY whose hash is proved by the DS record is
+	     one we can use. However the DNSKEY RRset may contain more than one key and
+	     one of the other keys may use an algorithm we don't support. If that's 
+	     the case the zone is insecure for us. */
+	  
+	  if (!(crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY)))
+	    return STAT_NEED_KEY;
+
+	  do 
+	    {
+	      if (crecp->uid == (unsigned int)class && !algo_digest_name(crecp->addr.key.algo))
+		return STAT_INSECURE;
+	    }
+	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY)));
+	}
+
       if (name_start == 0)
 	break;
 
