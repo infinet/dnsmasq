@@ -65,10 +65,9 @@ static char *algo_digest_name(int algo)
     case 8: return "sha256";
     case 10: return "sha512";
     case 12: return "gosthash94";
-#ifndef NO_NETTLE_ECC
     case 13: return "sha256";
     case 14: return "sha384";
-#endif
+
     default: return NULL;
     }
 }
@@ -129,13 +128,15 @@ static int hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char 
 }
   
 static int dnsmasq_rsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
-			      unsigned char *digest, int algo)
+			      unsigned char *digest, size_t digest_len, int algo)
 {
   unsigned char *p;
   size_t exp_len;
   
   static struct rsa_public_key *key = NULL;
   static mpz_t sig_mpz;
+
+  (void)digest_len;
   
   if (key == NULL)
     {
@@ -181,7 +182,7 @@ static int dnsmasq_rsa_verify(struct blockdata *key_data, unsigned int key_len, 
 }  
 
 static int dnsmasq_dsa_verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
-			      unsigned char *digest, int algo)
+			      unsigned char *digest, size_t digest_len, int algo)
 {
   unsigned char *p;
   unsigned int t;
@@ -189,6 +190,8 @@ static int dnsmasq_dsa_verify(struct blockdata *key_data, unsigned int key_len, 
   static struct dsa_public_key *key = NULL;
   static struct dsa_signature *sig_struct;
   
+  (void)digest_len;
+
   if (key == NULL)
     {
       if (!(sig_struct = whine_malloc(sizeof(struct dsa_signature))) || 
@@ -292,26 +295,45 @@ static int dnsmasq_ecdsa_verify(struct blockdata *key_data, unsigned int key_len
 } 
 #endif 
 
-static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
-		  unsigned char *digest, size_t digest_len, int algo)
+static int (*verify_func(int algo))(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+				    unsigned char *digest, size_t digest_len, int algo)
 {
-  (void)digest_len;
-
+    
+  /* Enure at runtime that we have support for this digest */
+  if (!hash_find(algo_digest_name(algo)))
+    return NULL;
+  
+  /* This switch defines which sig algorithms we support, can't introspect Nettle for that. */
   switch (algo)
     {
     case 1: case 5: case 7: case 8: case 10:
-      return dnsmasq_rsa_verify(key_data, key_len, sig, sig_len, digest, algo);
+      return dnsmasq_rsa_verify;
       
     case 3: case 6: 
-      return dnsmasq_dsa_verify(key_data, key_len, sig, sig_len, digest, algo);
+      return dnsmasq_dsa_verify;
  
 #ifndef NO_NETTLE_ECC   
     case 13: case 14:
-      return dnsmasq_ecdsa_verify(key_data, key_len, sig, sig_len, digest, digest_len, algo);
+      return dnsmasq_ecdsa_verify;
 #endif
     }
   
-  return 0;
+  return NULL;
+}
+
+static int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+		  unsigned char *digest, size_t digest_len, int algo)
+{
+
+  int (*func)(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+	      unsigned char *digest, size_t digest_len, int algo);
+  
+  func = verify_func(algo);
+  
+  if (!func)
+    return 0;
+
+  return (*func)(key_data, key_len, sig, sig_len, digest, digest_len, algo);
 }
 
 /* Convert from presentation format to wire format, in place.
@@ -732,7 +754,7 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
 	      if (check_date_range(sig_inception, sig_expiration) &&
 		  labels <= name_labels &&
 		  type_covered == type && 
-		  algo_digest_name(algo))
+		  verify_func(algo))
 		{
 		  if (!expand_workspace(&sigs, &sig_sz, sigidx))
 		    return 0; 
@@ -1865,7 +1887,7 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 		      if (crecp->flags & F_DNSSECOK)
 			return STAT_INSECURE; /* proved no DS here */
 		    }
-		  else if (!ds_digest_name(crecp->addr.ds.digest) || !algo_digest_name(crecp->addr.ds.algo))
+		  else if (!hash_find(ds_digest_name(crecp->addr.ds.digest)) || !verify_func(crecp->addr.ds.algo))
 		    return STAT_INSECURE; /* algo we can't use - insecure */
 		  else
 		    secure_ds = 1;
@@ -1887,7 +1909,7 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 
 	  do 
 	    {
-	      if (crecp->uid == (unsigned int)class && !algo_digest_name(crecp->addr.key.algo))
+	      if (crecp->uid == (unsigned int)class && !verify_func(crecp->addr.key.algo))
 		return STAT_INSECURE;
 	    }
 	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY)));
