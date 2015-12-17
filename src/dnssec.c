@@ -923,11 +923,11 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 /* The DNS packet is expected to contain the answer to a DNSKEY query.
    Put all DNSKEYs in the answer which are valid into the cache.
    return codes:
-         STAT_OK           Done, key(s) in cache.
-	 STAT_BOGUS        No DNSKEYs found, which  can be validated with DS,
-	                   or self-sign for DNSKEY RRset is not valid, bad packet.
-	 STAT_NEED_DS      DS records to validate a key not found, name in keyname 
-	 STAT_NEED_DNSKEY  DNSKEY records to validate a key not found, name in keyname 
+         STAT_OK        Done, key(s) in cache.
+	 STAT_BOGUS     No DNSKEYs found, which  can be validated with DS,
+	                or self-sign for DNSKEY RRset is not valid, bad packet.
+	 STAT_NEED_DS   DS records to validate a key not found, name in keyname 
+	 STAT_NEED_KEY  DNSKEY records to validate a key not found, name in keyname 
 */
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class)
 {
@@ -1224,13 +1224,13 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 		}
 	      
 	      p = psave;
-	      
-	      if (!ADD_RDLEN(header, p, plen, rdlen))
-		return STAT_BOGUS; /* bad packet */
 	    }
-	  
-	  cache_end_insert();
+	  if (!ADD_RDLEN(header, p, plen, rdlen))
+	    return STAT_BOGUS; /* bad packet */
 	}
+
+      cache_end_insert();
+
     }
   else
     {
@@ -1828,10 +1828,10 @@ static int prove_non_existence(struct dns_header *header, size_t plen, char *key
 
 /* Check signing status of name.
    returns:
-   STAT_SECURE      zone is signed.
-   STAT_INSECURE    zone proved unsigned.
-   STAT_NEED_DS     require DS record of name returned in keyname.
-   STAT_NEED_DNSKEY require DNSKEY record of name returned in keyname.
+   STAT_SECURE   zone is signed.
+   STAT_INSECURE zone proved unsigned.
+   STAT_NEED_DS  require DS record of name returned in keyname.
+   STAT_NEED_KEY require DNSKEY record of name returned in keyname.
    name returned unaltered.
 */
 static int zone_status(char *name, int class, char *keyname, time_t now)
@@ -2028,7 +2028,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 		      if (rc == STAT_SECURE)
 			rc = STAT_BOGUS;
 		       if (class)
-			 *class = class1; /* Class for NEED_DS or NEED_DNSKEY */
+			 *class = class1; /* Class for NEED_DS or NEED_KEY */
 		    }
 		  else 
 		    rc = STAT_INSECURE; 
@@ -2045,7 +2045,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 		{
 		  /* Zone is insecure, don't need to validate RRset */
 		  if (class)
-		    *class = class1; /* Class for NEED_DS or NEED_DNSKEY */
+		    *class = class1; /* Class for NEED_DS or NEED_KEY */
 		  return rc;
 		} 
 	      
@@ -2115,7 +2115,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	    if ((rc = zone_status(name, qclass, keyname, now)) != STAT_SECURE)
 	      {
 		if (class)
-		  *class = qclass; /* Class for NEED_DS or NEED_DNSKEY */
+		  *class = qclass; /* Class for NEED_DS or NEED_KEY */
 		return rc;
 	      } 
 	    
