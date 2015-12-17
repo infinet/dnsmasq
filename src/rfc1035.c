@@ -1539,7 +1539,13 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   int nxdomain = 0, auth = 1, trunc = 0, sec_data = 1;
   struct mx_srv_record *rec;
   size_t len;
- 
+  
+  if (ntohs(header->ancount) != 0 ||
+      ntohs(header->nscount) != 0 ||
+      ntohs(header->qdcount) == 0 || 
+      OPCODE(header) != QUERY )
+    return 0;
+  
   /* Don't return AD set if checking disabled. */
   if (header->hb4 & HB4_CD)
     sec_data = 0;
@@ -1548,33 +1554,32 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   *ad_reqd = header->hb4 & HB4_AD;
   *do_bit = 0;
 
-  /* If there is an RFC2671 pseudoheader then it will be overwritten by
+  /* If there is an  additional data section then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
-     the query. We check to see if the do bit is set, if so we always
-     forward rather than answering from the cache, which doesn't include
-     security information, unless we're in DNSSEC validation mode. */
+     the query. */
 
-  if (find_pseudoheader(header, qlen, NULL, &pheader, NULL))
-    { 
-      unsigned short flags;
-      
-      have_pseudoheader = 1;
-
-      pheader += 4; /* udp size, ext_rcode */
-      GETSHORT(flags, pheader);
-      
-      if ((sec_reqd = flags & 0x8000))
-	{
-	  *do_bit = 1;/* do bit */ 
-	  *ad_reqd = 1;
-	}
-
+  if (ntohs(header->arcount) != 0)
+    {
       dryrun = 1;
+
+      /* If there's an additional section, there might be an EDNS(0) pseudoheader */
+      if (find_pseudoheader(header, qlen, NULL, &pheader, NULL))
+	{ 
+	  unsigned short flags;
+	  
+	  have_pseudoheader = 1;
+	  
+	  pheader += 4; /* udp size, ext_rcode */
+	  GETSHORT(flags, pheader);
+	  
+	  if ((sec_reqd = flags & 0x8000))
+	    {
+	      *do_bit = 1;/* do bit */ 
+	      *ad_reqd = 1;
+	    }
+	}
     }
 
-  if (ntohs(header->qdcount) == 0 || OPCODE(header) != QUERY )
-    return 0;
-  
   for (rec = daemon->mxnames; rec; rec = rec->next)
     rec->offset = 0;
   
@@ -1730,8 +1735,12 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		}
 	      else if ((crecp = cache_find_by_addr(NULL, &addr, now, is_arpa)))
 		{
-		  /* Don't use cache when DNSSEC data required. */
-		  if ((crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) || !sec_reqd || !(crecp->flags & F_DNSSECOK))
+		  /* Don't use cache when DNSSEC data required, unless we know that
+		     the zone is unsigned, which implies that we're doing
+		     validation. */
+		  if ((crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) || 
+		      !sec_reqd || 
+		      (option_bool(OPT_DNSSEC_VALID) && !(crecp->flags & F_DNSSECOK)))
 		    {
 		      do 
 			{ 

@@ -2129,18 +2129,16 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	    /* Empty DS without NSECS */
 	    if (qtype == T_DS)
 	      return STAT_BOGUS;
-	    else
+	    
+	    rc = zone_status(name, qclass, keyname, now);
+	    if (rc != STAT_SECURE)
 	      {
-		rc = zone_status(name, qclass, keyname, now);
-		if (rc != STAT_SECURE)
-		  {
-		    if (class)
-		      *class = qclass; /* Class for NEED_DS or NEED_DNSKEY */
-		    return rc;
-		  } 
-		
-		return STAT_BOGUS; /* signed zone, no NSECs */
-	      }
+		if (class)
+		  *class = qclass; /* Class for NEED_DS or NEED_DNSKEY */
+		return rc;
+	      } 
+	    
+	    return STAT_BOGUS; /* signed zone, no NSECs */
 	  }
 
 	  if (nsec_type == T_NSEC)
