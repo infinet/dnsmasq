@@ -1367,59 +1367,6 @@ static int hostname_cmp(const char *a, const char *b)
     }
 }
 
-/* Find all the NSEC or NSEC3 records in a reply.
-   return an array of pointers to them. */
-static int find_nsec_records(struct dns_header *header, size_t plen, unsigned char ***nsecsetp, int *nsecsetl, int class_reqd)
-{
-  static unsigned char **nsecset = NULL;
-  static int nsecset_sz = 0;
-  
-  int type_found = 0;
-  unsigned char *p = skip_questions(header, plen);
-  int type, class, rdlen, i, nsecs_found;
-
-  /* Move to NS section */
-  if (!p || !(p = skip_section(p, ntohs(header->ancount), header, plen)))
-    return 0;
-  
-  for (nsecs_found = 0, i = ntohs(header->nscount); i != 0; i--)
-    {
-      unsigned char *pstart = p;
-      
-      if (!(p = skip_name(p, header, plen, 10)))
-	return 0;
-      
-      GETSHORT(type, p); 
-      GETSHORT(class, p);
-      p += 4; /* TTL */
-      GETSHORT(rdlen, p);
-
-      if (class == class_reqd && (type == T_NSEC || type == T_NSEC3))
-	{
-	  /* No mixed NSECing 'round here, thankyouverymuch */
-	  if (type_found == T_NSEC && type == T_NSEC3)
-	    return 0;
-	  if (type_found == T_NSEC3 && type == T_NSEC)
-	    return 0;
-
-	  type_found = type;
-
-	  if (!expand_workspace(&nsecset, &nsecset_sz, nsecs_found))
-	    return 0; 
-	  
-	  nsecset[nsecs_found++] = pstart;
-	}
-      
-      if (!ADD_RDLEN(header, p, plen, rdlen))
-	return 0;
-    }
-  
-  *nsecsetp = nsecset;
-  *nsecsetl = nsecs_found;
-  
-  return type_found;
-}
-
 static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count,
 				    char *workspace1, char *workspace2, char *name, int type, int *nons)
 {
@@ -1436,12 +1383,12 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
     {
       p = nsecs[i];
       if (!extract_name(header, plen, &p, workspace1, 1, 10))
-	return STAT_BOGUS;
+	return 0;
       p += 8; /* class, type, TTL */
       GETSHORT(rdlen, p);
       psave = p;
       if (!extract_name(header, plen, &p, workspace2, 1, 10))
-	return STAT_BOGUS;
+	return 0;
       
       rc = hostname_cmp(workspace1, name);
       
@@ -1449,7 +1396,7 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
 	{
 	  /* 4035 para 5.4. Last sentence */
 	  if (type == T_NSEC || type == T_RRSIG)
-	    return STAT_SECURE;
+	    return 1;
 
 	  /* NSEC with the same name as the RR we're testing, check
 	     that the type in question doesn't appear in the type map */
@@ -1465,24 +1412,24 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
 	      /* A CNAME answer would also be valid, so if there's a CNAME is should 
 		 have been returned. */
 	      if ((p[2] & (0x80 >> T_CNAME)) != 0)
-		return STAT_BOGUS;
+		return 0;
 	      
 	      /* If the SOA bit is set for a DS record, then we have the
 		 DS from the wrong side of the delegation. */
 	      if (type == T_DS && (p[2] & (0x80 >> T_SOA)) != 0)
-		return STAT_BOGUS;
+		return 0;
 	    }
 
 	  while (rdlen >= 2)
 	    {
 	      if (!CHECK_LEN(header, p, plen, rdlen))
-		return STAT_BOGUS;
+		return 0;
 	      
 	      if (p[0] == type >> 8)
 		{
 		  /* Does the NSEC say our type exists? */
 		  if (offset < p[1] && (p[offset+2] & mask) != 0)
-		    return STAT_BOGUS;
+		    return 0;
 		  
 		  break; /* finshed checking */
 		}
@@ -1491,24 +1438,24 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
 	      p +=  p[1];
 	    }
 	  
-	  return STAT_SECURE;
+	  return 1;
 	}
       else if (rc == -1)
 	{
 	  /* Normal case, name falls between NSEC name and next domain name,
 	     wrap around case, name falls between NSEC name (rc == -1) and end */
 	  if (hostname_cmp(workspace2, name) >= 0 || hostname_cmp(workspace1, workspace2) >= 0)
-	    return STAT_SECURE;
+	    return 1;
 	}
       else 
 	{
 	  /* wrap around case, name falls between start and next domain name */
 	  if (hostname_cmp(workspace1, workspace2) >= 0 && hostname_cmp(workspace2, name) >=0 )
-	    return STAT_SECURE;
+	    return 1;
 	}
     }
   
-  return STAT_BOGUS;
+  return 0;
 }
 
 /* return digest length, or zero on error */
@@ -1701,7 +1648,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
   for (i = 0; i < nsec_count; i++)
     {
       if (!(p = skip_name(nsecs[i], header, plen, 15)))
-	return STAT_BOGUS; /* bad packet */
+	return 0; /* bad packet */
       
       p += 10; /* type, class, TTL, rdlen */
       algo = *p++;
@@ -1712,14 +1659,14 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
 
   /* No usable NSEC3s */
   if (i == nsec_count)
-    return STAT_BOGUS;
+    return 0;
 
   p++; /* flags */
   GETSHORT (iterations, p);
   salt_len = *p++;
   salt = p;
   if (!CHECK_LEN(header, salt, plen, salt_len))
-    return STAT_BOGUS; /* bad packet */
+    return 0; /* bad packet */
     
   /* Now prune so we only have NSEC3 records with same iterations, salt and algo */
   for (i = 0; i < nsec_count; i++)
@@ -1730,7 +1677,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       nsecs[i] = NULL; /* Speculative, will be restored if OK. */
       
       if (!(p = skip_name(nsec3p, header, plen, 15)))
-	return STAT_BOGUS; /* bad packet */
+	return 0; /* bad packet */
       
       p += 10; /* type, class, TTL, rdlen */
       
@@ -1747,7 +1694,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
 	continue;
       
       if (!CHECK_LEN(header, p, plen, salt_len))
-	return STAT_BOGUS; /* bad packet */
+	return 0; /* bad packet */
 
       if (memcmp(p, salt, salt_len) != 0)
 	continue;
@@ -1758,13 +1705,13 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
 
   /* Algo is checked as 1 above */
   if (!(hash = hash_find("sha1")))
-    return STAT_BOGUS;
+    return 0;
 
   if ((digest_len = hash_name(name, &digest, hash, salt, salt_len, iterations)) == 0)
-    return STAT_BOGUS;
+    return 0;
   
   if (check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, nons))
-    return STAT_SECURE;
+    return 1;
 
   /* Can't find an NSEC3 which covers the name directly, we need the "closest encloser NSEC3" 
      or an answer inferred from a wildcard record. */
@@ -1780,14 +1727,14 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
 	break;
 
       if ((digest_len = hash_name(closest_encloser, &digest, hash, salt, salt_len, iterations)) == 0)
-	return STAT_BOGUS;
+	return 0;
       
       for (i = 0; i < nsec_count; i++)
 	if ((p = nsecs[i]))
 	  {
 	    if (!extract_name(header, plen, &p, workspace1, 1, 0) ||
 		!(base32_len = base32_decode(workspace1, (unsigned char *)workspace2)))
-	      return STAT_BOGUS;
+	      return 0;
 	  
 	    if (digest_len == base32_len &&
 		memcmp(digest, workspace2, digest_len) == 0)
@@ -1802,32 +1749,81 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
   while ((closest_encloser = strchr(closest_encloser, '.')));
   
   if (!closest_encloser)
-    return STAT_BOGUS;
+    return 0;
   
   /* Look for NSEC3 that proves the non-existence of the next-closest encloser */
   if ((digest_len = hash_name(next_closest, &digest, hash, salt, salt_len, iterations)) == 0)
-    return STAT_BOGUS;
+    return 0;
 
   if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL))
-    return STAT_BOGUS;
+    return 0;
   
   /* Finally, check that there's no seat of wildcard synthesis */
   if (!wildname)
     {
       if (!(wildcard = strchr(next_closest, '.')) || wildcard == next_closest)
-	return STAT_BOGUS;
+	return 0;
       
       wildcard--;
       *wildcard = '*';
       
       if ((digest_len = hash_name(wildcard, &digest, hash, salt, salt_len, iterations)) == 0)
-	return STAT_BOGUS;
+	return 0;
       
       if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL))
-	return STAT_BOGUS;
+	return 0;
     }
   
-  return STAT_SECURE;
+  return 1;
+}
+
+static int prove_non_existence(struct dns_header *header, size_t plen, char *keyname, char *name, int qtype, int qclass, char *wildname, int *nons)
+{
+  static unsigned char **nsecset = NULL;
+  static int nsecset_sz = 0;
+  
+  int type_found = 0;
+  unsigned char *p = skip_questions(header, plen);
+  int type, class, rdlen, i, nsecs_found;
+  
+  /* Move to NS section */
+  if (!p || !(p = skip_section(p, ntohs(header->ancount), header, plen)))
+    return 0;
+  
+  for (nsecs_found = 0, i = ntohs(header->nscount); i != 0; i--)
+    {
+      unsigned char *pstart = p;
+      
+      if (!(p = skip_name(p, header, plen, 10)))
+	return 0;
+      
+      GETSHORT(type, p); 
+      GETSHORT(class, p);
+      p += 4; /* TTL */
+      GETSHORT(rdlen, p);
+
+      if (class == qclass && (type == T_NSEC || type == T_NSEC3))
+	{
+	  /* No mixed NSECing 'round here, thankyouverymuch */
+	  if (type_found != 0 && type_found != type)
+	    return 0;
+
+	  type_found = type;
+
+	  if (!expand_workspace(&nsecset, &nsecset_sz, nsecs_found))
+	    return 0; 
+	  
+	  nsecset[nsecs_found++] = pstart;
+	}
+      
+      if (!ADD_RDLEN(header, p, plen, rdlen))
+	return 0;
+    }
+  
+  if (type_found == T_NSEC)
+    return prove_non_existence_nsec(header, plen, nsecset, nsecs_found, daemon->workspacename, keyname, name, qtype, nons);
+  else
+    return prove_non_existence_nsec3(header, plen, nsecset, nsecs_found, daemon->workspacename, keyname, name, qtype, wildname, nons);
 }
 
 /* Check signing status of name.
@@ -1925,10 +1921,9 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   static unsigned char **targets = NULL;
   static int target_sz = 0;
 
-  unsigned char *ans_start, *p1, *p2, **nsecs;
+  unsigned char *ans_start, *p1, *p2;
   int type1, class1, rdlen1, type2, class2, rdlen2, qclass, qtype, targetidx;
-  int i, j, rc, nsec_count;
-  int nsec_type;
+  int i, j, rc;
 
   if (neganswer)
     *neganswer = 0;
@@ -2080,28 +2075,15 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 			  targets[j] = NULL;
 		      }
 			    
-		  if (rc == STAT_SECURE_WILDCARD)
-		    {
-		      /* An attacker replay a wildcard answer with a different
-			 answer and overlay a genuine RR. To prove this
-			 hasn't happened, the answer must prove that
-			 the gennuine record doesn't exist. Check that here. */
-		      if (!(nsec_type = find_nsec_records(header, plen, &nsecs, &nsec_count, class1)))
-			return STAT_BOGUS; /* No NSECs or bad packet */
-		      
-		      /* Note that we may not yet have validated the NSEC/NSEC3 RRsets. Since the check
-			 below returns either SECURE or BOGUS, that's not a problem. If the RRsets later fail
-			 we'll return BOGUS then. */
-
-		      if (nsec_type == T_NSEC)
-			rc = prove_non_existence_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, type1, NULL);
-		      else
-			rc = prove_non_existence_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, 
-						       keyname, name, type1, wildname, NULL);
-		      
-		      if (rc == STAT_BOGUS)
-			return rc;
-		    } 
+		   /* An attacker replay a wildcard answer with a different
+		      answer and overlay a genuine RR. To prove this
+		      hasn't happened, the answer must prove that
+		      the gennuine record doesn't exist. Check that here. 
+		      Note that we may not yet have validated the NSEC/NSEC3 RRsets. 
+		      That's not a problem since if the RRsets later fail
+		      we'll return BOGUS then. */
+		  if (rc == STAT_SECURE_WILDCARD && !prove_non_existence(header, plen, keyname, name, type1, class1, wildname, NULL))
+		    return STAT_BOGUS;
 		}
 	    }
 	}
@@ -2124,14 +2106,13 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 
 	/* For anything other than a DS record, this situation is OK if either
 	   the answer is in an unsigned zone, or there's a NSEC records. */
-	if (!(nsec_type = find_nsec_records(header, plen, &nsecs, &nsec_count, qclass)))
+	if (!prove_non_existence(header, plen, keyname, name, qtype, qclass, NULL, nons))
 	  {
 	    /* Empty DS without NSECS */
 	    if (qtype == T_DS)
 	      return STAT_BOGUS;
 	    
-	    rc = zone_status(name, qclass, keyname, now);
-	    if (rc != STAT_SECURE)
+	    if ((rc = zone_status(name, qclass, keyname, now)) != STAT_SECURE)
 	      {
 		if (class)
 		  *class = qclass; /* Class for NEED_DS or NEED_DNSKEY */
@@ -2140,14 +2121,6 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	    
 	    return STAT_BOGUS; /* signed zone, no NSECs */
 	  }
-
-	  if (nsec_type == T_NSEC)
-	  rc = prove_non_existence_nsec(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, qtype, nons);
-	else
-	  rc = prove_non_existence_nsec3(header, plen, nsecs, nsec_count, daemon->workspacename, keyname, name, qtype, NULL, nons);
-
-	if (rc != STAT_SECURE)
-	  return rc;
       }
   
   return STAT_SECURE;
