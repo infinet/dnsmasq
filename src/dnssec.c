@@ -1889,8 +1889,6 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 	}
       else
 	{
-	  int gotone = 0;
-
 	  /* If all the DS records have digest and/or sig algos we don't support,
 	     then the zone is insecure. Note that if an algo
 	     appears in the DS, then RRSIGs for that algo MUST
@@ -1904,11 +1902,11 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 	      if (crecp->uid == (unsigned int)class &&
 		  hash_find(ds_digest_name(crecp->addr.ds.digest)) &&
 		  verify_func(crecp->addr.ds.algo))
-		gotone = 1;
+		break;
 	    }
 	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DS)));
 
-	  if (!gotone)
+	  if (!crecp)
 	    return STAT_INSECURE;
 	}
 
