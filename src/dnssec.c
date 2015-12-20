@@ -1394,8 +1394,8 @@ static int hostname_cmp(const char *a, const char *b)
       if (sb == b)
 	return 1;
       
-      ea = sa--;
-      eb = sb--;
+      ea = --sa;
+      eb = --sb;
     }
 }
 
