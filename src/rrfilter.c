@@ -243,7 +243,7 @@ size_t rrfilter(struct dns_header *header, size_t plen, int mode)
   for (p = rrs[0], i = 1; i < rr_found; i += 2)
     {
       unsigned char *start = rrs[i];
-      unsigned char *end = (i != rr_found - 1) ? rrs[i+1] : ((unsigned char *)(header+1)) + plen;
+      unsigned char *end = (i != rr_found - 1) ? rrs[i+1] : ((unsigned char *)header) + plen;
       
       memmove(p, start, end-start);
       p += end-start;

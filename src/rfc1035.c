@@ -489,8 +489,8 @@ struct macparm {
   union mysockaddr *l3;
 };
  
-static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
-			       int optno, unsigned char *opt, size_t optlen, int set_do)
+size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
+			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do)
 { 
   unsigned char *lenp, *datap, *p;
   int rdlen, is_sign;
@@ -508,7 +508,7 @@ static size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned 
 	return plen;
       *p++ = 0; /* empty name */
       PUTSHORT(T_OPT, p);
-      PUTSHORT(SAFE_PKTSZ, p); /* max packet length, this will be overwritten */
+      PUTSHORT(udp_sz, p); /* max packet length, 512 if not given in EDNS0 header */
       PUTSHORT(0, p);    /* extended RCODE and version */
       PUTSHORT(set_do ? 0x8000 : 0, p); /* DO flag */
       lenp = p;
@@ -594,7 +594,7 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
   if (!match)
     return 1; /* continue */
 
-  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit,  EDNS0_OPTION_MAC, (unsigned char *)mac, maclen, 0);
+  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit, PACKETSZ, EDNS0_OPTION_MAC, (unsigned char *)mac, maclen, 0);
   
   return 0; /* done */
 }	      
@@ -603,12 +603,6 @@ size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysock
 {
   struct macparm parm;
      
-/* Must have an existing pseudoheader as the only ar-record, 
-   or have no ar-records. Must also not be signed */
-   
-  if (ntohs(header->arcount) > 1)
-    return plen;
-
   parm.header = header;
   parm.limit = (unsigned char *)limit;
   parm.plen = plen;
@@ -699,13 +693,13 @@ size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, unio
   struct subnet_opt opt;
   
   len = calc_subnet_opt(&opt, source);
-  return add_pseudoheader(header, plen, (unsigned char *)limit, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len, 0);
+  return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len, 0);
 }
 
 #ifdef HAVE_DNSSEC
 size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
 {
-  return add_pseudoheader(header, plen, (unsigned char *)limit, 0, NULL, 0, 1);
+  return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, 0, NULL, 0, 1);
 }
 #endif
 
@@ -1525,16 +1519,16 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
 /* return zero if we can't answer from cache, or packet size if we can */
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, 
-		      time_t now, int *ad_reqd, int *do_bit) 
+		      time_t now, int ad_reqd, int do_bit, int have_pseudoheader) 
 {
   char *name = daemon->namebuff;
-  unsigned char *p, *ansp, *pheader;
+  unsigned char *p, *ansp;
   unsigned int qtype, qclass;
   struct all_addr addr;
   int nameoffset;
   unsigned short flag;
   int q, ans, anscount = 0, addncount = 0;
-  int dryrun = 0, sec_reqd = 0, have_pseudoheader = 0;
+  int dryrun = 0;
   struct crec *crecp;
   int nxdomain = 0, auth = 1, trunc = 0, sec_data = 1;
   struct mx_srv_record *rec;
@@ -1550,35 +1544,11 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
   if (header->hb4 & HB4_CD)
     sec_data = 0;
   
-  /* RFC 6840 5.7 */
-  *ad_reqd = header->hb4 & HB4_AD;
-  *do_bit = 0;
-
   /* If there is an  additional data section then it will be overwritten by
      partial replies, so we have to do a dry run to see if we can answer
      the query. */
-
   if (ntohs(header->arcount) != 0)
-    {
-      dryrun = 1;
-
-      /* If there's an additional section, there might be an EDNS(0) pseudoheader */
-      if (find_pseudoheader(header, qlen, NULL, &pheader, NULL))
-	{ 
-	  unsigned short flags;
-	  
-	  have_pseudoheader = 1;
-	  
-	  pheader += 4; /* udp size, ext_rcode */
-	  GETSHORT(flags, pheader);
-	  
-	  if ((sec_reqd = flags & 0x8000))
-	    {
-	      *do_bit = 1;/* do bit */ 
-	      *ad_reqd = 1;
-	    }
-	}
-    }
+    dryrun = 1;
 
   for (rec = daemon->mxnames; rec; rec = rec->next)
     rec->offset = 0;
@@ -1602,11 +1572,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
             
       GETSHORT(qtype, p); 
       GETSHORT(qclass, p);
-
-      /* Don't filter RRSIGS from answers to ANY queries, even if do-bit
-	 not set. */
-      if (qtype == T_ANY)
-	*do_bit = 1;
 
       ans = 0; /* have we answered this question */
       
@@ -1739,7 +1704,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		     the zone is unsigned, which implies that we're doing
 		     validation. */
 		  if ((crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) || 
-		      !sec_reqd || 
+		      !do_bit || 
 		      (option_bool(OPT_DNSSEC_VALID) && !(crecp->flags & F_DNSSECOK)))
 		    {
 		      do 
@@ -1927,7 +1892,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 		    }
 
 		  /* If the client asked for DNSSEC  don't use cached data. */
-		  if ((crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) || !sec_reqd || !(crecp->flags & F_DNSSECOK))
+		  if ((crecp->flags & (F_HOSTS | F_DHCP | F_CONFIG)) || !do_bit || !(crecp->flags & F_DNSSECOK))
 		    do
 		      { 
 			/* don't answer wildcard queries with data not from /etc/hosts
@@ -1961,17 +1926,12 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			
 			if (crecp->flags & F_NEG)
 			  {
-			    /* We don't cache NSEC records, so if a DNSSEC-validated negative answer
-			       is cached and the client wants DNSSEC, forward rather than answering from the cache */
-			    if (!sec_reqd || !(crecp->flags & F_DNSSECOK))
-			      {
-				ans = 1;
-				auth = 0;
-				if (crecp->flags & F_NXDOMAIN)
-				  nxdomain = 1;
-				if (!dryrun)
-				  log_query(crecp->flags, name, NULL, NULL);
-			      }
+			    ans = 1;
+			    auth = 0;
+			    if (crecp->flags & F_NXDOMAIN)
+			      nxdomain = 1;
+			    if (!dryrun)
+			      log_query(crecp->flags, name, NULL, NULL);
 			  }
 			else 
 			  {
@@ -2209,10 +2169,11 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 
   len = ansp - (unsigned char *)header;
   
+  /* Advertise our packet size limit in our reply */
   if (have_pseudoheader)
-    len = add_pseudoheader(header, len, (unsigned char *)limit, 0, NULL, 0, sec_reqd);
+    len = add_pseudoheader(header, len, (unsigned char *)limit, daemon->edns_pktsz, 0, NULL, 0, do_bit);
   
-  if (*ad_reqd && sec_data)
+  if (ad_reqd && sec_data)
     header->hb4 |= HB4_AD;
   else
     header->hb4 &= ~HB4_AD;

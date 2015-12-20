@@ -1113,7 +1113,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *namebuff,
 		      int no_cache, int secure, int *doctored);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, 
-		      time_t now, int *ad_reqd, int *do_bit);
+		      time_t now, int ad_reqd, int do_bit, int have_pseudoheader);
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 int check_for_ignored_address(struct dns_header *header, size_t qlen, struct bogus_addr *baddr);
@@ -1123,6 +1123,8 @@ int check_for_local_domain(char *name, time_t now);
 unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
 size_t resize_packet(struct dns_header *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
+size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
+			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
 #ifdef HAVE_DNSSEC
@@ -1141,7 +1143,8 @@ int private_net(struct in_addr addr, int ban_localhost);
 /* auth.c */
 #ifdef HAVE_AUTH
 size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, 
-		   time_t now, union mysockaddr *peer_addr, int local_query);
+		   time_t now, union mysockaddr *peer_addr, int local_query,
+		   int do_bit, int have_pseudoheader);
 int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 

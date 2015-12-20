@@ -67,7 +67,6 @@ static char *algo_digest_name(int algo)
     case 12: return "gosthash94";
     case 13: return "sha256";
     case 14: return "sha384";
-
     default: return NULL;
     }
 }

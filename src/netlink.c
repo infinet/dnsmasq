@@ -288,7 +288,8 @@ int iface_enumerate(int family, void *parm, int (*callback)())
 		rta = RTA_NEXT(rta, len1);
 	      }
 
-	    if (inaddr && mac && callback_ok)
+	    if (!(neigh->ndm_state & (NUD_NOARP | NUD_INCOMPLETE | NUD_FAILED)) &&
+		inaddr && mac && callback_ok)
 	      if (!((*callback)(neigh->ndm_family, inaddr, mac, maclen, parm)))
 		callback_ok = 0;
 	  }

@@ -244,7 +244,6 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   void *hash = &crc;
 #endif
  unsigned int gotname = extract_request(header, plen, daemon->namebuff, NULL);
- unsigned char *pheader;
 
  (void)do_bit;
 
@@ -264,7 +263,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	 there's no point retrying the query, retry the key query instead...... */
       if (forward->blocking_query)
 	{
-	  int fd;
+	  int fd, is_sign;
+	  unsigned char *pheader;
 	  
 	  forward->flags &= ~FREC_TEST_PKTSZ;
 	  
@@ -276,8 +276,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
 	  plen = forward->stash_len;
 	  
-	  if (find_pseudoheader(header, plen, NULL, &pheader, NULL))
-	    PUTSHORT((forward->flags & FREC_TEST_PKTSZ) ? SAFE_PKTSZ : forward->sentto->edns_pktsz, pheader);
+	  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign) && !is_sign)
+	    PUTSHORT(SAFE_PKTSZ, pheader);
 
 	  if (forward->sentto->addr.sa.sa_family == AF_INET) 
 	    log_query(F_NOEXTRA | F_DNSSEC | F_IPV4, "retry", (struct all_addr *)&forward->sentto->addr.in.sin_addr, "dnssec");
@@ -394,32 +394,40 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       forward->log_id = daemon->log_id;
       
       if (option_bool(OPT_ADD_MAC))
-	plen = add_mac(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source);
-      
+	{
+	  size_t new = add_mac(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source);
+	  if (new != plen)
+	    {
+	      plen = new;
+	      forward->flags |= FREC_ADDED_PHEADER;
+	    }
+	}
+
       if (option_bool(OPT_CLIENT_SUBNET))
 	{
 	  size_t new = add_source_addr(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source); 
 	  if (new != plen)
 	    {
 	      plen = new;
-	      forward->flags |= FREC_HAS_SUBNET;
+	      forward->flags |= FREC_HAS_SUBNET | FREC_ADDED_PHEADER;
 	    }
 	}
 
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
 	{
-	  size_t new_plen = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
+	  size_t new = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
 	 
+	  if (new != plen)
+	    forward->flags |= FREC_ADDED_PHEADER;
+
+	  plen = new;
+	      
 	  /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
 	     this allows it to select auth servers when one is returning bad data. */
 	  if (option_bool(OPT_DNSSEC_DEBUG))
 	    header->hb4 |= HB4_CD;
 
-	  if (new_plen != plen)
-	    forward->flags |= FREC_ADDED_PHEADER;
-
-	  plen = new_plen;
 	}
 #endif
       
@@ -469,10 +477,23 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		    }
 #endif
 		}
-
-	      if (find_pseudoheader(header, plen, NULL, &pheader, NULL))
-		PUTSHORT((forward->flags & FREC_TEST_PKTSZ) ? SAFE_PKTSZ : start->edns_pktsz, pheader);
 	      
+#ifdef HAVE_DNSSEC
+	      if (option_bool(OPT_DNSSEC_VALID) && !do_bit)
+		{
+		  /* Difficult one here. If our client didn't send EDNS0, we will have set the UDP
+		     packet size to 512. But that won't provide space for the RRSIGS in many cases.
+		     The RRSIGS will be stripped out before the answer goes back, so the packet should
+		     shrink again. So, if we added a do-bit, bump the udp packet size to the value
+		     known to be OK for this server. Maybe check returned size after stripping and set
+		     the truncated bit? */		  
+		  unsigned char *pheader;
+		  int is_sign;
+		  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign))
+		    PUTSHORT(start->edns_pktsz, pheader);
+		}
+#endif
+
 	      if (retry_send(sendto(fd, (char *)header, plen, 0,
 				    &start->addr.sa,
 				    sa_len(&start->addr))))
@@ -563,30 +584,34 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     }
 #endif
   
-  /* If upstream is advertising a larger UDP packet size
-     than we allow, trim it so that we don't get overlarge
-     requests for the client. We can't do this for signed packets. */
-
   if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)))
     {
-      unsigned short udpsz;
-      unsigned char *psave = sizep;
-      
-      GETSHORT(udpsz, sizep);
-
-      if (!is_sign && udpsz > daemon->edns_pktsz)
-	PUTSHORT(daemon->edns_pktsz, psave);
-      
       if (check_subnet && !check_source(header, plen, pheader, query_source))
 	{
 	  my_syslog(LOG_WARNING, _("discarding DNS reply: subnet option mismatch"));
 	  return 0;
 	}
       
-      if (added_pheader)
+      if (!is_sign)
 	{
-	  pheader = 0; 
-	  header->arcount = htons(0);
+	  if (added_pheader)
+	    {
+	      /* client didn't send EDNS0, we added one, strip it off before returning answer. */
+	      n = rrfilter(header, n, 0);
+	      pheader = NULL;
+	    }
+	  else
+	    {
+	      /* If upstream is advertising a larger UDP packet size
+		 than we allow, trim it so that we don't get overlarge
+		 requests for the client. We can't do this for signed packets. */
+	      unsigned short udpsz;
+	      unsigned char *psave = sizep;
+	      
+	      GETSHORT(udpsz, sizep);
+	      if (udpsz > daemon->edns_pktsz)
+		PUTSHORT(daemon->edns_pktsz, psave);
+	    }
 	}
     }
   
@@ -655,14 +680,16 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     }
 
   if (option_bool(OPT_DNSSEC_VALID))
-    header->hb4 &= ~HB4_AD;
-  
-  if (!(header->hb4 & HB4_CD) && ad_reqd && cache_secure)
-    header->hb4 |= HB4_AD;
-
-  /* If the requestor didn't set the DO bit, don't return DNSSEC info. */
-  if (!do_bit)
-    n = rrfilter(header, n, 1);
+    {
+      header->hb4 &= ~HB4_AD;
+      
+      if (!(header->hb4 & HB4_CD) && ad_reqd && cache_secure)
+	header->hb4 |= HB4_AD;
+      
+      /* If the requestor didn't set the DO bit, don't return DNSSEC info. */
+      if (!do_bit)
+	n = rrfilter(header, n, 1);
+    }
 #endif
 
   /* do this after extract_addresses. Ensure NODATA reply and remove
@@ -761,8 +788,14 @@ void reply_query(int fd, int family, time_t now)
 	  if ((nn = resize_packet(header, (size_t)n, pheader, plen)))
 	    {
 	      header->hb3 &= ~(HB3_QR | HB3_AA | HB3_TC);
-	      header->hb4 &= ~(HB4_RA | HB4_RCODE);
-	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, 0, 0);
+	      header->hb4 &= ~(HB4_RA | HB4_RCODE | HB4_CD | HB4_AD);
+	      if (forward->flags |= FREC_CHECKING_DISABLED)
+		header->hb4 |= HB4_CD;
+	      if (forward->flags |= FREC_AD_QUESTION)
+		header->hb4 |= HB4_AD;
+	      if (forward->flags & FREC_DO_QUESTION)
+		add_do_bit(header, nn,  (char *)pheader + plen);
+	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, forward->flags & FREC_AD_QUESTION, forward->flags & FREC_DO_QUESTION);
 	      return;
 	    }
 	}
@@ -1007,12 +1040,13 @@ void receive_query(struct listener *listen, time_t now)
 {
   struct dns_header *header = (struct dns_header *)daemon->packet;
   union mysockaddr source_addr;
-  unsigned short type;
+  unsigned char *pheader;
+  unsigned short type, udp_size = PACKETSZ; /* default if no EDNS0 */
   struct all_addr dst_addr;
   struct in_addr netmask, dst_addr_4;
   size_t m;
   ssize_t n;
-  int if_index = 0, auth_dns = 0;
+  int if_index = 0, auth_dns = 0, do_bit = 0, have_pseudoheader = 0;
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
@@ -1279,10 +1313,30 @@ void receive_query(struct listener *listen, time_t now)
 #endif
     }
   
+  if (find_pseudoheader(header, (size_t)n, NULL, &pheader, NULL))
+    { 
+      unsigned short flags;
+      
+      have_pseudoheader = 1;
+      GETSHORT(udp_size, pheader);
+      pheader += 2; /* ext_rcode */
+      GETSHORT(flags, pheader);
+      
+      if (flags & 0x8000)
+	do_bit = 1;/* do bit */ 
+	
+      /* If the client provides an EDNS0 UDP size, use that to limit our reply.
+	 (bounded by the maximum configured). If no EDNS0, then it
+	 defaults to 512 */
+      if (udp_size > daemon->edns_pktsz)
+	udp_size = daemon->edns_pktsz;
+    }
+
 #ifdef HAVE_AUTH
   if (auth_dns)
     {
-      m = answer_auth(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, now, &source_addr, local_auth);
+      m = answer_auth(header, ((char *) header) + udp_size, (size_t)n, now, &source_addr, 
+		      local_auth, do_bit, have_pseudoheader);
       if (m >= 1)
 	{
 	  send_from(listen->fd, option_bool(OPT_NOWILD) || option_bool(OPT_CLEVERBIND),
@@ -1293,9 +1347,13 @@ void receive_query(struct listener *listen, time_t now)
   else
 #endif
     {
-      int ad_reqd, do_bit;
-      m = answer_request(header, ((char *) header) + daemon->packet_buff_sz, (size_t)n, 
-			 dst_addr_4, netmask, now, &ad_reqd, &do_bit);
+      int ad_reqd = do_bit;
+       /* RFC 6840 5.7 */
+      if (header->hb4 & HB4_AD)
+	ad_reqd = 1;
+
+      m = answer_request(header, ((char *) header) + udp_size, (size_t)n, 
+			 dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader);
       
       if (m >= 1)
 	{
@@ -1397,7 +1455,7 @@ unsigned char *tcp_request(int confd, time_t now,
 #ifdef HAVE_AUTH
   int local_auth = 0;
 #endif
-  int checking_disabled, ad_question, do_bit, added_pheader = 0;
+  int checking_disabled, do_bit, added_pheader = 0, have_pseudoheader = 0;
   int check_subnet, no_cache_dnssec = 0, cache_secure = 0, bogusanswer = 0;
   size_t m;
   unsigned short qtype;
@@ -1414,6 +1472,7 @@ unsigned char *tcp_request(int confd, time_t now,
   union mysockaddr peer_addr;
   socklen_t peer_len = sizeof(union mysockaddr);
   int query_count = 0;
+  unsigned char *pheader;
 
   if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) == -1)
     return packet;
@@ -1508,15 +1567,35 @@ unsigned char *tcp_request(int confd, time_t now,
       else
 	dst_addr_4.s_addr = 0;
       
+      do_bit = 0;
+
+      if (find_pseudoheader(header, (size_t)size, NULL, &pheader, NULL))
+	{ 
+	  unsigned short flags;
+	  
+	  have_pseudoheader = 1;
+	  pheader += 4; /* udp_size, ext_rcode */
+	  GETSHORT(flags, pheader);
+      
+	  if (flags & 0x8000)
+	    do_bit = 1;/* do bit */ 
+	}
+
 #ifdef HAVE_AUTH
       if (auth_dns)
-	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr, local_auth);
+	m = answer_auth(header, ((char *) header) + 65536, (size_t)size, now, &peer_addr, 
+			local_auth, do_bit, have_pseudoheader);
       else
 #endif
 	{
-	  /* m > 0 if answered from cache */
-	  m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
-			     dst_addr_4, netmask, now, &ad_question, &do_bit);
+	   int ad_reqd = do_bit;
+	   /* RFC 6840 5.7 */
+	   if (header->hb4 & HB4_AD)
+	     ad_reqd = 1;
+	   
+	   /* m > 0 if answered from cache */
+	   m = answer_request(header, ((char *) header) + 65536, (size_t)size, 
+			      dst_addr_4, netmask, now, ad_reqd, do_bit, have_pseudoheader);
 	  
 	  /* Do this by steam now we're not in the select() loop */
 	  check_log_writer(1); 
@@ -1615,6 +1694,7 @@ unsigned char *tcp_request(int confd, time_t now,
 			    }
 			  
 #ifdef HAVE_DNSSEC
+			  added_pheader = 0;			  
 			  if (option_bool(OPT_DNSSEC_VALID))
 			    {
 			      size_t new_size = add_do_bit(header, size, ((char *) header) + 65536);
@@ -1719,7 +1799,7 @@ unsigned char *tcp_request(int confd, time_t now,
 
 		      m = process_reply(header, now, last_server, (unsigned int)m, 
 					option_bool(OPT_NO_REBIND) && !norebind, no_cache_dnssec, cache_secure, bogusanswer,
-					ad_question, do_bit, added_pheader, check_subnet, &peer_addr); 
+					ad_reqd, do_bit, added_pheader, check_subnet, &peer_addr); 
 		      
 		      break;
 		    }
