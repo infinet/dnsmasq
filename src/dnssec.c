@@ -1704,7 +1704,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
   for (i = 0; i < nsec_count; i++)
     {
       unsigned char *nsec3p = nsecs[i];
-      int this_iter;
+      int this_iter, flags;
 
       nsecs[i] = NULL; /* Speculative, will be restored if OK. */
       
@@ -1716,8 +1716,12 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       if (*p++ != algo)
 	continue;
  
-      p++; /* flags */
+      flags = *p++; /* flags */
       
+      /* 5155 8.2 */
+      if (flags != 0 && flags != 1)
+	continue;
+
       GETSHORT(this_iter, p);
       if (this_iter != iterations)
 	continue;
