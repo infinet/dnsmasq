@@ -70,7 +70,17 @@ static char *algo_digest_name(int algo)
     default: return NULL;
     }
 }
-      
+  
+/* http://www.iana.org/assignments/dnssec-nsec3-parameters/dnssec-nsec3-parameters.xhtml */
+static char *nsec3_digest_name(int digest)
+{
+  switch (digest)
+    {
+    case 1: return "sha1";
+    default: return NULL;
+    }
+}
+ 
 /* Find pointer to correct hash function in nettle library */
 static const struct nettle_hash *hash_find(char *name)
 {
@@ -667,7 +677,6 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
   static int rrset_sz = 0, sig_sz = 0; 
   unsigned char *p;
   int rrsetidx, sigidx, j, rdlen, res;
-  int name_labels = count_labels(name); /* For 4035 5.3.2 check */
   int gotkey = 0;
 
   if (!(p = skip_questions(header, plen)))
@@ -678,7 +687,7 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
        j != 0; j--) 
     {
       unsigned char *pstart, *pdata;
-      int stype, sclass, algo, type_covered, labels, sig_expiration, sig_inception;
+      int stype, sclass, type_covered;
 
       pstart = p;
       
@@ -712,12 +721,7 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
 		return 0; /* bad packet */ 
 	      
 	      GETSHORT(type_covered, p);
-	      algo = *p++;
-	      labels = *p++;
-	      p += 4; /* orig_ttl */
-	      GETLONG(sig_expiration, p);
-	      GETLONG(sig_inception, p);
-	      p += 2; /* key_tag */
+	      p += 16; /* algo, labels, orig_ttl, sig_expiration, sig_inception, key_tag */
 	      
 	      if (gotkey)
 		{
@@ -749,11 +753,8 @@ static int explore_rrset(struct dns_header *header, size_t plen, int class, int 
 		    }
 		}
 		  
-	      /* Don't count signatures for algos we don't support */
-	      if (check_date_range(sig_inception, sig_expiration) &&
-		  labels <= name_labels &&
-		  type_covered == type && 
-		  verify_func(algo))
+	      
+	      if (type_covered == type)
 		{
 		  if (!expand_workspace(&sigs, &sig_sz, sigidx))
 		    return 0; 
@@ -795,7 +796,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 			  char *name, char *keyname, char **wildcard_out, struct blockdata *key, int keylen, int algo_in, int keytag_in)
 {
   unsigned char *p;
-  int rdlen, j, name_labels;
+  int rdlen, j, name_labels, sig_expiration, sig_inception;
   struct crec *crecp = NULL;
   int algo, labels, orig_ttl, key_tag;
   u16 *rr_desc = rrfilter_desc(type);
@@ -828,13 +829,16 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
       algo = *p++;
       labels = *p++;
       GETLONG(orig_ttl, p);
-      p += 8; /* sig_expiration, sig_inception already checked */
+      GETLONG(sig_expiration, p);
+      GETLONG(sig_inception, p);
       GETSHORT(key_tag, p);
       
       if (!extract_name(header, plen, &p, keyname, 1, 0))
 	return STAT_BOGUS;
 
-      if (!(hash = hash_find(algo_digest_name(algo))) ||
+      if (!check_date_range(sig_inception, sig_expiration) ||
+	  labels > name_labels ||
+	  !(hash = hash_find(algo_digest_name(algo))) ||
 	  !hash_init(hash, &ctx, &digest))
 	continue;
       
@@ -1112,7 +1116,10 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 		      else
 			{
 			  a.addr.keytag = keytag;
-			  log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+			  if (verify_func(algo))
+			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+			  else
+			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u (not supported)");
 			  
 			  recp1->addr.key.keylen = rdlen - 4;
 			  recp1->addr.key.keydata = key;
@@ -1235,7 +1242,11 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 		  else
 		    {
 		      a.addr.keytag = keytag;
-		      log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u");
+		      if (hash_find(ds_digest_name(digest)) && verify_func(algo))
+			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u");
+		      else
+			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u (not supported)");
+		      
 		      crecp->addr.ds.digest = digest;
 		      crecp->addr.ds.keydata = key;
 		      crecp->addr.ds.algo = algo;
@@ -1660,7 +1671,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
     *nons = 1;
   
   /* Look though the NSEC3 records to find the first one with 
-     an algorithm we support (currently only algo == 1).
+     an algorithm we support.
 
      Take the algo, iterations, and salt of that record
      as the ones we're going to use, and prune any 
@@ -1674,7 +1685,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       p += 10; /* type, class, TTL, rdlen */
       algo = *p++;
       
-      if (algo == 1)
+      if ((hash = hash_find(nsec3_digest_name(algo))))
 	break; /* known algo */
     }
 
@@ -1723,10 +1734,6 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       /* All match, put the pointer back */
       nsecs[i] = nsec3p;
     }
-
-  /* Algo is checked as 1 above */
-  if (!(hash = hash_find("sha1")))
-    return 0;
 
   if ((digest_len = hash_name(name, &digest, hash, salt, salt_len, iterations)) == 0)
     return 0;
@@ -1843,8 +1850,10 @@ static int prove_non_existence(struct dns_header *header, size_t plen, char *key
   
   if (type_found == T_NSEC)
     return prove_non_existence_nsec(header, plen, nsecset, nsecs_found, daemon->workspacename, keyname, name, qtype, nons);
-  else
+  else if (type_found == T_NSEC3)
     return prove_non_existence_nsec3(header, plen, nsecset, nsecs_found, daemon->workspacename, keyname, name, qtype, wildname, nons);
+  else
+    return 0;
 }
 
 /* Check signing status of name.
@@ -1857,7 +1866,7 @@ static int prove_non_existence(struct dns_header *header, size_t plen, char *key
 */
 static int zone_status(char *name, int class, char *keyname, time_t now)
 {
-  int secure_ds, name_start = strlen(name);
+  int name_start = strlen(name);
   struct crec *crecp;
   char *p;
   
@@ -1867,51 +1876,40 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
       
       if (!(crecp = cache_find_by_name(NULL, keyname, now, F_DS)))
 	return STAT_NEED_DS;
+      
+       /* F_DNSSECOK misused in DS cache records to non-existance of NS record.
+	  F_NEG && !F_DNSSECOK implies that we've proved there's no DS record here,
+	  but that's because there's no NS record either, ie this isn't the start
+	  of a zone. We only prove that the DNS tree below a node is unsigned when
+	  we prove that we're at a zone cut AND there's no DS record. */
+      if (crecp->flags & F_NEG)
+	{
+	  if (crecp->flags & F_DNSSECOK)
+	    return STAT_INSECURE; /* proved no DS here */
+	}
       else
 	{
-	  secure_ds = 0;
-	  
+	  int gotone = 0;
+
+	  /* If all the DS records have digest and/or sig algos we don't support,
+	     then the zone is insecure. Note that if an algo
+	     appears in the DS, then RRSIGs for that algo MUST
+	     exist for each RRset: 4035 para 2.2  So if we find
+	     a DS here with digest and sig we can do, we're entitled
+	     to assume we can validate the zone and if we can't later,
+	     because an RRSIG is missing we return BOGUS.
+	  */
 	  do 
 	    {
-	      if (crecp->uid == (unsigned int)class)
-		{
-		  /* F_DNSSECOK misused in DS cache records to non-existance of NS record.
-		     F_NEG && !F_DNSSECOK implies that we've proved there's no DS record here,
-		     but that's because there's no NS record either, ie this isn't the start
-		     of a zone. We only prove that the DNS tree below a node is unsigned when
-		     we prove that we're at a zone cut AND there's no DS record.
-		  */	  
-		  if (crecp->flags & F_NEG)
-		    {
-		      if (crecp->flags & F_DNSSECOK)
-			return STAT_INSECURE; /* proved no DS here */
-		    }
-		  else if (!hash_find(ds_digest_name(crecp->addr.ds.digest)) || !verify_func(crecp->addr.ds.algo))
-		    return STAT_INSECURE; /* algo we can't use - insecure */
-		  else
-		    secure_ds = 1;
-		}
+	      if (crecp->uid == (unsigned int)class &&
+		  hash_find(ds_digest_name(crecp->addr.ds.digest)) &&
+		  verify_func(crecp->addr.ds.algo))
+		gotone = 1;
 	    }
 	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DS)));
-	}
 
-      if (secure_ds)
-	{
-	  /* We've found only DS records that attest to the DNSKEY RRset in the zone, so we believe
-	     that RRset is good. Furthermore the DNSKEY whose hash is proved by the DS record is
-	     one we can use. However the DNSKEY RRset may contain more than one key and
-	     one of the other keys may use an algorithm we don't support. If that's 
-	     the case the zone is insecure for us. */
-	  
-	  if (!(crecp = cache_find_by_name(NULL, keyname, now, F_DNSKEY)))
-	    return STAT_NEED_KEY;
-
-	  do 
-	    {
-	      if (crecp->uid == (unsigned int)class && !verify_func(crecp->addr.key.algo))
-		return STAT_INSECURE;
-	    }
-	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY)));
+	  if (!gotone)
+	    return STAT_INSECURE;
 	}
 
       if (name_start == 0)
