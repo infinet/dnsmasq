@@ -1115,11 +1115,12 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 			}
 		      else
 			{
-			  a.addr.keytag = keytag;
+			  a.addr.log.keytag = keytag;
+			  a.addr.log.algo = algo;
 			  if (verify_func(algo))
-			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u");
+			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %hu, algo %hu");
 			  else
-			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %u (not supported)");
+			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %hu, algo %hu (not supported)");
 			  
 			  recp1->addr.key.keylen = rdlen - 4;
 			  recp1->addr.key.keydata = key;
@@ -1241,11 +1242,13 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 		    }
 		  else
 		    {
-		      a.addr.keytag = keytag;
+		      a.addr.log.keytag = keytag;
+		      a.addr.log.algo = algo;
+		      a.addr.log.digest = digest;
 		      if (hash_find(ds_digest_name(digest)) && verify_func(algo))
-			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u");
+			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %hu, algo %hu, digest %hu");
 		      else
-			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %u (not supported)");
+			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %hu, algo %hu, digest %hu (not supported)");
 		      
 		      crecp->addr.ds.digest = digest;
 		      crecp->addr.ds.keydata = key;

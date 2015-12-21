@@ -1580,7 +1580,7 @@ void log_query(unsigned int flags, char *name, struct all_addr *addr, char *arg)
   if (addr)
     {
       if (flags & F_KEYTAG)
-	sprintf(daemon->addrbuff, arg, addr->addr.keytag);
+	sprintf(daemon->addrbuff, arg, addr->addr.log.keytag, addr->addr.log.algo, addr->addr.log.digest);
       else
 	{
 #ifdef HAVE_IPV6

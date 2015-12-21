@@ -256,8 +256,10 @@ struct all_addr {
     struct in6_addr addr6;
 #endif
     /* for log_query */
-    unsigned int keytag;
-    /* for cache_insert if RRSIG, DNSKEY, DS */
+    struct {
+      unsigned short keytag, algo, digest;
+    } log; 
+    /* for cache_insert of DNSKEY, DS */
     struct {
       unsigned short class, type;
     } dnssec;      
