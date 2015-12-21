@@ -16,12 +16,12 @@
 
 #include "dnsmasq.h"
 
-unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t  *len, unsigned char **p, int *is_sign)
+unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t  *len, unsigned char **p, int *is_sign, int *is_last)
 {
   /* See if packet has an RFC2671 pseudoheader, and if so return a pointer to it. 
      also return length of pseudoheader in *len and pointer to the UDP size in *p
      Finally, check to see if a packet is signed. If it is we cannot change a single bit before
-     forwarding. We look for SIG and TSIG in the addition section, and TKEY queries (for GSS-TSIG) */
+     forwarding. We look for TSIG in the addition section, and TKEY queries (for GSS-TSIG) */
   
   int i, arcount = ntohs(header->arcount);
   unsigned char *ansp = (unsigned char *)(header+1);
@@ -76,8 +76,13 @@ unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t 
 	{
 	  if (len)
 	    *len = ansp - start;
+
 	  if (p)
 	    *p = save;
+	  
+	  if (is_last)
+	    *is_last = (i == arcount-1);
+
 	  ret = start;
 	}
       else if (is_sign && 
@@ -100,50 +105,31 @@ struct macparm {
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do)
 { 
-  unsigned char *lenp, *datap, *p;
-  int rdlen, is_sign;
-  
-  if (!(p = find_pseudoheader(header, plen, NULL, NULL, &is_sign)))
-    {
-      if (is_sign)
-	return plen;
+  unsigned char *lenp, *datap, *p, *udp_len, *buff = NULL;
+  int rdlen = 0, is_sign, is_last;
+  unsigned short flags = set_do ? 0x8000 : 0, rcode = 0;
 
-      /* We are adding the pseudoheader */
-      if (!(p = skip_questions(header, plen)) ||
-	  !(p = skip_section(p, 
-			     ntohs(header->ancount) + ntohs(header->nscount) + ntohs(header->arcount), 
-			     header, plen)))
-	return plen;
-      *p++ = 0; /* empty name */
-      PUTSHORT(T_OPT, p);
-      PUTSHORT(udp_sz, p); /* max packet length, 512 if not given in EDNS0 header */
-      PUTSHORT(0, p);    /* extended RCODE and version */
-      PUTSHORT(set_do ? 0x8000 : 0, p); /* DO flag */
-      lenp = p;
-      PUTSHORT(0, p);    /* RDLEN */
-      rdlen = 0;
-      if (((ssize_t)optlen) > (limit - (p + 4)))
-	return plen; /* Too big */
-      header->arcount = htons(ntohs(header->arcount) + 1);
-      datap = p;
-    }
-  else
+  p = find_pseudoheader(header, plen, NULL, &udp_len, &is_sign, &is_last);
+  
+  if (is_sign)
+    return plen;
+
+  if (p)
     {
+      /* Existing header */
       int i;
-      unsigned short code, len, flags;
-      
-      /* Must be at the end, if exists */
-      if (ntohs(header->arcount) != 1 ||
-	  is_sign ||
-	  (!(p = skip_name(p, header, plen, 10))))
-	return plen;
-      
-      p += 6; /* skip UDP length and RCODE */
+      unsigned short code, len;
+
+      p = udp_len;
+      GETSHORT(udp_sz, p);
+      GETSHORT(rcode, p);
       GETSHORT(flags, p);
+
       if (set_do)
 	{
 	  p -=2;
-	  PUTSHORT(flags | 0x8000, p);
+	  flags |= 0x8000;
+	  PUTSHORT(flags, p);
 	}
 
       lenp = p;
@@ -165,22 +151,61 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
 	    return plen;
 	  p += len;
 	}
-      
-      if (((ssize_t)optlen) > (limit - (p + 4)))
-	return plen; /* Too big */
+
+      /* If we're going to extend the RR, it has to be the last RR in the packet */
+      if (!is_last)
+	{
+	  /* First, take a copy of the options. */
+	  if (rdlen != 0 && (buff = whine_malloc(rdlen)))
+	    memcpy(buff, datap, rdlen);	      
+	  
+	  /* now, delete OPT RR */
+	  plen = rrfilter(header, plen, 0);
+	  
+	  /* Now, force addition of a new one */
+	  p = NULL;	  
+	}
     }
   
+  if (!p)
+    {
+      /* We are (re)adding the pseudoheader */
+      if (!(p = skip_questions(header, plen)) ||
+	  !(p = skip_section(p, 
+			     ntohs(header->ancount) + ntohs(header->nscount) + ntohs(header->arcount), 
+			     header, plen)))
+	return plen;
+      *p++ = 0; /* empty name */
+      PUTSHORT(T_OPT, p);
+      PUTSHORT(udp_sz, p); /* max packet length, 512 if not given in EDNS0 header */
+      PUTSHORT(rcode, p);    /* extended RCODE and version */
+      PUTSHORT(flags, p); /* DO flag */
+      lenp = p;
+      PUTSHORT(rdlen, p);    /* RDLEN */
+      datap = p;
+      /* Copy back any options */
+      if (buff)
+	{
+	  memcpy(p, buff, rdlen);
+	  free(buff);
+	  p += rdlen;
+	}
+      header->arcount = htons(ntohs(header->arcount) + 1);
+    }
+  
+  if (((ssize_t)optlen) > (limit - (p + 4)))
+    return plen; /* Too big */
+  
+  /* Add new option */
   if (optno != 0)
     {
       PUTSHORT(optno, p);
       PUTSHORT(optlen, p);
       memcpy(p, opt, optlen);
       p += optlen;  
+      PUTSHORT(p - datap, lenp);
     }
-
-  PUTSHORT(p - datap, lenp);
   return p - (unsigned char *)header;
-  
 }
 
 static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)

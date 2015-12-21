@@ -2206,7 +2206,7 @@ size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, i
 
   ret = add_do_bit(header, p - (unsigned char *)header, end);
 
-  if (find_pseudoheader(header, ret, NULL, &p, NULL))
+  if (find_pseudoheader(header, ret, NULL, &p, NULL, NULL))
     PUTSHORT(edns_pktsz, p);
 
   return ret;

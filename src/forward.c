@@ -276,7 +276,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  blockdata_retrieve(forward->stash, forward->stash_len, (void *)header);
 	  plen = forward->stash_len;
 	  
-	  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign) && !is_sign)
+	  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign, NULL) && !is_sign)
 	    PUTSHORT(SAFE_PKTSZ, pheader);
 
 	  if (forward->sentto->addr.sa.sa_family == AF_INET) 
@@ -479,7 +479,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		}
 	      
 #ifdef HAVE_DNSSEC
-	      if (option_bool(OPT_DNSSEC_VALID) && !do_bit)
+	      if (option_bool(OPT_DNSSEC_VALID) && (forward->flags & FREC_ADDED_PHEADER))
 		{
 		  /* Difficult one here. If our client didn't send EDNS0, we will have set the UDP
 		     packet size to 512. But that won't provide space for the RRSIGS in many cases.
@@ -489,7 +489,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		     the truncated bit? */		  
 		  unsigned char *pheader;
 		  int is_sign;
-		  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign))
+		  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign, NULL) && !is_sign)
 		    PUTSHORT(start->edns_pktsz, pheader);
 		}
 #endif
@@ -584,7 +584,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     }
 #endif
   
-  if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign)))
+  if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign, NULL)))
     {
       if (check_subnet && !check_source(header, plen, pheader, query_source))
 	{
@@ -779,7 +779,7 @@ void reply_query(int fd, int family, time_t now)
       int is_sign;
       
       /* recreate query from reply */
-      pheader = find_pseudoheader(header, (size_t)n, &plen, NULL, &is_sign);
+      pheader = find_pseudoheader(header, (size_t)n, &plen, NULL, &is_sign, NULL);
       if (!is_sign)
 	{
 	  header->ancount = htons(0);
@@ -1313,7 +1313,7 @@ void receive_query(struct listener *listen, time_t now)
 #endif
     }
   
-  if (find_pseudoheader(header, (size_t)n, NULL, &pheader, NULL))
+  if (find_pseudoheader(header, (size_t)n, NULL, &pheader, NULL, NULL))
     { 
       unsigned short flags;
       
@@ -1569,7 +1569,7 @@ unsigned char *tcp_request(int confd, time_t now,
       
       do_bit = 0;
 
-      if (find_pseudoheader(header, (size_t)size, NULL, &pheader, NULL))
+      if (find_pseudoheader(header, (size_t)size, NULL, &pheader, NULL, NULL))
 	{ 
 	  unsigned short flags;
 	  
@@ -1578,7 +1578,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	  GETSHORT(flags, pheader);
       
 	  if (flags & 0x8000)
-	    do_bit = 1;/* do bit */ 
+	    do_bit = 1; /* do bit */ 
 	}
 
 #ifdef HAVE_AUTH

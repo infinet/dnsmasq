@@ -1117,8 +1117,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 int check_for_bogus_wildcard(struct dns_header *header, size_t qlen, char *name, 
 			     struct bogus_addr *addr, time_t now);
 int check_for_ignored_address(struct dns_header *header, size_t qlen, struct bogus_addr *baddr);
-unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
-				 size_t *len, unsigned char **p, int *is_sign);
 int check_for_local_domain(char *name, time_t now);
 unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
 size_t resize_packet(struct dns_header *header, size_t plen, 
@@ -1514,6 +1512,8 @@ u16 *rrfilter_desc(int type);
 int expand_workspace(unsigned char ***wkspc, int *szp, int new);
 
 /* edns0.c */
+unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
+				   size_t *len, unsigned char **p, int *is_sign, int *is_last);
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
