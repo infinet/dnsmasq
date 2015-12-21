@@ -1123,14 +1123,6 @@ int check_for_local_domain(char *name, time_t now);
 unsigned int questions_crc(struct dns_header *header, size_t plen, char *buff);
 size_t resize_packet(struct dns_header *header, size_t plen, 
 		  unsigned char *pheader, size_t hlen);
-size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
-			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
-size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
-size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
-#ifdef HAVE_DNSSEC
-size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
-#endif
-int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
 int add_resource_record(struct dns_header *header, char *limit, int *truncp,
 			int nameoffset, unsigned char **pp, unsigned long ttl, 
 			int *offset, unsigned short type, unsigned short class, char *format, ...);
@@ -1521,3 +1513,12 @@ size_t rrfilter(struct dns_header *header, size_t plen, int mode);
 u16 *rrfilter_desc(int type);
 int expand_workspace(unsigned char ***wkspc, int *szp, int new);
 
+/* edns0.c */
+size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
+			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
+size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
+size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
+#ifdef HAVE_DNSSEC
+size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
+#endif
+int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
