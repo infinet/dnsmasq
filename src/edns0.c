@@ -339,9 +339,8 @@ size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer)
 {
   /* Section 9.2, Check that subnet option in reply matches. */
-
-
- int len, calc_len;
+  
+  int len, calc_len;
   struct subnet_opt opt;
   unsigned char *p;
   int code, i, rdlen;

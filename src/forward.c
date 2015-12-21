@@ -485,8 +485,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 		     packet size to 512. But that won't provide space for the RRSIGS in many cases.
 		     The RRSIGS will be stripped out before the answer goes back, so the packet should
 		     shrink again. So, if we added a do-bit, bump the udp packet size to the value
-		     known to be OK for this server. Maybe check returned size after stripping and set
-		     the truncated bit? */		  
+		     known to be OK for this server. We check returned size after stripping and set
+		     the truncated bit if it's still too big. */		  
 		  unsigned char *pheader;
 		  int is_sign;
 		  if (find_pseudoheader(header, plen, NULL, &pheader, &is_sign, NULL) && !is_sign)
@@ -1028,6 +1028,19 @@ void reply_query(int fd, int family, time_t now)
 	{
 	  header->id = htons(forward->orig_id);
 	  header->hb4 |= HB4_RA; /* recursion if available */
+#ifdef HAVE_DNSSEC
+	  /* We added an EDNSO header for the purpose of getting DNSSEC RRs, and set the value of the UDP payload size
+	     greater than the no-EDNS0-implied 512 to have if space for the RRSIGS. If, having stripped them and the EDNS0
+             header, the answer is still bigger than 512, truncate it and mark it so. The client then retries with TCP. */
+	  if (option_bool(OPT_DNSSEC_VALID) && (forward->flags & FREC_ADDED_PHEADER) && (nn > PACKETSZ))
+	    {
+	      header->ancount = htons(0);
+	      header->nscount = htons(0);
+	      header->arcount = htons(0);
+	      header->hb3 |= HB3_TC;
+	      nn = resize_packet(header, nn, NULL, 0);
+	    }
+#endif
 	  send_from(forward->fd, option_bool(OPT_NOWILD) || option_bool (OPT_CLEVERBIND), daemon->packet, nn, 
 		    &forward->source, &forward->dest, forward->iface);
 	}
