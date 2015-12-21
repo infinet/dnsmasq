@@ -208,6 +208,11 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
   return p - (unsigned char *)header;
 }
 
+size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
+{
+  return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, 0, NULL, 0, 1);
+}
+
 static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
 {
   struct macparm *parm = parmv;
@@ -328,13 +333,6 @@ size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, unio
   len = calc_subnet_opt(&opt, source);
   return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, EDNS0_OPTION_CLIENT_SUBNET, (unsigned char *)&opt, len, 0);
 }
-
-#ifdef HAVE_DNSSEC
-size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
-{
-  return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, 0, NULL, 0, 1);
-}
-#endif
 
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer)
 {

@@ -1518,7 +1518,5 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
 size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
-#ifdef HAVE_DNSSEC
 size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
-#endif
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
