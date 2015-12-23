@@ -213,42 +213,15 @@ size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
   return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, 0, NULL, 0, 1);
 }
 
-static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
-{
-  struct macparm *parm = parmv;
-  int match = 0;
-    
-  if (family == parm->l3->sa.sa_family)
-    {
-      if (family == AF_INET && memcmp(&parm->l3->in.sin_addr, addrp, INADDRSZ) == 0)
-	match = 1;
-#ifdef HAVE_IPV6
-      else
-	if (family == AF_INET6 && memcmp(&parm->l3->in6.sin6_addr, addrp, IN6ADDRSZ) == 0)
-	  match = 1;
-#endif
-    }
- 
-  if (!match)
-    return 1; /* continue */
-
-  parm->plen = add_pseudoheader(parm->header, parm->plen, parm->limit, PACKETSZ, EDNS0_OPTION_MAC, (unsigned char *)mac, maclen, 0);
-  
-  return 0; /* done */
-}	      
-     
 size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3)
 {
-  struct macparm parm;
-     
-  parm.header = header;
-  parm.limit = (unsigned char *)limit;
-  parm.plen = plen;
-  parm.l3 = l3;
+  int maclen;
+  unsigned char mac[DHCP_CHADDR_MAX];
 
-  iface_enumerate(AF_UNSPEC, &parm, filter_mac);
+  if ((maclen = find_mac(l3, mac, 1)) != 0)
+    plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_MAC, mac, maclen, 0); 
   
-  return parm.plen; 
+  return plen; 
 }
 
 struct subnet_opt {

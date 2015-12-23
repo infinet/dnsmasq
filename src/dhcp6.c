@@ -27,17 +27,10 @@ struct iface_param {
   int ind, addr_match;
 };
 
-struct mac_param {
-  struct in6_addr *target;
-  unsigned char *mac;
-  unsigned int maclen;
-};
-
 
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int flags, 
 			     unsigned int preferred, unsigned int valid, void *vparam);
-static int find_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv);
 static int make_duid1(int index, unsigned int type, char *mac, size_t maclen, void *parm); 
 
 void dhcp6_init(void)
@@ -264,9 +257,8 @@ void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsi
      find the sender. Repeat a few times in case of packet loss. */
   
   struct neigh_packet neigh;
-  struct sockaddr_in6 addr;
-  struct mac_param mac_param;
-  int i;
+  union mysockaddr addr;
+  int i, maclen;
 
   neigh.type = ND_NEIGHBOR_SOLICIT;
   neigh.code = 0;
@@ -277,55 +269,31 @@ void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsi
    
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
-  addr.sin6_len = sizeof(struct sockaddr_in6);
+  addr.in6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
-  addr.sin6_family = AF_INET6;
-  addr.sin6_port = htons(IPPROTO_ICMPV6);
-  addr.sin6_addr = *client;
-  addr.sin6_scope_id = iface;
-  
-  mac_param.target = client;
-  mac_param.maclen = 0;
-  mac_param.mac = mac;
+  addr.in6.sin6_family = AF_INET6;
+  addr.in6.sin6_port = htons(IPPROTO_ICMPV6);
+  addr.in6.sin6_addr = *client;
+  addr.in6.sin6_scope_id = iface;
   
   for (i = 0; i < 5; i++)
     {
       struct timespec ts;
       
-      iface_enumerate(AF_UNSPEC, &mac_param, find_mac);
-      
-      if (mac_param.maclen != 0)
+      if ((maclen = find_mac(&addr, mac, 0)) != 0)
 	break;
-      
-      sendto(daemon->icmp6fd, &neigh, sizeof(neigh), 0, (struct sockaddr *)&addr, sizeof(addr));
+	  
+      sendto(daemon->icmp6fd, &neigh, sizeof(neigh), 0, &addr.sa, sizeof(addr));
       
       ts.tv_sec = 0;
       ts.tv_nsec = 100000000; /* 100ms */
       nanosleep(&ts, NULL);
     }
 
-  *maclenp = mac_param.maclen;
+  *maclenp = maclen;
   *mactypep = ARPHRD_ETHER;
 }
     
-static int find_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
-{
-  struct mac_param *parm = parmv;
-  
-  if (family == AF_INET6 && IN6_ARE_ADDR_EQUAL(parm->target, (struct in6_addr *)addrp))
-    {
-      if (maclen <= DHCP_CHADDR_MAX)
-	{
-	  parm->maclen = maclen;
-	  memcpy(parm->mac, mac, maclen);
-	}
-      
-      return 0; /* found, abort */
-    }
-  
-  return 1;
-}
-
 static int complete_context6(struct in6_addr *local,  int prefix,
 			     int scope, int if_index, int flags, unsigned int preferred, 
 			     unsigned int valid, void *vparam)

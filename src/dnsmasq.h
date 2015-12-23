@@ -1516,3 +1516,7 @@ size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysock
 size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
 size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
+
+/* arp.c */
+int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy);
+
