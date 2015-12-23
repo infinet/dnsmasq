@@ -91,8 +91,11 @@ int main (int argc, char **argv)
   if (daemon->edns_pktsz < PACKETSZ)
     daemon->edns_pktsz = PACKETSZ;
 
-  daemon->packet_buff_sz = daemon->edns_pktsz > DNSMASQ_PACKETSZ ? 
-    daemon->edns_pktsz : DNSMASQ_PACKETSZ;
+  /* Min buffer size: we check after adding each record, so there must be 
+     memory for the largest packet, and the largest record so the
+     min for DNS is PACKETSZ+MAXDNAME+RRFIXEDSZ which is < 1000.
+     This might be increased is EDNS packet size if greater than the minimum. */ 
+  daemon->packet_buff_sz = daemon->edns_pktsz + MAXDNAME + RRFIXEDSZ;
   daemon->packet = safe_malloc(daemon->packet_buff_sz);
   
   daemon->addrbuff = safe_malloc(ADDRSTRLEN);

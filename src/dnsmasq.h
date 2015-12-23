@@ -179,13 +179,6 @@ struct event_desc {
 #define EC_MISC        5
 #define EC_INIT_OFFSET 10
 
-/* Min buffer size: we check after adding each record, so there must be 
-   memory for the largest packet, and the largest record so the
-   min for DNS is PACKETSZ+MAXDNAME+RRFIXEDSZ which is < 1000.
-   This might be increased is EDNS packet size if greater than the minimum.
-*/
-#define DNSMASQ_PACKETSZ PACKETSZ+MAXDNAME+RRFIXEDSZ
-
 /* Trust the compiler dead-code eliminator.... */
 #define option_bool(x) (((x) < 32) ? daemon->options & (1u << (x)) : daemon->options2 & (1u << ((x) - 32)))
 
@@ -594,6 +587,7 @@ struct hostsfile {
 #define FREC_DO_QUESTION       64
 #define FREC_ADDED_PHEADER    128
 #define FREC_TEST_PKTSZ       256
+#define FREC_HAS_EXTRADATA    512        
 
 #ifdef HAVE_DNSSEC
 #define HASH_SIZE 20 /* SHA-1 digest size */

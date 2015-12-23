@@ -389,13 +389,14 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
     {
       struct server *firstsentto = start;
       int forwarded = 0;
-      
+      size_t edns0_len;
+
       /* If a query is retried, use the log_id for the retry when logging the answer. */
       forward->log_id = daemon->log_id;
       
       if (option_bool(OPT_ADD_MAC))
 	{
-	  size_t new = add_mac(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source);
+	  size_t new = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
 	  if (new != plen)
 	    {
 	      plen = new;
@@ -405,7 +406,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 
       if (option_bool(OPT_CLIENT_SUBNET))
 	{
-	  size_t new = add_source_addr(header, plen, ((char *) header) + daemon->packet_buff_sz, &forward->source); 
+	  size_t new = add_source_addr(header, plen, ((char *) header) + PACKETSZ, &forward->source); 
 	  if (new != plen)
 	    {
 	      plen = new;
@@ -416,7 +417,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
 	{
-	  size_t new = add_do_bit(header, plen, ((char *) header) + daemon->packet_buff_sz);
+	  size_t new = add_do_bit(header, plen, ((char *) header) + PACKETSZ);
 	 
 	  if (new != plen)
 	    forward->flags |= FREC_ADDED_PHEADER;
@@ -430,6 +431,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 
 	}
 #endif
+
+      /* If we're sending an EDNS0 with any options, we can't recreate the query from a reply. */
+      if (find_pseudoheader(header, plen, &edns0_len, NULL, NULL, NULL) && edns0_len > 11)
+	forward->flags |= FREC_HAS_EXTRADATA;
       
       while (1)
 	{ 
@@ -769,9 +774,12 @@ void reply_query(int fd, int family, time_t now)
       check_for_ignored_address(header, n, daemon->ignore_addr))
     return;
 
+  /* Note: if we send extra options in the EDNS0 header, we can't recreate
+     the query from the reply. */
   if (RCODE(header) == REFUSED &&
       !option_bool(OPT_ORDER) &&
-      forward->forwardall == 0)
+      forward->forwardall == 0 &&
+      !(forward->flags & FREC_HAS_EXTRADATA))
     /* for broken servers, attempt to send to another one. */
     {
       unsigned char *pheader;
@@ -919,13 +927,13 @@ void reply_query(int fd, int family, time_t now)
 		      if (status == STAT_NEED_KEY)
 			{
 			  new->flags |= FREC_DNSKEY_QUERY; 
-			  nn = dnssec_generate_query(header, ((char *) header) + daemon->packet_buff_sz,
+			  nn = dnssec_generate_query(header, ((char *) header) + server->edns_pktsz,
 						     daemon->keyname, forward->class, T_DNSKEY, &server->addr, server->edns_pktsz);
 			}
 		      else 
 			{
 			  new->flags |= FREC_DS_QUERY;
-			  nn = dnssec_generate_query(header,((char *) header) + daemon->packet_buff_sz,
+			  nn = dnssec_generate_query(header,((char *) header) + server->edns_pktsz,
 						     daemon->keyname, forward->class, T_DS, &server->addr, server->edns_pktsz);
 			}
 		      if ((hash = hash_questions(header, nn, daemon->namebuff)))
