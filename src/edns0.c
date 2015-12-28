@@ -94,13 +94,6 @@ unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t 
   
   return ret;
 }
-
-struct macparm {
-  unsigned char *limit;
-  struct dns_header *header;
-  size_t plen;
-  union mysockaddr *l3;
-};
  
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do)
@@ -208,19 +201,54 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
   return p - (unsigned char *)header;
 }
 
-size_t add_do_bit(struct dns_header *header, size_t plen, char *limit)
+size_t add_do_bit(struct dns_header *header, size_t plen, unsigned char *limit)
 {
   return add_pseudoheader(header, plen, (unsigned char *)limit, PACKETSZ, 0, NULL, 0, 1);
 }
 
-size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3)
+static unsigned char char64(unsigned char c)
+{
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[c & 0x3f];
+}
+
+static void encoder(unsigned char *in, char *out)
+{
+  out[0] = char64(in[0]>>2);
+  out[1] = char64((in[0]<<4) | (in[1]>>4));
+  out[2] = char64((in[1]<<2) | (in[2]>>6));
+  out[3] = char64(in[2]);
+}
+
+static size_t add_dns_client(struct dns_header *header, size_t plen, unsigned char *limit, union mysockaddr *l3, time_t now)
+{
+  int maclen;
+  unsigned char mac[DHCP_CHADDR_MAX];
+  char encode[8]; /* handle 6 byte MACs */
+
+  if ((maclen = find_mac(l3, mac, 1, now)) == 6)
+    {
+      encoder(mac, encode);
+      encoder(mac+3, encode+4);
+      
+      plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, 8, 0); 
+    }
+
+  if (daemon->dns_client_id)
+    plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMCPEID, 
+			    (unsigned char *)daemon->dns_client_id, strlen(daemon->dns_client_id), 0);
+
+  return plen; 
+}
+
+
+static size_t add_mac(struct dns_header *header, size_t plen, unsigned char *limit, union mysockaddr *l3, time_t now)
 {
   int maclen;
   unsigned char mac[DHCP_CHADDR_MAX];
 
-  if ((maclen = find_mac(l3, mac, 1)) != 0)
+  if ((maclen = find_mac(l3, mac, 1, now)) != 0)
     plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_MAC, mac, maclen, 0); 
-  
+    
   return plen; 
 }
 
@@ -296,7 +324,7 @@ static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
   return len + 4;
 }
  
-size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source)
+static size_t add_source_addr(struct dns_header *header, size_t plen, unsigned char *limit, union mysockaddr *source)
 {
   /* http://tools.ietf.org/html/draft-vandergaast-edns-client-subnet-02 */
   
@@ -343,4 +371,24 @@ int check_source(struct dns_header *header, size_t plen, unsigned char *pseudohe
      }
    
    return 1;
+}
+
+size_t add_edns0_config(struct dns_header *header, size_t plen, unsigned char *limit, 
+			union mysockaddr *source, time_t now, int *check_subnet)    
+{
+  *check_subnet = 0;
+
+  if (option_bool(OPT_ADD_MAC))
+    plen  = add_mac(header, plen, limit, source, now);
+  
+  if (option_bool(OPT_DNS_CLIENT))
+    plen = add_dns_client(header, plen, limit, source, now);
+  
+  if (option_bool(OPT_CLIENT_SUBNET))
+    {
+      plen = add_source_addr(header, plen, limit, source); 
+      *check_subnet = 1;
+    }
+	  
+  return plen;
 }

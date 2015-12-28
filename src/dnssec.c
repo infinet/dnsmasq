@@ -2173,7 +2173,7 @@ int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen)
     }
 }
 
-size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, 
+size_t dnssec_generate_query(struct dns_header *header, unsigned char *end, char *name, int class, 
 			     int type, union mysockaddr *addr, int edns_pktsz)
 {
   unsigned char *p;

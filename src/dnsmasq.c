@@ -245,8 +245,11 @@ int main (int argc, char **argv)
   /* Note that order matters here, we must call lease_init before
      creating any file descriptors which shouldn't be leaked
      to the lease-script init process. We need to call common_init
-     before lease_init to allocate buffers it uses.*/
-  if (daemon->dhcp || daemon->doing_dhcp6 || daemon->relay4 || daemon->relay6)
+     before lease_init to allocate buffers it uses.
+     The script subsystrm relies on DHCP buffers, hence the last two
+     conditions below. */  
+  if (daemon->dhcp || daemon->doing_dhcp6 || daemon->relay4 || 
+      daemon->relay6 || option_bool(OPT_TFTP) || option_bool(OPT_ADD_MAC))
     {
       dhcp_common_init();
       if (daemon->dhcp || daemon->doing_dhcp6)
@@ -553,8 +556,9 @@ int main (int argc, char **argv)
    /* if we are to run scripts, we need to fork a helper before dropping root. */
   daemon->helperfd = -1;
 #ifdef HAVE_SCRIPT 
-  if ((daemon->dhcp || daemon->dhcp6) && (daemon->lease_change_command || daemon->luascript))
-    daemon->helperfd = create_helper(pipewrite, err_pipe[1], script_uid, script_gid, max_fd);
+  if ((daemon->dhcp || daemon->dhcp6 || option_bool(OPT_TFTP) || option_bool(OPT_ADD_MAC)) && 
+      (daemon->lease_change_command || daemon->luascript))
+      daemon->helperfd = create_helper(pipewrite, err_pipe[1], script_uid, script_gid, max_fd);
 #endif
 
   if (!option_bool(OPT_DEBUG) && getuid() == 0)   
@@ -914,9 +918,9 @@ int main (int argc, char **argv)
       
       poll_listen(piperead, POLLIN);
 
-#ifdef HAVE_DHCP
-#  ifdef HAVE_SCRIPT
-      while (helper_buf_empty() && do_script_run(now));
+#ifdef HAVE_SCRIPT
+      while (helper_buf_empty() && do_script_run(now)); 
+      while (helper_buf_empty() && do_arp_script_run());
 
 #    ifdef HAVE_TFTP
       while (helper_buf_empty() && do_tftp_script_run());
@@ -924,16 +928,17 @@ int main (int argc, char **argv)
 
       if (!helper_buf_empty())
 	poll_listen(daemon->helperfd, POLLOUT);
-#  else
+#else
       /* need this for other side-effects */
       while (do_script_run(now));
+      while (do_arp_script_run(now));
 
 #    ifdef HAVE_TFTP 
       while (do_tftp_script_run());
 #    endif
 
-#  endif
 #endif
+
    
       /* must do this just before select(), when we know no
 	 more calls to my_syslog() can occur */

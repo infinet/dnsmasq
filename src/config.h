@@ -337,7 +337,7 @@ HAVE_SOCKADDR_SA_LEN
 #define HAVE_DHCP
 #endif
 
-#if defined(NO_SCRIPT) || !defined(HAVE_DHCP) || defined(NO_FORK)
+#if defined(NO_SCRIPT) || defined(NO_FORK)
 #undef HAVE_SCRIPT
 #undef HAVE_LUASCRIPT
 #endif

@@ -16,25 +16,30 @@
 
 #include "dnsmasq.h"
 
-#define ARP_FREE  0
-#define ARP_FOUND 1
-#define ARP_NEW   2
-#define ARP_EMPTY 3
+/* Time between forced re-loads from kernel. */
+#define INTERVAL 90
+
+#define ARP_MARK  0
+#define ARP_FOUND 1  /* Confirmed */
+#define ARP_NEW   2  /* Newly created */
+#define ARP_EMPTY 3  /* No MAC addr */
 
 struct arp_record {
-  short hwlen, status;
+  unsigned short hwlen, status;
   int family;
   unsigned char hwaddr[DHCP_CHADDR_MAX]; 
   struct all_addr addr;
   struct arp_record *next;
 };
 
-static struct arp_record *arps = NULL, *old = NULL;
+static struct arp_record *arps = NULL, *old = NULL, *freelist = NULL;
+static time_t last = 0;
 
 static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *parmv)
 {
-  int match = 0;
   struct arp_record *arp;
+
+  (void)parmv;
 
   if (maclen > DHCP_CHADDR_MAX)
     return 1;
@@ -58,16 +63,18 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
 	}
 #endif
 
-      if (arp->status != ARP_EMPTY && arp->hwlen == maclen && memcmp(arp->hwaddr, mac, maclen) == 0)
-	arp->status = ARP_FOUND;
-      else
+      if (arp->status == ARP_EMPTY)
 	{
-	  /* existing address, MAC changed or arrived new. */
+	  /* existing address, was negative. */
 	  arp->status = ARP_NEW;
 	  arp->hwlen = maclen;
-	  arp->family = family;
 	  memcpy(arp->hwaddr, mac, maclen);
 	}
+      else if (arp->hwlen == maclen && memcmp(arp->hwaddr, mac, maclen) == 0)
+	/* Existing entry matches - confirm. */
+	arp->status = ARP_FOUND;
+      else
+	continue;
       
       break;
     }
@@ -75,10 +82,10 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
   if (!arp)
     {
       /* New entry */
-      if (old)
+      if (freelist)
 	{
-	  arp = old;
-	  old = old->next;
+	  arp = freelist;
+	  freelist = freelist->next;
 	}
       else if (!(arp = whine_malloc(sizeof(struct arp_record))))
 	return 1;
@@ -101,81 +108,72 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
 }
 
 /* If in lazy mode, we cache absence of ARP entries. */
-int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy)
+int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
 {
   struct arp_record *arp, **up;
   int updated = 0;
 
  again:
   
-  for (arp = arps; arp; arp = arp->next)
-    {
-      if (addr->sa.sa_family == arp->family)
-	{
-	  if (arp->addr.addr.addr4.s_addr != addr->in.sin_addr.s_addr)
-	    continue;
-	}
+  /* If the database is less then INTERVAL old, look in there */
+  if (difftime(now, last) < INTERVAL)
+    for (arp = arps; arp; arp = arp->next)
+      {
+	if (addr->sa.sa_family == arp->family)
+	  {
+	    if (arp->addr.addr.addr4.s_addr != addr->in.sin_addr.s_addr)
+	      continue;
+	  }
 #ifdef HAVE_IPV6
-      else
-	{
-	  if (!IN6_ARE_ADDR_EQUAL(&arp->addr.addr.addr6, &addr->in6.sin6_addr))
-	    continue;
-	}
+	else
+	  {
+	    if (!IN6_ARE_ADDR_EQUAL(&arp->addr.addr.addr6, &addr->in6.sin6_addr))
+	      continue;
+	  }
 #endif
-      
-      /* Only accept poitive entries unless in lazy mode. */
-      if (arp->status != ARP_EMPTY || lazy || updated)
-	{
-	  if (mac && arp->hwlen != 0)
-	    memcpy(mac, arp->hwaddr, arp->hwlen);
-	  return arp->hwlen;
-	}
-    }
-
+	
+	/* Only accept poitive entries unless in lazy mode. */
+	if (arp->status != ARP_EMPTY || lazy || updated)
+	  {
+	    if (mac && arp->hwlen != 0)
+	      memcpy(mac, arp->hwaddr, arp->hwlen);
+	    return arp->hwlen;
+	  }
+      }
+  
   /* Not found, try the kernel */
   if (!updated)
      {
        updated = 1;
-       
+       last = now;
+
        /* Mark all non-negative entries */
        for (arp = arps, up = &arps; arp; arp = arp->next)
 	 if (arp->status != ARP_EMPTY)
-	   arp->status = ARP_FREE;
+	   arp->status = ARP_MARK;
        
        iface_enumerate(AF_UNSPEC, NULL, filter_mac);
        
-       /* Remove all unconfirmed entries to old list, announce new ones. */
+       /* Remove all unconfirmed entries to old list. */
        for (arp = arps, up = &arps; arp; arp = arp->next)
-	 if (arp->status == ARP_FREE)
+	 if (arp->status == ARP_MARK)
 	   {
 	     *up = arp->next;
 	     arp->next = old;
 	     old = arp;
 	   }
 	 else
-	   {
-	     up = &arp->next;
-	     if (arp->status == ARP_NEW)
-	       {
-		 char a[ADDRSTRLEN], m[ADDRSTRLEN];
-		 union mysockaddr pa;
-		 pa.sa.sa_family = arp->family;
-		 pa.in.sin_addr.s_addr = arp->addr.addr.addr4.s_addr;
-		 prettyprint_addr(&pa, a);
-		 print_mac(m, arp->hwaddr, arp->hwlen);
-		 my_syslog(LOG_INFO, _("new arp: %s %s"), a, m);
-	       }
-	   }
-
+	   up = &arp->next;
+	   
        goto again;
      }
 
   /* record failure, so we don't consult the kernel each time
      we're asked for this address */
-  if (old)
+  if (freelist)
     {
-      arp = old;
-      old = old->next;
+      arp = freelist;
+      freelist = freelist->next;
     }
   else
     arp = whine_malloc(sizeof(struct arp_record));
@@ -196,6 +194,38 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy)
     }
 	  
    return 0;
+}
+
+int do_arp_script_run(void)
+{
+  struct arp_record *arp;
+  
+  /* Notify any which went, then move to free list */
+  if (old)
+    {
+#ifdef HAVE_SCRIPT
+      if (option_bool(OPT_DNS_CLIENT))
+	queue_arp(ACTION_ARP_OLD, old->hwaddr, old->hwlen, old->family, &old->addr);
+#endif
+      arp = old;
+      old = arp->next;
+      arp->next = freelist;
+      freelist = arp;
+      return 1;
+    }
+
+  for (arp = arps; arp; arp = arp->next)
+    if (arp->status == ARP_NEW)
+      {
+#ifdef HAVE_SCRIPT
+	if (option_bool(OPT_DNS_CLIENT))
+	  queue_arp(ACTION_ARP, arp->hwaddr, arp->hwlen, arp->family, &arp->addr);
+#endif
+	arp->status = ARP_FOUND;
+	return 1;
+      }
+
+  return 0;
 }
 
 

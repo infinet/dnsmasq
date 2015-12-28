@@ -154,6 +154,7 @@ struct myoption {
 #define LOPT_HOST_INOTIFY  342
 #define LOPT_DNSSEC_STAMP  343
 #define LOPT_TFTP_NO_FAIL  344
+#define LOPT_DNS_CLIENT_ID 355
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -281,6 +282,7 @@ static const struct myoption opts[] =
     { "rebind-localhost-ok", 0, 0,  LOPT_LOC_REBND },
     { "add-mac", 0, 0, LOPT_ADD_MAC },
     { "add-subnet", 2, 0, LOPT_ADD_SBNET },
+    { "add-dns-client", 2, 0 , LOPT_DNS_CLIENT_ID },
     { "proxy-dnssec", 0, 0, LOPT_DNSSEC },
     { "dhcp-sequential-ip", 0, 0,  LOPT_INCR_ADDR },
     { "conntrack", 0, 0, LOPT_CONNTRACK },
@@ -446,6 +448,7 @@ static struct {
   { LOPT_TEST, 0, NULL, gettext_noop("Check configuration syntax."), NULL },
   { LOPT_ADD_MAC, OPT_ADD_MAC, NULL, gettext_noop("Add requestor's MAC address to forwarded DNS queries."), NULL },
   { LOPT_ADD_SBNET, ARG_ONE, "<v4 pref>[,<v6 pref>]", gettext_noop("Add specified IP subnet to forwarded DNS queries."), NULL },
+  { LOPT_DNS_CLIENT_ID, ARG_ONE, "<proxyname>", gettext_noop("Add client identification to forwarded DNS queries."), NULL },
   { LOPT_DNSSEC, OPT_DNSSEC_PROXY, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
   { LOPT_INCR_ADDR, OPT_CONSEC_ADDR, NULL, gettext_noop("Attempt to allocate sequential IP addresses to DHCP clients."), NULL },
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
@@ -2150,6 +2153,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	}
       break;
       
+    case LOPT_DNS_CLIENT_ID: /* --add-dns-client */
+       set_option_bool(OPT_DNS_CLIENT);
+       if (arg)
+	daemon->dns_client_id = opt_string_alloc(arg);
+      break;
+
     case 'u':  /* --user */
       daemon->username = opt_string_alloc(arg);
       break;

@@ -388,36 +388,27 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
   if (!flags && forward)
     {
       struct server *firstsentto = start;
-      int forwarded = 0;
+      int subnet, forwarded = 0;
       size_t edns0_len;
 
       /* If a query is retried, use the log_id for the retry when logging the answer. */
       forward->log_id = daemon->log_id;
       
-      if (option_bool(OPT_ADD_MAC))
+      edns0_len  = add_edns0_config(header, plen, ((unsigned char *)header) + PACKETSZ, &forward->source, now, &subnet);
+      
+      if (edns0_len != plen)
 	{
-	  size_t new = add_mac(header, plen, ((char *) header) + PACKETSZ, &forward->source);
-	  if (new != plen)
-	    {
-	      plen = new;
-	      forward->flags |= FREC_ADDED_PHEADER;
-	    }
+	  plen = edns0_len;
+	  forward->flags |= FREC_ADDED_PHEADER;
+	  
+	  if (subnet)
+	    forward->flags |= FREC_HAS_SUBNET;
 	}
-
-      if (option_bool(OPT_CLIENT_SUBNET))
-	{
-	  size_t new = add_source_addr(header, plen, ((char *) header) + PACKETSZ, &forward->source); 
-	  if (new != plen)
-	    {
-	      plen = new;
-	      forward->flags |= FREC_HAS_SUBNET | FREC_ADDED_PHEADER;
-	    }
-	}
-
+      
 #ifdef HAVE_DNSSEC
       if (option_bool(OPT_DNSSEC_VALID))
 	{
-	  size_t new = add_do_bit(header, plen, ((char *) header) + PACKETSZ);
+	  size_t new = add_do_bit(header, plen, ((unsigned char *) header) + PACKETSZ);
 	 
 	  if (new != plen)
 	    forward->flags |= FREC_ADDED_PHEADER;
@@ -607,15 +598,30 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	    }
 	  else
 	    {
+	      unsigned short udpsz;
+
 	      /* If upstream is advertising a larger UDP packet size
 		 than we allow, trim it so that we don't get overlarge
 		 requests for the client. We can't do this for signed packets. */
-	      unsigned short udpsz;
-	      unsigned char *psave = sizep;
-	      
 	      GETSHORT(udpsz, sizep);
 	      if (udpsz > daemon->edns_pktsz)
-		PUTSHORT(daemon->edns_pktsz, psave);
+		{
+		  sizep -= 2;
+		  PUTSHORT(daemon->edns_pktsz, sizep);
+		}
+
+#ifdef HAVE_DNSSEC
+	      /* If the client didn't set the do bit, but we did, reset it. */
+	      if (option_bool(OPT_DNSSEC_VALID) && !do_bit)
+		{
+		  unsigned short flags;
+		  sizep += 2; /* skip RCODE */
+		  GETSHORT(flags, sizep);
+		  flags &= ~0x8000;
+		  sizep -= 2;
+		  PUTSHORT(flags, sizep);
+		}
+#endif
 	    }
 	}
     }
@@ -674,14 +680,11 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     }
   
 #ifdef HAVE_DNSSEC
-  if (bogusanswer && !(header->hb4 & HB4_CD)) 
+  if (bogusanswer && !(header->hb4 & HB4_CD) && !option_bool(OPT_DNSSEC_DEBUG))
     {
-      if (!option_bool(OPT_DNSSEC_DEBUG))
-	{
-	  /* Bogus reply, turn into SERVFAIL */
-	  SET_RCODE(header, SERVFAIL);
-	  munged = 1;
-	}
+      /* Bogus reply, turn into SERVFAIL */
+      SET_RCODE(header, SERVFAIL);
+      munged = 1;
     }
 
   if (option_bool(OPT_DNSSEC_VALID))
@@ -802,7 +805,7 @@ void reply_query(int fd, int family, time_t now)
 	      if (forward->flags |= FREC_AD_QUESTION)
 		header->hb4 |= HB4_AD;
 	      if (forward->flags & FREC_DO_QUESTION)
-		add_do_bit(header, nn,  (char *)pheader + plen);
+		add_do_bit(header, nn,  (unsigned char *)pheader + plen);
 	      forward_query(-1, NULL, NULL, 0, header, nn, now, forward, forward->flags & FREC_AD_QUESTION, forward->flags & FREC_DO_QUESTION);
 	      return;
 	    }
@@ -927,13 +930,13 @@ void reply_query(int fd, int family, time_t now)
 		      if (status == STAT_NEED_KEY)
 			{
 			  new->flags |= FREC_DNSKEY_QUERY; 
-			  nn = dnssec_generate_query(header, ((char *) header) + server->edns_pktsz,
+			  nn = dnssec_generate_query(header, ((unsigned char *) header) + server->edns_pktsz,
 						     daemon->keyname, forward->class, T_DNSKEY, &server->addr, server->edns_pktsz);
 			}
 		      else 
 			{
 			  new->flags |= FREC_DS_QUERY;
-			  nn = dnssec_generate_query(header,((char *) header) + server->edns_pktsz,
+			  nn = dnssec_generate_query(header,((unsigned char *) header) + server->edns_pktsz,
 						     daemon->keyname, forward->class, T_DS, &server->addr, server->edns_pktsz);
 			}
 		      if ((hash = hash_questions(header, nn, daemon->namebuff)))
@@ -1434,7 +1437,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
 	  break;
 	}
 	 
-      m = dnssec_generate_query(new_header, ((char *) new_header) + 65536, keyname, class, 
+      m = dnssec_generate_query(new_header, ((unsigned char *) new_header) + 65536, keyname, class, 
 				new_status == STAT_NEED_KEY ? T_DNSKEY : T_DS, &server->addr, server->edns_pktsz);
       
       *length = htons(m);
@@ -1548,8 +1551,6 @@ unsigned char *tcp_request(int confd, time_t now,
       daemon->log_display_id = ++daemon->log_id;
       daemon->log_source_addr = &peer_addr;
       
-      check_subnet = 0;
-
       /* save state of "cd" flag in query */
       if ((checking_disabled = header->hb4 & HB4_CD))
 	no_cache_dnssec = 1;
@@ -1627,20 +1628,14 @@ unsigned char *tcp_request(int confd, time_t now,
 	      struct all_addr *addrp = NULL;
 	      int type = 0;
 	      char *domain = NULL;
-	      
-	      if (option_bool(OPT_ADD_MAC))
-		size = add_mac(header, size, ((char *) header) + 65536, &peer_addr);
-	      	
-	      if (option_bool(OPT_CLIENT_SUBNET))
-		{
-		  size_t new = add_source_addr(header, size, ((char *) header) + 65536, &peer_addr);
-		  if (size != new)
-		    {
-		      size = new;
-		      check_subnet = 1;
-		    }
-		}
+	      size_t new_size = add_edns0_config(header, size, ((unsigned char *) header) + 65536, &peer_addr, now, &check_subnet);
 
+	      if (size != new_size)
+		{
+		  added_pheader = 1;
+		  size = new_size;
+		}
+	      
 	      if (gotname)
 		flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	      
@@ -1715,20 +1710,20 @@ unsigned char *tcp_request(int confd, time_t now,
 			    }
 			  
 #ifdef HAVE_DNSSEC
-			  added_pheader = 0;			  
 			  if (option_bool(OPT_DNSSEC_VALID))
 			    {
-			      size_t new_size = add_do_bit(header, size, ((char *) header) + 65536);
+			      new_size = add_do_bit(header, size, ((unsigned char *) header) + 65536);
+			      
+			      if (size != new_size)
+				{
+				  added_pheader = 1;
+				  size = new_size;
+				}
 			      
 			      /* For debugging, set Checking Disabled, otherwise, have the upstream check too,
 				 this allows it to select auth servers when one is returning bad data. */
 			      if (option_bool(OPT_DNSSEC_DEBUG))
 				header->hb4 |= HB4_CD;
-			      
-			      if (size != new_size)
-				added_pheader = 1;
-			      
-			      size = new_size;
 			    }
 #endif
 			}

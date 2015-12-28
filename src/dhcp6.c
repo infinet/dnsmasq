@@ -220,7 +220,7 @@ void dhcp6_packet(time_t now)
 	  inet_pton(AF_INET6, ALL_SERVERS, &all_servers);
 	  
 	  if (!IN6_ARE_ADDR_EQUAL(&dst_addr, &all_servers))
-	    relay_upstream6(parm.relay, sz, &from.sin6_addr, from.sin6_scope_id);
+	    relay_upstream6(parm.relay, sz, &from.sin6_addr, from.sin6_scope_id, now);
 	  return;
 	}
       
@@ -250,7 +250,7 @@ void dhcp6_packet(time_t now)
     }
 }
 
-void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsigned int *maclenp, unsigned int *mactypep)
+void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsigned int *maclenp, unsigned int *mactypep, time_t now)
 {
   /* Recieving a packet from a host does not populate the neighbour
      cache, so we send a neighbour discovery request if we can't 
@@ -280,7 +280,7 @@ void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, unsi
     {
       struct timespec ts;
       
-      if ((maclen = find_mac(&addr, mac, 0)) != 0)
+      if ((maclen = find_mac(&addr, mac, 0, now)) != 0)
 	break;
 	  
       sendto(daemon->icmp6fd, &neigh, sizeof(neigh), 0, &addr.sa, sizeof(addr));

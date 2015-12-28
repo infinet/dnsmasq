@@ -77,6 +77,8 @@
 
 #define EDNS0_OPTION_MAC            65001 /* dyndns.org temporary assignment */
 #define EDNS0_OPTION_CLIENT_SUBNET  8     /* IANA */
+#define EDNS0_OPTION_NOMDEVICEID    65073 /* Nominum temporary assignment */
+#define EDNS0_OPTION_NOMCPEID       65074 /* Nominum temporary assignment */
 
 struct dns_header {
   u16 id;

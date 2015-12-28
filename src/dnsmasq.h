@@ -235,7 +235,8 @@ struct event_desc {
 #define OPT_LOOP_DETECT    50
 #define OPT_EXTRALOG       51
 #define OPT_TFTP_NO_FAIL   52
-#define OPT_LAST           53
+#define OPT_DNS_CLIENT     53
+#define OPT_LAST           54
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
@@ -633,6 +634,8 @@ struct frec {
 #define ACTION_OLD           3
 #define ACTION_ADD           4
 #define ACTION_TFTP          5
+#define ACTION_ARP           6
+#define ACTION_ARP_OLD       7
 
 #define LEASE_NEW            1  /* newly created */
 #define LEASE_CHANGED        2  /* modified */
@@ -948,6 +951,7 @@ extern struct daemon {
   int cachesize, ftabsize;
   int port, query_port, min_port;
   unsigned long local_ttl, neg_ttl, max_ttl, min_cache_ttl, max_cache_ttl, auth_ttl;
+  char *dns_client_id;
   struct hostsfile *addn_hosts;
   struct dhcp_context *dhcp, *dhcp6;
   struct ra_interface *ra_interfaces;
@@ -1135,7 +1139,7 @@ int in_zone(struct auth_zone *zone, char *name, char **cut);
 #endif
 
 /* dnssec.c */
-size_t dnssec_generate_query(struct dns_header *header, char *end, char *name, int class, int type, union mysockaddr *addr, int edns_pktsz);
+size_t dnssec_generate_query(struct dns_header *header, unsigned char *end, char *name, int class, int type, union mysockaddr *addr, int edns_pktsz);
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t n, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class,
@@ -1372,6 +1376,8 @@ void queue_script(int action, struct dhcp_lease *lease,
 #ifdef HAVE_TFTP
 void queue_tftp(off_t file_len, char *filename, union mysockaddr *peer);
 #endif
+void queue_arp(int action, unsigned char *mac, int maclen,
+	       int family, struct all_addr *addr);
 int helper_buf_empty(void);
 #endif
 
@@ -1408,7 +1414,7 @@ struct dhcp_config *config_find_by_address6(struct dhcp_config *configs, struct 
 void make_duid(time_t now);
 void dhcp_construct_contexts(time_t now);
 void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac, 
-		    unsigned int *maclenp, unsigned int *mactypep);
+		    unsigned int *maclenp, unsigned int *mactypep, time_t now);
 #endif
   
 /* rfc3315.c */
@@ -1416,7 +1422,8 @@ void get_client_mac(struct in6_addr *client, int iface, unsigned char *mac,
 unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *iface_name,  
 			   struct in6_addr *fallback, struct in6_addr *ll_addr, struct in6_addr *ula_addr,
 			   size_t sz, struct in6_addr *client_addr, time_t now);
-void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, u32 scope_id);
+void relay_upstream6(struct dhcp_relay *relay, ssize_t sz, struct in6_addr *peer_address, 
+		     u32 scope_id, time_t now);
 
 unsigned short relay_reply6( struct sockaddr_in6 *peer, ssize_t sz, char *arrival_interface);
 #endif
@@ -1512,11 +1519,11 @@ unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
 				   size_t *len, unsigned char **p, int *is_sign, int *is_last);
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
-size_t add_mac(struct dns_header *header, size_t plen, char *limit, union mysockaddr *l3);
-size_t add_source_addr(struct dns_header *header, size_t plen, char *limit, union mysockaddr *source);
-size_t add_do_bit(struct dns_header *header, size_t plen, char *limit);
+size_t add_do_bit(struct dns_header *header, size_t plen, unsigned char *limit);
+size_t add_edns0_config(struct dns_header *header, size_t plen, unsigned char *limit, 
+			union mysockaddr *source, time_t now, int *check_subnet);
 int check_source(struct dns_header *header, size_t plen, unsigned char *pseudoheader, union mysockaddr *peer);
 
 /* arp.c */
-int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy);
-
+int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now);
+int do_arp_script_run(void);
