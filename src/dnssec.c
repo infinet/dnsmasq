@@ -1599,12 +1599,12 @@ static int check_nsec3_coverage(struct dns_header *header, size_t plen, int dige
 		if (!CHECK_LEN(header, p, plen, rdlen))
 		  return 0;
 		
-		/* If we can prove that there's no NS record, return that information. */
-		if (nons && rdlen >= 2 && p[0] == 0 && (p[2] & (0x80 >> T_NS)) != 0)
-		  *nons = 0;
-		
 		if (rdlen >= 2 && p[0] == 0)
 		  {
+		    /* If we can prove that there's no NS record, return that information. */
+		    if (nons && (p[2] & (0x80 >> T_NS)) != 0)
+		      *nons = 0;
+		
 		    /* A CNAME answer would also be valid, so if there's a CNAME is should 
 		       have been returned. */
 		    if ((p[2] & (0x80 >> T_CNAME)) != 0)
