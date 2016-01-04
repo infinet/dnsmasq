@@ -436,7 +436,7 @@ static int count_labels(char *name)
 }
 
 /* Implement RFC1982 wrapped compare for 32-bit numbers */
-static int serial_compare_32(unsigned long s1, unsigned long s2)
+static int serial_compare_32(u32 s1, u32 s2)
 {
   if (s1 == s2)
     return SERIAL_EQ;
@@ -503,7 +503,7 @@ int setup_timestamp(void)
 }
 
 /* Check whether today/now is between date_start and date_end */
-static int check_date_range(unsigned long date_start, unsigned long date_end)
+static int check_date_range(u32 date_start, u32 date_end)
 {
   unsigned long curtime = time(0);
  
@@ -796,11 +796,11 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 			  char *name, char *keyname, char **wildcard_out, struct blockdata *key, int keylen, int algo_in, int keytag_in)
 {
   unsigned char *p;
-  int rdlen, j, name_labels, sig_expiration, sig_inception;
+  int rdlen, j, name_labels, algo, labels, orig_ttl, key_tag;
   struct crec *crecp = NULL;
-  int algo, labels, orig_ttl, key_tag;
   u16 *rr_desc = rrfilter_desc(type);
- 
+  u32 sig_expiration, sig_inception
+;
   if (wildcard_out)
     *wildcard_out = NULL;
   
