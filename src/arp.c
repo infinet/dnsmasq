@@ -110,7 +110,7 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
 /* If in lazy mode, we cache absence of ARP entries. */
 int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
 {
-  struct arp_record *arp, **up;
+  struct arp_record *arp, *tmp, **up;
   int updated = 0;
 
  again:
@@ -155,16 +155,20 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
        iface_enumerate(AF_UNSPEC, NULL, filter_mac);
        
        /* Remove all unconfirmed entries to old list. */
-       for (arp = arps, up = &arps; arp; arp = arp->next)
-	 if (arp->status == ARP_MARK)
-	   {
-	     *up = arp->next;
-	     arp->next = old;
-	     old = arp;
-	   }
-	 else
-	   up = &arp->next;
+       for (arp = arps, up = &arps; arp; arp = tmp)
+	 {
+	   tmp = arp->next;
 	   
+	   if (arp->status == ARP_MARK)
+	     {
+	       *up = arp->next;
+	       arp->next = old;
+	       old = arp;
+	     }
+	   else
+	     up = &arp->next;
+	 }
+
        goto again;
      }
 
