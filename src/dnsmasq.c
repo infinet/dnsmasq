@@ -919,7 +919,10 @@ int main (int argc, char **argv)
       poll_listen(piperead, POLLIN);
 
 #ifdef HAVE_SCRIPT
+#    ifdef HAVE_DHCP
       while (helper_buf_empty() && do_script_run(now)); 
+#    endif
+
       while (helper_buf_empty() && do_arp_script_run());
 
 #    ifdef HAVE_TFTP
@@ -930,7 +933,10 @@ int main (int argc, char **argv)
 	poll_listen(daemon->helperfd, POLLOUT);
 #else
       /* need this for other side-effects */
+#    ifdef HAVE_DHCP
       while (do_script_run(now));
+#    endif
+
       while (do_arp_script_run(now));
 
 #    ifdef HAVE_TFTP 
@@ -1312,7 +1318,7 @@ static void async_event(int pipe, time_t now)
 	  if (daemon->tcp_pids[i] != 0)
 	    kill(daemon->tcp_pids[i], SIGALRM);
 	
-#if defined(HAVE_SCRIPT)
+#if defined(HAVE_SCRIPT) && defined(HAVE_DHCP)
 	/* handle pending lease transitions */
 	if (daemon->helperfd != -1)
 	  {
