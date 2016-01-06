@@ -937,7 +937,7 @@ int main (int argc, char **argv)
       while (do_script_run(now));
 #    endif
 
-      while (do_arp_script_run(now));
+      while (do_arp_script_run());
 
 #    ifdef HAVE_TFTP 
       while (do_tftp_script_run());
