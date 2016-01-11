@@ -406,7 +406,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	}
       
 #ifdef HAVE_DNSSEC
-      if (option_bool(OPT_DNSSEC_VALID))
+      if (option_bool(OPT_DNSSEC_VALID) && !(type & SERV_HAS_DOMAIN))
 	{
 	  size_t new = add_do_bit(header, plen, ((unsigned char *) header) + PACKETSZ);
 	 
@@ -858,7 +858,8 @@ void reply_query(int fd, int family, time_t now)
 	no_cache_dnssec = 1;
       
 #ifdef HAVE_DNSSEC
-      if (server && option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
+      if (server && !(server->flags & SERV_HAS_DOMAIN) && 
+	  option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
 	  int status = 0;
 
