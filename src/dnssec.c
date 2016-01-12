@@ -1873,10 +1873,27 @@ static int prove_non_existence(struct dns_header *header, size_t plen, char *key
 */
 static int zone_status(char *name, int class, char *keyname, time_t now)
 {
-  int name_start = strlen(name);
+  int name_start = strlen(name); /* for when TA is root */
   struct crec *crecp;
   char *p;
+
+  /* First, work towards the root, looking for a trust anchor.
+     This can either be one configured, or one previously cached.
+     We can assume, if we don't find one first, that there is
+     a trust anchor at the root. */
+  for (p = name; p; p = strchr(p, '.'))
+    {
+      if (*p == '.')
+	p++;
+
+      if (cache_find_by_name(NULL, p, now, F_DS))
+	{
+	  name_start = p - name;
+	  break;
+	}
+    }
   
+  /* Now work away from the trust anchor */
   while (1)
     {
       strcpy(keyname, &name[name_start]);

@@ -169,8 +169,16 @@ int main (int argc, char **argv)
   if (option_bool(OPT_DNSSEC_VALID))
     {
 #ifdef HAVE_DNSSEC
-      if (!daemon->ds)
-	die(_("no trust anchors provided for DNSSEC"), NULL, EC_BADCONF);
+      struct ds_config *ds;
+
+      /* Must have at least a root trust anchor, or the DNSSEC code
+	 can loop forever. */
+      for (ds = daemon->ds; ds; ds = ds->next)
+	if (ds->name[0] == 0)
+	  break;
+
+      if (!ds)
+	die(_("no root trust anchor provided for DNSSEC"), NULL, EC_BADCONF);
       
       if (daemon->cachesize < CACHESIZ)
 	die(_("cannot reduce cache size from default when DNSSEC enabled"), NULL, EC_BADCONF);
