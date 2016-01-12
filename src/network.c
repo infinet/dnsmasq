@@ -1430,12 +1430,38 @@ void check_servers(void)
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
   
+#ifdef HAVE_DNSSEC
+ /* Disable DNSSEC validation when using server=/domain/.... servers
+    unless there's a configured trust anchor. */
+  for (serv = daemon->servers; serv; serv = serv->next)
+    serv->flags |= SERV_DO_DNSSEC;
+#endif
+
   for (serv = daemon->servers; serv; serv = serv->next)
     {
-       if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
+      if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
 	{
-	  port = prettyprint_addr(&serv->addr, daemon->namebuff);
+#ifdef HAVE_DNSSEC
+	  if (option_bool(OPT_DNSSEC_VALID) && (serv->flags & SERV_HAS_DOMAIN))
+	    {
+	      struct ds_config *ds;
+	      char *domain = serv->domain;
 
+	      /* .example.com is valid */
+	      while (*domain == '.')
+		domain++;
+	      
+	      for (ds = daemon->ds; ds; ds = ds->next)
+		if (ds->name[0] != 0 && hostname_isequal(domain, ds->name))
+		  break;
+
+	      if (!ds)
+		serv->flags &= ~SERV_DO_DNSSEC;
+	    }
+#endif
+
+	  port = prettyprint_addr(&serv->addr, daemon->namebuff);
+	  
 	  /* 0.0.0.0 is nothing, the stack treats it like 127.0.0.1 */
 	  if (serv->addr.sa.sa_family == AF_INET &&
 	      serv->addr.in.sin_addr.s_addr == 0)
@@ -1471,7 +1497,11 @@ void check_servers(void)
 	{
 	  if (serv->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_USE_RESOLV))
 	    {
-	      char *s1, *s2;
+	      char *s1, *s2, *s3 = "";
+#ifdef HAVE_DNSSEC
+	      if (option_bool(OPT_DNSSEC_VALID) && !(serv->flags & SERV_DO_DNSSEC))
+		s3 = _("(no DNSSEC)");
+#endif
 	      if (!(serv->flags & SERV_HAS_DOMAIN))
 		s1 = _("unqualified"), s2 = _("names");
 	      else if (strlen(serv->domain) == 0)
@@ -1484,7 +1514,7 @@ void check_servers(void)
 	      else if (serv->flags & SERV_USE_RESOLV)
 		my_syslog(LOG_INFO, _("using standard nameservers for %s %s"), s1, s2);
 	      else 
-		my_syslog(LOG_INFO, _("using nameserver %s#%d for %s %s"), daemon->namebuff, port, s1, s2);
+		my_syslog(LOG_INFO, _("using nameserver %s#%d for %s %s %s"), daemon->namebuff, port, s1, s2, s3);
 	    }
 #ifdef HAVE_LOOP
 	  else if (serv->flags & SERV_LOOP)

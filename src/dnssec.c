@@ -1892,7 +1892,7 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 	  break;
 	}
     }
-  
+
   /* Now work away from the trust anchor */
   while (1)
     {

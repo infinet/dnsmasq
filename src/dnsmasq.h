@@ -477,6 +477,7 @@ union mysockaddr {
 #define SERV_NO_REBIND      2048  /* inhibit dns-rebind protection */
 #define SERV_FROM_FILE      4096  /* read from --servers-file */
 #define SERV_LOOP           8192  /* server causes forwarding loop */
+#define SERV_DO_DNSSEC     16384  /* Validate DNSSEC when using this server */
 
 struct serverfd {
   int fd;

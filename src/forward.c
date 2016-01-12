@@ -106,8 +106,8 @@ int send_from(int fd, int nowild, char *packet, size_t len,
   return 1;
 }
           
-static unsigned int search_servers(time_t now, struct all_addr **addrpp, 
-				     unsigned int qtype, char *qdomain, int *type, char **domain, int *norebind)
+static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigned int qtype,
+				   char *qdomain, int *type, char **domain, int *norebind)
 			      
 {
   /* If the query ends in the domain in one of our servers, set
@@ -175,7 +175,7 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp,
 		
 		if (domainlen >= matchlen)
 		  {
-		    *type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND);
+		    *type = serv->flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND | SERV_DO_DNSSEC);
 		    *domain = serv->domain;
 		    matchlen = domainlen;
 		    if (serv->flags & SERV_NO_ADDR)
@@ -233,12 +233,13 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 			 struct frec *forward, int ad_reqd, int do_bit)
 {
   char *domain = NULL;
-  int type = 0, norebind = 0;
+  int type = SERV_DO_DNSSEC, norebind = 0;
   struct all_addr *addrp = NULL;
   unsigned int flags = 0;
   struct server *start = NULL;
 #ifdef HAVE_DNSSEC
   void *hash = hash_questions(header, plen, daemon->namebuff);
+  int do_dnssec = 0;
 #else
   unsigned int crc = questions_crc(header, plen, daemon->namebuff);
   void *hash = &crc;
@@ -315,6 +316,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	  daemon->last_server = NULL;
 	}
       type = forward->sentto->flags & SERV_TYPE;
+#ifdef HAVE_DNSSEC
+      do_dnssec = forward->sentto->flags & SERV_DO_DNSSEC;
+#endif
+
       if (!(start = forward->sentto->next))
 	start = daemon->servers; /* at end of list, recycle */
       header->id = htons(forward->new_id);
@@ -324,6 +329,11 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       if (gotname)
 	flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
       
+#ifdef HAVE_DNSSEC
+      do_dnssec = type & SERV_DO_DNSSEC;
+      type &= ~SERV_DO_DNSSEC;
+#endif      
+
       if (!flags && !(forward = get_new_frec(now, NULL, 0)))
 	/* table full - server failure. */
 	flags = F_NEG;
@@ -406,7 +416,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	}
       
 #ifdef HAVE_DNSSEC
-      if (option_bool(OPT_DNSSEC_VALID) && !(type & SERV_HAS_DOMAIN))
+      if (option_bool(OPT_DNSSEC_VALID) && do_dnssec)
 	{
 	  size_t new = add_do_bit(header, plen, ((unsigned char *) header) + PACKETSZ);
 	 
@@ -858,7 +868,7 @@ void reply_query(int fd, int family, time_t now)
 	no_cache_dnssec = 1;
       
 #ifdef HAVE_DNSSEC
-      if (server && !(server->flags & SERV_HAS_DOMAIN) && 
+      if (server && (server->flags & SERV_DO_DNSSEC) && 
 	  option_bool(OPT_DNSSEC_VALID) && !(forward->flags & FREC_CHECKING_DISABLED))
 	{
 	  int status = 0;
@@ -1640,6 +1650,10 @@ unsigned char *tcp_request(int confd, time_t now,
 	      if (gotname)
 		flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	      
+#ifdef HAVE_DNSSEC
+	      type &= ~SERV_DO_DNSSEC;
+#endif
+	      
 	      if (type != 0  || option_bool(OPT_ORDER) || !daemon->last_server)
 		last_server = daemon->servers;
 	      else
@@ -1711,7 +1725,7 @@ unsigned char *tcp_request(int confd, time_t now,
 			    }
 			  
 #ifdef HAVE_DNSSEC
-			  if (option_bool(OPT_DNSSEC_VALID))
+			  if (option_bool(OPT_DNSSEC_VALID) && (last_server->flags & SERV_DO_DNSSEC))
 			    {
 			      new_size = add_do_bit(header, size, ((unsigned char *) header) + 65536);
 			      
@@ -1757,7 +1771,7 @@ unsigned char *tcp_request(int confd, time_t now,
 #endif 
 
 #ifdef HAVE_DNSSEC
-		      if (option_bool(OPT_DNSSEC_VALID) && !checking_disabled)
+		      if (option_bool(OPT_DNSSEC_VALID) && !checking_disabled && (last_server->flags & SERV_DO_DNSSEC))
 			{
 			  int keycount = DNSSEC_WORK; /* Limit to number of DNSSEC questions, to catch loops and avoid filling cache. */
 			  int status = tcp_key_recurse(now, STAT_OK, header, m, 0, daemon->namebuff, daemon->keyname, last_server, &keycount);
