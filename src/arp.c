@@ -132,7 +132,7 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
 	  }
 #endif
 	
-	/* Only accept poitive entries unless in lazy mode. */
+	/* Only accept positive entries unless in lazy mode. */
 	if (arp->status != ARP_EMPTY || lazy || updated)
 	  {
 	    if (mac && arp->hwlen != 0)
@@ -148,7 +148,7 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
        last = now;
 
        /* Mark all non-negative entries */
-       for (arp = arps, up = &arps; arp; arp = arp->next)
+       for (arp = arps; arp; arp = arp->next)
 	 if (arp->status != ARP_EMPTY)
 	   arp->status = ARP_MARK;
        
