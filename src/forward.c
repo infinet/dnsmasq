@@ -151,7 +151,7 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
 	    hostname_isequal(matchstart, serv->domain) &&
 	    (domainlen == 0 || namelen == domainlen || *(matchstart-1) == '.' ))
 	  {
-	    if (serv->flags & SERV_NO_REBIND)	
+	    if ((serv->flags & SERV_NO_REBIND) && norebind)	
 	      *norebind = 1;
 	    else
 	      {
@@ -644,7 +644,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     return resize_packet(header, n, pheader, plen);
   
   /* Complain loudly if the upstream server is non-recursive. */
-  if (!(header->hb4 & HB4_RA) && RCODE(header) == NOERROR && ntohs(header->ancount) == 0 &&
+  if (!(header->hb4 & HB4_RA) && RCODE(header) == NOERROR &&
       server && !(server->flags & SERV_WARNED_RECURSIVE))
     {
       prettyprint_addr(&server->addr, daemon->namebuff);
@@ -923,12 +923,40 @@ void reply_query(int fd, int family, time_t now)
 		    status = STAT_ABANDONED;
 		  else
 		    {
-		      int fd;
+		      int fd, type;
 		      struct frec *next = new->next;
+		      char *domain;
+		      
 		      *new = *forward; /* copy everything, then overwrite */
 		      new->next = next;
 		      new->blocking_query = NULL;
+
+		      /* Find server to forward to. This will normally be the 
+			 same as for the original query, but may be another if
+			 servers for domains are involved. */		      
+		      if (search_servers(now, NULL, F_QUERY, daemon->keyname, &type, &domain, NULL) == 0)
+			{
+			   struct server *start = server;
+			   type &= ~SERV_DO_DNSSEC;
+			   
+			   while (1)
+			     {
+			       if (type == (start->flags & SERV_TYPE) &&
+				   (type != SERV_HAS_DOMAIN || hostname_isequal(domain, start->domain)) &&
+				   !(start->flags & (SERV_LITERAL_ADDRESS | SERV_LOOP)))
+				 {
+				   server = start;
+				   break;
+				 }
+			       
+			       if (!(start = start->next))
+				 start = daemon->servers;
+			       if (start == server)
+				 break;
+			     }
+			}
 		      new->sentto = server;
+
 		      new->rfd4 = NULL;
 #ifdef HAVE_IPV6
 		      new->rfd6 = NULL;

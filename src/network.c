@@ -1442,20 +1442,25 @@ void check_servers(void)
       if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
 	{
 #ifdef HAVE_DNSSEC
-	  if (option_bool(OPT_DNSSEC_VALID) && (serv->flags & SERV_HAS_DOMAIN))
-	    {
-	      struct ds_config *ds;
-	      char *domain = serv->domain;
-
-	      /* .example.com is valid */
-	      while (*domain == '.')
-		domain++;
-	      
-	      for (ds = daemon->ds; ds; ds = ds->next)
-		if (ds->name[0] != 0 && hostname_isequal(domain, ds->name))
-		  break;
-
-	      if (!ds)
+	  if (option_bool(OPT_DNSSEC_VALID))
+	    { 
+	      if (serv->flags & SERV_HAS_DOMAIN)
+		{
+		  struct ds_config *ds;
+		  char *domain = serv->domain;
+		  
+		  /* .example.com is valid */
+		  while (*domain == '.')
+		    domain++;
+		  
+		  for (ds = daemon->ds; ds; ds = ds->next)
+		    if (ds->name[0] != 0 && hostname_isequal(domain, ds->name))
+		      break;
+		  
+		  if (!ds)
+		    serv->flags &= ~SERV_DO_DNSSEC;
+		}
+	      else if (serv->flags & SERV_FOR_NODOTS) 
 		serv->flags &= ~SERV_DO_DNSSEC;
 	    }
 #endif
