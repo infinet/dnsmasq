@@ -188,7 +188,8 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
       arps = arp;
       arp->status = ARP_EMPTY;
       arp->family = addr->sa.sa_family;
-      
+      arp->hwlen = 0;
+
       if (addr->sa.sa_family == AF_INET)
 	arp->addr.addr.addr4.s_addr = addr->in.sin_addr.s_addr;
 #ifdef HAVE_IPV6
