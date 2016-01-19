@@ -22,6 +22,15 @@ version 2.76
 	    reading a hosts-file fails. Thanks to André Glüpker 
 	    for the patch.
 
+	    Fix wrong answer to simple name query when --domain-needed
+	    set, but no upstream servers configured. Dnsmasq returned
+	    REFUSED, in this case, when it should be the same as when
+	    upstream servers are configured - NOERROR. Thanks to 
+	    Allain Legacy for spotting the problem.
+
+	    Return REFUSED when running out of forwarding table slots,
+	    not SERVFAIL.
+
 	
 version 2.75
             Fix reversion on 2.74 which caused 100% CPU use when a 

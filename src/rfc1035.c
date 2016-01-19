@@ -896,9 +896,7 @@ size_t setup_reply(struct dns_header *header, size_t qlen,
   header->nscount = htons(0);
   header->arcount = htons(0);
   header->ancount = htons(0); /* no answers unless changed below */
-  if (flags == F_NEG)
-    SET_RCODE(header, SERVFAIL); /* couldn't get memory */
-  else if (flags == F_NOERR)
+  if (flags == F_NOERR)
     SET_RCODE(header, NOERROR); /* empty domain */
   else if (flags == F_NXDOMAIN)
     SET_RCODE(header, NXDOMAIN);

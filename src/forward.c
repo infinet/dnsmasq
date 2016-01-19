@@ -249,9 +249,7 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
  (void)do_bit;
 
   /* may be no servers available. */
-  if (!daemon->servers)
-    forward = NULL;
-  else if (forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
+  if (forward || (hash && (forward = lookup_frec_by_sender(ntohs(header->id), udpaddr, hash))))
     {
       /* If we didn't get an answer advertising a maximal packet in EDNS,
 	 fall back to 1280, which should work everywhere on IPv6.
@@ -334,9 +332,9 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 #endif
       type &= ~SERV_DO_DNSSEC;      
 
-      if (!flags && !(forward = get_new_frec(now, NULL, 0)))
-	/* table full - server failure. */
-	flags = F_NEG;
+      if (daemon->servers && !flags)
+	forward = get_new_frec(now, NULL, 0);
+      /* table full - flags == 0, return REFUSED */
       
       if (forward)
 	{
@@ -1620,6 +1618,9 @@ unsigned char *tcp_request(int confd, time_t now,
   unsigned char *pheader;
   unsigned int mark = 0;
   int have_mark = 0;
+
+  (void)mark;
+  (void)have_mark;
 
   if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) == -1)
     return packet;
