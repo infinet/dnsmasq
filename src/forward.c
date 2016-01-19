@@ -331,8 +331,8 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
       
 #ifdef HAVE_DNSSEC
       do_dnssec = type & SERV_DO_DNSSEC;
-      type &= ~SERV_DO_DNSSEC;
-#endif      
+#endif
+      type &= ~SERV_DO_DNSSEC;      
 
       if (!flags && !(forward = get_new_frec(now, NULL, 0)))
 	/* table full - server failure. */
@@ -1461,9 +1461,6 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
   struct dns_header *new_header = NULL;
   u16 *length = NULL;
 
-  (void)have_mark;
-  (void)mark;
-
   while (1)
     {
       int type = SERV_DO_DNSSEC;
@@ -1621,10 +1618,8 @@ unsigned char *tcp_request(int confd, time_t now,
   socklen_t peer_len = sizeof(union mysockaddr);
   int query_count = 0;
   unsigned char *pheader;
-#ifdef HAVE_CONNTRACK
   unsigned int mark = 0;
   int have_mark = 0;
-#endif
 
   if (getpeername(confd, (struct sockaddr *)&peer_addr, &peer_len) == -1)
     return packet;
@@ -1783,9 +1778,7 @@ unsigned char *tcp_request(int confd, time_t now,
 	      if (gotname)
 		flags = search_servers(now, &addrp, gotname, daemon->namebuff, &type, &domain, &norebind);
 	      
-#ifdef HAVE_DNSSEC
 	      type &= ~SERV_DO_DNSSEC;
-#endif
 	      
 	      if (type != 0  || option_bool(OPT_ORDER) || !daemon->last_server)
 		last_server = daemon->servers;
