@@ -950,7 +950,7 @@ extern struct daemon {
   char *log_file; /* optional log file */
   int max_logs;  /* queue limit */
   int cachesize, ftabsize;
-  int port, query_port, min_port;
+  int port, query_port, min_port, max_port;
   unsigned long local_ttl, neg_ttl, max_ttl, min_cache_ttl, max_cache_ttl, auth_ttl;
   char *dns_client_id;
   struct hostsfile *addn_hosts;

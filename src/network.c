@@ -1119,7 +1119,7 @@ int random_sock(int family)
   if ((fd = socket(family, SOCK_DGRAM, 0)) != -1)
     {
       union mysockaddr addr;
-      unsigned int ports_avail = 65536u - (unsigned short)daemon->min_port;
+      unsigned int ports_avail = ((unsigned short)daemon->max_port - (unsigned short)daemon->min_port) + 1;
       int tries = ports_avail < 30 ? 3 * ports_avail : 100;
 
       memset(&addr, 0, sizeof(addr));
@@ -1132,8 +1132,8 @@ int random_sock(int family)
 	  {
 	    unsigned short port = rand16();
 	    
-	    if (daemon->min_port != 0)
-	      port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
+            if (daemon->min_port != 0 || daemon->max_port != MAX_PORT)
+              port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
 	    
 	    if (family == AF_INET) 
 	      {

@@ -154,6 +154,7 @@ struct myoption {
 #define LOPT_HOST_INOTIFY  342
 #define LOPT_DNSSEC_STAMP  343
 #define LOPT_TFTP_NO_FAIL  344
+#define LOPT_MAXPORT       345
 #define LOPT_DNS_CLIENT_ID 355
 
 #ifdef HAVE_GETOPT_LONG
@@ -271,6 +272,7 @@ static const struct myoption opts[] =
     { "dhcp-alternate-port", 2, 0, LOPT_ALTPORT },
     { "dhcp-scriptuser", 1, 0, LOPT_SCRIPTUSR },
     { "min-port", 1, 0, LOPT_MINPORT },
+    { "max-port", 1, 0, LOPT_MAXPORT },
     { "dhcp-fqdn", 0, 0, LOPT_DHCP_FQDN },
     { "cname", 1, 0, LOPT_CNAME },
     { "pxe-prompt", 1, 0, LOPT_PXE_PROMT },
@@ -438,6 +440,7 @@ static struct {
   { LOPT_ALTPORT, ARG_ONE, "[=<ports>]", gettext_noop("Use alternative ports for DHCP."), NULL },
   { LOPT_NAPTR, ARG_DUP, "<name>,<naptr>", gettext_noop("Specify NAPTR DNS record."), NULL },
   { LOPT_MINPORT, ARG_ONE, "<port>", gettext_noop("Specify lowest port available for DNS query transmission."), NULL },
+  { LOPT_MAXPORT, ARG_ONE, "<port>", gettext_noop("Specify highest port available for DNS query transmission."), NULL },
   { LOPT_DHCP_FQDN, OPT_DHCP_FQDN, NULL, gettext_noop("Use only fully qualified domain names for DHCP clients."), NULL },
   { LOPT_GEN_NAMES, ARG_DUP, "[=tag:<tag>]", gettext_noop("Generate hostnames based on MAC address for nameless clients."), NULL},
   { LOPT_PROXY, ARG_DUP, "[=<ipaddr>]...", gettext_noop("Use these DHCP relays as full proxies."), NULL },
@@ -2512,6 +2515,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	ret_err(gen_err);
       break;
 
+    case LOPT_MAXPORT:  /* --max-port */
+      if (!atoi_check16(arg, &daemon->max_port))
+	ret_err(gen_err);
+      break;
+
     case '0':  /* --dns-forward-max */
       if (!atoi_check(arg, &daemon->ftabsize))
 	ret_err(gen_err);
@@ -4462,6 +4470,7 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->soa_refresh = SOA_REFRESH;
   daemon->soa_retry = SOA_RETRY;
   daemon->soa_expiry = SOA_EXPIRY;
+  daemon->max_port = MAX_PORT;
 
   add_txt("version.bind", "dnsmasq-" VERSION, 0 );
   add_txt("authors.bind", "Simon Kelley", 0);

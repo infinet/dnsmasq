@@ -219,7 +219,13 @@ int main (int argc, char **argv)
   if (option_bool(OPT_LOOP_DETECT))
     die(_("loop detection not available: set HAVE_LOOP in src/config.h"), NULL, EC_BADCONF);
 #endif
-  
+
+  if (daemon->max_port != MAX_PORT && daemon->min_port == 0)
+    daemon->min_port = 1024u;
+
+  if (daemon->max_port < daemon->min_port)
+    die(_("max_port cannot be smaller than min_port"), NULL, EC_BADCONF);
+
   now = dnsmasq_time();
 
   /* Create a serial at startup if not configured. */
