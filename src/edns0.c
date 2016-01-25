@@ -233,10 +233,6 @@ static size_t add_dns_client(struct dns_header *header, size_t plen, unsigned ch
       plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, 8, 0); 
     }
 
-  if (daemon->dns_client_id)
-    plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMCPEID, 
-			    (unsigned char *)daemon->dns_client_id, strlen(daemon->dns_client_id), 0);
-
   return plen; 
 }
 
@@ -381,8 +377,12 @@ size_t add_edns0_config(struct dns_header *header, size_t plen, unsigned char *l
   if (option_bool(OPT_ADD_MAC))
     plen  = add_mac(header, plen, limit, source, now);
   
-  if (option_bool(OPT_DNS_CLIENT))
+  if (option_bool(OPT_MAC_B64))
     plen = add_dns_client(header, plen, limit, source, now);
+
+  if (daemon->dns_client_id)
+    plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMCPEID, 
+			    (unsigned char *)daemon->dns_client_id, strlen(daemon->dns_client_id), 0);
   
   if (option_bool(OPT_CLIENT_SUBNET))
     {

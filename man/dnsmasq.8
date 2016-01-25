@@ -604,7 +604,7 @@ configured a zero is added in front of the label. ::1 becomes 0--1.
 The address range can be of the form
 <ip address>,<ip address> or <ip address>/<netmask>
 .TP
-.B --add-mac
+.B --add-mac[=base64]
 Add the MAC address of the requestor to DNS queries which are
 forwarded upstream. This may be used to DNS filtering by the upstream
 server. The MAC address can only be added if the requestor is on the same
@@ -612,7 +612,12 @@ subnet as the dnsmasq server. Note that the mechanism used to achieve this (an E
 is not yet standardised, so this should be considered
 experimental. Also note that exposing MAC addresses in this way may
 have security and privacy implications. The warning about caching
-given for --add-subnet applies to --add-mac too.
+given for --add-subnet applies to --add-mac too. An alternative encoding of the 
+MAC, as base64, is enabled by adding the "base64" parameter.
+.TP
+.B --add-cpe-id=<string>
+Add a arbitrary identifying string to o DNS queries which are
+forwarded upstream.
 .TP 
 .B --add-subnet[[=[<IPv4 address>/]<IPv4 prefix length>][,[<IPv6 address>/]<IPv6 prefix length>]]
 Add a subnet address to the DNS queries which are forwarded
@@ -1543,11 +1548,11 @@ At dnsmasq startup, the script will be invoked for
 all existing leases as they are read from the lease file. Expired
 leases will be called with "del" and others with "old". When dnsmasq
 receives a HUP signal, the script will be invoked for existing leases
-with an "old " event.
+with an "old" event.
 
 
-There are two further actions which may appear as the first argument
-to the script, "init" and "tftp". More may be added in the future, so
+There are four further actions which may appear as the first argument
+to the script, "init", "arp", "arp-old" and "tftp". More may be added in the future, so
 scripts should be written to ignore unknown actions. "init" is
 described below in 
 .B --leasefile-ro
@@ -1555,6 +1560,11 @@ The "tftp" action is invoked when a TFTP file transfer completes: the
 arguments are the file size in bytes, the address to which the file
 was sent, and the complete pathname of the file.
  
+The "arp" and "arp-old" actions are only called if enabled with
+.B --script-arp
+They are are supplied with a MAC address and IP address as arguments. "arp" indicates
+the arrival of a new entry in the ARP or neighbour table, and arp-old indicates the deletion of same.
+
 .TP
 .B --dhcp-luascript=<path>
 Specify a script written in Lua, to be run when leases are created,
@@ -1601,10 +1611,24 @@ table holds the tags
 .B file_name
 and 
 .B file_size.
+
+The 
+.B arp
+and
+.B arp-old
+functions are called only when enabled with
+.B --script-arp
+and have a table which holds the tags
+.B mac_addres
+and
+.B client_address.
 .TP
 .B --dhcp-scriptuser
 Specify the user as which to run the lease-change script or Lua script. This defaults to root, but can be changed to another user using this flag. 
-.TP 
+.TP
+.B --script-arp
+Enable the "arp" and "arp-old" functions in the dhcp-script and dhcp-luascript.
+.TP
 .B \-9, --leasefile-ro
 Completely suppress use of the lease database file. The file will not
 be created, read, or written. Change the way the lease-change
