@@ -1,4 +1,5 @@
-## DNSMASQ fork for improving --ipsets, --server, and --address performance
+DNSMASQ fork for improving --ipsets, --server, and --address performance
+========================================================================
 
 Dnsmasq matches domain names for --ipsets, --server, and --address options by
 iterates over linked list. It is good enough for general use, but slows down as
@@ -33,18 +34,32 @@ compared first, only if they are match, should the more expensive string
 comparison be used to confirm the search.
 
 
-### Precompiled OpenWrt packages
+Precompiled OpenWrt packages
+----------------------------
 
-For OpenWrt Attitude Adjustment (12.09 final) and Barrier Breaker (14.07)
-[ar71xx](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/). DNSSEC is
-disabled.
-
+For OpenWrt Chaos Calmer 15.05 on
+[ar71xx and mt7620 platform](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/). DNSSEC is disabled.
 
     sha1sum
-    1770fb227bfbf67459aecce8f3116556355adde4  dnsmasq-ipset_2.73test6_ar71xx_Attitude_Adjustment_12.09.ipk
-    980a022d018a7e2d30d3ca8577e093e59df67425  dnsmasq-ipset_2.73test6_ar71xx_Barrier_Breaker_14.07.ipk
+    d90c5eaa3c88d2e569a9801d2b081943fbd6410d dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
+    eb2d9e332271d8dd376492645c8fe073fbf59cdb dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
 
     md5sum
-    cafb043b046df36f9b137b55cf0a98ff  dnsmasq-ipset_2.73test6_ar71xx_Attitude_Adjustment_12.09.ipk
-    49798f6c45399fd935d09396bde560b9  dnsmasq-ipset_2.73test6_ar71xx_Barrier_Breaker_14.07.ipk
+    a4d7fbcfb2e8cdf318d3bb41eb3ac10e dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
+    d30409051b5216b9ce18a2791cbc2519 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
 
+
+Example usage
+-------------
+
+Use DNS blackhole to block malware site:
+
+    address=/example.com/
+
+Force google DNS as upstream server for special domain:
+
+    server=/example.com/8.8.8.8
+
+Add all IPs of a paticular domain to IPSET:
+
+    ipset=/example.com/example-ipset
