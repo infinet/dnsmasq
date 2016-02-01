@@ -1552,7 +1552,7 @@ with an "old" event.
 
 
 There are four further actions which may appear as the first argument
-to the script, "init", "arp", "arp-old" and "tftp". More may be added in the future, so
+to the script, "init", "arp-add", "arp-del" and "tftp". More may be added in the future, so
 scripts should be written to ignore unknown actions. "init" is
 described below in 
 .B --leasefile-ro
@@ -1560,10 +1560,10 @@ The "tftp" action is invoked when a TFTP file transfer completes: the
 arguments are the file size in bytes, the address to which the file
 was sent, and the complete pathname of the file.
  
-The "arp" and "arp-old" actions are only called if enabled with
+The "arp-add" and "arp-del" actions are only called if enabled with
 .B --script-arp
-They are are supplied with a MAC address and IP address as arguments. "arp" indicates
-the arrival of a new entry in the ARP or neighbour table, and arp-old indicates the deletion of same.
+They are are supplied with a MAC address and IP address as arguments. "arp-add" indicates
+the arrival of a new entry in the ARP or neighbour table, and "arp-del" indicates the deletion of same.
 
 .TP
 .B --dhcp-luascript=<path>

@@ -216,7 +216,7 @@ int do_arp_script_run(void)
     {
 #ifdef HAVE_SCRIPT
       if (option_bool(OPT_SCRIPT_ARP))
-	queue_arp(ACTION_ARP_OLD, old->hwaddr, old->hwlen, old->family, &old->addr);
+	queue_arp(ACTION_ARP_DEL, old->hwaddr, old->hwlen, old->family, &old->addr);
 #endif
       arp = old;
       old = arp->next;

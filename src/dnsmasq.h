@@ -637,7 +637,7 @@ struct frec {
 #define ACTION_ADD           4
 #define ACTION_TFTP          5
 #define ACTION_ARP           6
-#define ACTION_ARP_OLD       7
+#define ACTION_ARP_DEL       7
 
 #define LEASE_NEW            1  /* newly created */
 #define LEASE_CHANGED        2  /* modified */

@@ -221,12 +221,12 @@ int create_helper(int event_fd, int err_fd, uid_t uid, gid_t gid, long max_fd)
 	}
       else if (data.action == ACTION_ARP)
 	{
-	  action_str = "arp";
+	  action_str = "arp-add";
 	  is6 = (data.flags != AF_INET);
 	}
-       else if (data.action == ACTION_ARP_OLD)
+       else if (data.action == ACTION_ARP_DEL)
 	{
-	  action_str = "arp-old";
+	  action_str = "arp-del";
 	  is6 = (data.flags != AF_INET);
 	  data.action = ACTION_ARP;
 	}
