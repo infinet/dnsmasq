@@ -20,7 +20,9 @@
 #include <ifaddrs.h>
 
 #include <sys/param.h>
+#if defined(HAVE_BSD_NETWORK) && !defined(__APPLE__)
 #include <sys/sysctl.h>
+#endif
 #include <net/if.h>
 #include <net/route.h>
 #include <net/if_dl.h>
