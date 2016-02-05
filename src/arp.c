@@ -44,6 +44,11 @@ static int filter_mac(int family, char *addrp, char *mac, size_t maclen, void *p
   if (maclen > DHCP_CHADDR_MAX)
     return 1;
 
+#ifndef HAVE_IPV6
+  if (family != AF_INET)
+    return 1;
+#endif
+
   /* Look for existing entry */
   for (arp = arps; arp; arp = arp->next)
     {
