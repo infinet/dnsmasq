@@ -452,7 +452,7 @@ static struct {
   { LOPT_PXE_PROMT, ARG_DUP, "<prompt>,[<timeout>]", gettext_noop("Prompt to send to PXE clients."), NULL },
   { LOPT_PXE_SERV, ARG_DUP, "<service>", gettext_noop("Boot service for PXE menu."), NULL },
   { LOPT_TEST, 0, NULL, gettext_noop("Check configuration syntax."), NULL },
-  { LOPT_ADD_MAC, ARG_DUP, "[=base64]", gettext_noop("Add requestor's MAC address to forwarded DNS queries."), NULL },
+  { LOPT_ADD_MAC, ARG_DUP, "[=base64|text]", gettext_noop("Add requestor's MAC address to forwarded DNS queries."), NULL },
   { LOPT_ADD_SBNET, ARG_ONE, "<v4 pref>[,<v6 pref>]", gettext_noop("Add specified IP subnet to forwarded DNS queries."), NULL },
    { LOPT_CPE_ID, ARG_ONE, "<text>", gettext_noop("Add client identification to forwarded DNS queries."), NULL },
   { LOPT_DNSSEC, OPT_DNSSEC_PROXY, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
@@ -2174,7 +2174,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    set_option_bool(OPT_MAC_B64);
 	  else if (strcmp(arg, "text") == 0)
 	    set_option_bool(OPT_MAC_HEX);
-	  ret_err(gen_err);
+	  else
+	    ret_err(gen_err);
 	}
       break;
 
