@@ -604,7 +604,7 @@ configured a zero is added in front of the label. ::1 becomes 0--1.
 The address range can be of the form
 <ip address>,<ip address> or <ip address>/<netmask>
 .TP
-.B --add-mac[=base64]
+.B --add-mac[=base64|text]
 Add the MAC address of the requestor to DNS queries which are
 forwarded upstream. This may be used to DNS filtering by the upstream
 server. The MAC address can only be added if the requestor is on the same
@@ -613,7 +613,7 @@ is not yet standardised, so this should be considered
 experimental. Also note that exposing MAC addresses in this way may
 have security and privacy implications. The warning about caching
 given for --add-subnet applies to --add-mac too. An alternative encoding of the 
-MAC, as base64, is enabled by adding the "base64" parameter.
+MAC, as base64, is enabled by adding the "base64" parameter and a human-readable encoding of hex-and-colons is enabled by added the "text" parameter.
 .TP
 .B --add-cpe-id=<string>
 Add a arbitrary identifying string to o DNS queries which are

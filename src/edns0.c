@@ -223,14 +223,19 @@ static size_t add_dns_client(struct dns_header *header, size_t plen, unsigned ch
 {
   int maclen;
   unsigned char mac[DHCP_CHADDR_MAX];
-  char encode[8]; /* handle 6 byte MACs */
+  char encode[18]; /* handle 6 byte MACs */
 
   if ((maclen = find_mac(l3, mac, 1, now)) == 6)
     {
-      encoder(mac, encode);
-      encoder(mac+3, encode+4);
-      
-      plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, 8, 0); 
+      if (option_bool(OPT_MAC_HEX))
+	print_mac(encode, mac, maclen);
+      else
+	{
+	  encoder(mac, encode);
+	  encoder(mac+3, encode+4);
+	  encode[8] = 0;
+	}
+      plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, strlen(encode), 0); 
     }
 
   return plen; 
@@ -377,7 +382,7 @@ size_t add_edns0_config(struct dns_header *header, size_t plen, unsigned char *l
   if (option_bool(OPT_ADD_MAC))
     plen  = add_mac(header, plen, limit, source, now);
   
-  if (option_bool(OPT_MAC_B64))
+  if (option_bool(OPT_MAC_B64) || option_bool(OPT_MAC_HEX))
     plen = add_dns_client(header, plen, limit, source, now);
 
   if (daemon->dns_client_id)
