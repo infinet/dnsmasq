@@ -157,6 +157,7 @@ struct myoption {
 #define LOPT_MAXPORT       345
 #define LOPT_CPE_ID        346
 #define LOPT_SCRIPT_ARP    347
+#define LOPT_DHCPTTL       348
 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -319,6 +320,7 @@ static const struct myoption opts[] =
     { "quiet-ra", 0, 0, LOPT_QUIET_RA },
     { "dns-loop-detect", 0, 0, LOPT_LOOP_DETECT },
     { "script-arp", 0, 0, LOPT_SCRIPT_ARP },
+    { "dhcp-ttl", 1, 0 , LOPT_DHCPTTL },
     { NULL, 0, 0, 0 }
   };
 
@@ -485,9 +487,10 @@ static struct {
   { LOPT_QUIET_DHCP, OPT_QUIET_DHCP, NULL, gettext_noop("Do not log routine DHCP."), NULL },
   { LOPT_QUIET_DHCP6, OPT_QUIET_DHCP6, NULL, gettext_noop("Do not log routine DHCPv6."), NULL },
   { LOPT_QUIET_RA, OPT_QUIET_RA, NULL, gettext_noop("Do not log RA."), NULL },
-  { LOPT_LOCAL_SERVICE, OPT_LOCAL_SERVICE, NULL, gettext_noop("Accept queries only from directly-connected networks"), NULL },
-  { LOPT_LOOP_DETECT, OPT_LOOP_DETECT, NULL, gettext_noop("Detect and remove DNS forwarding loops"), NULL },
+  { LOPT_LOCAL_SERVICE, OPT_LOCAL_SERVICE, NULL, gettext_noop("Accept queries only from directly-connected networks."), NULL },
+  { LOPT_LOOP_DETECT, OPT_LOOP_DETECT, NULL, gettext_noop("Detect and remove DNS forwarding loops."), NULL },
   { LOPT_IGNORE_ADDR, ARG_DUP, "<ipaddr>", gettext_noop("Ignore DNS responses containing ipaddr."), NULL }, 
+  { LOPT_DHCPTTL, ARG_ONE, "<ttl>", gettext_noop("Set TTL in DNS responses with DHCP-derived addresses."), NULL }, 
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -2580,6 +2583,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_MINCTTL: /* --min-cache-ttl */
     case LOPT_MAXCTTL: /* --max-cache-ttl */
     case LOPT_AUTHTTL: /* --auth-ttl */
+    case LOPT_DHCPTTL: /* --dhcp-ttl */
       {
 	int ttl;
 	if (!atoi_check(arg, &ttl))
@@ -2598,6 +2602,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  daemon->max_cache_ttl = (unsigned long)ttl;
 	else if (option == LOPT_AUTHTTL)
 	  daemon->auth_ttl = (unsigned long)ttl;
+	else if (option == LOPT_DHCPTTL)
+	  {
+	    daemon->dhcp_ttl = (unsigned long)ttl;
+	    daemon->use_dhcp_ttl = 1;
+	  }
 	else
 	  daemon->local_ttl = (unsigned long)ttl;
 	break;

@@ -1170,7 +1170,7 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
      before the lease expires. */
 
   if (crecp->flags & F_DHCP)
-    return daemon->local_ttl;
+    return daemon->use_dhcp_ttl ? daemon->dhcp_ttl : daemon->local_ttl;
   
   /* Immortal entries other than DHCP are local, and hold TTL in TTD field. */
   if (crecp->flags & F_IMMORTAL)
