@@ -158,7 +158,8 @@ struct myoption {
 #define LOPT_CPE_ID        346
 #define LOPT_SCRIPT_ARP    347
 #define LOPT_DHCPTTL       348
-
+#define LOPT_TFTP_MTU      349
+ 
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
 #else
@@ -244,6 +245,7 @@ static const struct myoption opts[] =
     { "tftp-unique-root", 0, 0, LOPT_APREF },
     { "tftp-root", 1, 0, LOPT_PREFIX },
     { "tftp-max", 1, 0, LOPT_TFTP_MAX },
+    { "tftp-mtu", 1, 0, LOPT_TFTP_MTU },
     { "tftp-lowercase", 0, 0, LOPT_TFTP_LC },
     { "ptr-record", 1, 0, LOPT_PTR },
     { "naptr-record", 1, 0, LOPT_NAPTR },
@@ -432,6 +434,7 @@ static struct {
   { LOPT_SECURE, OPT_TFTP_SECURE, NULL, gettext_noop("Allow access only to files owned by the user running dnsmasq."), NULL },
   { LOPT_TFTP_NO_FAIL, OPT_TFTP_NO_FAIL, NULL, gettext_noop("Do not terminate the service if TFTP directories are inaccessible."), NULL },
   { LOPT_TFTP_MAX, ARG_ONE, "<integer>", gettext_noop("Maximum number of conncurrent TFTP transfers (defaults to %s)."), "#" },
+  { LOPT_TFTP_MTU, ARG_ONE, "<integer>", gettext_noop("Maximum MTU to use for TFTP transfers."), NULL },
   { LOPT_NOBLOCK, OPT_TFTP_NOBLOCK, NULL, gettext_noop("Disable the TFTP blocksize extension."), NULL },
   { LOPT_TFTP_LC, OPT_TFTP_LC, NULL, gettext_noop("Convert TFTP filenames to lowercase"), NULL },
   { LOPT_TFTPPORTS, ARG_ONE, "<start>,<end>", gettext_noop("Ephemeral port range for use by TFTP transfers."), NULL },
@@ -2624,6 +2627,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       if (!atoi_check(arg, &daemon->tftp_max))
 	ret_err(gen_err);
       break;  
+
+    case LOPT_TFTP_MTU:  /*  --tftp-mtu */
+      if (!atoi_check(arg, &daemon->tftp_mtu))
+	ret_err(gen_err);
+      break;
 
     case LOPT_PREFIX: /* --tftp-prefix */
       comma = split(arg);

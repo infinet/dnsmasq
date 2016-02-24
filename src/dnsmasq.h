@@ -975,7 +975,7 @@ extern struct daemon {
   struct dhcp_netid_list *dhcp_ignore, *dhcp_ignore_names, *dhcp_gen_names; 
   struct dhcp_netid_list *force_broadcast, *bootp_dynamic;
   struct hostsfile *dhcp_hosts_file, *dhcp_opts_file, *dynamic_dirs;
-  int dhcp_max, tftp_max;
+  int dhcp_max, tftp_max, tftp_mtu;
   int dhcp_server_port, dhcp_client_port;
   int start_tftp_port, end_tftp_port; 
   unsigned int min_leasetime;

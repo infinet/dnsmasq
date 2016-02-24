@@ -103,8 +103,10 @@ void tftp_request(struct listener *listen, time_t now)
       if (listen->iface)
 	{
 	  addr = listen->iface->addr;
-	  mtu = listen->iface->mtu;
 	  name = listen->iface->name;
+	  mtu = listen->iface->mtu;
+	  if (daemon->tftp_mtu != 0 && daemon->tftp_mtu < mtu)
+	    mtu = daemon->tftp_mtu;
 	}
       else
 	{
@@ -234,8 +236,16 @@ void tftp_request(struct listener *listen, time_t now)
 
       strncpy(ifr.ifr_name, name, IF_NAMESIZE);
       if (ioctl(listen->tftpfd, SIOCGIFMTU, &ifr) != -1)
-	mtu = ifr.ifr_mtu;      
+	{
+	  mtu = ifr.ifr_mtu;  
+	  if (daemon->tftp_mtu != 0 && daemon->tftp_mtu < mtu)
+	    mtu = daemon->tftp_mtu;    
+	}
     }
+
+  /* Failed to get interface mtu - can use configured value. */
+  if (mtu == 0)
+    mtu = daemon->tftp_mtu;
 
   if (name)
     {

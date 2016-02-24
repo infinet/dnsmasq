@@ -1810,6 +1810,10 @@ require about (2*n) + 10 descriptors. If
 .B --tftp-port-range
 is given, that can affect the number of concurrent connections.
 .TP
+.B --tftp-mtu=<mtu size>
+Use size as the ceiling of the MTU supported by the intervening network when 
+negotiating TFTP blocksize, overriding the MTU setting of the local interface  if it is larger.
+.TP
 .B --tftp-no-blocksize
 Stop the TFTP server from negotiating the "blocksize" option with a
 client. Some buggy clients request this option but then behave badly
