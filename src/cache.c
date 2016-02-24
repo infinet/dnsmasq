@@ -778,6 +778,7 @@ static void add_hosts_cname(struct crec *target)
 	(crec = whine_malloc(sizeof(struct crec))))
       {
 	crec->flags = F_FORWARD | F_IMMORTAL | F_NAMEP | F_CONFIG | F_CNAME;
+	crec->ttd = a->ttl;
 	crec->name.namep = a->alias;
 	crec->addr.cname.target.cache = target;
 	crec->addr.cname.uid = target->uid;
@@ -981,6 +982,7 @@ int read_hostsfile(char *filename, unsigned int index, int cache_size, struct cr
 		  strcat(cache->name.sname, ".");
 		  strcat(cache->name.sname, domain_suffix);
 		  cache->flags = flags;
+		  cache->ttd = daemon->local_ttl;
 		  add_hosts_entry(cache, &addr, addrlen, index, rhash, hashsz);
 		  name_count++;
 		}
@@ -988,6 +990,7 @@ int read_hostsfile(char *filename, unsigned int index, int cache_size, struct cr
 		{
 		  strcpy(cache->name.sname, canon);
 		  cache->flags = flags;
+		  cache->ttd = daemon->local_ttl;
 		  add_hosts_entry(cache, &addr, addrlen, index, rhash, hashsz);
 		  name_count++;
 		}
@@ -1057,6 +1060,7 @@ void cache_reload(void)
 	  ((cache = whine_malloc(sizeof(struct crec)))))
 	{
 	  cache->flags = F_FORWARD | F_NAMEP | F_CNAME | F_IMMORTAL | F_CONFIG;
+	  cache->ttd = a->ttl;
 	  cache->name.namep = a->alias;
 	  cache->addr.cname.target.int_name = intr;
 	  cache->addr.cname.uid = SRC_INTERFACE;
@@ -1071,6 +1075,7 @@ void cache_reload(void)
 	(cache->addr.ds.keydata = blockdata_alloc(ds->digest, ds->digestlen)))
       {
 	cache->flags = F_FORWARD | F_IMMORTAL | F_DS | F_CONFIG | F_NAMEP;
+	cache->ttd = daemon->local_ttl;
 	cache->name.namep = ds->name;
 	cache->addr.ds.keylen = ds->digestlen;
 	cache->addr.ds.algo = ds->algo;
@@ -1095,6 +1100,7 @@ void cache_reload(void)
 	    (cache = whine_malloc(sizeof(struct crec))))
 	  {
 	    cache->name.namep = nl->name;
+	    cache->ttd = hr->ttl;
 	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV4 | F_NAMEP | F_CONFIG;
 	    add_hosts_entry(cache, (struct all_addr *)&hr->addr, INADDRSZ, SRC_CONFIG, (struct crec **)daemon->packet, revhashsz);
 	  }
@@ -1103,6 +1109,7 @@ void cache_reload(void)
 	    (cache = whine_malloc(sizeof(struct crec))))
 	  {
 	    cache->name.namep = nl->name;
+	    cache->ttd = hr->ttl;
 	    cache->flags = F_HOSTS | F_IMMORTAL | F_FORWARD | F_REVERSE | F_IPV6 | F_NAMEP | F_CONFIG;
 	    add_hosts_entry(cache, (struct all_addr *)&hr->addr6, IN6ADDRSZ, SRC_CONFIG, (struct crec **)daemon->packet, revhashsz);
 	  }

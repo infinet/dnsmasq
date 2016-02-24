@@ -1169,9 +1169,13 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
   /* Return 0 ttl for DHCP entries, which might change
      before the lease expires. */
 
-  if  (crecp->flags & (F_IMMORTAL | F_DHCP))
+  if (crecp->flags & F_DHCP)
     return daemon->local_ttl;
   
+  /* Immortal entries other than DHCP are local, and hold TTL in TTD field. */
+  if (crecp->flags & F_IMMORTAL)
+    return crecp->ttd;
+
   /* Return the Max TTL value if it is lower then the actual TTL */
   if (daemon->max_ttl == 0 || ((unsigned)(crecp->ttd - now) < daemon->max_ttl))
     return crecp->ttd - now;

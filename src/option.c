@@ -448,20 +448,20 @@ static struct {
   { LOPT_GEN_NAMES, ARG_DUP, "[=tag:<tag>]", gettext_noop("Generate hostnames based on MAC address for nameless clients."), NULL},
   { LOPT_PROXY, ARG_DUP, "[=<ipaddr>]...", gettext_noop("Use these DHCP relays as full proxies."), NULL },
   { LOPT_RELAY, ARG_DUP, "<local-addr>,<server>[,<interface>]", gettext_noop("Relay DHCP requests to a remote server"), NULL},
-  { LOPT_CNAME, ARG_DUP, "<alias>,<target>", gettext_noop("Specify alias name for LOCAL DNS name."), NULL },
+  { LOPT_CNAME, ARG_DUP, "<alias>,<target>[,<ttl>]", gettext_noop("Specify alias name for LOCAL DNS name."), NULL },
   { LOPT_PXE_PROMT, ARG_DUP, "<prompt>,[<timeout>]", gettext_noop("Prompt to send to PXE clients."), NULL },
   { LOPT_PXE_SERV, ARG_DUP, "<service>", gettext_noop("Boot service for PXE menu."), NULL },
   { LOPT_TEST, 0, NULL, gettext_noop("Check configuration syntax."), NULL },
   { LOPT_ADD_MAC, ARG_DUP, "[=base64|text]", gettext_noop("Add requestor's MAC address to forwarded DNS queries."), NULL },
   { LOPT_ADD_SBNET, ARG_ONE, "<v4 pref>[,<v6 pref>]", gettext_noop("Add specified IP subnet to forwarded DNS queries."), NULL },
-   { LOPT_CPE_ID, ARG_ONE, "<text>", gettext_noop("Add client identification to forwarded DNS queries."), NULL },
+  { LOPT_CPE_ID, ARG_ONE, "<text>", gettext_noop("Add client identification to forwarded DNS queries."), NULL },
   { LOPT_DNSSEC, OPT_DNSSEC_PROXY, NULL, gettext_noop("Proxy DNSSEC validation results from upstream nameservers."), NULL },
   { LOPT_INCR_ADDR, OPT_CONSEC_ADDR, NULL, gettext_noop("Attempt to allocate sequential IP addresses to DHCP clients."), NULL },
   { LOPT_CONNTRACK, OPT_CONNTRACK, NULL, gettext_noop("Copy connection-track mark from queries to upstream connections."), NULL },
   { LOPT_FQDN, OPT_FQDN_UPDATE, NULL, gettext_noop("Allow DHCP clients to do their own DDNS updates."), NULL },
   { LOPT_RA, OPT_RA, NULL, gettext_noop("Send router-advertisements for interfaces doing DHCPv6"), NULL },
   { LOPT_DUID, ARG_ONE, "<enterprise>,<duid>", gettext_noop("Specify DUID_EN-type DHCPv6 server DUID"), NULL },
-  { LOPT_HOST_REC, ARG_DUP, "<name>,<address>", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
+  { LOPT_HOST_REC, ARG_DUP, "<name>,<address>[,<ttl>]", gettext_noop("Specify host (A/AAAA and PTR) records"), NULL },
   { LOPT_RR, ARG_DUP, "<name>,<RR-number>,[<data>]", gettext_noop("Specify arbitrary DNS resource record"), NULL },
   { LOPT_CLVERBIND, OPT_CLEVERBIND, NULL, gettext_noop("Bind to interfaces in use - check for new interfaces"), NULL },
   { LOPT_AUTHSERV, ARG_ONE, "<NS>,<interface>", gettext_noop("Export local names to global DNS"), NULL },
@@ -3692,11 +3692,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_CNAME: /* --cname */
       {
 	struct cname *new;
-	char *alias;
-	char *target;
+	char *alias, *target, *ttls;
+	int ttl = -1;
 
 	if (!(comma = split(arg)))
 	  ret_err(gen_err);
+	
+	if ((ttls = split(comma)) && !atoi_check(ttls, &ttl))
+	  ret_err(_("bad TTL"));
 	
 	alias = canonicalise_opt(arg);
 	target = canonicalise_opt(comma);
@@ -3713,6 +3716,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    daemon->cnames = new;
 	    new->alias = alias;
 	    new->target = target;
+	    new->ttl = ttl;
 	  }
       
 	break;
@@ -3913,14 +3917,22 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
       {
 	struct host_record *new = opt_malloc(sizeof(struct host_record));
 	memset(new, 0, sizeof(struct host_record));
-	
+	new->ttl = -1;
+
 	if (!arg || !(comma = split(arg)))
 	  ret_err(_("Bad host-record"));
 	
 	while (arg)
 	  {
 	    struct all_addr addr;
-	    if (inet_pton(AF_INET, arg, &addr))
+	    char *dig;
+
+	    for (dig = arg; *dig != 0; dig++)
+	      if (*dig < '0' || *dig > '9')
+		break;
+	    if (*dig == 0)
+	      new->ttl = atoi(arg);
+	    else if (inet_pton(AF_INET, arg, &addr))
 	      new->addr = addr.addr.addr4;
 #ifdef HAVE_IPV6
 	    else if (inet_pton(AF_INET6, arg, &addr))
@@ -4601,7 +4613,25 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	    }
 	} 
     }
-  
+
+  if (daemon->host_records)
+    {
+      struct host_record *hr;
+      
+      for (hr = daemon->host_records; hr; hr = hr->next)
+	if (hr->ttl == -1)
+	  hr->ttl = daemon->local_ttl;
+    }
+
+  if (daemon->cnames)
+    {
+      struct cname *cn;
+      
+      for (cn = daemon->cnames; cn; cn = cn->next)
+	if (cn->ttl == -1)
+	  cn->ttl = daemon->local_ttl;
+    }
+
   if (daemon->if_addrs)
     {  
       struct iname *tmp;

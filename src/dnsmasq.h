@@ -308,6 +308,7 @@ struct ptr_record {
 };
 
 struct cname {
+  int ttl;
   char *alias, *target;
   struct cname *next;
 }; 
@@ -344,6 +345,7 @@ struct auth_zone {
 
 
 struct host_record {
+  int ttl;
   struct name_list {
     char *name;
     struct name_list *next;
