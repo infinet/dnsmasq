@@ -1167,10 +1167,18 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 static unsigned long crec_ttl(struct crec *crecp, time_t now)
 {
   /* Return 0 ttl for DHCP entries, which might change
-     before the lease expires. */
+     before the lease expires, unless configured otherwise. */
 
   if (crecp->flags & F_DHCP)
-    return daemon->use_dhcp_ttl ? daemon->dhcp_ttl : daemon->local_ttl;
+    {
+      int conf_ttl = daemon->use_dhcp_ttl ? daemon->dhcp_ttl : daemon->local_ttl;
+      
+      /* Apply ceiling of actual lease length to configured TTL. */
+      if (!(crecp->flags & F_IMMORTAL) && (crecp->ttd - now) < conf_ttl)
+	return crecp->ttd - now;
+      
+      return conf_ttl;
+    }	  
   
   /* Immortal entries other than DHCP are local, and hold TTL in TTD field. */
   if (crecp->flags & F_IMMORTAL)
