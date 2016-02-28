@@ -1647,12 +1647,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    
           daemon->add_subnet4 = new;
 
-          new = opt_malloc(sizeof(struct mysubnet));
           if (comma)
             {
-              if ((end = split_chr(comma, '/')))
-                {
-                  /* has subnet+len */
+	      new = opt_malloc(sizeof(struct mysubnet));
+	      if ((end = split_chr(comma, '/')))
+		{
+		  /* has subnet+len */
                   err = parse_mysockaddr(comma, &new->addr);
                   if (err)
                     ret_err(err);
@@ -1665,8 +1665,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                   if (!atoi_check(comma, &new->mask))
                     ret_err(gen_err);
                 }
-            }
-          daemon->add_subnet6 = new;
+          
+	      daemon->add_subnet6 = new;
+	    }
 	}
       break;
 

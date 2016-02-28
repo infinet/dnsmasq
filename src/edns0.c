@@ -281,8 +281,11 @@ static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
   void *addrp;
   int sa_family = source->sa.sa_family;
 
+  opt->source_netmask = 0;
+  opt->scope_netmask = 0;
+
 #ifdef HAVE_IPV6
-  if (source->sa.sa_family == AF_INET6)
+  if (source->sa.sa_family == AF_INET6 && daemon->add_subnet6)
     {
       opt->source_netmask = daemon->add_subnet6->mask;
       if (daemon->add_subnet6->addr_used) 
@@ -293,8 +296,9 @@ static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
       else 
 	addrp = &source->in6.sin6_addr;
     }
-  else
 #endif
+
+  if (source->sa.sa_family == AF_INET && daemon->add_subnet4)
     {
       opt->source_netmask = daemon->add_subnet4->mask;
       if (daemon->add_subnet4->addr_used)
@@ -302,26 +306,26 @@ static size_t calc_subnet_opt(struct subnet_opt *opt, union mysockaddr *source)
 	  sa_family = daemon->add_subnet4->addr.sa.sa_family;
 	  addrp = get_addrp(&daemon->add_subnet4->addr, sa_family);
 	} 
-      else 
-	addrp = &source->in.sin_addr;
+	else 
+	  addrp = &source->in.sin_addr;
     }
   
-  opt->scope_netmask = 0;
+#ifdef HAVE_IPV6
+  opt->family = htons(sa_family == AF_INET6 ? 2 : 1);
+#else
+  opt->family = htons(1);
+#endif
+  
   len = 0;
   
   if (opt->source_netmask != 0)
     {
-#ifdef HAVE_IPV6
-      opt->family = htons(sa_family == AF_INET6 ? 2 : 1);
-#else
-      opt->family = htons(1);
-#endif
       len = ((opt->source_netmask - 1) >> 3) + 1;
       memcpy(opt->addr, addrp, len);
       if (opt->source_netmask & 7)
 	opt->addr[len-1] &= 0xff << (8 - (opt->source_netmask & 7));
     }
-
+  
   return len + 4;
 }
  
