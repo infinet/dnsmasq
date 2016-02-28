@@ -1523,7 +1523,7 @@ int expand_workspace(unsigned char ***wkspc, int *szp, int new);
 unsigned char *find_pseudoheader(struct dns_header *header, size_t plen,
 				   size_t *len, unsigned char **p, int *is_sign, int *is_last);
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
-			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do);
+			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do, int replace);
 size_t add_do_bit(struct dns_header *header, size_t plen, unsigned char *limit);
 size_t add_edns0_config(struct dns_header *header, size_t plen, unsigned char *limit, 
 			union mysockaddr *source, time_t now, int *check_subnet);

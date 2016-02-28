@@ -2171,7 +2171,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	daemon->dns_client_id = opt_string_alloc(arg);
       break;
 
-    case LOPT_ADD_MAC:
+    case LOPT_ADD_MAC: /* --add-mac */
       if (!arg)
 	set_option_bool(OPT_ADD_MAC);
       else
