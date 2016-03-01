@@ -2966,7 +2966,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 			}
 
 		      if (len == -1)
-
 			ret_err(_("bad hex constant"));
 		      else if ((new->clid = opt_malloc(len)))
 			{
