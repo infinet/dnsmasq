@@ -323,12 +323,12 @@ int expand_workspace(unsigned char ***wkspc, int *szp, int new)
 
   new += 5;
   
-  if (!(p = whine_malloc(new * sizeof(unsigned char **))))
+  if (!(p = whine_malloc(new * sizeof(unsigned char *))))
     return 0;  
   
   if (old != 0 && *wkspc)
     {
-      memcpy(p, *wkspc, old * sizeof(unsigned char **));
+      memcpy(p, *wkspc, old * sizeof(unsigned char *));
       free(*wkspc);
     }
   
