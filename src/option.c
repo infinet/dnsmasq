@@ -1990,11 +1990,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  comma = split(arg); 
 		  daemon->soa_retry = (u32)atoi(arg);
 		  if (comma)
-		    {
-		      arg = comma;
-		      comma = split(arg); 
-		      daemon->soa_expiry = (u32)atoi(arg);
-		    }
+		    daemon->soa_expiry = (u32)atoi(comma);
 		}
 	    }
 	}
@@ -3907,13 +3903,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    if (!atoi_check16(arg, &priority))
 		      ret_err(_("invalid priority"));
 			
-		    if (comma)
-		      {
-			arg = comma;
-			comma = split(arg);
-			if (!atoi_check16(arg, &weight))
-			  ret_err(_("invalid weight"));
-		      }
+		    if (comma && !atoi_check16(comma, &weight))
+		      ret_err(_("invalid weight"));
 		  }
 	      }
 	  }
