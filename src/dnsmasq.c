@@ -561,10 +561,13 @@ int main (int argc, char **argv)
      {       
        /* open  stdout etc to /dev/null */
        int nullfd = open("/dev/null", O_RDWR);
-       dup2(nullfd, STDOUT_FILENO);
-       dup2(nullfd, STDERR_FILENO);
-       dup2(nullfd, STDIN_FILENO);
-       close(nullfd);
+       if (nullfd != -1)
+	 {
+	   dup2(nullfd, STDOUT_FILENO);
+	   dup2(nullfd, STDERR_FILENO);
+	   dup2(nullfd, STDIN_FILENO);
+	   close(nullfd);
+	 }
      }
    
    /* if we are to run scripts, we need to fork a helper before dropping root. */
