@@ -1308,7 +1308,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		      /* If the user-class option started as counted strings, the first byte will be zero. */
 		      if (len != 0 && ucp[0] == 0)
 			ucp++, len--;
-		      lease_add_extradata(lease, ucp, len, 0);
+		      lease_add_extradata(lease, ucp, len, -1);
 		    }
 		}
 #endif
