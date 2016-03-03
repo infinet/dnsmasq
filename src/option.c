@@ -2772,13 +2772,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		leasepos = 3;
 		if (!is_same_net(new->start, new->end, new->netmask))
 		  ret_err(_("inconsistent DHCP range"));
-	      }
+		
 	    
-	    if (k >= 4 && strchr(a[3], '.') &&  
-		(inet_pton(AF_INET, a[3], &new->broadcast) > 0))
-	      {
-		new->flags |= CONTEXT_BRDCAST;
-		leasepos = 4;
+		if (k >= 4 && strchr(a[3], '.') &&  
+		    (inet_pton(AF_INET, a[3], &new->broadcast) > 0))
+		  {
+		    new->flags |= CONTEXT_BRDCAST;
+		    leasepos = 4;
+		  }
 	      }
 	  }
 #ifdef HAVE_DHCP6
@@ -2868,6 +2869,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	
 	if (leasepos < k)
 	  {
+	    if (leasepos != k-1)
+	      ret_err(_("bad dhcp-range"));
+	    
 	    if (strcmp(a[leasepos], "infinite") == 0)
 	      new->lease_time = 0xffffffff;
 	    else if (strcmp(a[leasepos], "deprecated") == 0)
