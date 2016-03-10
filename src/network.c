@@ -532,13 +532,14 @@ static int iface_allowed_v4(struct in_addr local, int if_index, char *label,
 {
   union mysockaddr addr;
   int prefix, bit;
+ 
+  (void)broadcast; /* warning */
 
   memset(&addr, 0, sizeof(addr));
 #ifdef HAVE_SOCKADDR_SA_LEN
   addr.in.sin_len = sizeof(addr.in);
 #endif
   addr.in.sin_family = AF_INET;
-  addr.in.sin_addr = broadcast; /* warning */
   addr.in.sin_addr = local;
   addr.in.sin_port = htons(daemon->port);
 
