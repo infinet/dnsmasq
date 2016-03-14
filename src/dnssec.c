@@ -1697,7 +1697,15 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
     return 0;
 
   p++; /* flags */
+
   GETSHORT (iterations, p);
+  /* Upper-bound iterations, to avoid DoS.
+     Strictly, there are lower bounds for small keys, but
+     since we don't have key size info here, at least limit
+     to the largest bound, for 4096-bit keys. RFC 5155 10.3 */
+  if (iterations > 2500)
+    return 0;
+  
   salt_len = *p++;
   salt = p;
   if (!CHECK_LEN(header, salt, plen, salt_len))
