@@ -810,10 +810,11 @@ int tcp_interface(int fd, int af)
   int opt = 1;
   struct cmsghdr *cmptr;
   struct msghdr msg;
+  socklen_t len;
   
-  /* use mshdr do that the CMSDG_* macros are available */
+  /* use mshdr so that the CMSDG_* macros are available */
   msg.msg_control = daemon->packet;
-  msg.msg_controllen = daemon->packet_buff_sz;
+  msg.msg_controllen = len = daemon->packet_buff_sz;
   
   /* we overwrote the buffer... */
   daemon->srv_save = NULL;
@@ -821,18 +822,21 @@ int tcp_interface(int fd, int af)
   if (af == AF_INET)
     {
       if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt)) != -1 &&
-	  getsockopt(fd, IPPROTO_IP, IP_PKTOPTIONS, msg.msg_control, (socklen_t *)&msg.msg_controllen) != -1)
-	for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
-	  if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
-            {
-              union {
-                unsigned char *c;
-                struct in_pktinfo *p;
-              } p;
-	      
-	      p.c = CMSG_DATA(cmptr);
-	      if_index = p.p->ipi_ifindex;
-	    }
+	  getsockopt(fd, IPPROTO_IP, IP_PKTOPTIONS, msg.msg_control, &len) != -1)
+	{
+	  msg.msg_controllen = len;
+	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+	    if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
+	      {
+		union {
+		  unsigned char *c;
+		  struct in_pktinfo *p;
+		} p;
+		
+		p.c = CMSG_DATA(cmptr);
+		if_index = p.p->ipi_ifindex;
+	      }
+	}
     }
 #ifdef HAVE_IPV6
   else
@@ -850,9 +854,10 @@ int tcp_interface(int fd, int af)
 #endif
 
       if (set_ipv6pktinfo(fd) &&
-	  getsockopt(fd, IPPROTO_IPV6, PKTOPTIONS, msg.msg_control, (socklen_t *)&msg.msg_controllen) != -1)
+	  getsockopt(fd, IPPROTO_IPV6, PKTOPTIONS, msg.msg_control, &len) != -1)
 	{
-          for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
+          msg.msg_controllen = len;
+	  for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
             if (cmptr->cmsg_level == IPPROTO_IPV6 && cmptr->cmsg_type == daemon->v6pktinfo)
               {
                 union {
