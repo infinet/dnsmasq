@@ -3799,7 +3799,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_RR: /* dns-rr */
       {
        	struct txt_record *new;
-	size_t len = len;
+	size_t len = 0;
 	char *data;
 	int val;
 
