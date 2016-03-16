@@ -1791,7 +1791,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
     }
   while ((closest_encloser = strchr(closest_encloser, '.')));
   
-  if (!closest_encloser)
+  if (!closest_encloser || !next_closest)
     return 0;
   
   /* Look for NSEC3 that proves the non-existence of the next-closest encloser */
