@@ -1199,7 +1199,8 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	      cp = comma;
 	      comma = split(cp);
 	      slash = split_chr(cp, '/');
-	      inet_pton(AF_INET, cp, &in);
+	      if (!inet_pton(AF_INET, cp, &in))
+		ret_err(_("bad IPv4 address"));
 	      if (!slash)
 		{
 		  memcpy(op, &in, INADDRSZ);
@@ -3658,8 +3659,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    (!(inet_pton(AF_INET, a[1], &new->out) > 0)))
 	  option = '?';
 	
-	if (k == 3)
-	  inet_pton(AF_INET, a[2], &new->mask);
+	if (k == 3 && !inet_pton(AF_INET, a[2], &new->mask))
+	  option = '?';
 	
 	if (dash && 
 	    (!(inet_pton(AF_INET, dash, &new->end) > 0) ||
