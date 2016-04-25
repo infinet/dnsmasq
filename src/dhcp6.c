@@ -420,7 +420,7 @@ struct dhcp_context *address6_allocate(struct dhcp_context *context,  unsigned c
     j = rand64();
   else
     for (j = iaid, i = 0; i < clid_len; i++)
-      j += clid[i] + (j << 6) + (j << 16) - j;
+      j = clid[i] + (j << 6) + (j << 16) - j;
   
   for (pass = 0; pass <= plain_range ? 1 : 0; pass++)
     for (c = context; c; c = c->current)

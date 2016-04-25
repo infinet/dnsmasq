@@ -651,7 +651,7 @@ int address_allocate(struct dhcp_context *context,
   /* hash hwaddr: use the SDBM hashing algorithm.  Seems to give good
      dispersal even with similarly-valued "strings". */ 
   for (j = 0, i = 0; i < hw_len; i++)
-    j += hwaddr[i] + (j << 6) + (j << 16) - j;
+    j = hwaddr[i] + (j << 6) + (j << 16) - j;
   
   for (pass = 0; pass <= 1; pass++)
     for (c = context; c; c = c->current)
