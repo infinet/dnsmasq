@@ -95,6 +95,8 @@ unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t 
   return ret;
 }
  
+
+/* replace == 2 ->delete existing option only. */
 size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, 
 			unsigned short udp_sz, int optno, unsigned char *opt, size_t optlen, int set_do, int replace)
 { 
@@ -151,7 +153,7 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
 	  
 	  if (code == optno)
 	    {
-	      if (!replace)
+	      if (replace == 0)
 		return plen;
 
 	      /* delete option if we're to replace it. */
@@ -213,7 +215,7 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
     return plen; /* Too big */
   
   /* Add new option */
-  if (optno != 0)
+  if (optno != 0 && replace != 2)
     {
       PUTSHORT(optno, p);
       PUTSHORT(optlen, p);
@@ -244,12 +246,14 @@ static void encoder(unsigned char *in, char *out)
 
 static size_t add_dns_client(struct dns_header *header, size_t plen, unsigned char *limit, union mysockaddr *l3, time_t now)
 {
-  int maclen;
+  int maclen, replace = 2; /* can't get mac address, just delete any incoming. */
   unsigned char mac[DHCP_CHADDR_MAX];
   char encode[18]; /* handle 6 byte MACs */
 
   if ((maclen = find_mac(l3, mac, 1, now)) == 6)
     {
+      replace = 1;
+
       if (option_bool(OPT_MAC_HEX))
 	print_mac(encode, mac, maclen);
       else
@@ -258,10 +262,9 @@ static size_t add_dns_client(struct dns_header *header, size_t plen, unsigned ch
 	  encoder(mac+3, encode+4);
 	  encode[8] = 0;
 	}
-      plen = add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, strlen(encode), 0, 1); 
     }
 
-  return plen; 
+  return add_pseudoheader(header, plen, limit, PACKETSZ, EDNS0_OPTION_NOMDEVICEID, (unsigned char *)encode, strlen(encode), 0, replace); 
 }
 
 
