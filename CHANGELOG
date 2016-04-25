@@ -61,6 +61,10 @@ version 2.76
 	    garbage dhcp-options being sent. Thanks to Marc Branchaud 
 	    for spotting this.
 
+	    Fix wrong value for EDNS UDP packet size when using 
+	    --servers-file to define upstream DNS servers. Thanks to
+	    Scott Bonar for the bug report.
+
 
 version 2.75
             Fix reversion on 2.74 which caused 100% CPU use when a 

@@ -1409,7 +1409,6 @@ void add_update_server(int flags,
       serv->domain = domain_str;
       serv->next = next;
       serv->queries = serv->failed_queries = 0;
-      serv->edns_pktsz = daemon->edns_pktsz;
 #ifdef HAVE_LOOP
       serv->uid = rand32();
 #endif      
@@ -1447,6 +1446,10 @@ void check_servers(void)
     {
       if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
 	{
+	  /* Init edns_pktsz for newly created server records. */
+	  if (serv->edns_pktsz == 0)
+	    serv->edns_pktsz = daemon->edns_pktsz;
+	  
 #ifdef HAVE_DNSSEC
 	  if (option_bool(OPT_DNSSEC_VALID))
 	    { 
