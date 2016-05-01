@@ -3,19 +3,21 @@ dnsmasq (2.76-1) unstable; urgency=low
    * New upstream. (closes: #798586)
    * Use /run/dnsmasq directly, rather than relying on link from /var/run
      to avoid problems before /var is mounted. (closes: #800351)
-	
+   * Test for the existance of /usr/share/doc/dnsmasq rather then
+     /etc/dnsmasq.d/README in the daemon startup script. (closes: #819856)
+
  -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 10 Sep 2015 23:07:21 +0000
 
 dnsmasq (2.75-1) unstable; urgency=low
 
    * New upstream. (closes: #794095)
-	
+
  -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 30 Jul 2015 20:58:31 +0000
 
 dnsmasq (2.74-1) unstable; urgency=low
 
    * New upstream. (LP: #1468611)
-	
+
  -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 15 Jul 2015 21:54:11 +0000
 
 dnsmasq (2.73-2) unstable; urgency=low
