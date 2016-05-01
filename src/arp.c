@@ -129,17 +129,17 @@ int find_mac(union mysockaddr *addr, unsigned char *mac, int lazy, time_t now)
 
       for (arp = arps; arp; arp = arp->next)
 	{
-	  if (addr->sa.sa_family == arp->family)
-	    {
-	      if (arp->addr.addr.addr4.s_addr != addr->in.sin_addr.s_addr)
-		continue;
-	    }
+	  if (addr->sa.sa_family != arp->family)
+	    continue;
+	    
+	  if (arp->family == AF_INET &&
+	      arp->addr.addr.addr4.s_addr != addr->in.sin_addr.s_addr)
+	    continue;
+	    
 #ifdef HAVE_IPV6
-	  else
-	    {
-	      if (!IN6_ARE_ADDR_EQUAL(&arp->addr.addr.addr6, &addr->in6.sin6_addr))
-		continue;
-	    }
+	  if (arp->family == AF_INET6 && 
+	      !IN6_ARE_ADDR_EQUAL(&arp->addr.addr.addr6, &addr->in6.sin6_addr))
+	    continue;
 #endif
 	  
 	  /* Only accept positive entries unless in lazy mode. */
