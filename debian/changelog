@@ -5,6 +5,7 @@ dnsmasq (2.76-1) unstable; urgency=low
      to avoid problems before /var is mounted. (closes: #800351)
    * Test for the existance of /usr/share/doc/dnsmasq rather then
      /etc/dnsmasq.d/README in the daemon startup script. (closes: #819856)
+   * Add --help to manpage and mention dhcp6 in summary. (closes: #821226)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 10 Sep 2015 23:07:21 +0000
 

@@ -42,6 +42,13 @@ the configuration file.
 Read and syntax check configuration file(s). Exit with code 0 if all
 is OK, or a non-zero code otherwise. Do not start up dnsmasq.
 .TP
+.B \-w, --help
+Display all command-line options. 
+.B --help dhcp 
+will display known DHCPv4 configuration options, and 
+.B --help dhcp6 
+will display DHCPv6 options.
+.TP
 .B \-h, --no-hosts
 Don't read the hostnames in /etc/hosts.
 .TP
@@ -317,7 +324,7 @@ instead of the correct NXDOMAIN response. This option tells dnsmasq to
 fake the correct response when it sees this behaviour. As at Sept 2003
 the IP address being returned by Verisign is 64.94.110.11
 .TP 
-.B \-B, --ignore-address=<ipaddr>
+.B --ignore-address=<ipaddr>
 Ignore replies to A-record queries which include the specified address. 
 No error is generated, dnsmasq simply continues to listen for another reply. 
 This is useful to defeat blocking strategies which rely on quickly supplying a
