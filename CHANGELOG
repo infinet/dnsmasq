@@ -71,6 +71,11 @@ version 2.76
 	    Add dhcp_release6 to contrib/lease-tools. Many thanks 
 	    to Sergey Nechaev for this code.
 
+	    To avoid filling logs in configurations which define
+	    many upstream nameservers, don't log more that 30 servers.
+	    The number to be logged can be changed as SERVERS_LOGGED
+	    in src/config.h. 
+
 
 version 2.75
             Fix reversion on 2.74 which caused 100% CPU use when a 

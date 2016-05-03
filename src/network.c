@@ -1429,7 +1429,7 @@ void check_servers(void)
 {
   struct irec *iface;
   struct server *serv;
-  int port = 0;
+  int port = 0, count;
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
@@ -1442,7 +1442,7 @@ void check_servers(void)
     serv->flags |= SERV_DO_DNSSEC;
 #endif
 
-  for (serv = daemon->servers; serv; serv = serv->next)
+  for (count = 0, serv = daemon->servers; serv; serv = serv->next)
     {
       if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
 	{
@@ -1509,6 +1509,9 @@ void check_servers(void)
       
       if (!(serv->flags & SERV_NO_REBIND) && !(serv->flags & SERV_LITERAL_ADDRESS))
 	{
+	  if (++count > SERVERS_LOGGED)
+	    continue;
+	  
 	  if (serv->flags & (SERV_HAS_DOMAIN | SERV_FOR_NODOTS | SERV_USE_RESOLV))
 	    {
 	      char *s1, *s2, *s3 = "";
@@ -1540,6 +1543,9 @@ void check_servers(void)
 	    my_syslog(LOG_INFO, _("using nameserver %s#%d"), daemon->namebuff, port); 
 	}
     }
+  
+  if (count - 1 > SERVERS_LOGGED)
+    my_syslog(LOG_INFO, _("using %d more nameservers"), count - SERVERS_LOGGED - 1);
 
   cleanup_servers();
 }
