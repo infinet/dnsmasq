@@ -93,7 +93,7 @@ clean:
 	$(checkdir)
 	rm -rf debian/daemon debian/base debian/utils debian/*~ debian/files debian/substvars debian/utils-substvars
 	make clean
-	make -C contrib/wrt clean
+	make -C contrib/lease-tools clean
 
 binary-indep:	checkroot
 	$(checkdir)
@@ -184,12 +184,12 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
                        -d debian/utils/usr/share/man/man1 \
 	               -d debian/utils/usr/bin \
                        -d debian/utils/usr/share/doc/dnsmasq-utils
-	make -C contrib/wrt PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
-	install -m 755 contrib/wrt/dhcp_release debian/utils/usr/bin/dhcp_release
-	install -m 644 contrib/wrt/dhcp_release.1 debian/utils/usr/share/man/man1/dhcp_release.1
+	make -C contrib/lease-tools PREFIX=/usr DESTDIR=`pwd`/debian/utils CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" COPTS="$(DEB_COPTS)" CC=gcc
+	install -m 755 contrib/lease-tools/dhcp_release debian/utils/usr/bin/dhcp_release
+	install -m 644 contrib/lease-tools/dhcp_release.1 debian/utils/usr/share/man/man1/dhcp_release.1
 	gzip -9n debian/utils/usr/share/man/man1/dhcp_release.1
-	install -m 755 contrib/wrt/dhcp_lease_time debian/utils/usr/bin/dhcp_lease_time
-	install -m 644 contrib/wrt/dhcp_lease_time.1 debian/utils/usr/share/man/man1/dhcp_lease_time.1
+	install -m 755 contrib/lease-tools/dhcp_lease_time debian/utils/usr/bin/dhcp_lease_time		
+	install -m 644 contrib/lease-tools/dhcp_lease_time.1 debian/utils/usr/share/man/man1/dhcp_lease_time.1
 	install -m 644 debian/copyright debian/utils/usr/share/doc/dnsmasq-utils/copyright
 	install -m 644 debian/changelog debian/utils/usr/share/doc/dnsmasq-utils/changelog.Debian
 	gzip -9n debian/utils/usr/share/doc/dnsmasq-utils/changelog.Debian
