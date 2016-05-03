@@ -188,6 +188,9 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	install -m 755 contrib/lease-tools/dhcp_release debian/utils/usr/bin/dhcp_release
 	install -m 644 contrib/lease-tools/dhcp_release.1 debian/utils/usr/share/man/man1/dhcp_release.1
 	gzip -9n debian/utils/usr/share/man/man1/dhcp_release.1
+	install -m 755 contrib/lease-tools/dhcp_release6 debian/utils/usr/bin/dhcp_release6
+	install -m 644 contrib/lease-tools/dhcp_release6.1 debian/utils/usr/share/man/man1/dhcp_release6.1
+	gzip -9n debian/utils/usr/share/man/man1/dhcp_release6.1
 	install -m 755 contrib/lease-tools/dhcp_lease_time debian/utils/usr/bin/dhcp_lease_time		
 	install -m 644 contrib/lease-tools/dhcp_lease_time.1 debian/utils/usr/share/man/man1/dhcp_lease_time.1
 	install -m 644 debian/copyright debian/utils/usr/share/doc/dnsmasq-utils/copyright
