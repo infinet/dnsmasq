@@ -146,6 +146,7 @@ void dhcp_packet(time_t now, int pxe_fd)
   struct iovec iov;
   ssize_t sz; 
   int iface_index = 0, unicast_dest = 0, is_inform = 0;
+  int rcvd_iface_index;
   struct in_addr iface_addr;
   struct iface_param parm;
 #ifdef HAVE_LINUX_NETWORK
@@ -230,6 +231,7 @@ void dhcp_packet(time_t now, int pxe_fd)
      --bridge-interface option), change ifr.ifr_name so that we look
      for DHCP contexts associated with the aliased interface instead
      of with the aliasing one. */
+  rcvd_iface_index = iface_index;
   for (bridge = daemon->bridges; bridge; bridge = bridge->next)
     {
       for (alias = bridge->alias; alias; alias = alias->next)
@@ -387,7 +389,7 @@ void dhcp_packet(time_t now, int pxe_fd)
       msg.msg_controllen = sizeof(control_u);
       cmptr = CMSG_FIRSTHDR(&msg);
       pkt = (struct in_pktinfo *)CMSG_DATA(cmptr);
-      pkt->ipi_ifindex = iface_index;
+      pkt->ipi_ifindex = rcvd_iface_index;
       pkt->ipi_spec_dst.s_addr = 0;
       msg.msg_controllen = cmptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
       cmptr->cmsg_level = IPPROTO_IP;
