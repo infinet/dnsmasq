@@ -1994,7 +1994,7 @@ static int pxe_uefi_workaround(int pxe_arch, struct dhcp_netid *netid, struct dh
   struct pxe_service *service, *found;
 
   /* Only workaround UEFI archs. */
-  if (pxe_arch != 6 && pxe_arch != 7 && pxe_arch != 8 && pxe_arch != 9)
+  if (pxe_arch < 6)
     return 0;
   
   for (found = NULL, service = daemon->pxe_services; service; service = service->next)
