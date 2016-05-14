@@ -1367,8 +1367,9 @@ either from itself (
 must be set for this to work) or another TFTP server if the final server
 address/name is given.
 Note that the "layer"
-suffix (normally ".0") is supplied by PXE, and should not be added to
-the basename. If an integer boot service type, rather than a basename
+suffix (normally ".0") is supplied by PXE, and need not be added to
+the basename. Alternatively, the basename may be a filename, complete with suffix, in which case
+no layer suffix is added. If an integer boot service type, rather than a basename
 is given, then the PXE client will search for a
 suitable boot service for that type on the network. This search may be done
 by broadcast, or direct to a server if its IP address/name is provided.  
