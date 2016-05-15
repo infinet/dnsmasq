@@ -84,6 +84,21 @@ version 2.76
 	    Add ARM32_EFI and ARM64_EFI as valid architectures in
 	    --pxe-service.
 
+            Fix PXE booting for UEFI architectures. Modify PXE boot
+	    sequence in this case to force the client to talk to dnsmasq
+	    over port 4011. This makes PXE and especially proxy-DHCP PXE
+	    work with these archictectures.
+
+	    Workaround problems with UEFI PXE clients. There exist
+	    in the wild PXE clients which have problems with PXE
+	    boot menus. To work around this, when there's a single
+	    --pxe-service which applies to client, then that target
+	    will be booted directly, rather then sending a
+	    single-item boot menu.
+
+            Many thanks to Jarek Polok, Michael Kuron and Dreamcat4 
+	    for their work on the long-standing UEFI PXE problem.
+
 
 version 2.75
             Fix reversion on 2.74 which caused 100% CPU use when a 
