@@ -443,12 +443,11 @@ struct server *lookup_or_install_new_server(struct server *serv)
 }
 
 /* print the daemon->htree_special_domains tree recursively */
-void print_server_special_domains (struct htree_node *node,
-                                   char *parents[], int current_level)
+void print_server_special_domains (struct htree_node *node, char *parents[],
+                                   int current_level, int *count)
 {
   struct htree_node *np;
   struct special_domain *obj;
-  char buf[MAXDNAME];
   char ip_buf[ADDRSTRLEN];
   int j, level;
   int port = 0;
@@ -463,16 +462,19 @@ void print_server_special_domains (struct htree_node *node,
           obj = (struct special_domain *) node->ptr;
           if (obj->domain_flags & SERV_HAS_DOMAIN)
             {
-              memset (buf, 0, MAXDNAME);
-              for (j = level; j > 1; j--)
+              if ((*count)++ < SERVERS_LOGGED)
                 {
-                  strcat (buf, parents[j]);
-                  strcat (buf, ".");
+                  memset (buf, 0, MAXDNAME);
+                  for (j = level; j > 1; j--)
+                    {
+                      strcat (buf, parents[j]);
+                      strcat (buf, ".");
+                    }
+                  buf[strlen (buf) - 1] = '\0';
+                  port = prettyprint_addr (&obj->server->addr, ip_buf);
+                  my_syslog(LOG_INFO, _("using nameserver %s#%d for domain %s"),
+                                        ip_buf, port, buf);
                 }
-              buf[strlen (buf) - 1] = '\0';
-              port = prettyprint_addr (&obj->server->addr, ip_buf);
-              my_syslog(LOG_INFO, _("using nameserver %s#%d for domain %s"),
-                                    ip_buf, port, buf);
             }
         }
     }
@@ -481,6 +483,6 @@ void print_server_special_domains (struct htree_node *node,
     {
       for (i = 0; i < node->sub_size; i++)
         if ((np = node->sub[i]) != NULL)
-          print_server_special_domains (np, parents, level);
+          print_server_special_domains (np, parents, level, count);
     }
 }

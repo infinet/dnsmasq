@@ -1406,8 +1406,8 @@ struct htree_node *domain_match(struct htree_node *root, char *domain);
 struct htree_node *domain_find_or_add(struct htree_node *root, char *domain);
 struct server *lookup_or_install_new_server(struct server *serv);
 void htree_free (struct htree_node *node);
-void print_server_special_domains(struct htree_node *node,
-                                  char *parents[], int current_level);
+void print_server_special_domains(struct htree_node *node, char *parents[],
+                                  int current_level, int *count);
 
 /* helper.c */
 #if defined(HAVE_SCRIPT)

@@ -1417,6 +1417,7 @@ void check_servers(void)
   struct irec *iface;
   struct server *serv;
   int port = 0;
+  int count = 0;
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
@@ -1424,7 +1425,9 @@ void check_servers(void)
   
   char *levels[MAXLABELS + 1];  /* the root node starts at 1 */
   struct htree_node *root = daemon->htree_special_domains;
-  print_server_special_domains(root, levels, 0);
+  print_server_special_domains(root, levels, 0, &count);
+  if (count > SERVERS_LOGGED)
+    my_syslog(LOG_INFO, _("using %d more nameservers"), count - SERVERS_LOGGED);
 
   for (serv = daemon->servers; serv; serv = serv->next)
     {
