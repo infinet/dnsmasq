@@ -7,13 +7,13 @@ dnsmasq (2.76-1) unstable; urgency=low
      /etc/dnsmasq.d/README in the daemon startup script. (closes: #819856)
    * Add --help to manpage and mention dhcp6 in summary. (closes: #821226)
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 10 Sep 2015 23:07:21 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 10 Sep 2015 23:07:21 +0000
 
 dnsmasq (2.75-1) unstable; urgency=low
 
    * New upstream. (closes: #794095)
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Thur, 30 Jul 2015 20:58:31 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Thu, 30 Jul 2015 20:58:31 +0000
 
 dnsmasq (2.74-1) unstable; urgency=low
 
