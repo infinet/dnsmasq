@@ -248,6 +248,8 @@ void *safe_malloc(size_t size)
   
   if (!ret)
     die(_("could not get memory"), NULL, EC_NOMEM);
+  else
+    memset(ret, 0, size);
      
   return ret;
 }    
@@ -266,7 +268,9 @@ void *whine_malloc(size_t size)
 
   if (!ret)
     my_syslog(LOG_ERR, _("failed to allocate %d bytes"), (int) size);
-
+  else
+    memset(ret, 0, size);
+  
   return ret;
 }
 
