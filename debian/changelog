@@ -4,6 +4,14 @@ dnsmasq (2.77-1) unstable; urgency=low
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 6 Jul 2016 22:22:10 +0000
 
+dnsmasq (2.76-1.1) unstable; urgency=medium
+
+   * Non-maintainer upload.
+   * Provide nss-lookup.target for systemd, without relying on insserv.
+     Patch from Michael Biebl <biebl@debian.org>. (Closes: #826242)
+
+ -- Christian Hofstaedtler <zeha@debian.org>  Fri, 01 Jul 2016 13:41:11 +0000
+
 dnsmasq (2.76-1) unstable; urgency=low
 
    * New upstream. (closes: #798586)
