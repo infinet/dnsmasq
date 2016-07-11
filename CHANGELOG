@@ -11,6 +11,12 @@ version 2.77
 	    Thanks to Mozilla for funding the security audit 
 	    which spotted this bug.
 
+	    Fix logic error in Linux netlink code. This could
+	    cause dnsmasq to enter a tight loop on systems
+	    with a very large number of network interfaces.
+	    Thanks to Ivan Kokshaysky for the diagnosis and
+	    patch.
+
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
