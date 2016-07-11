@@ -244,13 +244,11 @@ unsigned char *do_rfc1035_name(unsigned char *p, char *sval)
 /* for use during startup */
 void *safe_malloc(size_t size)
 {
-  void *ret = malloc(size);
+  void *ret = calloc(1, size);
   
   if (!ret)
     die(_("could not get memory"), NULL, EC_NOMEM);
-  else
-    memset(ret, 0, size);
-     
+      
   return ret;
 }    
 
@@ -264,12 +262,10 @@ void safe_pipe(int *fd, int read_noblock)
 
 void *whine_malloc(size_t size)
 {
-  void *ret = malloc(size);
+  void *ret = calloc(1, size);
 
   if (!ret)
     my_syslog(LOG_ERR, _("failed to allocate %d bytes"), (int) size);
-  else
-    memset(ret, 0, size);
   
   return ret;
 }
