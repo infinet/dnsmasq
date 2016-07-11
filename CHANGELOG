@@ -17,6 +17,10 @@ version 2.77
 	    Thanks to Ivan Kokshaysky for the diagnosis and
 	    patch.
 
+ 	    Fix problem with --dnssec-timestamp whereby receipt
+            of SIGHUP would erroneously engage timestamp checking.
+	    Thanks to Kevin Darbyshire-Bryant for this work.
+	
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
