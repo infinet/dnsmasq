@@ -2,7 +2,14 @@ dnsmasq (2.77-1) unstable; urgency=low
 
    * New upstream.
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Wed, 6 Jul 2016 22:22:10 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Sat, 16 Jul 2016 22:22:10 +0000
+
+dnsmasq (2.76-2) unstable; urgency=medium
+
+   * Fix to systemd to fix failure to start with bridge interface.
+     (Closes: #831372)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Sat, 16 Jul 2016 22:09:10 +0000
 
 dnsmasq (2.76-1.2) unstable; urgency=medium
 
