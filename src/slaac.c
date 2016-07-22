@@ -146,7 +146,7 @@ time_t periodic_slaac(time_t now, struct dhcp_lease *leases)
 	    struct ping_packet *ping;
 	    struct sockaddr_in6 addr;
  
-	    save_counter(0);
+	    reset_counter();
 
 	    if (!(ping = expand(sizeof(struct ping_packet))))
 	      continue;

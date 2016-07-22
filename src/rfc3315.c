@@ -89,7 +89,7 @@ unsigned short dhcp6_reply(struct dhcp_context *context, int interface, char *if
   for (vendor = daemon->dhcp_vendors; vendor; vendor = vendor->next)
     vendor->netid.next = &vendor->netid;
   
-  save_counter(0);
+  reset_counter();
   state.context = context;
   state.interface = interface;
   state.iface_name = iface_name;
@@ -2084,7 +2084,7 @@ void relay_upstream6(struct dhcp_relay *relay, ssize_t sz,
   if (hopcount > 32)
     return;
 
-  save_counter(0);
+  reset_counter();
 
   if ((header = put_opt6(NULL, 34)))
     {
@@ -2161,7 +2161,7 @@ unsigned short relay_reply6(struct sockaddr_in6 *peer, ssize_t sz, char *arrival
 	(!relay->interface || wildcard_match(relay->interface, arrival_interface)))
       break;
       
-  save_counter(0);
+  reset_counter();
 
   if (relay)
     {

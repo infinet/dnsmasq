@@ -261,7 +261,7 @@ static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_ad
   parm.adv_interval = calc_interval(ra_param);
   parm.prio = calc_prio(ra_param);
   
-  save_counter(0);
+  reset_counter();
   
   if (!(ra = expand(sizeof(struct ra_packet))))
     return;
