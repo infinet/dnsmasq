@@ -1975,7 +1975,7 @@ static void log6_packet(struct state *state, char *type, struct in6_addr *addr, 
 
   if (addr)
     {
-      inet_ntop(AF_INET6, addr, daemon->dhcp_buff2, 255);
+      inet_ntop(AF_INET6, addr, daemon->dhcp_buff2, DHCP_BUFF_SZ - 1);
       strcat(daemon->dhcp_buff2, " ");
     }
   else
