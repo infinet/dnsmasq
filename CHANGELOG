@@ -20,6 +20,10 @@ version 2.77
  	    Fix problem with --dnssec-timestamp whereby receipt
             of SIGHUP would erroneously engage timestamp checking.
 	    Thanks to Kevin Darbyshire-Bryant for this work.
+
+	    Bump zone serial on reloading /etc/hosts and friends
+	    when providing authoritative DNS. Thanks to Harrald
+	    Dunkel for spotting this.
 	
 
 version 2.76
