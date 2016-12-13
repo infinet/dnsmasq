@@ -323,7 +323,7 @@ int hostname_isequal(const char *a, const char *b)
   
   return 1;
 }
-    
+
 time_t dnsmasq_time(void)
 {
 #ifdef HAVE_BROKEN_RTC
