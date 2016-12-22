@@ -44,7 +44,10 @@ version 2.77
 	    to Donatas Abraitis for diagnosing this as a potential
 	    problem.
 
+	    Add DNSMASQ_REQUESTED_OPTIONS environment variable to the 
+	    lease-change script. Thanks to ZHAO Yu for the patch.
 
+	
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
 	    translates to hosts on  the local network, or, at 
