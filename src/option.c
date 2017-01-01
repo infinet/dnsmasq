@@ -3730,22 +3730,27 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case LOPT_CNAME: /* --cname */
       {
 	struct cname *new;
-	char *alias, *target, *ttls;
+	char *alias, *target, *last, *pen;
 	int ttl = -1;
 
-	if (!(comma = split(arg)))
-	  ret_err(gen_err);
-	
-	if ((ttls = split(comma)) && !atoi_check(ttls, &ttl))
-	  ret_err(_("bad TTL"));
-	
-	alias = canonicalise_opt(arg);
-	target = canonicalise_opt(comma);
-	    
-	if (!alias || !target)
-	  ret_err(_("bad CNAME"));
-	else
+	for (last = pen = NULL, comma = arg; comma; comma = split(comma))
 	  {
+	    pen = last;
+	    last = comma;
+	  }
+
+	if (!pen)
+	  ret_err(_("bad CNAME"));
+	
+	if (pen != arg && atoi_check(last, &ttl))
+	  last = pen;
+	  	
+    	target = canonicalise_opt(last);
+
+	while (arg != last)
+	  {
+	    alias = canonicalise_opt(arg);
+	    
 	    for (new = daemon->cnames; new; new = new->next)
 	      if (hostname_isequal(new->alias, arg))
 		ret_err(_("duplicate CNAME"));
@@ -3755,6 +3760,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    new->alias = alias;
 	    new->target = target;
 	    new->ttl = ttl;
+
+	    arg += strlen(arg)+1;
 	  }
       
 	break;
