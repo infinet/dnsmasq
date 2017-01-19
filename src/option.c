@@ -4663,11 +4663,44 @@ void read_opts(int argc, char **argv, char *compile_opts)
 
   if (daemon->cnames)
     {
-      struct cname *cn;
-      
+      struct cname *cn, *cn2, *cn3;
+
+#define NOLOOP 1
+#define TESTLOOP 2      
+
+      /* Fill in TTL for CNAMES noe we have local_ttl.
+	 Also prepare to do loop detection. */
       for (cn = daemon->cnames; cn; cn = cn->next)
-	if (cn->ttl == -1)
-	  cn->ttl = daemon->local_ttl;
+	{
+	  if (cn->ttl == -1)
+	    cn->ttl = daemon->local_ttl;
+	  cn->flag = 0;
+	  cn->targetp = NULL;
+	  for (cn2 = daemon->cnames; cn2; cn2 = cn2->next)
+	    if (hostname_isequal(cn->target, cn2->alias))
+	      {
+		cn->targetp = cn2;
+		break;
+	      }
+	}
+      
+      /* Find any CNAME loops.*/
+      for (cn = daemon->cnames; cn; cn = cn->next)
+	{
+	  for (cn2 = cn->targetp; cn2; cn2 = cn2->targetp)
+	    {
+	      if (cn2->flag == NOLOOP)
+		break;
+	      
+	      if (cn2->flag == TESTLOOP)
+		die(_("CNAME loop involving %s"), cn->alias, EC_BADCONF);
+	      
+	      cn2->flag = TESTLOOP;
+	    }
+	  
+	  for (cn3 = cn->targetp; cn3 != cn2; cn3 = cn3->targetp)
+	    cn3->flag = NOLOOP;
+	}
     }
 
   if (daemon->if_addrs)

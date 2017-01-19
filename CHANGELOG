@@ -1,4 +1,8 @@
 version 2.77
+	    Generate an error when configured with a CNAME loop,
+	    rather than a crash. Thnaks to George Metz for
+	    spotting this problem.
+
 	    Calculate the length of TFTP error reply packet 
 	    correctly. This fixes a problem when the error 
 	    message in a TFTP packet exceeds the arbitrary 
