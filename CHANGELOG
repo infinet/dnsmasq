@@ -1,6 +1,6 @@
 version 2.77
 	    Generate an error when configured with a CNAME loop,
-	    rather than a crash. Thnaks to George Metz for
+	    rather than a crash. Thanks to George Metz for
 	    spotting this problem.
 
 	    Calculate the length of TFTP error reply packet 
@@ -50,6 +50,13 @@ version 2.77
 
 	    Add DNSMASQ_REQUESTED_OPTIONS environment variable to the 
 	    lease-change script. Thanks to ZHAO Yu for the patch.
+
+	    Fix foobar in rrfilter code, that could cause misformed 
+	    replies, especially when DNSSEC validation on, and 
+	    the upstream server returns answer with the RRs in a 
+	    particular order. The only DNS server known to tickle
+	    this is Nominum's. Thanks to Dave Täht for spotting the
+	    bug and assisting in the fix.
 
 	
 version 2.76
