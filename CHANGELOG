@@ -58,6 +58,13 @@ version 2.77
 	    this is Nominum's. Thanks to Dave Täht for spotting the
 	    bug and assisting in the fix.
 
+            Fix the manpage which lied that only the primary address
+	    of an interface is used by --interface-name.
+
+	    Make --localise-queries apply to names from --interface-name.
+	    Thanks to Kevin Darbyshire-Bryant and Eric Luehrsen
+	    for pushing this.
+
 	
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 

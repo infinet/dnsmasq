@@ -1516,9 +1516,24 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	      if (intr)
 		{
 		  struct addrlist *addrlist;
-		  int gotit = 0;
+		  int gotit = 0, localise = 0;
 
 		  enumerate_interfaces(0);
+		    
+		  /* See if a putative address is on the network from which we recieved
+		     the query, is so we'll filter other answers. */
+		  if (local_addr.s_addr != 0 && option_bool(OPT_LOCALISE) && type == T_A)
+		    for (intr = daemon->int_names; intr; intr = intr->next)
+		      if (hostname_isequal(name, intr->name))
+			for (addrlist = intr->addr; addrlist; addrlist = addrlist->next)
+#ifdef HAVE_IPV6
+			  if (!(addrlist->flags & ADDRLIST_IPV6))
+#endif
+			    if (is_same_net(*((struct in_addr *)&addrlist->addr), local_addr, local_netmask))
+			      {
+				localise = 1;
+				break;
+			      }
 		  
 		  for (intr = daemon->int_names; intr; intr = intr->next)
 		    if (hostname_isequal(name, intr->name))
@@ -1528,6 +1543,10 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 			  if (((addrlist->flags & ADDRLIST_IPV6) ? T_AAAA : T_A) == type)
 #endif
 			    {
+			      if (localise && 
+				  !is_same_net(*((struct in_addr *)&addrlist->addr), local_addr, local_netmask))
+				continue;
+
 #ifdef HAVE_IPV6
 			      if (addrlist->flags & ADDRLIST_REVONLY)
 				continue;
