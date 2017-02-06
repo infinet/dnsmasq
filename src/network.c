@@ -178,7 +178,7 @@ int iface_check(int family, struct all_addr *addr, char *name, int *auth)
 }
 
 
-/* Fix for problem that the kernel sometimes reports the loopback inerface as the
+/* Fix for problem that the kernel sometimes reports the loopback interface as the
    arrival interface when a packet originates locally, even when sent to address of 
    an interface other than the loopback. Accept packet if it arrived via a loopback 
    interface, even when we're not accepting packets that way, as long as the destination
@@ -644,7 +644,7 @@ int enumerate_interfaces(int reset)
       /* Garbage-collect listeners listening on addresses that no longer exist.
 	 Does nothing when not binding interfaces or for listeners on localhost, 
 	 since the ->iface field is NULL. Note that this needs the protections
-	 against re-entrancy, hence it's here.  It also means there's a possibility,
+	 against reentrancy, hence it's here.  It also means there's a possibility,
 	 in OPT_CLEVERBIND mode, that at listener will just disappear after
 	 a call to enumerate_interfaces, this is checked OK on all calls. */
       struct listener *l, *tmp, **up;
@@ -699,7 +699,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
   
   if ((fd = socket(family, type, 0)) == -1)
     {
-      int port, errsav;
+      int port, errsave;
       char *s;
 
       /* No error if the kernel just doesn't support this IP flavour */
@@ -709,7 +709,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
 	return -1;
       
     err:
-      errsav = errno;
+      errsave = errno;
       port = prettyprint_addr(addr, daemon->addrbuff);
       if (!option_bool(OPT_NOWILD) && !option_bool(OPT_CLEVERBIND))
 	sprintf(daemon->addrbuff, "port %d", port);
@@ -718,7 +718,7 @@ static int make_sock(union mysockaddr *addr, int type, int dienow)
       if (fd != -1)
 	close (fd);
 	
-      errno = errsav;
+      errno = errsave;
 
       if (dienow)
 	{

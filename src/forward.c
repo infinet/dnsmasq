@@ -1038,7 +1038,7 @@ void reply_query(int fd, int family, time_t now)
 	      if (!forward->dependent)
 		break;
 	      
-	      /* validated subsdiary query, (and cached result)
+	      /* validated subsidiary query, (and cached result)
 		 pop that and return to the previous query we were working on. */
 	      struct frec *prev = forward->dependent;
 	      free_frec(forward);
@@ -1326,7 +1326,7 @@ void receive_query(struct listener *listen, time_t now)
 	{
 	  struct irec *iface;
 	  
-	  /* get the netmask of the interface whch has the address we were sent to.
+	  /* get the netmask of the interface which has the address we were sent to.
 	     This is no neccessarily the interface we arrived on. */
 	  
 	  for (iface = daemon->interfaces; iface; iface = iface->next)
@@ -1448,7 +1448,7 @@ void receive_query(struct listener *listen, time_t now)
 }
 
 #ifdef HAVE_DNSSEC
-/* Recurse up the key heirarchy */
+/* Recurse up the key hierarchy */
 static int tcp_key_recurse(time_t now, int status, struct dns_header *header, size_t n, 
 			   int class, char *name, char *keyname, struct server *server, 
 			   int have_mark, unsigned int mark, int *keycount)
@@ -1587,7 +1587,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
 
 
 /* The daemon forks before calling this: it should deal with one connection,
-   blocking as neccessary, and then return. Note, need to be a bit careful
+   blocking as necessary, and then return. Note, need to be a bit careful
    about resources for debug mode, when the fork is suppressed: that's
    done by the caller. */
 unsigned char *tcp_request(int confd, time_t now,
@@ -1799,7 +1799,7 @@ unsigned char *tcp_request(int confd, time_t now,
 		  unsigned int crc = questions_crc(header, (unsigned int)size, daemon->namebuff);
 #endif		  
 		  /* Loop round available servers until we succeed in connecting to one.
-		     Note that this code subtley ensures that consecutive queries on this connection
+		     Note that this code subtly ensures that consecutive queries on this connection
 		     which can go to the same server, do so. */
 		  while (1) 
 		    {

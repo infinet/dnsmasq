@@ -365,7 +365,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
   
   /* dhcp-match. If we have hex-and-wildcards, look for a left-anchored match.
      Otherwise assume the option is an array, and look for a matching element. 
-     If no data given, existance of the option is enough. This code handles 
+     If no data given, existence of the option is enough. This code handles 
      rfc3925 V-I classes too. */
   for (o = daemon->dhcp_match; o; o = o->next)
     {
