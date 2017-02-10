@@ -65,6 +65,11 @@ version 2.77
 	    Thanks to Kevin Darbyshire-Bryant and Eric Luehrsen
 	    for pushing this.
 
+            Improve connection handling when talking to TCP upsteam 
+	    servers. Specifically, be prepared to open a new TCP
+	    connection when we want to make multiple queries
+            but the upstream server accepts fewer queries per connection.
+
 	
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
