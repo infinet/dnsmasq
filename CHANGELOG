@@ -69,6 +69,10 @@ version 2.77
 	    servers. Specifically, be prepared to open a new TCP
 	    connection when we want to make multiple queries
             but the upstream server accepts fewer queries per connection.
+ 
+            Improve logging of upstream servers when there are a lot
+	    of "local addresses only" entries. Thanks to Hannu Nyman for
+	    the patch.
 
 	
 version 2.76

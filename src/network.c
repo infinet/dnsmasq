@@ -1438,6 +1438,7 @@ void check_servers(void)
   struct server *serv;
   struct serverfd *sfd, *tmp, **up;
   int port = 0, count;
+  int locals = 0;
 
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
@@ -1541,7 +1542,11 @@ void check_servers(void)
 		s1 = _("domain"), s2 = serv->domain;
 	      
 	      if (serv->flags & SERV_NO_ADDR)
-		my_syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
+		{
+		  count--;
+		  if (++locals <= LOCALS_LOGGED)
+			my_syslog(LOG_INFO, _("using local addresses only for %s %s"), s1, s2);
+	        }
 	      else if (serv->flags & SERV_USE_RESOLV)
 		my_syslog(LOG_INFO, _("using standard nameservers for %s %s"), s1, s2);
 	      else 
@@ -1558,6 +1563,8 @@ void check_servers(void)
 	}
     }
   
+  if (locals > LOCALS_LOGGED)
+    my_syslog(LOG_INFO, _("using %d more local addresses"), locals - LOCALS_LOGGED);
   if (count - 1 > SERVERS_LOGGED)
     my_syslog(LOG_INFO, _("using %d more nameservers"), count - SERVERS_LOGGED - 1);
 
