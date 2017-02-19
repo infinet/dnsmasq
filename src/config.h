@@ -132,7 +132,7 @@ NO_SCRIPT
 NO_LARGEFILE
 NO_AUTH
 NO_INOTIFY
-   these are avilable to explicitly disable compile time options which would 
+   these are available to explicitly disable compile time options which would 
    otherwise be enabled automatically (HAVE_IPV6, >2Gb file sizes) or 
    which are enabled  by default in the distributed source tree. Building dnsmasq
    with something like "make COPTS=-DNO_SCRIPT" will do the trick.

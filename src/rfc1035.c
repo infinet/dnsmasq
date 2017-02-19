@@ -1184,7 +1184,7 @@ static unsigned long crec_ttl(struct crec *crecp, time_t now)
   if (crecp->flags & F_IMMORTAL)
     return crecp->ttd;
 
-  /* Return the Max TTL value if it is lower then the actual TTL */
+  /* Return the Max TTL value if it is lower than the actual TTL */
   if (daemon->max_ttl == 0 || ((unsigned)(crecp->ttd - now) < daemon->max_ttl))
     return crecp->ttd - now;
   else
@@ -1520,7 +1520,7 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 
 		  enumerate_interfaces(0);
 		    
-		  /* See if a putative address is on the network from which we recieved
+		  /* See if a putative address is on the network from which we received
 		     the query, is so we'll filter other answers. */
 		  if (local_addr.s_addr != 0 && option_bool(OPT_LOCALISE) && type == T_A)
 		    for (intr = daemon->int_names; intr; intr = intr->next)

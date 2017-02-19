@@ -156,7 +156,7 @@ A: [note: this was written in September 2003, things may well change.]
 
    If you get "jlsdajkdalld.com" does not exist, then all is fine, if
    host returns an IP address, then the DNS is broken. (Try a few
-   different unlikely domains, just in case you picked a wierd one
+   different unlikely domains, just in case you picked a weird one
    which really _is_ registered.)
 
    Assuming that your DNS is broken, and you want to fix it, simply
