@@ -301,7 +301,8 @@ attached to. Currently this facility is limited to IPv4.
 .B \-b, --bogus-priv
 Bogus private reverse lookups. All reverse lookups for private IP ranges (ie 192.168.x.x, etc)
 which are not found in /etc/hosts or the DHCP leases file are answered
-with "no such domain" rather than being forwarded upstream.
+with "no such domain" rather than being forwarded upstream. The 
+set of prefixes affected is the list given in RFC6303, for IPv4 and IPv6.
 .TP
 .B \-V, --alias=[<old-ip>]|[<start-ip>-<end-ip>],<new-ip>[,<mask>]
 Modify IPv4 addresses returned from upstream nameservers; old-ip is

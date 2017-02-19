@@ -77,6 +77,9 @@ version 2.77
             Implement RFC 6842. Thanks to Reddeiah Raju Konduru for
             pointing out that this was missing.
 
+	    Make --bogus-priv apply to IPv6, for the prefixes specified
+	    in RFC6303. Thanks to Kevin Darbyshire-Bryant for work on this.
+	
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
