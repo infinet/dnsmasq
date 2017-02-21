@@ -41,12 +41,12 @@ For OpenWrt Chaos Calmer 15.05 on
 [ar71xx and mt7620 platform](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/). DNSSEC is disabled.
 
     sha1sum
-    d90c5eaa3c88d2e569a9801d2b081943fbd6410d dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
-    eb2d9e332271d8dd376492645c8fe073fbf59cdb dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
+    0a1a7c13714e982b2cf98b33fe16d572f3d1a58d dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
+    58b1b3e9447f55ae26dc6a5834cea826ae7a51c1 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
 
     md5sum
-    a4d7fbcfb2e8cdf318d3bb41eb3ac10e dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
-    d30409051b5216b9ce18a2791cbc2519 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
+    5aa14fc279f182820b8462a5f38ca0f4 dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
+    f4b5b8c71f05efbf1f5b98ba1abb7ed8 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
 
 
 Example usage
