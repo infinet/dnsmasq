@@ -115,12 +115,86 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
      domain.org and sub.domain.org to exist. */
   
   unsigned int namelen = strlen(qdomain);
-  unsigned int matchlen = 0;
-  struct server *serv;
+  //unsigned int matchlen = 0;
+  //struct server *serv, *fwdserv = NULL;
+  struct server *fwdserv = NULL;
   unsigned int flags = 0;
-  
+  unsigned int sflag;
+  struct htree_node *np;
+  struct special_domain *obj;
+
+  /* label of root node is "#", means --address=/#/1.2.3.4 */
+  if (daemon->htree_special_domains && daemon->htree_special_domains->label &&
+                                    *daemon->htree_special_domains->label == '#')
+    np = daemon->htree_special_domains;
+  else
+    np = domain_match (daemon->htree_special_domains, qdomain);
+
+  if (np)
+    {
+      obj = (struct special_domain *) np->ptr;
+
+      *type = obj->domain_flags & (SERV_HAS_DOMAIN | SERV_USE_RESOLV | SERV_NO_REBIND | SERV_DO_DNSSEC);
+
+      if (obj->domain_flags & SERV_NO_REBIND)
+        *norebind = 1;
+
+      /* no server, domain is local only */
+      if (obj->domain_flags & SERV_NO_ADDR)
+        {
+          flags = F_NXDOMAIN;
+        }
+      else if (obj->domain_flags & SERV_LITERAL_ADDRESS)
+        {
+          /* --address and AF matches */
+          sflag = obj->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
+          if (sflag & qtype)
+            {
+              flags = sflag;
+              if (obj->addr.sa.sa_family == AF_INET)
+                *addrpp = (struct all_addr *) &obj->addr.in.sin_addr;
+#ifdef HAVE_IPV6
+              else
+                *addrpp = (struct all_addr *) &obj->addr.in6.sin6_addr;
+#endif
+            }
+	  else if (!flags || (flags & F_NXDOMAIN))
+	    flags = F_NOERR;
+	
+        }
+      else if (obj->domain_flags & SERV_USE_RESOLV)
+        {
+          /* --server=8.8.8.8 */
+          *type = 0;  /* use normal server */
+          fwdserv = NULL;
+        }
+      else
+        {
+          fwdserv = obj->server;
+          flags = 0;
+        }
+    }
+  else
+    {
+      *type = 0;  /* use normal servers for this domain */
+      fwdserv = NULL;
+    }
+
+  if (fwdserv)
+    {
+      daemon->pseudo_server->domain = qdomain;
+      memcpy (&daemon->pseudo_server->addr, &fwdserv->addr, sizeof (union mysockaddr));
+      daemon->pseudo_server->flags = obj->domain_flags;
+      *domain = qdomain;
+      printf("    debug: in search_servers found server for %s\n", qdomain);
+    }
+  else
+    {
+      daemon->pseudo_server->domain = NULL;
+    }
+
+  /*
   for (serv = daemon->servers; serv; serv=serv->next)
-    /* domain matches take priority over NODOTS matches */
     if ((serv->flags & SERV_FOR_NODOTS) && *type != SERV_HAS_DOMAIN && !strchr(qdomain, '.') && namelen != 0)
       {
 	unsigned int sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6; 
@@ -156,9 +230,6 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
 	    else
 	      {
 		unsigned int sflag = serv->addr.sa.sa_family == AF_INET ? F_IPV4 : F_IPV6;
-		/* implement priority rules for --address and --server for same domain.
-		   --address wins if the address is for the correct AF
-		   --server wins otherwise. */
 		if (domainlen != 0 && domainlen == matchlen)
 		  {
 		    if ((serv->flags & SERV_LITERAL_ADDRESS))
@@ -202,6 +273,8 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
 	  }
       }
   
+    */
+
   if (flags == 0 && !(qtype & F_QUERY) && 
       option_bool(OPT_NODOTS_LOCAL) && !strchr(qdomain, '.') && namelen != 0)
     /* don't forward A or AAAA queries for simple names, except the empty name */
@@ -561,30 +634,22 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
+  struct htree_node *np;
+  struct ipsets *obj;
 
   (void)ad_reqd;
   (void)do_bit;
   (void)bogusanswer;
 
 #ifdef HAVE_IPSET
-  if (daemon->ipsets && extract_request(header, n, daemon->namebuff, NULL))
+  if (daemon->htree_ipsets && extract_request(header, n, daemon->namebuff, NULL))
     {
-      /* Similar algorithm to search_servers. */
-      struct ipsets *ipset_pos;
-      unsigned int namelen = strlen(daemon->namebuff);
-      unsigned int matchlen = 0;
-      for (ipset_pos = daemon->ipsets; ipset_pos; ipset_pos = ipset_pos->next) 
-	{
-	  unsigned int domainlen = strlen(ipset_pos->domain);
-	  char *matchstart = daemon->namebuff + namelen - domainlen;
-	  if (namelen >= domainlen && hostname_isequal(matchstart, ipset_pos->domain) &&
-	      (domainlen == 0 || namelen == domainlen || *(matchstart - 1) == '.' ) &&
-	      domainlen >= matchlen) 
-	    {
-	      matchlen = domainlen;
-	      sets = ipset_pos->sets;
-	    }
-	}
+      np = domain_match(daemon->htree_ipsets, daemon->namebuff);
+      if (np)
+        {
+          obj = (struct ipsets *) np->ptr;
+          sets = obj->sets;
+        }
     }
 #endif
   

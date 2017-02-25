@@ -2336,8 +2336,10 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
     case 'A':            /*  --address */
     case LOPT_NO_REBIND: /*  --rebind-domain-ok */
       {
-	struct server *serv, *newlist = NULL;
-	
+	struct server *serv, *tmp,*serv_del, *newlist = NULL;
+        struct htree_node *np = NULL;
+        struct special_domain *obj;
+
 	unhide_metas(arg);
 	
 	if (arg && (*arg == '/' || option == LOPT_NO_REBIND))
@@ -2409,17 +2411,79 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      ret_err(err);
 	  }
 	
-	serv = newlist;
-	while (serv->next)
-	  {
-	    serv->next->flags = serv->flags;
-	    serv->next->addr = serv->addr;
-	    serv->next->source_addr = serv->source_addr;
-	    strcpy(serv->next->interface, serv->interface);
-	    serv = serv->next;
-	  }
-	serv->next = daemon->servers;
-	daemon->servers = newlist;
+        /*TODO install htree node and free pointer */
+        if (daemon->htree_special_domains == NULL)
+          daemon->htree_special_domains = htree_new_node (NULL, 0);
+
+        if (newlist->flags
+            & (SERV_USE_RESOLV | SERV_LITERAL_ADDRESS
+             | SERV_NO_ADDR | SERV_HAS_DOMAIN))
+          {
+            if (newlist->flags & SERV_USE_RESOLV)
+              {
+                np = daemon->htree_special_domains;
+                free(np->label);
+                np->label = strdup("#");
+              }
+            else
+              {
+                np = domain_find_or_add(daemon->htree_special_domains,
+                                        newlist->domain);
+              }
+
+            if (np->ptr)
+              {
+                obj = (struct special_domain *) np->ptr;
+              }
+            else
+              {
+                obj = opt_malloc (sizeof (struct special_domain));
+                memset (obj, 0, sizeof (struct special_domain));
+              }
+
+            obj->domain_flags = newlist->flags;
+
+            if (newlist->flags & SERV_NO_ADDR) /* no server */
+              {
+                obj->server = NULL;
+              }
+            else if (newlist->flags & SERV_LITERAL_ADDRESS)
+              {
+                obj->server = NULL;
+                memcpy (&obj->addr, &newlist->addr, sizeof (union mysockaddr));
+              }
+            else if (newlist->flags & SERV_HAS_DOMAIN)
+              {
+                /* install the new server into daemon->servers linked list */
+                obj->server = lookup_or_install_new_server (newlist);
+                obj->server->domain = NULL;
+              }
+
+            np->ptr = (void *) obj;
+            /*TODO free linked list */
+            for (serv_del = newlist; serv_del; ) {
+              tmp = serv_del->next;
+              if (serv_del->domain)
+                free(serv_del->domain);
+              free(serv_del);
+              serv_del = tmp;
+            }
+          }
+        else
+          {
+            serv = newlist;
+            while (serv->next)
+              {
+                serv->next->flags = serv->flags;
+                serv->next->addr = serv->addr;
+                serv->next->source_addr = serv->source_addr;
+                strcpy(serv->next->interface, serv->interface);
+                serv = serv->next;
+              }
+            serv->next = daemon->servers;
+            daemon->servers = newlist;
+          }
+
 	break;
       }
 
@@ -2464,7 +2528,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 #else
       {
 	 struct ipsets ipsets_head;
-	 struct ipsets *ipsets = &ipsets_head;
+	 struct ipsets *tmp, *ipsets = &ipsets_head;
 	 int size;
 	 char *end;
 	 char **sets, **sets_pos;
@@ -2518,9 +2582,90 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	 *sets_pos = 0;
 	 for (ipsets = &ipsets_head; ipsets->next; ipsets = ipsets->next)
 	   ipsets->next->sets = sets;
-	 ipsets->next = daemon->ipsets;
+	 //ipsets->next = daemon->ipsets;
 	 daemon->ipsets = ipsets_head.next;
-	 
+
+
+         /* TODO */
+        struct htree_node *np = NULL;
+        struct htree_node *setname = NULL;
+        //struct ipsets_names *obj;
+        struct ipsets *obj;
+        char **ipsets_cur, **newsets, **newsets_cur;
+        int i, newsets_size;
+
+        if (!daemon->htree_ipsets)
+          daemon->htree_ipsets = htree_new_node (NULL, 0);
+
+        if (!daemon->htree_ipset_names)
+          daemon->htree_ipset_names = htree_new_node (NULL, 0);
+
+        /* store ipsets into htree */
+	for (ipsets = daemon->ipsets; ipsets; ipsets = ipsets->next)
+          {
+            np = domain_find_or_add (daemon->htree_ipsets, ipsets->domain);
+            i = 0;
+            if (np->ptr)
+              {
+                obj = (struct ipsets *) np->ptr;
+                for (ipsets_cur = obj->sets; *ipsets_cur; ipsets_cur++)
+                  if (!htree_find(daemon->htree_ipset_names, *ipsets_cur))
+                    i++;
+              }
+            else
+              {
+                obj = opt_malloc(sizeof(struct ipsets));
+                memset(obj, 0, sizeof(struct ipsets));
+              }
+
+            newsets_size = size + i;
+            newsets = newsets_cur = opt_malloc(sizeof(char *) * newsets_size);
+
+            if (obj->sets)
+              {
+                for (ipsets_cur = obj->sets; *ipsets_cur; ) {
+                    *newsets_cur++ = *ipsets_cur++;
+                }
+              }
+
+            for (ipsets_cur = ipsets->sets; *ipsets_cur; ipsets_cur++)
+              {
+                setname = htree_find_or_add(daemon->htree_ipset_names, *ipsets_cur);
+                *newsets_cur++ = setname->label;
+              }
+
+            /*
+            if (np->ptr) {
+                old_obj = (struct ipsets *) np->ptr;
+                free(old_obj->sets);
+                free(old_obj);
+            }
+            */
+
+            if (obj->sets)
+              free(obj->sets);
+
+            obj->sets = newsets;
+            np->ptr = (void *) obj;
+          }
+
+        if (daemon->ipsets->sets)
+          {
+            for (ipsets_cur = daemon->ipsets->sets; *ipsets_cur; ipsets_cur++)
+              free(*ipsets_cur);
+            free(daemon->ipsets->sets);
+          }
+
+	for (ipsets = daemon->ipsets; ipsets; )
+          {
+            tmp = ipsets->next;
+            if (ipsets->domain)
+              free(ipsets->domain);
+            free(ipsets);
+
+            ipsets = tmp;
+          }
+
 	 break;
       }
 #endif
@@ -4540,6 +4685,18 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->soa_retry = SOA_RETRY;
   daemon->soa_expiry = SOA_EXPIRY;
   daemon->max_port = MAX_PORT;
+
+  /* add the psudo-server for htree lookup result */
+  daemon->pseudo_server = opt_malloc(sizeof(struct server));
+  memset(daemon->pseudo_server, 0, sizeof(struct server));
+  daemon->pseudo_server->flags = SERV_PSEUDO;
+  daemon->pseudo_server->next = daemon->servers;
+  daemon->servers = daemon->pseudo_server;
+  daemon->last_server = daemon->servers;
+  //daemon->servers = opt_malloc(sizeof(struct server));
+  //memset(daemon->servers, 0, sizeof(struct server));
+  //daemon->servers->flags = SERV_PSEUDO;
+  daemon->priv_servers = NULL;
 
 #ifndef NO_ID
   add_txt("version.bind", "dnsmasq-" VERSION, 0 );

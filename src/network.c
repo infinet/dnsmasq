@@ -1456,7 +1456,7 @@ void check_servers(void)
 
   for (count = 0, serv = daemon->servers; serv; serv = serv->next)
     {
-      if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND)))
+      if (!(serv->flags & (SERV_LITERAL_ADDRESS | SERV_NO_ADDR | SERV_USE_RESOLV | SERV_NO_REBIND | SERV_PSEUDO)))
 	{
 	  /* Init edns_pktsz for newly created server records. */
 	  if (serv->edns_pktsz == 0)
@@ -1522,7 +1522,8 @@ void check_servers(void)
 	    serv->sfd->used = 1;
 	}
       
-      if (!(serv->flags & SERV_NO_REBIND) && !(serv->flags & SERV_LITERAL_ADDRESS))
+      if (!(serv->flags & SERV_NO_REBIND) && !(serv->flags & SERV_LITERAL_ADDRESS)
+          && !(serv->flags & SERV_PSEUDO))
 	{
 	  if (++count > SERVERS_LOGGED)
 	    continue;

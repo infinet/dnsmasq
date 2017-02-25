@@ -463,6 +463,8 @@ union mysockaddr {
 #endif
 };
 
+#include "htree.h"
+
 /* bits in flag param to IPv6 callbacks from iface_enumerate() */
 #define IFACE_TENTATIVE   1
 #define IFACE_DEPRECATED  2
@@ -486,6 +488,10 @@ union mysockaddr {
 #define SERV_LOOP           8192  /* server causes forwarding loop */
 #define SERV_DO_DNSSEC     16384  /* Validate DNSSEC when using this server */
 #define SERV_GOT_TCP       32768  /* Got some data from the TCP connection */
+#define SERV_PSEUDO        65536  /* The psudo-server in daemon->server linked
+    list, whenever a match found by lookup htree, the server address/domain/
+    flags is copied to this server, then the usual daemon->server-next iter
+    will match it by compare domain. */
 
 struct serverfd {
   int fd;
@@ -954,7 +960,17 @@ extern struct daemon {
   struct iname *if_names, *if_addrs, *if_except, *dhcp_except, *auth_peers, *tftp_interfaces;
   struct bogus_addr *bogus_addr, *ignore_addr;
   struct server *servers;
+  struct server *pseudo_server;
+  struct server *priv_servers;   /* servers for --server / --address */
+  /*TODO remove? */
   struct ipsets *ipsets;
+
+  struct htree_node *htree_ipsets;  /* for --ipset domain names*/
+  /* setnames stored here to reduce redundancy */
+  struct htree_node *htree_ipset_names;
+  /* for --server/local/address/rebind-domain-ok domain names */
+  struct htree_node *htree_special_domains;
+
   int log_fac; /* log facility */
   char *log_file; /* optional log file */
   int max_logs;  /* queue limit */
