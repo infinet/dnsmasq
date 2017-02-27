@@ -2585,14 +2585,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	 //ipsets->next = daemon->ipsets;
 	 daemon->ipsets = ipsets_head.next;
 
-
          /* TODO */
         struct htree_node *np = NULL;
         struct htree_node *setname = NULL;
-        //struct ipsets_names *obj;
         struct ipsets *obj;
-        char **ipsets_cur, **newsets, **newsets_cur;
-        int i, newsets_size;
+        char **ipsets_cur;
 
         if (!daemon->htree_ipsets)
           daemon->htree_ipsets = htree_new_node (NULL, 0);
@@ -2600,17 +2597,21 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
         if (!daemon->htree_ipset_names)
           daemon->htree_ipset_names = htree_new_node (NULL, 0);
 
+        for (ipsets_cur = sets; *ipsets_cur; ipsets_cur++)
+          {
+            setname = htree_find_or_add(daemon->htree_ipset_names, *ipsets_cur);
+            /* use the ipset name already allocated as htree node label*/
+            free(*ipsets_cur);
+            *ipsets_cur = setname->label;
+          }
+
         /* store ipsets into htree */
 	for (ipsets = daemon->ipsets; ipsets; ipsets = ipsets->next)
           {
             np = domain_find_or_add (daemon->htree_ipsets, ipsets->domain);
-            i = 0;
             if (np->ptr)
               {
                 obj = (struct ipsets *) np->ptr;
-                for (ipsets_cur = obj->sets; *ipsets_cur; ipsets_cur++)
-                  if (!htree_find(daemon->htree_ipset_names, *ipsets_cur))
-                    i++;
               }
             else
               {
@@ -2618,42 +2619,12 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
                 memset(obj, 0, sizeof(struct ipsets));
               }
 
-            newsets_size = size + i;
-            newsets = newsets_cur = opt_malloc(sizeof(char *) * newsets_size);
-
-            if (obj->sets)
-              {
-                for (ipsets_cur = obj->sets; *ipsets_cur; ) {
-                    *newsets_cur++ = *ipsets_cur++;
-                }
-              }
-
-            for (ipsets_cur = ipsets->sets; *ipsets_cur; ipsets_cur++)
-              {
-                setname = htree_find_or_add(daemon->htree_ipset_names, *ipsets_cur);
-                *newsets_cur++ = setname->label;
-              }
-
-            /*
-            if (np->ptr) {
-                old_obj = (struct ipsets *) np->ptr;
-                free(old_obj->sets);
-                free(old_obj);
-            }
-            */
-
             if (obj->sets)
               free(obj->sets);
 
-            obj->sets = newsets;
+            obj->sets = sets;
+            obj->domain = np->label;
             np->ptr = (void *) obj;
-          }
-
-        if (daemon->ipsets->sets)
-          {
-            for (ipsets_cur = daemon->ipsets->sets; *ipsets_cur; ipsets_cur++)
-              free(*ipsets_cur);
-            free(daemon->ipsets->sets);
           }
 
 	for (ipsets = daemon->ipsets; ipsets; )
