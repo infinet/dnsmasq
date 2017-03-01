@@ -186,11 +186,13 @@ static unsigned int search_servers(time_t now, struct all_addr **addrpp, unsigne
       memcpy (&daemon->pseudo_server->addr, &fwdserv->addr, sizeof (union mysockaddr));
       daemon->pseudo_server->flags = obj->domain_flags;
       *domain = qdomain;
-      printf("    debug: in search_servers found server for %s\n", qdomain);
+      printf("    debug: in search_servers found server %s for %s\n", inet_ntoa(fwdserv->addr.in.sin_addr), qdomain);
     }
   else
     {
       daemon->pseudo_server->domain = NULL;
+      daemon->pseudo_server->flags = SERV_PSEUDO;
+      printf("    debug: in search_servers use default server for %s\n", qdomain);
     }
 
   /*

@@ -2442,6 +2442,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
               }
 
             obj->domain_flags = newlist->flags;
+            obj->domain_flags |= SERV_PSEUDO;
 
             if (newlist->flags & SERV_NO_ADDR) /* no server */
               {
