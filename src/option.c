@@ -864,13 +864,14 @@ static struct server *add_rev4(struct in_addr addr, int msize)
     case 24:
       p += sprintf(p, "%d.", (a >> 8) & 0xff);
       /* fall through */
-    default:
     case 16:
       p += sprintf(p, "%d.", (a >> 16) & 0xff);
       /* fall through */
     case 8:
       p += sprintf(p, "%d.", (a >> 24) & 0xff);
       break;
+    default:
+      return NULL;
     }
 
   p += sprintf(p, "in-addr.arpa");
@@ -2078,6 +2079,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 				   /* generate the equivalent of
 				      local=/xxx.yyy.zzz.in-addr.arpa/ */
 				  struct server *serv = add_rev4(new->start, msize);
+				  if (!serv)
+				    ret_err(_("bad prefix"));
+
 				  serv->flags |= SERV_NO_ADDR;
 
 				  /* local=/<domain>/ */
@@ -2449,7 +2453,11 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  ret_err(gen_err);
 
 	if (inet_pton(AF_INET, arg, &addr4))
-	  serv = add_rev4(addr4, size);
+	  {
+	    serv = add_rev4(addr4, size);
+	    if (!serv)
+	      ret_err(_("bad prefix"));
+	  }
 #ifdef HAVE_IPV6
 	else if (inet_pton(AF_INET6, arg, &addr6))
 	  serv = add_rev6(&addr6, size);
