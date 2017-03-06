@@ -850,19 +850,30 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
 static struct server *add_rev4(struct in_addr addr, int msize)
 {
   struct server *serv = opt_malloc(sizeof(struct server));
-  in_addr_t  a = ntohl(addr.s_addr) >> 8;
+  in_addr_t  a = ntohl(addr.s_addr);
   char *p;
 
   memset(serv, 0, sizeof(struct server));
-  p = serv->domain = opt_malloc(25); /* strlen("xxx.yyy.zzz.in-addr.arpa")+1 */
-  
-  if (msize == 24)
-    p += sprintf(p, "%d.", a & 0xff);
-  a = a >> 8;
-  if (msize != 8)
-    p += sprintf(p, "%d.", a & 0xff);
-  a = a >> 8;
-  p += sprintf(p, "%d.in-addr.arpa", a & 0xff);
+  p = serv->domain = opt_malloc(29); /* strlen("xxx.yyy.zzz.ttt.in-addr.arpa")+1 */
+
+  switch (msize)
+    {
+    case 32:
+      p += sprintf(p, "%d.", a & 0xff);
+      /* fall through */
+    case 24:
+      p += sprintf(p, "%d.", (a >> 8) & 0xff);
+      /* fall through */
+    default:
+    case 16:
+      p += sprintf(p, "%d.", (a >> 16) & 0xff);
+      /* fall through */
+    case 8:
+      p += sprintf(p, "%d.", (a >> 24) & 0xff);
+      break;
+    }
+
+  p += sprintf(p, "in-addr.arpa");
   
   serv->flags = SERV_HAS_DOMAIN;
   serv->next = daemon->servers;
