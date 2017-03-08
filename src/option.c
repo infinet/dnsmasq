@@ -4664,7 +4664,6 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->pseudo_server->flags = SERV_PSEUDO;
   daemon->pseudo_server->next = daemon->servers;
   daemon->servers = daemon->pseudo_server;
-  daemon->last_server = daemon->servers;
   //daemon->servers = opt_malloc(sizeof(struct server));
   //memset(daemon->servers, 0, sizeof(struct server));
   //daemon->servers->flags = SERV_PSEUDO;
