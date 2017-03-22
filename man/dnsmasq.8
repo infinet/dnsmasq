@@ -467,14 +467,14 @@ to make configuration files clearer in this case.
 IPv6 addresses may include a %interface scope-id, eg
 fe80::202:a412:4512:7bbf%eth0.
 
-The optional string after the @ character tells
-dnsmasq how to set the source of the queries to this
-nameserver. It should be an ip-address, which should belong to the machine on which
-dnsmasq is running otherwise this server line will be logged and then
-ignored, or an interface name. If an interface name is given, then
-queries to the server will be forced via that interface; if an
-ip-address is given then the source address of the queries will be set
-to that address.
+The optional string after the @ character tells dnsmasq how to set the source of
+the queries to this nameserver. It can either be an ip-address, an interface
+name or both. The ip-address should belong to the machine on which dnsmasq is
+running, otherwise this server line will be logged and then ignored. If an
+interface name is given, then queries to the server will be forced via that
+interface; if an ip-address is given then the source address of the queries will
+be set to that address; and if both are given then a combination of ip-address
+and interface name will be used to steer requests to the server.
 The query-port flag is ignored for any servers which have a
 source address specified but the port may be specified directly as
 part of the source address. Forcing queries to an interface is not

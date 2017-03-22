@@ -757,6 +757,7 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
 {
   int source_port = 0, serv_port = NAMESERVER_PORT;
   char *portno, *source;
+  char *interface_opt = NULL;
 #ifdef HAVE_IPV6
   int scope_index = 0;
   char *scope_id;
@@ -782,6 +783,19 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
   scope_id = split_chr(arg, '%');
 #endif
   
+  if (source) {
+    interface_opt = split_chr(source, '@');
+
+    if (interface_opt)
+      {
+#if defined(SO_BINDTODEVICE)
+	strncpy(interface, interface_opt, IF_NAMESIZE - 1);
+#else
+	return _("interface binding not supported");
+#endif
+      }
+  }
+
   if (inet_pton(AF_INET, arg, &addr->in.sin_addr) > 0)
     {
       addr->in.sin_port = htons(serv_port);	
@@ -800,6 +814,9 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
 	  if (!(inet_pton(AF_INET, source, &source_addr->in.sin_addr) > 0))
 	    {
 #if defined(SO_BINDTODEVICE)
+	      if (interface_opt)
+		return _("interface can only be specified once");
+	      
 	      source_addr->in.sin_addr.s_addr = INADDR_ANY;
 	      strncpy(interface, source, IF_NAMESIZE - 1);
 #else
@@ -832,7 +849,10 @@ char *parse_server(char *arg, union mysockaddr *addr, union mysockaddr *source_a
 	  if (inet_pton(AF_INET6, source, &source_addr->in6.sin6_addr) == 0)
 	    {
 #if defined(SO_BINDTODEVICE)
-	      source_addr->in6.sin6_addr = in6addr_any; 
+	      if (interface_opt)
+		return _("interface can only be specified once");
+	      
+	      source_addr->in6.sin6_addr = in6addr_any;
 	      strncpy(interface, source, IF_NAMESIZE - 1);
 #else
 	      return _("interface binding not supported");
