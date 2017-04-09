@@ -705,6 +705,12 @@ struct tag_if {
   struct tag_if *next;
 };
 
+struct delay_config {
+  int delay;
+  struct dhcp_netid *netid;
+  struct delay_config *next;
+};
+
 struct hwaddr_config {
   int hwaddr_len, hwaddr_type;
   unsigned char hwaddr[DHCP_CHADDR_MAX];
@@ -975,6 +981,7 @@ extern struct daemon {
   struct tag_if *tag_if; 
   struct addr_list *override_relays;
   struct dhcp_relay *relay4, *relay6;
+  struct delay_config *delay_conf;
   int override;
   int enable_pxe;
   int doing_ra, doing_dhcp6;
@@ -1333,7 +1340,7 @@ void lease_add_extradata(struct dhcp_lease *lease, unsigned char *data,
 /* rfc2131.c */
 #ifdef HAVE_DHCP
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
-		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe_fd, struct in_addr fallback);
+		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe_fd, struct in_addr fallback, time_t recvtime);
 unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr, 
 			       int clid_len, unsigned char *clid, int *len_out);
 #endif
@@ -1342,6 +1349,7 @@ unsigned char *extended_hwaddr(int hwtype, int hwlen, unsigned char *hwaddr,
 #ifdef HAVE_DHCP
 int make_icmp_sock(void);
 int icmp_ping(struct in_addr addr);
+int delay_dhcp(time_t start, int sec, int fd, uint32_t addr, unsigned short id);
 #endif
 void queue_event(int event);
 void send_alarm(time_t event, time_t now);

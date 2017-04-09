@@ -82,6 +82,9 @@ version 2.77
 
 	    Allow use of MAC addresses with --tftp-unique-root. Thanks
 	    to Floris Bos for the patch.
+
+            Add --dhcp-reply-delay option. Thanks to Floris Bos
+	    for the patch.
 	
 
 version 2.76
@@ -90,7 +93,7 @@ version 2.76
 	    least, 0.0.0.0 accesses the local host, so could
 	    be targets for DNS rebinding. See RFC 5735 section 3 
 	    for details. Thanks to Stephen Röttger for the bug report.
-
+ 
 	    Enhance --add-subnet to allow arbitrary subnet addresses.
             Thanks to Ed Barsley for the patch.
 

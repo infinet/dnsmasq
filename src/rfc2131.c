@@ -64,9 +64,10 @@ static int prune_vendor_opts(struct dhcp_netid *netid);
 static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local, time_t now);
 struct dhcp_boot *find_boot(struct dhcp_netid *netid);
 static int pxe_uefi_workaround(int pxe_arch, struct dhcp_netid *netid, struct dhcp_packet *mess, struct in_addr local, time_t now, int pxe);
-  
+static void apply_delay(u32 xid, time_t recvtime, struct dhcp_netid *netid);
+
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
-		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe, struct in_addr fallback)
+		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe, struct in_addr fallback, time_t recvtime)
 {
   unsigned char *opt, *clid = NULL;
   struct dhcp_lease *ltmp, *lease = NULL;
@@ -918,6 +919,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    
 		  log_packet("PXE", NULL, emac, emac_len, iface_name, ignore ? "proxy-ignored" : "proxy", NULL, mess->xid);
 		  log_tags(tagif_netid, ntohl(mess->xid));
+		  if (!ignore)
+		    apply_delay(mess->xid, recvtime, tagif_netid);
 		  return ignore ? 0 : dhcp_packet_size(mess, agent_id, real_end);	  
 		}
 	    }
@@ -1058,7 +1061,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	}
 
       log_tags(tagif_netid, ntohl(mess->xid));
-      
+      apply_delay(mess->xid, recvtime, tagif_netid);
       log_packet("DHCPOFFER" , &mess->yiaddr, emac, emac_len, iface_name, NULL, NULL, mess->xid);
       
       time = calc_time(context, config, option_find(mess, sz, OPTION_LEASE_TIME, 4));
@@ -2623,6 +2626,29 @@ static void do_options(struct dhcp_context *context,
     {
       mess->file[0] = f0;
       mess->sname[0] = s0;
+    }
+}
+
+static void apply_delay(u32 xid, time_t recvtime, struct dhcp_netid *netid)
+{
+  struct delay_config *delay_conf;
+  
+  /* Decide which delay_config option we're using */
+  for (delay_conf = daemon->delay_conf; delay_conf; delay_conf = delay_conf->next)
+    if (match_netid(delay_conf->netid, netid, 0))
+      break;
+  
+  if (!delay_conf)
+    /* No match, look for one without a netid */
+    for (delay_conf = daemon->delay_conf; delay_conf; delay_conf = delay_conf->next)
+      if (match_netid(delay_conf->netid, netid, 1))
+        break;
+
+  if (delay_conf)
+    {
+      if (!option_bool(OPT_QUIET_DHCP))
+	my_syslog(MS_DHCP | LOG_INFO, _("%u reply delay: %d"), ntohl(xid), delay_conf->delay);
+      delay_dhcp(recvtime, delay_conf->delay, -1, 0, 0);
     }
 }
 

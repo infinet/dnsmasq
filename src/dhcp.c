@@ -149,8 +149,10 @@ void dhcp_packet(time_t now, int pxe_fd)
   int rcvd_iface_index;
   struct in_addr iface_addr;
   struct iface_param parm;
+  time_t recvtime = now;
 #ifdef HAVE_LINUX_NETWORK
   struct arpreq arp_req;
+  struct timeval tv;
 #endif
   
   union {
@@ -177,6 +179,9 @@ void dhcp_packet(time_t now, int pxe_fd)
     return;
     
   #if defined (HAVE_LINUX_NETWORK)
+  if (ioctl(fd, SIOCGSTAMP, &tv) == 0)
+    recvtime = tv.tv_sec;
+
   if (msg.msg_controllen >= sizeof(struct cmsghdr))
     for (cmptr = CMSG_FIRSTHDR(&msg); cmptr; cmptr = CMSG_NXTHDR(&msg, cmptr))
       if (cmptr->cmsg_level == IPPROTO_IP && cmptr->cmsg_type == IP_PKTINFO)
@@ -335,14 +340,14 @@ void dhcp_packet(time_t now, int pxe_fd)
 
       lease_prune(NULL, now); /* lose any expired leases */
       iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, 
-			       now, unicast_dest, &is_inform, pxe_fd, iface_addr);
+			       now, unicast_dest, &is_inform, pxe_fd, iface_addr, recvtime);
       lease_update_file(now);
       lease_update_dns(0);
       
       if (iov.iov_len == 0)
 	return;
     }
-  
+
   msg.msg_name = &dest;
   msg.msg_namelen = sizeof(dest);
   msg.msg_control = NULL;

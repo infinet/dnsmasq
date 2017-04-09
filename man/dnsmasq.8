@@ -1790,6 +1790,12 @@ a router to advertise prefixes but not a route via itself.
 .B --ra-param=low,60,1200
 The interface field may include a wildcard.
 .TP
+.B --dhcp-reply-delay=[tag:<tag>,]<integer>
+Delays sending DHCPOFFER and proxydhcp replies for at least the specified number of seconds.
+This can be used as workaround for bugs in PXE boot firmware that does not function properly when
+receiving an instant reply.
+This option takes into account the time already spent waiting (e.g. performing ping check) if any.
+.TP
 .B --enable-tftp[=<interface>[,<interface>]]
 Enable the TFTP server function. This is deliberately limited to that
 needed to net-boot a client. Only reading is allowed; the tsize and

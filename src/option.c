@@ -159,6 +159,7 @@ struct myoption {
 #define LOPT_SCRIPT_ARP    347
 #define LOPT_DHCPTTL       348
 #define LOPT_TFTP_MTU      349
+#define LOPT_REPLY_DELAY   350
  
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -323,6 +324,7 @@ static const struct myoption opts[] =
     { "dns-loop-detect", 0, 0, LOPT_LOOP_DETECT },
     { "script-arp", 0, 0, LOPT_SCRIPT_ARP },
     { "dhcp-ttl", 1, 0 , LOPT_DHCPTTL },
+    { "dhcp-reply-delay", 1, 0, LOPT_REPLY_DELAY },
     { NULL, 0, 0, 0 }
   };
 
@@ -494,6 +496,7 @@ static struct {
   { LOPT_LOOP_DETECT, OPT_LOOP_DETECT, NULL, gettext_noop("Detect and remove DNS forwarding loops."), NULL },
   { LOPT_IGNORE_ADDR, ARG_DUP, "<ipaddr>", gettext_noop("Ignore DNS responses containing ipaddr."), NULL }, 
   { LOPT_DHCPTTL, ARG_ONE, "<ttl>", gettext_noop("Set TTL in DNS responses with DHCP-derived addresses."), NULL }, 
+  { LOPT_REPLY_DELAY, ARG_ONE, "<integer>", gettext_noop("Delay DHCP replies for at least number of seconds."), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -3317,11 +3320,43 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	break;
       }
 
+    case LOPT_REPLY_DELAY: /* --dhcp-reply-delay */
+      {
+	struct dhcp_netid *id = NULL;
+	while (is_tag_prefix(arg))
+	  {
+	    struct dhcp_netid *newid = opt_malloc(sizeof(struct dhcp_netid));
+	    newid->next = id;
+	    id = newid;
+	    comma = split(arg);
+	    newid->net = opt_string_alloc(arg+4);
+	    arg = comma;
+	  };
+	
+	if (!arg)
+	  ret_err(gen_err);
+	else
+	  {
+	    struct delay_config *new;
+	    int delay;
+	    if (!atoi_check(arg, &delay))
+              ret_err(gen_err);
+	    
+	    new = opt_malloc(sizeof(struct delay_config));
+	    new->delay = delay;
+	    new->netid = id;
+            new->next = daemon->delay_conf;
+            daemon->delay_conf = new;
+	  }
+	
+	break;
+      }
+      
     case LOPT_PXE_PROMT:  /* --pxe-prompt */
        {
 	 struct dhcp_opt *new = opt_malloc(sizeof(struct dhcp_opt));
 	 int timeout;
-
+	 
 	 new->netid = NULL;
 	 new->opt = 10; /* PXE_MENU_PROMPT */
 
