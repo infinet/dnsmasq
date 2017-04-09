@@ -242,7 +242,7 @@ static const struct myoption opts[] =
     { "enable-tftp", 2, 0, LOPT_TFTP },
     { "tftp-secure", 0, 0, LOPT_SECURE },
     { "tftp-no-fail", 0, 0, LOPT_TFTP_NO_FAIL },
-    { "tftp-unique-root", 0, 0, LOPT_APREF },
+    { "tftp-unique-root", 2, 0, LOPT_APREF },
     { "tftp-root", 1, 0, LOPT_PREFIX },
     { "tftp-max", 1, 0, LOPT_TFTP_MAX },
     { "tftp-mtu", 1, 0, LOPT_TFTP_MTU },
@@ -430,7 +430,7 @@ static struct {
   { LOPT_OVERRIDE, OPT_NO_OVERRIDE, NULL, gettext_noop("Do NOT reuse filename and server fields for extra DHCP options."), NULL },
   { LOPT_TFTP, ARG_DUP, "[=<intr>[,<intr>]]", gettext_noop("Enable integrated read-only TFTP server."), NULL },
   { LOPT_PREFIX, ARG_DUP, "<dir>[,<iface>]", gettext_noop("Export files by TFTP only from the specified subtree."), NULL },
-  { LOPT_APREF, OPT_TFTP_APREF, NULL, gettext_noop("Add client IP address to tftp-root."), NULL },
+  { LOPT_APREF, ARG_DUP, "[=ip|mac]", gettext_noop("Add client IP or hardware address to tftp-root."), NULL },
   { LOPT_SECURE, OPT_TFTP_SECURE, NULL, gettext_noop("Allow access only to files owned by the user running dnsmasq."), NULL },
   { LOPT_TFTP_NO_FAIL, OPT_TFTP_NO_FAIL, NULL, gettext_noop("Do not terminate the service if TFTP directories are inaccessible."), NULL },
   { LOPT_TFTP_MAX, ARG_ONE, "<integer>", gettext_noop("Maximum number of concurrent TFTP transfers (defaults to %s)."), "#" },
@@ -2716,6 +2716,15 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  daemon->end_tftp_port = tmp;
 	} 
       
+      break;
+
+    case LOPT_APREF: /* --tftp-unique-root */
+      if (!arg || strcasecmp(arg, "ip") == 0)
+        set_option_bool(OPT_TFTP_APREF_IP);
+      else if (strcasecmp(arg, "mac") == 0)
+        set_option_bool(OPT_TFTP_APREF_MAC);
+      else
+        ret_err(gen_err);
       break;
 #endif
 	      

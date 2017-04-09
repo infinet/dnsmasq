@@ -1808,12 +1808,16 @@ directory is only used for TFTP requests via that interface.
 .B --tftp-no-fail
 Do not abort startup if specified tftp root directories are inaccessible.
 .TP
-.B --tftp-unique-root
-Add the IP address of the TFTP client as a path component on the end
-of the TFTP-root (in standard dotted-quad format). Only valid if a
-tftp-root is set and the directory exists. For instance, if tftp-root is "/tftp" and client 
-1.2.3.4 requests file "myfile" then the effective path will be
-"/tftp/1.2.3.4/myfile" if /tftp/1.2.3.4 exists or /tftp/myfile otherwise.
+.B --tftp-unique-root[=ip|mac]
+Add the IP or hardware address of the TFTP client as a path component on the end
+of the TFTP-root. Only valid if a tftp-root is set and the directory exists.
+Defaults to adding IP address (in standard dotted-quad format).
+For instance, if tftp-root is "/tftp" and client 1.2.3.4 requests file "myfile"
+then the effective path will be "/tftp/1.2.3.4/myfile" if /tftp/1.2.3.4 exists or /tftp/myfile otherwise.
+When "=mac" is specified it will append the MAC address instead, using lowercase zero padded digits
+separated by dashes, e.g.: 01-02-03-04-aa-bb
+Note that resolving MAC addresses is only possible if the client is in the local network or obtained
+a DHCP lease from us.
 .TP
 .B --tftp-secure
 Enable TFTP secure mode: without this, any file which is readable by

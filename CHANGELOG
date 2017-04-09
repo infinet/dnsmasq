@@ -79,6 +79,9 @@ version 2.77
 
 	    Make --bogus-priv apply to IPv6, for the prefixes specified
 	    in RFC6303. Thanks to Kevin Darbyshire-Bryant for work on this.
+
+	    Allow use of MAC addresses with --tftp-unique-root. Thanks
+	    to Floris Bos for the patch.
 	
 
 version 2.76
