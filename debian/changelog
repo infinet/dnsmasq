@@ -5,6 +5,7 @@ dnsmasq (2.77-1) unstable; urgency=low
      includes port=0 to disable DNS.
    * Handle gratuitous format change in /usr/share/dns/root.ds
      (closes: #858506) (closes: #860064)
+   * Add lsb-base dependancy.
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 11 Apr 2017 14:19:20 +0000
 
