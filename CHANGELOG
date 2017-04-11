@@ -85,6 +85,9 @@ version 2.77
 
             Add --dhcp-reply-delay option. Thanks to Floris Bos
 	    for the patch.
+
+            Add mtu setting facility to --ra-param. Thanks to David
+	    Flamand for the patch.
 	
 
 version 2.76

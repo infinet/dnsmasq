@@ -839,7 +839,7 @@ struct prefix_class {
 
 struct ra_interface {
   char *name;
-  int interval, lifetime, prio;
+  int interval, lifetime, prio, mtu;
   struct ra_interface *next;
 };
 
