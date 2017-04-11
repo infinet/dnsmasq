@@ -154,6 +154,11 @@ start_resolvconf()
 		[ $interface = lo ] && return
 	done
 
+# Also skip this if DNS functionality is disabled in /etc/dnsmasq.conf
+	if grep -qs '^port=0' /etc/dnsmasq.conf; then
+		return
+	fi
+
         if [ -x /sbin/resolvconf ] ; then
 		echo "nameserver 127.0.0.1" | /sbin/resolvconf -a lo.$NAME
 	fi
