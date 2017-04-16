@@ -88,7 +88,12 @@ version 2.77
 
             Add mtu setting facility to --ra-param. Thanks to David
 	    Flamand for the patch.
-	
+
+	    Capture STDOUT and STDERR output from dhcp-script and log
+	    it as part of the dnsmasq log stream. Makes life easier
+	    for diagnosing unexpected problems in scripts.
+	    Thanks to Petr Mensik for the patch.
+
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 

@@ -1577,8 +1577,8 @@ database.
 
 
 All file descriptors are
-closed except stdin, stdout and stderr which are open to /dev/null
-(except in debug mode).
+closed except stdin, which is open to /dev/null, and stdout and stderr which capture output for logging by dnsmasq. 
+(In debug mode, stdio, stdout and stderr file are left as those inherited from the invoker of dnsmasq).
 
 The script is not invoked concurrently: at most one instance
 of the script is ever running (dnsmasq waits for an instance of script to exit

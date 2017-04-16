@@ -1302,6 +1302,7 @@ static void async_event(int pipe, time_t now)
 		daemon->tcp_pids[i] = 0;
 	break;
 	
+#if defined(HAVE_SCRIPT)	
       case EVENT_KILLED:
 	my_syslog(LOG_WARNING, _("script process killed by signal %d"), ev.data);
 	break;
@@ -1315,12 +1316,19 @@ static void async_event(int pipe, time_t now)
 		  daemon->lease_change_command, strerror(ev.data));
 	break;
 
+      case EVENT_SCRIPT_LOG:
+	my_syslog(MS_SCRIPT | LOG_DEBUG, "%s", msg ? msg : "");
+        free(msg);
+	msg = NULL;
+	break;
+
 	/* necessary for fatal errors in helper */
       case EVENT_USER_ERR:
       case EVENT_DIE:
       case EVENT_LUA_ERR:
 	fatal_event(&ev, msg);
 	break;
+#endif
 
       case EVENT_REOPEN:
 	/* Note: this may leave TCP-handling processes with the old file still open.
