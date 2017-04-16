@@ -145,30 +145,31 @@ struct event_desc {
   int event, data, msg_sz;
 };
 
-#define EVENT_RELOAD    1
-#define EVENT_DUMP      2
-#define EVENT_ALARM     3
-#define EVENT_TERM      4
-#define EVENT_CHILD     5
-#define EVENT_REOPEN    6
-#define EVENT_EXITED    7
-#define EVENT_KILLED    8
-#define EVENT_EXEC_ERR  9
-#define EVENT_PIPE_ERR  10
-#define EVENT_USER_ERR  11
-#define EVENT_CAP_ERR   12
-#define EVENT_PIDFILE   13
-#define EVENT_HUSER_ERR 14
-#define EVENT_GROUP_ERR 15
-#define EVENT_DIE       16
-#define EVENT_LOG_ERR   17
-#define EVENT_FORK_ERR  18
-#define EVENT_LUA_ERR   19
-#define EVENT_TFTP_ERR  20
-#define EVENT_INIT      21
-#define EVENT_NEWADDR   22
-#define EVENT_NEWROUTE  23
-#define EVENT_TIME_ERR  24
+#define EVENT_RELOAD     1
+#define EVENT_DUMP       2
+#define EVENT_ALARM      3
+#define EVENT_TERM       4
+#define EVENT_CHILD      5
+#define EVENT_REOPEN     6
+#define EVENT_EXITED     7
+#define EVENT_KILLED     8
+#define EVENT_EXEC_ERR   9
+#define EVENT_PIPE_ERR   10
+#define EVENT_USER_ERR   11
+#define EVENT_CAP_ERR    12
+#define EVENT_PIDFILE    13
+#define EVENT_HUSER_ERR  14
+#define EVENT_GROUP_ERR  15
+#define EVENT_DIE        16
+#define EVENT_LOG_ERR    17
+#define EVENT_FORK_ERR   18
+#define EVENT_LUA_ERR    19
+#define EVENT_TFTP_ERR   20
+#define EVENT_INIT       21
+#define EVENT_NEWADDR    22
+#define EVENT_NEWROUTE   23
+#define EVENT_TIME_ERR   24
+#define EVENT_SCRIPT_LOG 25
 
 /* Exit codes. */
 #define EC_GOOD        0
@@ -243,8 +244,9 @@ struct event_desc {
 
 /* extra flags for my_syslog, we use a couple of facilities since they are known 
    not to occupy the same bits as priorities, no matter how syslog.h is set up. */
-#define MS_TFTP LOG_USER
-#define MS_DHCP LOG_DAEMON 
+#define MS_TFTP   LOG_USER
+#define MS_DHCP   LOG_DAEMON
+#define MS_SCRIPT LOG_MAIL
 
 struct all_addr {
   union {
