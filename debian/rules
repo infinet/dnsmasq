@@ -11,7 +11,7 @@
 
 package=dnsmasq-base
 
-dpkg_buildflags := DEB_BUILD_MAINT_OPTIONS="hardening=+all" dpkg-buildflags
+dpkg_buildflags := DEB_BUILD_MAINT_OPTIONS="hardening=+all,+pie,+bindnow" dpkg-buildflags
 
 CFLAGS = $(shell $(dpkg_buildflags) --get CFLAGS)
 CFLAGS += $(shell $(dpkg_buildflags) --get CPPFLAGS)
