@@ -94,6 +94,11 @@ version 2.77
 	    for diagnosing unexpected problems in scripts.
 	    Thanks to Petr Mensik for the patch.
 
+	    Generate fatal errors when failing to parse the output
+	    of the dhcp-script in "init" mode. Avoids strange errors
+            when the script accidentally emits error messages.
+	    Thanks to Petr Mensik for the patch.
+
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
