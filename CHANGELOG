@@ -99,7 +99,11 @@ version 2.77
             when the script accidentally emits error messages.
 	    Thanks to Petr Mensik for the patch.
 
+            Make --rev-server for an RFC1918 subnet work even in the
+            presence of the --bogus-priv flag. Thanks to
+	    Vladislav Grishenko for the patch.
 
+	
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
 	    translates to hosts on  the local network, or, at 
