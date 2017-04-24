@@ -488,7 +488,7 @@ static struct {
 #ifdef OPTION6_PREFIX_CLASS 
   { LOPT_PREF_CLSS, ARG_DUP, "set:tag,<class>", gettext_noop("Specify DHCPv6 prefix class"), NULL },
 #endif
-  { LOPT_RA_PARAM, ARG_DUP, "<iface>,[mtu:<value>|off,][<prio>,]<intval>[,<lifetime>]", gettext_noop("Set MTU, priority, resend-interval and router-lifetime"), NULL },
+  { LOPT_RA_PARAM, ARG_DUP, "<iface>,[mtu:<value>|<interface>|off,][<prio>,]<intval>[,<lifetime>]", gettext_noop("Set MTU, priority, resend-interval and router-lifetime"), NULL },
   { LOPT_QUIET_DHCP, OPT_QUIET_DHCP, NULL, gettext_noop("Do not log routine DHCP."), NULL },
   { LOPT_QUIET_DHCP6, OPT_QUIET_DHCP6, NULL, gettext_noop("Do not log routine DHCPv6."), NULL },
   { LOPT_QUIET_RA, OPT_QUIET_RA, NULL, gettext_noop("Do not log RA."), NULL },
@@ -3707,6 +3707,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	  new->lifetime = -1;
 	  new->prio = 0;
 	  new->mtu = 0;
+	  new->mtu_name = NULL;
 	  new->name = opt_string_alloc(arg);
 	  if (strcasestr(comma, "mtu:") == comma)
 	    {
@@ -3715,7 +3716,9 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	        goto err;
 	      if (!strcasecmp(arg, "off"))
 	        new->mtu = -1;
-	      else if (!atoi_check(arg, &new->mtu) || new->mtu < 1280)
+	      else if (!atoi_check(arg, &new->mtu))
+	        new->mtu_name = opt_string_alloc(arg);
+	      else if (new->mtu < 1280)
 	        goto err;
 	    }
 	  if (strcasestr(comma, "high") == comma || strcasestr(comma, "low") == comma)

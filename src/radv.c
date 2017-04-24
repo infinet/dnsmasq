@@ -408,7 +408,8 @@ static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_ad
      available from SIOCGIFMTU */
   if (mtu == 0)
     {
-      sprintf(daemon->namebuff, "/proc/sys/net/ipv6/conf/%s/mtu", iface_name);
+      char *mtu_name = ra_param ? ra_param->mtu_name : NULL;
+      sprintf(daemon->namebuff, "/proc/sys/net/ipv6/conf/%s/mtu", mtu_name ? : iface_name);
       if ((f = fopen(daemon->namebuff, "r")))
         {
           if (fgets(daemon->namebuff, MAXDNAME, f))

@@ -103,7 +103,12 @@ version 2.77
             presence of the --bogus-priv flag. Thanks to
 	    Vladislav Grishenko for the patch.
 
-	
+	    Extend --ra-param mtu: field to allow an interface name.
+	    This allows the MTU of a WAN interface to be advertised on
+   	    the internal interfaces of a router. Thanks to
+	    Vladislav Grishenko for the patch.
+
+
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
 	    translates to hosts on  the local network, or, at 

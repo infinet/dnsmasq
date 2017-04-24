@@ -1776,7 +1776,7 @@ the relevant link-local address of the machine running dnsmasq is sent
 as recursive DNS server. If provided, the DHCPv6 options dns-server and
 domain-search are used for the DNS server (RDNSS) and the domain search list (DNSSL).
 .TP
-.B --ra-param=<interface>,[mtu:<integer>|off,][high,|low,]<ra-interval>[,<router lifetime>]
+.B --ra-param=<interface>,[mtu:<integer>|<interface>|off,][high,|low,]<ra-interval>[,<router lifetime>]
 Set non-default values for router advertisements sent via an
 interface. The priority field for the router may be altered from the
 default of medium with eg
@@ -1788,7 +1788,11 @@ a router to advertise prefixes but not a route via itself.
 .B --ra-parm=eth0,0,0
 (A value of zero for the interval means the default value.) All four parameters may be set at once.
 .B --ra-param=eth0,mtu:1280,low,60,1200
+
 The interface field may include a wildcard.
+
+The mtu: parameter may be an arbitrary interface name, in which case the MTU value for that interface is used. This is useful
+for (eg) advertising the MTU of a WAN interface on the other interfaces of a router.
 .TP
 .B --dhcp-reply-delay=[tag:<tag>,]<integer>
 Delays sending DHCPOFFER and proxydhcp replies for at least the specified number of seconds.

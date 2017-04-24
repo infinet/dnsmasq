@@ -841,6 +841,7 @@ struct prefix_class {
 
 struct ra_interface {
   char *name;
+  char *mtu_name;
   int interval, lifetime, prio, mtu;
   struct ra_interface *next;
 };
