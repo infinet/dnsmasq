@@ -172,10 +172,13 @@ void lease_init(time_t now)
 
   if (leasestream)
     {
-      readok = read_leases(now, leasestream);
+      if (!(readok = read_leases(now, leasestream)))
+	my_syslog(MS_DHCP | LOG_ERR, _("failed to parse lease database, invalid line: %s %s %s %s ..."),
+		  daemon->dhcp_buff3, daemon->dhcp_buff2,
+		  daemon->namebuff, daemon->dhcp_buff);
+
       if (ferror(leasestream))
 	die(_("failed to read lease file %s: %s"), daemon->lease_file, EC_FILE);
-
     }
   
 #ifdef HAVE_SCRIPT
@@ -200,16 +203,11 @@ void lease_init(time_t now)
 	  die(_("lease-init script returned exit code %s"), daemon->dhcp_buff, WEXITSTATUS(rc) + EC_INIT_OFFSET);
 	}
 
-      /* Only complain if we stopped reading due to a non-parsed line when running script,
+      /* Only die if we stopped reading due to a non-parsed line when running script,
 	 this is expected behaviour when reading from a file, if the file was written with IPv6 data
 	 and we are not compiled to understand that. */
       if (!readok)
-	{
-	  my_syslog(MS_DHCP | LOG_ERR, _("aborting lease-init script, invalid line: %s %s %s %s ..."),
-		    daemon->dhcp_buff3, daemon->dhcp_buff2,
-		    daemon->namebuff, daemon->dhcp_buff);
-	  die(_("failed to parse lease-init script output"), NULL, EC_FILE);
-	}
+	die(_("failed to read lease-init script output"), NULL, EC_FILE);
     }
 #endif
 
