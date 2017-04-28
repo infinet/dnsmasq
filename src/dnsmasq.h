@@ -1292,6 +1292,8 @@ struct dhcp_context *address_available(struct dhcp_context *context,
 struct dhcp_context *narrow_context(struct dhcp_context *context, 
 				    struct in_addr taddr,
 				    struct dhcp_netid *netids);
+struct ping_result *do_icmp_ping(time_t now, struct in_addr addr,
+				 unsigned int hash);
 int address_allocate(struct dhcp_context *context,
 		     struct in_addr *addrp, unsigned char *hwaddr, int hw_len,
 		     struct dhcp_netid *netids, time_t now);

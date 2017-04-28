@@ -108,6 +108,11 @@ version 2.77
    	    the internal interfaces of a router. Thanks to
 	    Vladislav Grishenko for the patch.
 
+            Do ICMP-ping check for address-in-use for DHCPv4 when
+	    the client specifies an address in DHCPDISCOVER, and when
+	    an address in configured locally. Thanks to Alin Năstac
+ 	    for spotting the problem.
+
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
