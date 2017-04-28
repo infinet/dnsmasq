@@ -74,9 +74,6 @@ version 2.77
 	    of "local addresses only" entries. Thanks to Hannu Nyman for
 	    the patch.
 
-            Implement RFC 6842. Thanks to Reddeiah Raju Konduru for
-            pointing out that this was missing.
-
 	    Make --bogus-priv apply to IPv6, for the prefixes specified
 	    in RFC6303. Thanks to Kevin Darbyshire-Bryant for work on this.
 
