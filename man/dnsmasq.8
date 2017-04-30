@@ -1021,6 +1021,8 @@ dhcp-host directive (or one implied by /etc/ethers) then the special
 tag "known" is set. This allows dnsmasq to be configured to
 ignore requests from unknown machines using
 .B --dhcp-ignore=tag:!known
+If the host matches only a dhcp-host directive which cannot
+be used because it specifies an address on different subnet, the tag "known-othernet" is set.
 Ethernet addresses (but not client-ids) may have
 wildcard bytes, so for example 
 .B --dhcp-host=00:20:e0:3b:13:*,ignore 

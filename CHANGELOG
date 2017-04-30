@@ -110,6 +110,11 @@ version 2.77
 	    an address in configured locally. Thanks to Alin Năstac
  	    for spotting the problem.
 
+	    Add new DHCP tag "known-othernet" which is set when only a
+	    dhcp-host exists for another subnet. Can be used to ensure
+	    that privileged hosts are not given "guest" addresses by
+	    accident. Thanks to Todd Sanket for the suggestion.
+
 
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 

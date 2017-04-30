@@ -487,6 +487,13 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       known_id.next = netid;
       netid = &known_id;
     }
+  else if (find_config(daemon->dhcp_conf, NULL, clid, clid_len, 
+		       mess->chaddr, mess->hlen, mess->htype, NULL))
+    {
+      known_id.net = "known-othernet";
+      known_id.next = netid;
+      netid = &known_id;
+    }
   
   if (mess_type == 0 && !pxe)
     {
