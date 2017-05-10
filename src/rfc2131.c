@@ -67,7 +67,8 @@ static int pxe_uefi_workaround(int pxe_arch, struct dhcp_netid *netid, struct dh
 static void apply_delay(u32 xid, time_t recvtime, struct dhcp_netid *netid);
 
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
-		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe, struct in_addr fallback, time_t recvtime)
+		  size_t sz, time_t now, int unicast_dest, int loopback,
+		  int *is_inform, int pxe, struct in_addr fallback, time_t recvtime)
 {
   unsigned char *opt, *clid = NULL;
   struct dhcp_lease *ltmp, *lease = NULL;
@@ -575,7 +576,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		       lease_prune(lease, now);
 		       lease = NULL;
 		     }
-		   if (!address_allocate(context, &mess->yiaddr, mess->chaddr, mess->hlen, tagif_netid, now))
+		   if (!address_allocate(context, &mess->yiaddr, mess->chaddr, mess->hlen, tagif_netid, now, loopback))
 		     message = _("no address available");
 		}
 	      else
@@ -1036,7 +1037,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  else if (have_config(config, CONFIG_DECLINED) &&
 			   difftime(now, config->decline_time) < (float)DECLINE_BACKOFF)
 		    my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it was previously declined"), addrs);
-		  else if (!do_icmp_ping(now, config->addr, 0))
+		  else if (!do_icmp_ping(now, config->addr, 0, loopback))
 		    my_syslog(MS_DHCP | LOG_WARNING, _("not using configured address %s because it is in use by another host"), addrs);
 		  else
 		    conf = config->addr;
@@ -1050,11 +1051,11 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		   !config_find_by_address(daemon->dhcp_conf, lease->addr))
 	    mess->yiaddr = lease->addr;
 	  else if (opt && address_available(context, addr, tagif_netid) && !lease_find_by_addr(addr) && 
-		   !config_find_by_address(daemon->dhcp_conf, addr) && do_icmp_ping(now, addr, 0))
+		   !config_find_by_address(daemon->dhcp_conf, addr) && do_icmp_ping(now, addr, 0, loopback))
 	    mess->yiaddr = addr;
 	  else if (emac_len == 0)
 	    message = _("no unique-id");
-	  else if (!address_allocate(context, &mess->yiaddr, emac, emac_len, tagif_netid, now))
+	  else if (!address_allocate(context, &mess->yiaddr, emac, emac_len, tagif_netid, now, loopback))
 	    message = _("no address available");      
 	}
       
