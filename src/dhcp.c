@@ -224,7 +224,7 @@ void dhcp_packet(time_t now, int pxe_fd)
 #endif
 	
   if (!indextoname(daemon->dhcpfd, iface_index, ifr.ifr_name) ||
-      ioctl(daemon->dhcpfd, SIOCGIFFLAGS, &ifr) != -1)
+      ioctl(daemon->dhcpfd, SIOCGIFFLAGS, &ifr) != 0)
     return;
   
   mess = (struct dhcp_packet *)daemon->dhcp_packet.iov_base;
