@@ -834,9 +834,12 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  else
 	    mess->siaddr = context->local; 
 	  
-	  snprintf((char *)mess->file, sizeof(mess->file), 
-		   strchr(service->basename, '.') ? "%s" :"%s.%d", 
-		   service->basename, layer);
+	  if (strchr(service->basename, '.'))
+	    snprintf((char *)mess->file, sizeof(mess->file),
+		"%s.%d", service->basename, layer);
+	  else
+	    snprintf((char *)mess->file, sizeof(mess->file),
+		"%s", service->basename);
 	  
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
 	  option_put(mess, end, OPTION_SERVER_IDENTIFIER, INADDRSZ, htonl(context->local.s_addr));
