@@ -383,7 +383,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	    {
 	      len = option_uint(opt, offset + 4 , 1);
 	      /* Need to take care that bad data can't run us off the end of the packet */
-	      if ((offset + len + 5 <= (option_len(opt))) &&
+	      if ((offset + len + 5 <= (unsigned)(option_len(opt))) &&
 		  (option_uint(opt, offset, 4) == (unsigned int)o->u.encap))
 		for (o2 = offset + 5; o2 < offset + len + 5; o2 += elen + 1)
 		  { 
