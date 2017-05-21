@@ -24,9 +24,9 @@
 #include <sys/times.h>
 #endif
 
-#ifdef HAVE_LIBIDN2
+#if defined(HAVE_LIBIDN2)
 #include <idn2.h>
-#elif defined(LOCALEDIR) || defined(HAVE_IDN)
+#elif defined(HAVE_IDN)
 #include <idna.h>
 #endif
 
@@ -136,7 +136,7 @@ static int check_name(char *in)
       else if (isascii((unsigned char)c) && iscntrl((unsigned char)c)) 
 	/* iscntrl only gives expected results for ascii */
 	return 0;
-#if !defined(LOCALEDIR) && !defined(HAVE_IDN) && !defined(HAVE_LIBIDN2)
+#if !defined(HAVE_IDN) && !defined(HAVE_LIBIDN2)
       else if (!isascii((unsigned char)c))
 	return 0;
 #endif
@@ -186,7 +186,7 @@ int legal_hostname(char *name)
 char *canonicalise(char *in, int *nomem)
 {
   char *ret = NULL;
-#if defined(LOCALEDIR) || defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
+#if defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
   int rc;
 #endif
 
@@ -196,7 +196,7 @@ char *canonicalise(char *in, int *nomem)
   if (!check_name(in))
     return NULL;
   
-#if defined(LOCALEDIR) || defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
+#if defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
 #ifdef HAVE_LIBIDN2
   rc = idn2_to_ascii_lz(in, &ret, IDN2_NONTRANSITIONAL);
   if (rc == IDN2_DISALLOWED)

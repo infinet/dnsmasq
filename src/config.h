@@ -95,10 +95,7 @@ HAVE_DBUS
 
 HAVE_IDN
    define this if you want international domain name 2003 support.
-   NOTE: for backwards compatibility, IDN support is automatically 
-         included when internationalisation support is built, using the 
-	 *-i18n makefile targets, even if HAVE_IDN is not explicitly set.
-
+   
 HAVE_LIBIDN2
    define this if you want international domain name 2008 support.
 
@@ -400,14 +397,14 @@ static char *compile_opts =
 "no-"
 #endif
 "i18n "
-#if !defined(LOCALEDIR) && !defined(HAVE_IDN)
-"no-"
-#endif 
-"IDN "
-#if !defined(HAVE_LIBIDN2)
-"no-"
-#endif
+#if defined(HAVE_LIBIDN2)
 "IDN2 "
+#else
+ #if !defined(HAVE_IDN)
+"no-"
+ #endif 
+"IDN " 
+#endif
 #ifndef HAVE_DHCP
 "no-"
 #endif

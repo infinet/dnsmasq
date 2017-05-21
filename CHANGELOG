@@ -115,7 +115,13 @@ version 2.77
 	    that privileged hosts are not given "guest" addresses by
 	    accident. Thanks to Todd Sanket for the suggestion.
 
+            Remove historic automatic inclusion of IDN support when
+	    building internationalisation support. This doesn't
+	    fit now there is a choice of IDN libraries. Be sure
+	    to include either -DHAVE_IDN or _DHAVE_LIBIDN2 for
+	    IDN support.
 
+	
 version 2.76
             Include 0.0.0.0/8 in DNS rebind checks. This range 
 	    translates to hosts on  the local network, or, at 
