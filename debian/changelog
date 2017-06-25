@@ -1,3 +1,9 @@
+dnsmasq (2.78-1) unstable; urgency=low
+
+   * New upstream.
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Sun, 25 Jun 2017 21:34:00 +0000
+
 dnsmasq (2.77-2) unstable; urgency=low
 
    * Improve sed regexp for parsing root.ds.
