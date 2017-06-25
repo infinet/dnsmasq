@@ -1,3 +1,19 @@
+version 2.78
+        Fix logic of appending ".<layer>" to PXE basename. Thanks
+	to Chris Novakovic for the patch.
+
+	Revert ping-check of address in DHCPDISCOVER if there
+	already exists a lease for the address. Under some
+	circumstances, and netbooted windows installation can reply
+	to pings before if has a DHCP lease and block allocation
+	of the address it already used during netboot. Thanks to
+	Jan Psota for spotting this.
+
+	Fix DHCP relaying, broken in 2.76 and 2.77 by commit
+	ff325644c7afae2588583f935f4ea9b9694eb52e. Thanks to
+	John Fitzgibbon for the diagnosis and patch.
+	
+	
 version 2.77
 	    Generate an error when configured with a CNAME loop,
 	    rather than a crash. Thanks to George Metz for
