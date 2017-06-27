@@ -13,7 +13,11 @@ version 2.78
 	ff325644c7afae2588583f935f4ea9b9694eb52e. Thanks to
 	John Fitzgibbon for the diagnosis and patch.
 
+        Try other servers if first returns REFUSED when
+	--strict-order active. Thanks to Hans Dedecker
+	for the patch
 
+	
 version 2.77
 	Generate an error when configured with a CNAME loop,
 	rather than a crash. Thanks to George Metz for
