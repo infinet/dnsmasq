@@ -229,7 +229,7 @@ void lease_update_from_configs(void)
     else if ((name = host_from_dns(lease->addr)))
       lease_set_hostname(lease, name, 1, get_domain(lease->addr), NULL); /* updates auth flag only */
 }
- 
+
 static void ourprintf(int *errp, char *format, ...)
 {
   va_list ap;
