@@ -734,7 +734,7 @@ static ssize_t get_block(char *packet, struct tftp_transfer *transfer)
       if (transfer->opt_blocksize)
 	{
 	  p += (sprintf(p, "blksize") + 1);
-	  p += (sprintf(p, "%d", transfer->blocksize) + 1);
+	  p += (sprintf(p, "%u", transfer->blocksize) + 1);
 	}
       if (transfer->opt_transize)
 	{

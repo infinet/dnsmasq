@@ -882,7 +882,7 @@ static struct server *add_rev4(struct in_addr addr, int msize)
   switch (msize)
     {
     case 32:
-      p += sprintf(p, "%d.", a & 0xff);
+      p += sprintf(p, "%u.", a & 0xff);
       /* fall through */
     case 24:
       p += sprintf(p, "%d.", (a >> 8) & 0xff);

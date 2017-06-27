@@ -448,13 +448,13 @@ void prettyprint_time(char *buf, unsigned int t)
     {
       unsigned int x, p = 0;
        if ((x = t/86400))
-	p += sprintf(&buf[p], "%dd", x);
+	p += sprintf(&buf[p], "%ud", x);
        if ((x = (t/3600)%24))
-	p += sprintf(&buf[p], "%dh", x);
+	p += sprintf(&buf[p], "%uh", x);
       if ((x = (t/60)%60))
-	p += sprintf(&buf[p], "%dm", x);
+	p += sprintf(&buf[p], "%um", x);
       if ((x = t%60))
-	p += sprintf(&buf[p], "%ds", x);
+	p += sprintf(&buf[p], "%us", x);
     }
 }
 

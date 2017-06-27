@@ -1511,7 +1511,7 @@ void dump_cache(time_t now)
 	    /* ctime includes trailing \n - eat it */
 	    *(p-1) = 0;
 #endif
-	    my_syslog(LOG_INFO, daemon->namebuff);
+	    my_syslog(LOG_INFO, "%s", daemon->namebuff);
 	  }
     }
 }

@@ -1212,7 +1212,9 @@ int wildcard_matchn(const char* wildcard, const char* match, int num);
 void die(char *message, char *arg1, int exit_code);
 int log_start(struct passwd *ent_pw, int errfd);
 int log_reopen(char *log_file);
+
 void my_syslog(int priority, const char *format, ...);
+
 void set_log_writer(void);
 void check_log_writer(int force);
 void flush_log(void);
