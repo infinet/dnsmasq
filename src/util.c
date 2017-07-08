@@ -111,6 +111,7 @@ u64 rand64(void)
   return (u64)out[outleft+1] + (((u64)out[outleft]) << 32);
 }
 
+/* returns 2 if names is OK but contains one or more underscores */
 static int check_name(char *in)
 {
   /* remove trailing . 
@@ -118,6 +119,7 @@ static int check_name(char *in)
   size_t dotgap = 0, l = strlen(in);
   char c;
   int nowhite = 0;
+  int hasuscore = 0;
   
   if (l == 0 || l > MAXDNAME) return 0;
   
@@ -141,13 +143,17 @@ static int check_name(char *in)
 	return 0;
 #endif
       else if (c != ' ')
-	nowhite = 1;
+	{
+	  nowhite = 1;
+	  if (c == '_')
+	    hasuscore = 1;
+	}
     }
 
   if (!nowhite)
     return 0;
 
-  return 1;
+  return hasuscore ? 2 : 1;
 }
 
 /* Hostnames have a more limited valid charset than domain names
@@ -186,43 +192,48 @@ int legal_hostname(char *name)
 char *canonicalise(char *in, int *nomem)
 {
   char *ret = NULL;
-#if defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
   int rc;
-#endif
-
+  
   if (nomem)
     *nomem = 0;
   
-  if (!check_name(in))
+  if (!(rc = check_name(in)))
     return NULL;
   
 #if defined(HAVE_IDN) || defined(HAVE_LIBIDN2)
-#ifdef HAVE_LIBIDN2
-  rc = idn2_to_ascii_lz(in, &ret, IDN2_NONTRANSITIONAL);
-  if (rc == IDN2_DISALLOWED)
-    rc = idn2_to_ascii_lz(in, &ret, IDN2_TRANSITIONAL);
-#else
-  rc = idna_to_ascii_lz(in, &ret, 0);
-#endif
-  if (rc != IDNA_SUCCESS)
+  /* libidn2 strips underscores, so don't do IDN processing
+     if the name has an underscore (check_name() returned 2) */
+  if (rc != 2)
     {
-      if (ret)
-	free(ret);
-
-      if (nomem && (rc == IDNA_MALLOC_ERROR || rc == IDNA_DLOPEN_ERROR))
-	{
-	  my_syslog(LOG_ERR, _("failed to allocate memory"));
-	  *nomem = 1;
-	}
-    
-      return NULL;
-    }
+#ifdef HAVE_LIBIDN2
+      rc = idn2_to_ascii_lz(in, &ret, IDN2_NONTRANSITIONAL);
+      if (rc == IDN2_DISALLOWED)
+	rc = idn2_to_ascii_lz(in, &ret, IDN2_TRANSITIONAL);
 #else
+      rc = idna_to_ascii_lz(in, &ret, 0);
+#endif
+      if (rc != IDNA_SUCCESS)
+	{
+	  if (ret)
+	    free(ret);
+	  
+	  if (nomem && (rc == IDNA_MALLOC_ERROR || rc == IDNA_DLOPEN_ERROR))
+	    {
+	      my_syslog(LOG_ERR, _("failed to allocate memory"));
+	      *nomem = 1;
+	    }
+	  
+	  return NULL;
+	}
+      
+      return ret;
+    }
+#endif
+  
   if ((ret = whine_malloc(strlen(in)+1)))
     strcpy(ret, in);
   else if (nomem)
     *nomem = 1;    
-#endif
 
   return ret;
 }
