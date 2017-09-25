@@ -35,7 +35,15 @@ version 2.78
 	and Kevin Hamacher of the Google Security Team for
 	finding this.
 
-
+	Fix heap overflow in IPv6 router advertisement code.
+	This is a potentially serious security hole, as a
+	crafted RA request can overflow a buffer and crash or
+	control dnsmasq. Attacker must be on the local network.
+	CVE-2017-14492 applies.
+        Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
+	and Kevin Hamacher of the Google Security Team for
+	finding this.
+	
 	
 version 2.77
 	Generate an error when configured with a CNAME loop,
