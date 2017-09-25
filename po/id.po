@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: dnsmasq 2.24\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-18 12:24+0100\n"
-"PO-Revision-Date: 2005-10-07 11:45+0100\n"
+"PO-Revision-Date: 2017-07-17 18:30+0100\n"
 "Last-Translator: Salman AS <sas@salman.or.id>\n"
 "Language-Team: Indonesian <translation-team-id@lists.sourceforge.net>\n"
 "Language: id\n"
@@ -1510,11 +1510,11 @@ msgid "conntrack support not available: set HAVE_CONNTRACK in src/config.h"
 msgstr "DBus tidak tersedia: setel HAVE_DBUS dalam src/config.h"
 
 #: dnsmasq.c:205
-msgid "asychronous logging is not available under Solaris"
+msgid "asynchronous logging is not available under Solaris"
 msgstr ""
 
 #: dnsmasq.c:210
-msgid "asychronous logging is not available under Android"
+msgid "asynchronous logging is not available under Android"
 msgstr ""
 
 # OK

@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: dnsmasq 2.67\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-18 12:24+0100\n"
-"PO-Revision-Date: 2013-10-04 13:24+0100\n"
+"PO-Revision-Date: 2017-07-17 18:30+0100\n"
 "Last-Translator: Vicente Soriano <victek@gmail.com>\n"
 "Language-Team:\n"
 "Language: es\n"
@@ -1354,12 +1354,12 @@ msgstr "servidor TFTP no disponible: fijar HAVE_TFTP en src/config.h"
 
 #: dnsmasq.c:205
 #, fuzzy
-msgid "asychronous logging is not available under Solaris"
+msgid "asynchronous logging is not available under Solaris"
 msgstr "registro asíncrono no está disponible bajo Solaris"
 
 #: dnsmasq.c:210
 #, fuzzy
-msgid "asychronous logging is not available under Android"
+msgid "asynchronous logging is not available under Android"
 msgstr "registro asíncrono no está disponible bajo Solaris"
 
 #: dnsmasq.c:215

@@ -12,7 +12,7 @@ msgstr ""
 "Project-Id-Version: dnsmasq 2.77\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2009-06-18 12:24+0100\n"
-"PO-Revision-Date: 2017-05-11 19:45+0200\n"
+"PO-Revision-Date: 2017-07-17 18:30+0100\n"
 "Last-Translator: Conrad Kostecki <ck@conrad-kostecki.de>\n"
 "Language-Team: German <de@li.org>\n"
 "Language: de\n"
@@ -1300,11 +1300,11 @@ msgid "conntrack support not available: set HAVE_CONNTRACK in src/config.h"
 msgstr "Conntrack-Unterstützung nicht verfügbar: Aktiviere HAVE_CONNTRACK in src/config.h"
 
 #: dnsmasq.c:205
-msgid "asychronous logging is not available under Solaris"
+msgid "asynchronous logging is not available under Solaris"
 msgstr "asynchrone Protokollierung unter Solaris nicht verfügbar"
 
 #: dnsmasq.c:210
-msgid "asychronous logging is not available under Android"
+msgid "asynchronous logging is not available under Android"
 msgstr "Asynchrone Protokollierung unter Android nicht verfügbar"
 
 #: dnsmasq.c:215
