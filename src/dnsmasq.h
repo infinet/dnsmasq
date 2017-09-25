@@ -16,6 +16,12 @@
 
 #define COPYRIGHT "Copyright (c) 2000-2017 Simon Kelley"
 
+/* We do defines that influence behavior of stdio.h, so complain
+   if included too early. */
+#ifdef _STDIO_H
+#  error "Header file stdio.h included too early!"
+#endif 
+
 #ifndef NO_LARGEFILE
 /* Ensure we can use files >2GB (log files may grow this big) */
 #  define _LARGEFILE_SOURCE 1
