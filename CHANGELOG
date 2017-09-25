@@ -70,6 +70,18 @@ version 2.78
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
 	and Kevin Hamacher of the Google Security Team for
 	finding this.
+
+	Fix out-of-memory Dos vulnerability. An attacker which can
+	send malicious DNS queries to dnsmasq can trigger memory
+	allocations in the add_pseudoheader function
+	The allocated memory is never freed which leads to a DoS
+	through memory exhaustion. dnsmasq is vulnerable only
+	if one of the following option is specified:
+	--add-mac, --add-cpe-id or --add-subnet.
+	CVE-2017-14495 applies.
+	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
+	and Kevin Hamacher of the Google Security Team for
+	finding this.
 	
 	
 version 2.77
