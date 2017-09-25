@@ -206,6 +206,9 @@ static int dhcp6_maybe_relay(struct state *state, void *inbuff, size_t sz,
   /* RFC-6939 */
   if ((opt = opt6_find(opts, end, OPTION6_CLIENT_MAC, 3)))
     {
+      if (opt6_len(opt) - 2 > DHCP_CHADDR_MAX) {
+        return 0;
+      }
       state->mac_type = opt6_uint(opt, 0, 2);
       state->mac_len = opt6_len(opt) - 2;
       memcpy(&state->mac[0], opt6_ptr(opt, 2), state->mac_len);

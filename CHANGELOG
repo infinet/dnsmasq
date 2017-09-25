@@ -43,6 +43,14 @@ version 2.78
         Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
 	and Kevin Hamacher of the Google Security Team for
 	finding this.
+
+	Fix stack overflow in DHCPv6 code. An attacker who can send
+	a DHCPv6 request to dnsmasq can overflow the stack frame and
+	crash or control dnsmasq.
+	CVE-2017-14493 applies.
+	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
+	and Kevin Hamacher of the Google Security Team for
+	finding this.
 	
 	
 version 2.77
