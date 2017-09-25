@@ -37,7 +37,7 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
 	/* end marker */
 	{
 	  /* check that there are the correct no of bytes after the name */
-	  if (!CHECK_LEN(header, p, plen, extrabytes))
+	  if (!CHECK_LEN(header, p1 ? p1 : p, plen, extrabytes))
 	    return 0;
 	  
 	  if (isExtract)
@@ -498,6 +498,8 @@ static unsigned char *do_doctor(unsigned char *p, int count, struct dns_header *
 	    {
 	      unsigned int i, len = *p1;
 	      unsigned char *p2 = p1;
+	      if ((p1 + len - p) >= rdlen)
+	        return 0; /* bad packet */
 	      /* make counted string zero-term  and sanitise */
 	      for (i = 0; i < len; i++)
 		{

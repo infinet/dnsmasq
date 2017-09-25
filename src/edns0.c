@@ -159,7 +159,7 @@ size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *l
 	      /* delete option if we're to replace it. */
 	      p -= 4;
 	      rdlen -= len + 4;
-	      memcpy(p, p+len+4, rdlen - i);
+	      memmove(p, p+len+4, rdlen - i);
 	      PUTSHORT(rdlen, lenp);
 	      lenp -= 2;
 	    }
