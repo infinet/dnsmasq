@@ -51,6 +51,14 @@ version 2.78
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
 	and Kevin Hamacher of the Google Security Team for
 	finding this.
+
+	Fix information leak in DHCPv6. A crafted DHCPv6 packet can
+	cause dnsmasq to forward memory from outside the packet
+	buffer to a DHCPv6 server when acting as a relay.
+	CVE-2017-14494 applies.
+	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
+	and Kevin Hamacher of the Google Security Team for
+	finding this.
 	
 	
 version 2.77
