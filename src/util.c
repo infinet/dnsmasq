@@ -240,15 +240,20 @@ char *canonicalise(char *in, int *nomem)
   return ret;
 }
 
-unsigned char *do_rfc1035_name(unsigned char *p, char *sval)
+unsigned char *do_rfc1035_name(unsigned char *p, char *sval, char *limit)
 {
   int j;
   
   while (sval && *sval)
     {
+      if (limit && p + 1 > (unsigned char*)limit)
+        return p;
+
       unsigned char *cp = p++;
       for (j = 0; *sval && (*sval != '.'); sval++, j++)
 	{
+          if (limit && p + 1 > (unsigned char*)limit)
+            return p;
 #ifdef HAVE_DNSSEC
 	  if (option_bool(OPT_DNSSEC_VALID) && *sval == NAME_ESCAPE)
 	    *p++ = (*(++sval))-1;

@@ -24,6 +24,18 @@ version 2.78
 	Juan Manuel Fernandez and Kevin Darbyshire-Bryant for
 	chasing this one down.  CVE-2017-13704 applies.
 
+	Fix heap overflow in DNS code. This is a potentially serious
+	security hole. It allows an attacker who can make DNS
+	requests to dnsmasq, and who controls the contents of
+	a domain, which is thereby queried, to overflow
+	(by 2 bytes) a heap buffer and either crash, or
+	even take control of, dnsmasq.
+	CVE-2017-14491 applies.
+	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
+	and Kevin Hamacher of the Google Security Team for
+	finding this.
+
+
 	
 version 2.77
 	Generate an error when configured with a CNAME loop,

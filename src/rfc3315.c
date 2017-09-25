@@ -1479,10 +1479,10 @@ static struct dhcp_netid *add_options(struct state *state, int do_refresh)
       if ((p = expand(len + 2)))
 	{
 	  *(p++) = state->fqdn_flags;
-	  p = do_rfc1035_name(p, state->hostname);
+	  p = do_rfc1035_name(p, state->hostname, NULL);
 	  if (state->send_domain)
 	    {
-	      p = do_rfc1035_name(p, state->send_domain);
+	      p = do_rfc1035_name(p, state->send_domain, NULL);
 	      *p = 0;
 	    }
 	}

@@ -1062,6 +1062,7 @@ int check_for_ignored_address(struct dns_header *header, size_t qlen, struct bog
   return 0;
 }
 
+
 int add_resource_record(struct dns_header *header, char *limit, int *truncp, int nameoffset, unsigned char **pp, 
 			unsigned long ttl, int *offset, unsigned short type, unsigned short class, char *format, ...)
 {
@@ -1071,12 +1072,21 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
   unsigned short usval;
   long lval;
   char *sval;
+#define CHECK_LIMIT(size) \
+  if (limit && p + (size) > (unsigned char*)limit) \
+    { \
+      va_end(ap); \
+      goto truncated; \
+    }
 
   if (truncp && *truncp)
     return 0;
- 
+
   va_start(ap, format);   /* make ap point to 1st unamed argument */
-  
+
+  /* nameoffset (1 or 2) + type (2) + class (2) + ttl (4) + 0 (2) */
+  CHECK_LIMIT(12);
+
   if (nameoffset > 0)
     {
       PUTSHORT(nameoffset | 0xc000, p);
@@ -1085,7 +1095,13 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
     {
       char *name = va_arg(ap, char *);
       if (name)
-	p = do_rfc1035_name(p, name);
+	p = do_rfc1035_name(p, name, limit);
+        if (!p)
+          {
+            va_end(ap);
+            goto truncated;
+          }
+
       if (nameoffset < 0)
 	{
 	  PUTSHORT(-nameoffset | 0xc000, p);
@@ -1106,6 +1122,7 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
       {
 #ifdef HAVE_IPV6
       case '6':
+        CHECK_LIMIT(IN6ADDRSZ);
 	sval = va_arg(ap, char *); 
 	memcpy(p, sval, IN6ADDRSZ);
 	p += IN6ADDRSZ;
@@ -1113,36 +1130,47 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 #endif
 	
       case '4':
+        CHECK_LIMIT(INADDRSZ);
 	sval = va_arg(ap, char *); 
 	memcpy(p, sval, INADDRSZ);
 	p += INADDRSZ;
 	break;
 	
       case 'b':
+        CHECK_LIMIT(1);
 	usval = va_arg(ap, int);
 	*p++ = usval;
 	break;
 	
       case 's':
+        CHECK_LIMIT(2);
 	usval = va_arg(ap, int);
 	PUTSHORT(usval, p);
 	break;
 	
       case 'l':
+        CHECK_LIMIT(4);
 	lval = va_arg(ap, long);
 	PUTLONG(lval, p);
 	break;
 	
       case 'd':
-	/* get domain-name answer arg and store it in RDATA field */
-	if (offset)
-	  *offset = p - (unsigned char *)header;
-	p = do_rfc1035_name(p, va_arg(ap, char *));
-	*p++ = 0;
+        /* get domain-name answer arg and store it in RDATA field */
+        if (offset)
+          *offset = p - (unsigned char *)header;
+        p = do_rfc1035_name(p, va_arg(ap, char *), limit);
+        if (!p)
+          {
+            va_end(ap);
+            goto truncated;
+          }
+        CHECK_LIMIT(1);
+        *p++ = 0;
 	break;
 	
       case 't':
 	usval = va_arg(ap, int);
+        CHECK_LIMIT(usval);
 	sval = va_arg(ap, char *);
 	if (usval != 0)
 	  memcpy(p, sval, usval);
@@ -1154,20 +1182,24 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 	usval = sval ? strlen(sval) : 0;
 	if (usval > 255)
 	  usval = 255;
+        CHECK_LIMIT(usval + 1);
 	*p++ = (unsigned char)usval;
 	memcpy(p, sval, usval);
 	p += usval;
 	break;
       }
 
+#undef CHECK_LIMIT
   va_end(ap);	/* clean up variable argument pointer */
   
   j = p - sav - 2;
-  PUTSHORT(j, sav);     /* Now, store real RDLength */
+ /* this has already been checked against limit before */
+ PUTSHORT(j, sav);     /* Now, store real RDLength */
   
   /* check for overflow of buffer */
   if (limit && ((unsigned char *)limit - p) < 0)
     {
+truncated:
       if (truncp)
 	*truncp = 1;
       return 0;

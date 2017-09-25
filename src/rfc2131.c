@@ -2452,10 +2452,10 @@ static void do_options(struct dhcp_context *context,
 
 	      if (fqdn_flags & 0x04)
 		{
-		  p = do_rfc1035_name(p, hostname);
+		  p = do_rfc1035_name(p, hostname, NULL);
 		  if (domain)
 		    {
-		      p = do_rfc1035_name(p, domain);
+		      p = do_rfc1035_name(p, domain, NULL);
 		      *p++ = 0;
 		    }
 		}
