@@ -1086,32 +1086,35 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 
   va_start(ap, format);   /* make ap point to 1st unamed argument */
 
-  /* nameoffset (1 or 2) + type (2) + class (2) + ttl (4) + 0 (2) */
-  CHECK_LIMIT(12);
-
   if (nameoffset > 0)
     {
+      CHECK_LIMIT(2);
       PUTSHORT(nameoffset | 0xc000, p);
     }
   else
     {
       char *name = va_arg(ap, char *);
-      if (name)
-	p = do_rfc1035_name(p, name, limit);
-        if (!p)
-          {
-            va_end(ap);
-            goto truncated;
-          }
-
+      if (name && !(p = do_rfc1035_name(p, name, limit)))
+	{
+	  va_end(ap);
+	  goto truncated;
+	}
+      
       if (nameoffset < 0)
 	{
+	  CHECK_LIMIT(2);
 	  PUTSHORT(-nameoffset | 0xc000, p);
 	}
       else
-	*p++ = 0;
+	{
+	  CHECK_LIMIT(1);
+	  *p++ = 0;
+	}
     }
 
+  /* type (2) + class (2) + ttl (4) + rdlen (2) */
+  CHECK_LIMIT(10);
+  
   PUTSHORT(type, p);
   PUTSHORT(class, p);
   PUTLONG(ttl, p);      /* TTL */
