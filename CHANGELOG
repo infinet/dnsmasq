@@ -32,7 +32,7 @@ version 2.78
 	even take control of, dnsmasq.
 	CVE-2017-14491 applies.
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
-	and Kevin Hamacher of the Google Security Team for
+	Kevin Hamacher and Ron Bowes of the Google Security Team for
 	finding this.
 
 	Fix heap overflow in IPv6 router advertisement code.
@@ -49,7 +49,7 @@ version 2.78
 	crash or control dnsmasq.
 	CVE-2017-14493 applies.
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
-	and Kevin Hamacher of the Google Security Team for
+	Kevin Hamacher and Ron Bowes of the Google Security Team for
 	finding this.
 
 	Fix information leak in DHCPv6. A crafted DHCPv6 packet can
@@ -57,9 +57,9 @@ version 2.78
 	buffer to a DHCPv6 server when acting as a relay.
 	CVE-2017-14494 applies.
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
-	and Kevin Hamacher of the Google Security Team for
+	Kevin Hamacher and Ron Bowes of the Google Security Team for
 	finding this.
-	
+
 	Fix DoS in DNS. Invalid boundary checks in the
 	add_pseudoheader function allows a memcpy call with negative
 	size An attacker which can send malicious DNS queries
@@ -68,7 +68,7 @@ version 2.78
 	specified: --add-mac, --add-cpe-id or --add-subnet.
 	CVE-2017-14496 applies.
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
-	and Kevin Hamacher of the Google Security Team for
+	Kevin Hamacher and Ron Bowes of the Google Security Team for
 	finding this.
 
 	Fix out-of-memory Dos vulnerability. An attacker which can
@@ -80,10 +80,10 @@ version 2.78
 	--add-mac, --add-cpe-id or --add-subnet.
 	CVE-2017-14495 applies.
 	Credit to Felix Wilhelm, Fermin J. Serna, Gabriel Campana
-	and Kevin Hamacher of the Google Security Team for
+	Kevin Hamacher and Ron Bowes of the Google Security Team for
 	finding this.
-	
-	
+
+
 version 2.77
 	Generate an error when configured with a CNAME loop,
 	rather than a crash. Thanks to George Metz for
