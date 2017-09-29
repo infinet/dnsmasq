@@ -1,8 +1,10 @@
-dnsmasq (2.78-1) unstable; urgency=low
+dnsmasq (2.78-1) unstable; urgency=high
 
    * New upstream.
+     Security fixes for CVE-2017-13704  (closes: #877102)
+     Security fixes for CVE-2017-14491 - CVE-2017-14496 inclusive.	
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Sun, 25 Jun 2017 21:34:00 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Sun, 29 Sep 2017 21:34:00 +0000
 
 dnsmasq (2.77-2) unstable; urgency=low
 
