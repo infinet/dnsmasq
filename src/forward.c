@@ -1551,7 +1551,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
 		  setsockopt(server->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
 #endif	
 		
-		if (!local_bind(server->tcpfd,  &server->source_addr, server->interface, 1) ||
+		if (!local_bind(server->tcpfd,  &server->source_addr, server->interface, 0, 1) ||
 		    connect(server->tcpfd, &server->addr.sa, sa_len(&server->addr)) == -1)
 		  {
 		    close(server->tcpfd);
@@ -1847,7 +1847,7 @@ unsigned char *tcp_request(int confd, time_t now,
 			    setsockopt(last_server->tcpfd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
 #endif	
 		      
-			  if ((!local_bind(last_server->tcpfd,  &last_server->source_addr, last_server->interface, 1) ||
+			  if ((!local_bind(last_server->tcpfd,  &last_server->source_addr, last_server->interface, 0, 1) ||
 			       connect(last_server->tcpfd, &last_server->addr.sa, sa_len(&last_server->addr)) == -1))
 			    {
 			      close(last_server->tcpfd);
