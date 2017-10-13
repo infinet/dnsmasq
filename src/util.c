@@ -246,14 +246,16 @@ unsigned char *do_rfc1035_name(unsigned char *p, char *sval, char *limit)
   
   while (sval && *sval)
     {
-      if (limit && p + 1 > (unsigned char*)limit)
-        return p;
-
       unsigned char *cp = p++;
+
+      if (limit && p > (unsigned char*)limit)
+        return NULL;
+
       for (j = 0; *sval && (*sval != '.'); sval++, j++)
 	{
           if (limit && p + 1 > (unsigned char*)limit)
-            return p;
+            return NULL;
+
 #ifdef HAVE_DNSSEC
 	  if (option_bool(OPT_DNSSEC_VALID) && *sval == NAME_ESCAPE)
 	    *p++ = (*(++sval))-1;
@@ -261,10 +263,12 @@ unsigned char *do_rfc1035_name(unsigned char *p, char *sval, char *limit)
 #endif		
 	    *p++ = *sval;
 	}
+      
       *cp  = j;
       if (*sval)
 	sval++;
     }
+  
   return p;
 }
 

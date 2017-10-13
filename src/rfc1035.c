@@ -1074,18 +1074,15 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
   unsigned short usval;
   long lval;
   char *sval;
+  
 #define CHECK_LIMIT(size) \
-  if (limit && p + (size) > (unsigned char*)limit) \
-    { \
-      va_end(ap); \
-      goto truncated; \
-    }
-
-  if (truncp && *truncp)
-    return 0;
+  if (limit && p + (size) > (unsigned char*)limit) goto truncated;
 
   va_start(ap, format);   /* make ap point to 1st unamed argument */
-
+  
+  if (truncp && *truncp)
+    goto truncated;
+  
   if (nameoffset > 0)
     {
       CHECK_LIMIT(2);
@@ -1095,10 +1092,7 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
     {
       char *name = va_arg(ap, char *);
       if (name && !(p = do_rfc1035_name(p, name, limit)))
-	{
-	  va_end(ap);
-	  goto truncated;
-	}
+	goto truncated;
       
       if (nameoffset < 0)
 	{
@@ -1163,13 +1157,9 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
         /* get domain-name answer arg and store it in RDATA field */
         if (offset)
           *offset = p - (unsigned char *)header;
-        p = do_rfc1035_name(p, va_arg(ap, char *), limit);
-        if (!p)
-          {
-            va_end(ap);
-            goto truncated;
-          }
-        CHECK_LIMIT(1);
+        if (!(p = do_rfc1035_name(p, va_arg(ap, char *), limit)))
+	  goto truncated;
+	CHECK_LIMIT(1);
         *p++ = 0;
 	break;
 	
@@ -1194,24 +1184,22 @@ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int
 	break;
       }
 
-#undef CHECK_LIMIT
   va_end(ap);	/* clean up variable argument pointer */
   
+  /* Now, store real RDLength. sav already checked against limit. */
   j = p - sav - 2;
- /* this has already been checked against limit before */
- PUTSHORT(j, sav);     /* Now, store real RDLength */
-  
-  /* check for overflow of buffer */
-  if (limit && ((unsigned char *)limit - p) < 0)
-    {
-truncated:
-      if (truncp)
-	*truncp = 1;
-      return 0;
-    }
+  PUTSHORT(j, sav);
   
   *pp = p;
   return 1;
+  
+ truncated:
+  va_end(ap);
+  if (truncp)
+    *truncp = 1;
+  return 0;
+
+#undef CHECK_LIMIT
 }
 
 static unsigned long crec_ttl(struct crec *crecp, time_t now)
