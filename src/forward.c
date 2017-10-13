@@ -845,7 +845,11 @@ void reply_query(int fd, int family, time_t now)
      only do this when we get a truncated answer, or one larger than the safe size. */
   if (server && (forward->flags & FREC_TEST_PKTSZ) && 
       ((header->hb3 & HB3_TC) || n >= SAFE_PKTSZ))
-    server->edns_pktsz = SAFE_PKTSZ;
+    {
+      server->edns_pktsz = SAFE_PKTSZ;
+      prettyprint_addr(&server->addr, daemon->addrbuff);
+      my_syslog(LOG_WARNING, _("reducing DNS packet size for nameserver %s to %n"), daemon->addrbuff, SAFE_PKTSZ);
+    }
   
   /* If the answer is an error, keep the forward record in place in case
      we get a good reply from another server. Kill it when we've
