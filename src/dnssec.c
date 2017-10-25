@@ -1180,8 +1180,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   if (qtype != T_DS || qclass != class)
     rc = STAT_BOGUS;
   else
-    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 0, &neganswer, &nons);
-  /* Note dnssec_validate_reply() will have cached positive answers */
+    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 0, &neganswer, &nons, NULL);
   
   if (rc == STAT_INSECURE)
     rc = STAT_BOGUS;
@@ -1965,18 +1964,25 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
    STAT_INSECURE at least one RRset not validated, because in unsigned zone.
    STAT_BOGUS    signature is wrong, bad packet, no validation where there should be.
    STAT_NEED_KEY need DNSKEY to complete validation (name is returned in keyname, class in *class)
-   STAT_NEED_DS  need DS to complete validation (name is returned in keyname) 
+   STAT_NEED_DS  need DS to complete validation (name is returned in keyname)
+
+   If non-NULL, rr_status points to a char array which corressponds to the RRs in the 
+   answer section (only). This is set to 1 for each RR which is validated, and 0 for any which aren't.
 */
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, 
-			  int *class, int check_unsigned, int *neganswer, int *nons)
+			  int *class, int check_unsigned, int *neganswer, int *nons, char *rr_status)
 {
   static unsigned char **targets = NULL;
   static int target_sz = 0;
 
   unsigned char *ans_start, *p1, *p2;
-  int type1, class1, rdlen1, type2, class2, rdlen2, qclass, qtype, targetidx;
+  int type1, class1, rdlen1 = 0, type2, class2, rdlen2, qclass, qtype, targetidx;
   int i, j, rc;
+  int secure = STAT_SECURE;
 
+  if (rr_status)
+    memset(rr_status, 0, ntohs(header->ancount));
+  
   if (neganswer)
     *neganswer = 0;
   
@@ -2033,7 +2039,10 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   
   for (p1 = ans_start, i = 0; i < ntohs(header->ancount) + ntohs(header->nscount); i++)
     {
-      if (!extract_name(header, plen, &p1, name, 1, 10))
+       if (i != 0 && !ADD_RDLEN(header, p1, plen, rdlen1))
+	 return STAT_BOGUS;
+
+       if (!extract_name(header, plen, &p1, name, 1, 10))
 	return STAT_BOGUS; /* bad packet */
       
       GETSHORT(type1, p1);
@@ -2042,106 +2051,125 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
       GETSHORT(rdlen1, p1);
       
       /* Don't try and validate RRSIGs! */
-      if (type1 != T_RRSIG)
+      if (type1 == T_RRSIG)
+	continue;
+      
+      /* Check if we've done this RRset already */
+      for (p2 = ans_start, j = 0; j < i; j++)
 	{
-	  /* Check if we've done this RRset already */
-	  for (p2 = ans_start, j = 0; j < i; j++)
-	    {
-	      if (!(rc = extract_name(header, plen, &p2, name, 0, 10)))
-		return STAT_BOGUS; /* bad packet */
-	      
-	      GETSHORT(type2, p2);
-	      GETSHORT(class2, p2);
-	      p2 += 4; /* TTL */
-	      GETSHORT(rdlen2, p2);
-	      
-	      if (type2 == type1 && class2 == class1 && rc == 1)
-		break; /* Done it before: name, type, class all match. */
-	      
-	      if (!ADD_RDLEN(header, p2, plen, rdlen2))
-		return STAT_BOGUS;
-	    }
+	  if (!(rc = extract_name(header, plen, &p2, name, 0, 10)))
+	    return STAT_BOGUS; /* bad packet */
 	  
+	  GETSHORT(type2, p2);
+	  GETSHORT(class2, p2);
+	  p2 += 4; /* TTL */
+	  GETSHORT(rdlen2, p2);
+	  
+	  if (type2 == type1 && class2 == class1 && rc == 1)
+	    break; /* Done it before: name, type, class all match. */
+	  
+	  if (!ADD_RDLEN(header, p2, plen, rdlen2))
+	    return STAT_BOGUS;
+	}
+      
+      if (j != i)
+	{
+	  /* Done already: copy the validation status */
+	  if (rr_status && (i < ntohs(header->ancount)))
+	    rr_status[i] = rr_status[j];
+	}
+      else
+	{
 	  /* Not done, validate now */
-	  if (j == i)
+	  int sigcnt, rrcnt;
+	  char *wildname;
+	  
+	  if (!explore_rrset(header, plen, class1, type1, name, keyname, &sigcnt, &rrcnt))
+	    return STAT_BOGUS;
+	  
+	  /* No signatures for RRset. We can be configured to assume this is OK and return a INSECURE result. */
+	  if (sigcnt == 0)
 	    {
-	      int sigcnt, rrcnt;
-	      char *wildname;
-	      
-	      if (!explore_rrset(header, plen, class1, type1, name, keyname, &sigcnt, &rrcnt))
-		return STAT_BOGUS;
-
-	      /* No signatures for RRset. We can be configured to assume this is OK and return a INSECURE result. */
-	      if (sigcnt == 0)
+	      if (check_unsigned)
 		{
-		  if (check_unsigned)
-		    {
-		      rc = zone_status(name, class1, keyname, now);
-		      if (rc == STAT_SECURE)
-			rc = STAT_BOGUS;
-		       if (class)
-			 *class = class1; /* Class for NEED_DS or NEED_KEY */
-		    }
-		  else 
-		    rc = STAT_INSECURE; 
-		  
-		  return rc;
+		  rc = zone_status(name, class1, keyname, now);
+		  if (rc == STAT_SECURE)
+		    rc = STAT_BOGUS;
+		  if (class)
+		    *class = class1; /* Class for NEED_DS or NEED_KEY */
 		}
+	      else 
+		rc = STAT_INSECURE; 
 	      
+	      if (rc != STAT_INSECURE)
+		return rc;
+	    }
+	  else
+	    {
 	      /* explore_rrset() gives us key name from sigs in keyname.
 		 Can't overwrite name here. */
 	      strcpy(daemon->workspacename, keyname);
 	      rc = zone_status(daemon->workspacename, class1, keyname, now);
-
-	      if (rc != STAT_SECURE)
+	      
+	      if (rc == STAT_BOGUS || rc == STAT_NEED_KEY || rc == STAT_NEED_DS)
 		{
 		  /* Zone is insecure, don't need to validate RRset */
 		  if (class)
 		    *class = class1; /* Class for NEED_DS or NEED_KEY */
 		  return rc;
-		} 
+		}
 	      
-	      rc = validate_rrset(now, header, plen, class1, type1, sigcnt, rrcnt, name, keyname, &wildname, NULL, 0, 0, 0);
-	      
-	      if (rc == STAT_BOGUS || rc == STAT_NEED_KEY || rc == STAT_NEED_DS)
+	      /* Zone is insecure, don't need to validate RRset */
+	      if (rc == STAT_SECURE)
 		{
-		  if (class)
-		    *class = class1; /* Class for DS or DNSKEY */
-		  return rc;
-		} 
-	      else 
-		{
+		  rc = validate_rrset(now, header, plen, class1, type1, sigcnt,
+				      rrcnt, name, keyname, &wildname, NULL, 0, 0, 0);
+		  
+		  if (rc == STAT_BOGUS || rc == STAT_NEED_KEY || rc == STAT_NEED_DS)
+		    {
+		      if (class)
+			*class = class1; /* Class for DS or DNSKEY */
+		      return rc;
+		    } 
+		  
 		  /* rc is now STAT_SECURE or STAT_SECURE_WILDCARD */
-		 
+		  
+		  /* Note that RR is validated */
+		   if (rr_status && (i < ntohs(header->ancount)))
+		     rr_status[i] = 1;
+		   
 		  /* Note if we've validated either the answer to the question
 		     or the target of a CNAME. Any not noted will need NSEC or
 		     to be in unsigned space. */
-
 		  for (j = 0; j <targetidx; j++)
 		    if ((p2 = targets[j]))
 		      {
-			if (!(rc = extract_name(header, plen, &p2, name, 0, 10)))
+			int rc1;
+			if (!(rc1 = extract_name(header, plen, &p2, name, 0, 10)))
 			  return STAT_BOGUS; /* bad packet */
 			
-			if (class1 == qclass && rc == 1 && (type1 == T_CNAME || type1 == qtype || qtype == T_ANY ))
+			if (class1 == qclass && rc1 == 1 && (type1 == T_CNAME || type1 == qtype || qtype == T_ANY ))
 			  targets[j] = NULL;
 		      }
-			    
-		   /* An attacker replay a wildcard answer with a different
-		      answer and overlay a genuine RR. To prove this
-		      hasn't happened, the answer must prove that
-		      the genuine record doesn't exist. Check that here. 
-		      Note that we may not yet have validated the NSEC/NSEC3 RRsets. 
-		      That's not a problem since if the RRsets later fail
-		      we'll return BOGUS then. */
-		  if (rc == STAT_SECURE_WILDCARD && !prove_non_existence(header, plen, keyname, name, type1, class1, wildname, NULL))
+		  
+		  /* An attacker replay a wildcard answer with a different
+		     answer and overlay a genuine RR. To prove this
+		     hasn't happened, the answer must prove that
+		     the genuine record doesn't exist. Check that here. 
+		     Note that we may not yet have validated the NSEC/NSEC3 RRsets. 
+		     That's not a problem since if the RRsets later fail
+		     we'll return BOGUS then. */
+		  if (rc == STAT_SECURE_WILDCARD &&
+		      !prove_non_existence(header, plen, keyname, name, type1, class1, wildname, NULL))
 		    return STAT_BOGUS;
+
+		  rc = STAT_SECURE;
 		}
 	    }
 	}
 
-      if (!ADD_RDLEN(header, p1, plen, rdlen1))
-	return STAT_BOGUS;
+      if (rc == STAT_INSECURE)
+	secure = STAT_INSECURE;
     }
 
   /* OK, all the RRsets validate, now see if we have a missing answer or CNAME target. */
@@ -2175,7 +2203,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	  }
       }
   
-  return STAT_SECURE;
+  return secure;
 }
 
 

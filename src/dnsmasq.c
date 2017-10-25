@@ -118,6 +118,8 @@ int main (int argc, char **argv)
       daemon->namebuff = safe_malloc(MAXDNAME * 2);
       daemon->keyname = safe_malloc(MAXDNAME * 2);
       daemon->workspacename = safe_malloc(MAXDNAME * 2);
+      /* one char flag per possible RR in answer section. */
+      daemon->rr_status = safe_malloc(256);
     }
 #endif
 
