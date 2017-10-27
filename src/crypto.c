@@ -411,7 +411,7 @@ int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig,
 
 /* Note the ds_digest_name(), algo_digest_name() and nsec3_digest_name()
    define which algo numbers we support. If algo_digest_name() returns
-   non-NULL for an algorithm number, we assume that algrorithm is 
+   non-NULL for an algorithm number, we assume that algorithm is 
    supported by verify(). */
 
 /* http://www.iana.org/assignments/ds-rr-types/ds-rr-types.xhtml */
@@ -432,7 +432,7 @@ char *algo_digest_name(int algo)
 {
   switch (algo)
     {
-    case 1: return "md5";         /* RSA/MD5 */
+    case 1: return NULL;          /* RSA/MD5 - Must Not Implement.  RFC 6944 para 2.3. */
     case 2: return NULL;          /* Diffie-Hellman */
     case 3: return "sha1";        /* DSA/SHA1 */ 
     case 5: return "sha1";        /* RSA/SHA1 */
