@@ -25,7 +25,7 @@ static void blockdata_expand(int n)
 {
   struct blockdata *new = whine_malloc(n * sizeof(struct blockdata));
   
-  if (n > 0 && new)
+  if (new)
     {
       int i;
       
@@ -99,6 +99,7 @@ struct blockdata *blockdata_alloc(char *data, size_t len)
   
   return ret;
 }
+
 
 void blockdata_free(struct blockdata *blocks)
 {

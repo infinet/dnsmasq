@@ -142,6 +142,10 @@ extern int capget(cap_user_header_t header, cap_user_data_t data);
 #include <priv.h>
 #endif
 
+#ifdef HAVE_DNSSEC
+#  include <nettle/nettle-meta.h>
+#endif
+
 /* daemon is function in the C library.... */
 #define daemon dnsmasq_daemon
 
@@ -1178,6 +1182,17 @@ int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen);
 size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);
 int setup_timestamp(void);
+
+/* crypto.c */
+const struct nettle_hash *hash_find(char *name);
+int hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp);
+int (*verify_func(int algo))(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+			     unsigned char *digest, size_t digest_len, int algo);
+int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+	   unsigned char *digest, size_t digest_len, int algo);
+char *ds_digest_name(int digest);
+char *algo_digest_name(int algo);
+char *nsec3_digest_name(int digest);
 
 /* util.c */
 void rand_init(void);
