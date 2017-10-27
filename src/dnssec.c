@@ -799,7 +799,7 @@ int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, ch
 			{
 			  a.addr.log.keytag = keytag;
 			  a.addr.log.algo = algo;
-			  if (verify_func(algo))
+			  if (algo_digest_name(algo))
 			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %hu, algo %hu");
 			  else
 			    log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DNSKEY keytag %hu, algo %hu (not supported)");
@@ -926,7 +926,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
 		      a.addr.log.keytag = keytag;
 		      a.addr.log.algo = algo;
 		      a.addr.log.digest = digest;
-		      if (hash_find(ds_digest_name(digest)) && verify_func(algo))
+		      if (ds_digest_name(digest) && algo_digest_name(algo))
 			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %hu, algo %hu, digest %hu");
 		      else
 			log_query(F_NOEXTRA | F_KEYTAG | F_UPSTREAM, name, &a, "DS keytag %hu, algo %hu, digest %hu (not supported)");
@@ -1613,8 +1613,8 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
 	  do 
 	    {
 	      if (crecp->uid == (unsigned int)class &&
-		  hash_find(ds_digest_name(crecp->addr.ds.digest)) &&
-		  verify_func(crecp->addr.ds.algo))
+		  ds_digest_name(crecp->addr.ds.digest) &&
+		  algo_digest_name(crecp->addr.ds.algo))
 		break;
 	    }
 	  while ((crecp = cache_find_by_name(crecp, keyname, now, F_DS)));

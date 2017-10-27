@@ -365,7 +365,7 @@ static int dnsmasq_eddsa_verify(struct blockdata *key_data, unsigned int key_len
 
 #endif 
 
-int (*verify_func(int algo))(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
+static int (*verify_func(int algo))(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
 			     unsigned char *digest, size_t digest_len, int algo)
 {
     
@@ -409,6 +409,11 @@ int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig,
   return (*func)(key_data, key_len, sig, sig_len, digest, digest_len, algo);
 }
 
+/* Note the ds_digest_name(), algo_digest_name() and nsec3_digest_name()
+   define which algo numbers we support. If algo_digest_name() returns
+   non-NULL for an algorithm number, we assume that algrorithm is 
+   supported by verify(). */
+
 /* http://www.iana.org/assignments/ds-rr-types/ds-rr-types.xhtml */
 char *ds_digest_name(int digest)
 {
@@ -427,18 +432,19 @@ char *algo_digest_name(int algo)
 {
   switch (algo)
     {
-    case 1: return "md5";
-    case 3: return "sha1";
-    case 5: return "sha1";
-    case 6: return "sha1";
-    case 7: return "sha1";
-    case 8: return "sha256";
-    case 10: return "sha512";
-    case 12: return "gosthash94";
-    case 13: return "sha256";
-    case 14: return "sha384";
-    case 15: return "null_hash"; /* Ed25519 */
-    case 16: return NULL;        /* Ed448 */
+    case 1: return "md5";         /* RSA/MD5 */
+    case 2: return NULL;          /* Diffie-Hellman */
+    case 3: return "sha1";        /* DSA/SHA1 */ 
+    case 5: return "sha1";        /* RSA/SHA1 */
+    case 6: return "sha1";        /* DSA-NSEC3-SHA1 */
+    case 7: return "sha1";        /* RSASHA1-NSEC3-SHA1 */
+    case 8: return "sha256";      /* RSA/SHA-256 */
+    case 10: return "sha512";     /* RSA/SHA-512 */
+    case 12: return NULL;         /* ECC-GOST */
+    case 13: return "sha256";     /* ECDSAP256SHA256 */
+    case 14: return "sha384";     /* ECDSAP384SHA384 */ 	
+    case 15: return "null_hash";  /* ED25519 */
+    case 16: return NULL;         /* ED448 */
     default: return NULL;
     }
 }

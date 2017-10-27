@@ -1186,8 +1186,6 @@ int setup_timestamp(void);
 /* crypto.c */
 const struct nettle_hash *hash_find(char *name);
 int hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp);
-int (*verify_func(int algo))(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
-			     unsigned char *digest, size_t digest_len, int algo);
 int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,
 	   unsigned char *digest, size_t digest_len, int algo);
 char *ds_digest_name(int digest);
