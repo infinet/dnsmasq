@@ -715,8 +715,8 @@ is set and the upstream servers don't support DNSSEC, then DNS service will be e
 .TP
 .B --trust-anchor=[<class>],<domain>,<key-tag>,<algorithm>,<digest-type>,<digest>
 Provide DS records to act a trust anchors for DNSSEC
-validation. Typically these will be the DS record(s) for Zone Signing
-key(s) of the root zone,
+validation. Typically these will be the DS record(s) for Key Signing
+key(s) (KSK) of the root zone,
 but trust anchors for limited domains are also possible. The current
 root-zone trust anchors may be downloaded from https://data.iana.org/root-anchors/root-anchors.xml 
 .TP
