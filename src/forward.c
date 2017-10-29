@@ -854,7 +854,7 @@ void reply_query(int fd, int family, time_t now)
     {
       server->edns_pktsz = SAFE_PKTSZ;
       prettyprint_addr(&server->addr, daemon->addrbuff);
-      my_syslog(LOG_WARNING, _("reducing DNS packet size for nameserver %s to %n"), daemon->addrbuff, SAFE_PKTSZ);
+      my_syslog(LOG_WARNING, _("reducing DNS packet size for nameserver %s to %d"), daemon->addrbuff, SAFE_PKTSZ);
     }
   
   /* If the answer is an error, keep the forward record in place in case
