@@ -6,6 +6,10 @@ version 2.79
 	upstream servers to an interface, rather than SO_BINDTODEVICE.
 	Thanks to Beniamino Galvani for the patch.
 
+	Always return a SERVFAIL answer to DNS queries without the
+	recusion desired bit set, UNLESS acting as a authoritative
+	DNS server. This avoids a potential route to cache snooping.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris

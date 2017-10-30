@@ -940,6 +940,8 @@ size_t setup_reply(struct dns_header *header, size_t qlen,
     SET_RCODE(header, NOERROR); /* empty domain */
   else if (flags == F_NXDOMAIN)
     SET_RCODE(header, NXDOMAIN);
+  else if (flags == F_SERVFAIL)
+    SET_RCODE(header, SERVFAIL);
   else if (flags == F_IPV4)
     { /* we know the address */
       SET_RCODE(header, NOERROR);
@@ -1278,6 +1280,10 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
       ntohs(header->qdcount) == 0 || 
       OPCODE(header) != QUERY )
     return 0;
+
+  /* always servfail queries with RD unset, to avoid cache snooping. */
+  if (!(header->hb3 & HB3_RD))
+    return setup_reply(header, qlen, NULL, F_SERVFAIL, 0);
   
   /* Don't return AD set if checking disabled. */
   if (header->hb4 & HB4_CD)
