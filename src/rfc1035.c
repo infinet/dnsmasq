@@ -585,7 +585,7 @@ static int find_soa(struct dns_header *header, size_t qlen, char *name, int *doc
    Return 1 if we reject an address because it look like part of dns-rebinding attack. */
 int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t now, 
 		      char **ipsets, int is_sign, int check_rebind, int no_cache_dnssec,
-		      int secure, int *doctored, char *rr_status)
+		      int secure, int *doctored)
 {
   unsigned char *p, *p1, *endrr, *namep;
   int i, j, qtype, qclass, aqtype, aqclass, ardlen, res, searched_soa = 0;
@@ -610,9 +610,9 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	{
 	  if (secure)
 	    return 0;
-	  if (rr_status)
+	  if (option_bool(OPT_DNSSEC_VALID))
 	    for (i = 0; i < ntohs(header->ancount); i++)
-	      if (rr_status[i])
+	      if (daemon->rr_status[i])
 		return 0;
 	}
     }
@@ -682,7 +682,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		      if (!extract_name(header, qlen, &p1, name, 1, 0))
 			return 0;
 
-		      if (rr_status && rr_status[j])
+		      if (option_bool(OPT_DNSSEC_VALID) && daemon->rr_status[j])
 			{
 			  /* validated RR anywhere in CNAME chain, don't cache. */
 			  if (cname_short || aqtype == T_CNAME)
@@ -766,7 +766,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	      if (aqclass == C_IN && res != 2 && (aqtype == T_CNAME || aqtype == qtype))
 		{
 #ifdef HAVE_DNSSEC
-		  if (rr_status && rr_status[j])
+		  if (option_bool(OPT_DNSSEC_VALID) && daemon->rr_status[j])
 		      secflag = F_DNSSECOK;
 #endif		  
 		  if (aqtype == T_CNAME)

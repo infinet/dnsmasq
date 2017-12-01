@@ -1030,7 +1030,8 @@ extern struct daemon {
 #ifdef HAVE_DNSSEC
   char *keyname; /* MAXDNAME size buffer */
   char *workspacename; /* ditto */
-  char *rr_status; /* 256 bytes as flags for individual RRs */
+  char *rr_status; /* flags for individual RRs */
+  int rr_status_sz;
 #endif
   unsigned int local_answer, queries_forwarded, auth_answer;
   struct frec *frec_list;
@@ -1145,7 +1146,7 @@ size_t setup_reply(struct dns_header *header, size_t  qlen,
 		   unsigned long ttl);
 int extract_addresses(struct dns_header *header, size_t qlen, char *name,
 		      time_t now, char **ipsets, int is_sign, int check_rebind,
-		      int no_cache_dnssec, int secure, int *doctored, char *rr_status);
+		      int no_cache_dnssec, int secure, int *doctored);
 size_t answer_request(struct dns_header *header, char *limit, size_t qlen,  
 		      struct in_addr local_addr, struct in_addr local_netmask, 
 		      time_t now, int ad_reqd, int do_bit, int have_pseudoheader);
@@ -1178,7 +1179,7 @@ size_t dnssec_generate_query(struct dns_header *header, unsigned char *end, char
 int dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
 int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int class);
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class,
-			  int check_unsigned, int *neganswer, int *nons, char *rr_status);
+			  int check_unsigned, int *neganswer, int *nons);
 int dnskey_keytag(int alg, int flags, unsigned char *key, int keylen);
 size_t filter_rrsigs(struct dns_header *header, size_t plen);
 unsigned char* hash_questions(struct dns_header *header, size_t plen, char *name);

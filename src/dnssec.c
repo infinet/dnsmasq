@@ -859,7 +859,7 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   if (qtype != T_DS || qclass != class)
     rc = STAT_BOGUS;
   else
-    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 0, &neganswer, &nons, NULL);
+    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 0, &neganswer, &nons);
   
   if (rc == STAT_INSECURE)
     rc = STAT_BOGUS;
@@ -1645,11 +1645,11 @@ static int zone_status(char *name, int class, char *keyname, time_t now)
    STAT_NEED_KEY need DNSKEY to complete validation (name is returned in keyname, class in *class)
    STAT_NEED_DS  need DS to complete validation (name is returned in keyname)
 
-   If non-NULL, rr_status points to a char array which corressponds to the RRs in the 
+   daemon->rr_status points to a char array which corressponds to the RRs in the 
    answer section (only). This is set to 1 for each RR which is validated, and 0 for any which aren't.
 */
 int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, 
-			  int *class, int check_unsigned, int *neganswer, int *nons, char *rr_status)
+			  int *class, int check_unsigned, int *neganswer, int *nons)
 {
   static unsigned char **targets = NULL;
   static int target_sz = 0;
@@ -1659,8 +1659,20 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
   int i, j, rc;
   int secure = STAT_SECURE;
 
-  if (rr_status)
-    memset(rr_status, 0, ntohs(header->ancount));
+  /* extend rr_status if necessary */
+  if (daemon->rr_status_sz < ntohs(header->ancount))
+    {
+      char *new = whine_malloc(ntohs(header->ancount) + 64);
+
+      if (!new)
+	return STAT_BOGUS;
+
+      free(daemon->rr_status);
+      daemon->rr_status = new;
+      daemon->rr_status_sz = ntohs(header->ancount) + 64;
+    }
+  
+  memset(daemon->rr_status, 0, ntohs(header->ancount));
   
   if (neganswer)
     *neganswer = 0;
@@ -1754,8 +1766,8 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
       if (j != i)
 	{
 	  /* Done already: copy the validation status */
-	  if (rr_status && (i < ntohs(header->ancount)))
-	    rr_status[i] = rr_status[j];
+	  if (i < ntohs(header->ancount))
+	    daemon->rr_status[i] = daemon->rr_status[j];
 	}
       else
 	{
@@ -1814,8 +1826,8 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 		  /* rc is now STAT_SECURE or STAT_SECURE_WILDCARD */
 		  
 		  /* Note that RR is validated */
-		   if (rr_status && (i < ntohs(header->ancount)))
-		     rr_status[i] = 1;
+		   if (i < ntohs(header->ancount))
+		     daemon->rr_status[i] = 1;
 		   
 		  /* Note if we've validated either the answer to the question
 		     or the target of a CNAME. Any not noted will need NSEC or

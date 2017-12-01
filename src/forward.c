@@ -560,7 +560,6 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   char **sets = 0;
   int munged = 0, is_sign;
   size_t plen; 
-  char *rr_status = NULL;
   
   (void)ad_reqd;
   (void)do_bit;
@@ -651,11 +650,6 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
 
-#ifdef HAVE_DNSSEC
-  if (option_bool(OPT_DNSSEC_VALID))
-    rr_status = daemon->rr_status;
-#endif
-
   if (daemon->bogus_addr && RCODE(header) != NXDOMAIN &&
       check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
@@ -681,7 +675,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	  cache_secure = 0;
 	}
       
-      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure, &doctored, rr_status))
+      if (extract_addresses(header, n, daemon->namebuff, now, sets, is_sign, check_rebind, no_cache, cache_secure, &doctored))
 	{
 	  my_syslog(LOG_WARNING, _("possible DNS-rebind attack detected: %s"), daemon->namebuff);
 	  munged = 1;
@@ -906,7 +900,7 @@ void reply_query(int fd, int family, time_t now)
 		  else
 		    status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class, 
 						   option_bool(OPT_DNSSEC_NO_SIGN) && (server->flags & SERV_DO_DNSSEC),
-						   NULL, NULL, daemon->rr_status);
+						   NULL, NULL);
 		}
 	      
 	      /* Can't validate, as we're missing key data. Put this
@@ -1491,7 +1485,7 @@ static int tcp_key_recurse(time_t now, int status, struct dns_header *header, si
       else 
 	new_status = dnssec_validate_reply(now, header, n, name, keyname, &class,
 					   option_bool(OPT_DNSSEC_NO_SIGN) && (server->flags & SERV_DO_DNSSEC),
-					   NULL, NULL, daemon->rr_status);
+					   NULL, NULL);
       
       if (new_status != STAT_NEED_DS && new_status != STAT_NEED_KEY)
 	break;
