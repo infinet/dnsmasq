@@ -36,7 +36,7 @@ int extract_name(struct dns_header *header, size_t plen, unsigned char **pp,
       if ((l = *p++) == 0) 
 	/* end marker */
 	{
-	  /* check that there are the correct no of bytes after the name */
+	  /* check that there are the correct no. of bytes after the name */
 	  if (!CHECK_LEN(header, p1 ? p1 : p, plen, extrabytes))
 	    return 0;
 	  
@@ -156,7 +156,7 @@ int in_arpa_name_2_addr(char *namein, struct all_addr *addrp)
   memset(addrp, 0, sizeof(struct all_addr));
 
   /* turn name into a series of asciiz strings */
-  /* j counts no of labels */
+  /* j counts no. of labels */
   for(j = 1,cp1 = name; *namein; cp1++, namein++)
     if (*namein == '.')
       {

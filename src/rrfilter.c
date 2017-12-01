@@ -270,7 +270,7 @@ u16 *rrfilter_desc(int type)
 {
   /* List of RRtypes which include domains in the data.
      0 -> domain
-     integer -> no of plain bytes
+     integer -> no. of plain bytes
      -1 -> end
 
      zero is not a valid RRtype, so the final entry is returned for
