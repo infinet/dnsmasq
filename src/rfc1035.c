@@ -610,10 +610,12 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 	{
 	  if (secure)
 	    return 0;
+#ifdef HAVE_DNSSEC
 	  if (option_bool(OPT_DNSSEC_VALID))
 	    for (i = 0; i < ntohs(header->ancount); i++)
 	      if (daemon->rr_status[i])
 		return 0;
+#endif
 	}
     }
   
@@ -625,7 +627,9 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
       int found = 0, cname_count = CNAME_CHAIN;
       struct crec *cpp = NULL;
       int flags = RCODE(header) == NXDOMAIN ? F_NXDOMAIN : 0;
+#ifdef HAVE_DNSSEC
       int cname_short = 0;
+#endif
       unsigned long cttl = ULONG_MAX, attl;
 
       namep = p;
@@ -681,7 +685,7 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 		    {
 		      if (!extract_name(header, qlen, &p1, name, 1, 0))
 			return 0;
-
+#ifdef HAVE_DNSSEC
 		      if (option_bool(OPT_DNSSEC_VALID) && daemon->rr_status[j])
 			{
 			  /* validated RR anywhere in CNAME chain, don't cache. */
@@ -690,12 +694,15 @@ int extract_addresses(struct dns_header *header, size_t qlen, char *name, time_t
 
 			  secflag = F_DNSSECOK;
 			}
+#endif
 
 		      if (aqtype == T_CNAME)
 			{
 			  if (!cname_count--)
 			    return 0; /* looped CNAMES, we can't cache. */
+#ifdef HAVE_DNSSEC
 			  cname_short = 1;
+#endif
 			  goto cname_loop;
 			}
 		      
