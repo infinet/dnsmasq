@@ -265,7 +265,8 @@ uint16_t parse_iana_suboption(char* buf, size_t len)
 
 int16_t parse_packet(char* buf, size_t len)
 {
-  uint8_t type  = buf[0];
+  int16_t ret = -1;
+  uint8_t type = buf[0];
   /*skipping tx id. you need it, uncomment following line
     uint16_t tx_id = ntohs((buf[1] <<16) + (buf[2] <<8) + buf[3]);
   */
@@ -293,7 +294,9 @@ int16_t parse_packet(char* buf, size_t len)
 	      fprintf(stderr, "Error: %d %s\n", status, option_value);
 	      return status;
 	    }
-          
+
+	  /* Got success status, return that if there's no specific error in an IA_NA. */
+	  ret = SUCCESS;   
         }
 
       if (option_type == IA_NA )
@@ -306,7 +309,7 @@ int16_t parse_packet(char* buf, size_t len)
       current_pos += option_len;
     }
 
-  return -1;
+  return ret;
 }
 
 void usage(const char* arg, FILE* stream)

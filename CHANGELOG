@@ -16,6 +16,9 @@ version 2.79
 	since these are not secure. This behaviour is mandated in
 	RFC-6944.
 
+	Fix incorrect error exit code from dhcp_release6 utility.
+	Thanks Gaudenz Steinlin for the bug report.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris
