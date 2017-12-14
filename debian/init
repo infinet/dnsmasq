@@ -111,7 +111,7 @@ DNSMASQ_OPTS="$DNSMASQ_OPTS --local-service"
 ROOT_DS="/usr/share/dns/root.ds"
 
 if [ -f $ROOT_DS ]; then
-    DNSMASQ_OPTS="$DNSMASQ_OPTS `sed -rne "s/^([.a-zA-Z0-9]+)([[:space:]]+[0-9]+)*([[:space:]]+IN)*[[:space:]]+DS[[:space:]]+/--trust-anchor=\1,/;s/[[:space:]]+/,/gp" $ROOT_DS | tr '\n' ' '`"
+    DNSMASQ_OPTS="$DNSMASQ_OPTS `env LC_ALL=C sed -rne "s/^([.a-zA-Z0-9]+)([[:space:]]+[0-9]+)*([[:space:]]+IN)*[[:space:]]+DS[[:space:]]+/--trust-anchor=\1,/;s/[[:space:]]+/,/gp" $ROOT_DS | tr '\n' ' '`"
 fi
 
 start()
