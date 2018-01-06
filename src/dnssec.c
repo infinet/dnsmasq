@@ -277,10 +277,10 @@ static int get_rdata(struct dns_header *header, size_t plen, unsigned char *end,
    leaving the following bytes as deciding the order. Hence the nasty left1 and left2 variables.
 */
 
-static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int rrsetidx, 
-		       unsigned char **rrset, char *buff1, char *buff2)
+static int sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int rrsetidx, 
+		      unsigned char **rrset, char *buff1, char *buff2)
 {
-  int swap, quit, i;
+  int swap, quit, i, j;
   
   do
     {
@@ -342,11 +342,21 @@ static void sort_rrset(struct dns_header *header, size_t plen, u16 *rr_desc, int
 		  rrset[i] = tmp;
 		  swap = quit = 1;
 		}
+	      else if (rc == 0 && quit && len1 == len2)
+		{
+		  /* Two RRs are equal, remove one copy. RFC 4034, para 6.3 */
+		  for (j = i+1; j < rrsetidx-1; j++)
+		    rrset[j] = rrset[j+1];
+		  rrsetidx--;
+		  i--;
+		}
 	      else if (rc < 0)
 		quit = 1;
 	    }
 	}
     } while (swap);
+
+  return rrsetidx;
 }
 
 static unsigned char **rrset = NULL, **sigs = NULL;
@@ -491,7 +501,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
   /* Sort RRset records into canonical order. 
      Note that at this point keyname and daemon->workspacename buffs are
      unused, and used as workspace by the sort. */
-  sort_rrset(header, plen, rr_desc, rrsetidx, rrset, daemon->workspacename, keyname);
+  rrsetidx = sort_rrset(header, plen, rr_desc, rrsetidx, rrset, daemon->workspacename, keyname);
          
   /* Now try all the sigs to try and find one which validates */
   for (j = 0; j <sigidx; j++)
@@ -545,6 +555,7 @@ static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in
 	  u16 len, *dp;
 	  
 	  p = rrset[i];
+	 	  
 	  if (!extract_name(header, plen, &p, name, 1, 10)) 
 	    return STAT_BOGUS;
 
