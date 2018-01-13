@@ -2433,7 +2433,7 @@ version 2.41
 
 	    Add --dhcp-match flag, to check for arbitrary options in
 	    DHCP messages from clients. This enables use of dnsmasq
-	    with gPXE. Thanks to Rance Hall for the suggestion.
+	    with iPXE. Thanks to Rance Hall for the suggestion.
 
 	    Added --dhcp-broadcast, to force broadcast replies to DHCP
 	    clients which need them but are too dumb or too old to

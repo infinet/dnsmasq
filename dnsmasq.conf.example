@@ -444,14 +444,14 @@
 # The same as above, but use custom tftp-server instead machine running dnsmasq
 #dhcp-boot=pxelinux,server.name,192.168.1.100
 
-# Boot for Etherboot gPXE. The idea is to send two different
-# filenames, the first loads gPXE, and the second tells gPXE what to
-# load. The dhcp-match sets the gpxe tag for requests from gPXE.
-#dhcp-match=set:gpxe,175 # gPXE sends a 175 option.
-#dhcp-boot=tag:!gpxe,undionly.kpxe
-#dhcp-boot=mybootimage
+# Boot for iPXE. The idea is to send two different
+# filenames, the first loads iPXE, and the second tells iPXE what to
+# load. The dhcp-match sets the ipxe tag for requests from iPXE.
+#dhcp-boot=undionly.kpxe
+#dhcp-match=set:ipxe,175 # iPXE sends a 175 option.
+#dhcp-boot=tag:ipxe,http://boot.ipxe.org/demo/boot.php
 
-# Encapsulated options for Etherboot gPXE. All the options are
+# Encapsulated options for iPXE. All the options are
 # encapsulated within option 175
 #dhcp-option=encap:175, 1, 5b         # priority code
 #dhcp-option=encap:175, 176, 1b       # no-proxydhcp

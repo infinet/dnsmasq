@@ -2054,13 +2054,13 @@ version 2.47
 
 	Support arbitrarily encapsulated DHCP options, suggestion
 	and initial patch from Samium Gromoff. This is useful for
-	(eg) gPXE, which expect all its private options to be
+	(eg) iPXE, which expect all its private options to be
 	encapsulated inside a single option 175. So, eg, 
 
 	dhcp-option = encap:175, 190, "iscsi-client0"
 	dhcp-option = encap:175, 191, "iscsi-client0-secret"
 
-	will provide iSCSI parameters to gPXE.
+	will provide iSCSI parameters to iPXE.
 
 	Enhance --dhcp-match to allow testing of the contents of a
 	client-sent option, as well as its presence. This

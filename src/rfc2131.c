@@ -909,7 +909,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  
 		  if (!workaround && boot)
 		    {
-		      /* Provide the bootfile here, for gPXE, and in case we have no menu items
+		      /* Provide the bootfile here, for iPXE, and in case we have no menu items
 			 and set discovery_control = 8 */
 		      if (boot->next_server.s_addr) 
 			mess->siaddr = boot->next_server;
