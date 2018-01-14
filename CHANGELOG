@@ -7,7 +7,7 @@ version 2.79
 	Thanks to Beniamino Galvani for the patch.
 
 	Always return a SERVFAIL answer to DNS queries without the
-	recusion desired bit set, UNLESS acting as a authoritative
+	recursion desired bit set, UNLESS acting as an authoritative
 	DNS server. This avoids a potential route to cache snooping.
 
 	Add support for Ed25519 signatures in DNSSEC validation.
@@ -1548,7 +1548,7 @@ version 2.56
 
 	By default, setting an IPv4 address for a domain but not
 	an IPv6 address causes dnsmasq to return
-	an NODATA reply for IPv6 (or vice-versa). So
+	a NODATA reply for IPv6 (or vice-versa). So
 	--address=/google.com/1.2.3.4 stops IPv6 queries for
 	*google.com from being forwarded. Make it possible to
 	override this behaviour by defining the semantics if the

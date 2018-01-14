@@ -2284,7 +2284,7 @@ static void do_options(struct dhcp_context *context,
   /* See if we can send the boot stuff as options.
      To do this we need a requested option list, BOOTP
      and very old DHCP clients won't have this, we also 
-     provide an manual option to disable it.
+     provide a manual option to disable it.
      Some PXE ROMs have bugs (surprise!) and need zero-terminated 
      names, so we always send those.  */
   if ((boot = find_boot(tagif)))

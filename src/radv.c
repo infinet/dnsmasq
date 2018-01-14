@@ -407,7 +407,7 @@ static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_ad
   if (ra_param)
     mtu = ra_param->mtu;
 #ifdef HAVE_LINUX_NETWORK
-  /* Note that IPv6 MTU is not neccessarily the same as the IPv4 MTU
+  /* Note that IPv6 MTU is not necessarily the same as the IPv4 MTU
      available from SIOCGIFMTU */
   if (mtu == 0)
     {

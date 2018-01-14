@@ -882,7 +882,7 @@ static int dhcp6_no_relay(struct state *state, int msg_type, void *inbuff, size_
 
 	     if (!ia_option)
 	       {
-		 /* If we get a request with a IA_*A without addresses, treat it exactly like
+		 /* If we get a request with an IA_*A without addresses, treat it exactly like
 		    a SOLICT with rapid commit set. */
 		 save_counter(start);
 		 goto request_no_address; 
@@ -1625,7 +1625,7 @@ static void end_ia(int t1cntr, unsigned int min_time, int do_fuzz)
 {
   if (t1cntr != 0)
     {
-      /* go back an fill in fields in IA_NA option */
+      /* go back and fill in fields in IA_NA option */
       int sav = save_counter(t1cntr);
       unsigned int t1, t2, fuzz = 0;
 

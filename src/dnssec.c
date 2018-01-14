@@ -1789,7 +1789,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	  if (!explore_rrset(header, plen, class1, type1, name, keyname, &sigcnt, &rrcnt))
 	    return STAT_BOGUS;
 	  
-	  /* No signatures for RRset. We can be configured to assume this is OK and return a INSECURE result. */
+	  /* No signatures for RRset. We can be configured to assume this is OK and return an INSECURE result. */
 	  if (sigcnt == 0)
 	    {
 	      if (check_unsigned)

@@ -90,7 +90,7 @@
 # server=10.1.2.3@eth1
 
 # and this sets the source (ie local) address used to talk to
-# 10.1.2.3 to 192.168.1.1 port 55 (there must be a interface with that
+# 10.1.2.3 to 192.168.1.1 port 55 (there must be an interface with that
 # IP on the machine, obviously).
 # server=10.1.2.3@192.168.1.1#55
 

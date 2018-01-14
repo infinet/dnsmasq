@@ -20,7 +20,7 @@
 #include <sys/inotify.h>
 #include <sys/param.h> /* For MAXSYMLINKS */
 
-/* the strategy is to set a inotify on the directories containing
+/* the strategy is to set an inotify on the directories containing
    resolv files, for any files in the directory which are close-write 
    or moved into the directory.
    
