@@ -23,6 +23,14 @@ version 2.79
 	time validation when --dnssec-no-timecheck is in use.
 	Note that this is an incompatible change from earlier releases.
 
+	Allow more than one --bridge-interface option to refer to an
+	interface, so that we can use
+	--bridge-interface=int1,alias1
+	--bridge-interface=int1,alias2
+	as an alternative to
+	--bridge-interface=int1,alias1,alias2
+	Thanks to Neil Jerram for work on this.
+	
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris

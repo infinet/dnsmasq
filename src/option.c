@@ -2733,15 +2733,24 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	      
     case LOPT_BRIDGE:   /* --bridge-interface */
       {
-	struct dhcp_bridge *new = opt_malloc(sizeof(struct dhcp_bridge));
+	struct dhcp_bridge *new;
+
 	if (!(comma = split(arg)) || strlen(arg) > IF_NAMESIZE - 1 )
 	  ret_err(_("bad bridge-interface"));
-	
-	strcpy(new->iface, arg);
-	new->alias = NULL;
-	new->next = daemon->bridges;
-	daemon->bridges = new;
 
+	for (new = daemon->bridges; new; new = new->next)
+	  if (strcmp(new->iface, arg) == 0)
+	    break;
+
+	if (!new)
+	  {
+	     new = opt_malloc(sizeof(struct dhcp_bridge));
+	     strcpy(new->iface, arg);
+	     new->alias = NULL;
+	     new->next = daemon->bridges;
+	     daemon->bridges = new;
+	  }
+	
 	do {
 	  arg = comma;
 	  comma = split(arg);
