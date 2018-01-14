@@ -19,6 +19,10 @@ version 2.79
 	Fix incorrect error exit code from dhcp_release6 utility.
 	Thanks Gaudenz Steinlin for the bug report.
 
+	Use SIGINT (instead of overloading SIGHUP) to turn on DNSSEC
+	time validation when --dnssec-no-timecheck is in use.
+	Note that this is an incompatible change from earlier releases.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris
