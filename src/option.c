@@ -4621,6 +4621,8 @@ void reread_dhcp(void)
     
 void read_opts(int argc, char **argv, char *compile_opts)
 {
+  size_t argbuf_size = MAXDNAME;
+  char *argbuf = opt_malloc(argbuf_size);
   char *buff = opt_malloc(MAXDNAME);
   int option, conffile_opt = '7', testmode = 0;
   char *arg, *conffile = CONFFILE;
@@ -4690,9 +4692,15 @@ void read_opts(int argc, char **argv, char *compile_opts)
       /* Copy optarg so that argv doesn't get changed */
       if (optarg)
 	{
-	  strncpy(buff, optarg, MAXDNAME);
-	  buff[MAXDNAME-1] = 0;
-	  arg = buff;
+	  if (strlen(optarg) >= argbuf_size)
+	    {
+	      free(argbuf);
+	      argbuf_size = strlen(optarg) + 1;
+	      argbuf = opt_malloc(argbuf_size);
+	    }
+	  strncpy(argbuf, optarg, argbuf_size);
+	  argbuf[argbuf_size-1] = 0;
+	  arg = argbuf;
 	}
       else
 	arg = NULL;
@@ -4739,6 +4747,8 @@ void read_opts(int argc, char **argv, char *compile_opts)
 	    die(_("bad command line options: %s"), daemon->namebuff, EC_BADCONF);
 	}
     }
+
+  free(argbuf);
 
   if (conffile)
     {
