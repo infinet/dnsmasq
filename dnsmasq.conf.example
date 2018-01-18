@@ -354,11 +354,11 @@
 
 # Set option 58 client renewal time (T1). Defaults to half of the
 # lease time if not specified. (RFC2132)
-#dhcp-option=option:T1:1m
+#dhcp-option=option:T1,1m
 
 # Set option 59 rebinding time (T2). Defaults to 7/8 of the
 # lease time if not specified. (RFC2132)
-#dhcp-option=option:T2:2m
+#dhcp-option=option:T2,2m
 
 # Set the NTP time server address to be the same machine as
 # is running dnsmasq
