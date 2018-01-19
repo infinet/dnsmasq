@@ -30,7 +30,17 @@ version 2.79
 	as an alternative to
 	--bridge-interface=int1,alias1,alias2
 	Thanks to Neil Jerram for work on this.
-	
+
+	Fix for DNSSEC with wildcard-derived NSEC records.
+	It's OK for NSEC records to be expanded from wildcards,
+	but in that case, the proof of non-existence is only valid
+	starting at the wildcard name, *.<domain> NOT the name expanded
+	from the wildcard. Without this check it's possible for an
+	attacker to craft an NSEC which wrongly proves non-existence.
+	Thanks to Ralph Dolmans for finding this, and co-ordinating 
+	the vulnerability tracking and fix release.
+	CVE-2017-15107 applies.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris
