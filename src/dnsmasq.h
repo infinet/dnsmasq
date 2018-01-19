@@ -520,6 +520,7 @@ struct server {
   struct serverfd *sfd; 
   char *domain; /* set if this server only handles a domain. */ 
   int flags, tcpfd, edns_pktsz;
+  time_t pktsz_reduced;
   unsigned int queries, failed_queries;
 #ifdef HAVE_LOOP
   u32 uid;
