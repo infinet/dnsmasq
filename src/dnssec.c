@@ -1167,8 +1167,9 @@ static int prove_non_existence_nsec(struct dns_header *header, size_t plen, unsi
 		return 0;
 	      
 	      /* If the SOA bit is set for a DS record, then we have the
-		 DS from the wrong side of the delegation. */
-	      if (type == T_DS && (p[2] & (0x80 >> T_SOA)) != 0)
+		 DS from the wrong side of the delegation. For the root DS, 
+		 this is expected. */
+	      if (name_labels != 0 && type == T_DS && (p[2] & (0x80 >> T_SOA)) != 0)
 		return 0;
 	    }
 
@@ -1273,7 +1274,7 @@ static int base32_decode(char *in, unsigned char *out)
 }
 
 static int check_nsec3_coverage(struct dns_header *header, size_t plen, int digest_len, unsigned char *digest, int type,
-				char *workspace1, char *workspace2, unsigned char **nsecs, int nsec_count, int *nons)
+				char *workspace1, char *workspace2, unsigned char **nsecs, int nsec_count, int *nons, int name_labels)
 {
   int i, hash_len, salt_len, base32_len, rdlen, flags;
   unsigned char *p, *psave;
@@ -1328,8 +1329,9 @@ static int check_nsec3_coverage(struct dns_header *header, size_t plen, int dige
 		      return 0;
 		    
 		    /* If the SOA bit is set for a DS record, then we have the
-		       DS from the wrong side of the delegation. */
-		    if (type == T_DS && (p[2] & (0x80 >> T_SOA)) != 0)
+		       DS from the wrong side of the delegation. For the root DS, 
+		       this is expected.  */
+		    if (name_labels != 0 && type == T_DS && (p[2] & (0x80 >> T_SOA)) != 0)
 		      return 0;
 		  }
 
@@ -1470,7 +1472,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
   if ((digest_len = hash_name(name, &digest, hash, salt, salt_len, iterations)) == 0)
     return 0;
   
-  if (check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, nons))
+  if (check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, nons, count_labels(name)))
     return 1;
 
   /* Can't find an NSEC3 which covers the name directly, we need the "closest encloser NSEC3" 
@@ -1515,7 +1517,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
   if ((digest_len = hash_name(next_closest, &digest, hash, salt, salt_len, iterations)) == 0)
     return 0;
 
-  if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL))
+  if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL, 1))
     return 0;
   
   /* Finally, check that there's no seat of wildcard synthesis */
@@ -1530,7 +1532,7 @@ static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns
       if ((digest_len = hash_name(wildcard, &digest, hash, salt, salt_len, iterations)) == 0)
 	return 0;
       
-      if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL))
+      if (!check_nsec3_coverage(header, plen, digest_len, digest, type, workspace1, workspace2, nsecs, nsec_count, NULL, 1))
 	return 0;
     }
   
