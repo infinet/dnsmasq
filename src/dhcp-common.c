@@ -485,11 +485,8 @@ char *whichdevice(void)
  
 void  bindtodevice(char *device, int fd)
 {
-  struct ifreq ifr;
-  
-  strcpy(ifr.ifr_name, device);
   /* only allowed by root. */
-  if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) == -1 &&
+  if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, device, IFNAMSIZ) == -1 &&
       errno != EPERM)
     die(_("failed to set SO_BINDTODEVICE on DHCP socket: %s"), NULL, EC_BADNET);
 }
