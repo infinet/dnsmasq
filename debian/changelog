@@ -1,6 +1,6 @@
 dnsmasq (2.79-1) unstable; urgency=low
 
-   * New upstream.
+   * New upstream. (closes: #888200)
    * Fix trust-anchor regex in init script. (closes: #884347)
    * Fix exit code for dhcp_release6 (closes: #833596)
    * Add project homepage to control file. (closes: #887764)
