@@ -4653,6 +4653,7 @@ void read_opts(int argc, char **argv, char *compile_opts)
   daemon->soa_retry = SOA_RETRY;
   daemon->soa_expiry = SOA_EXPIRY;
   daemon->max_port = MAX_PORT;
+  daemon->min_port = MIN_PORT;
 
 #ifndef NO_ID
   add_txt("version.bind", "dnsmasq-" VERSION, 0 );

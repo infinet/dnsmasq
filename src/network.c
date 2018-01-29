@@ -1149,10 +1149,7 @@ int random_sock(int family)
       if (fix_fd(fd))
 	while(tries--)
 	  {
-	    unsigned short port = rand16();
-	    
-            if (daemon->min_port != 0 || daemon->max_port != MAX_PORT)
-              port = htons(daemon->min_port + (port % ((unsigned short)ports_avail)));
+	    unsigned short port = htons(daemon->min_port + (rand16() % ((unsigned short)ports_avail)));
 	    
 	    if (family == AF_INET) 
 	      {

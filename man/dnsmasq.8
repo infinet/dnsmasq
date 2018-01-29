@@ -182,7 +182,8 @@ OS: this was the default behaviour in versions prior to 2.43.
 Do not use ports less than that given as source for outbound DNS
 queries. Dnsmasq picks random ports as source for outbound queries:
 when this option is given, the ports used will always to larger
-than that specified. Useful for systems behind firewalls. 
+than that specified. Useful for systems behind firewalls. If not specified,
+defaults to 1024.
 .TP
 .B --max-port=<port>
 Use ports lower than that given as source for outbound DNS queries.

@@ -16,6 +16,7 @@
 
 #define NAMESERVER_PORT 53
 #define TFTP_PORT       69
+#define MIN_PORT        1024           /* first non-reserved port */
 #define MAX_PORT        65535u
 
 #define IN6ADDRSZ       16
