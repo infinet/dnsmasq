@@ -49,7 +49,7 @@ void blockdata_init(void)
 
   /* Note that daemon->cachesize is enforced to have non-zero size if OPT_DNSSEC_VALID is set */  
   if (option_bool(OPT_DNSSEC_VALID))
-    blockdata_expand((daemon->cachesize * 100) / sizeof(struct blockdata));
+    blockdata_expand(daemon->cachesize);
 }
 
 void blockdata_report(void)
