@@ -388,10 +388,12 @@ int main (int argc, char **argv)
       daemon->scriptuser && 
       (daemon->lease_change_command || daemon->luascript))
     {
-      if ((ent_pw = getpwnam(daemon->scriptuser)))
+      struct passwd *scr_pw;
+      
+      if ((scr_pw = getpwnam(daemon->scriptuser)))
 	{
-	  script_uid = ent_pw->pw_uid;
-	  script_gid = ent_pw->pw_gid;
+	  script_uid = scr_pw->pw_uid;
+	  script_gid = scr_pw->pw_gid;
 	 }
       else
 	baduser = daemon->scriptuser;
@@ -541,7 +543,7 @@ int main (int argc, char **argv)
 	    {
 	      if (!read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
 		err = 1;
-	      else 
+	      else
 		{
 		  while (retry_send(close(fd)));
 		  if (errno != 0)
