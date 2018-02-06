@@ -5,7 +5,13 @@ dnsmasq (2.79-1) unstable; urgency=low
    * Fix exit code for dhcp_release6 (closes: #833596)
    * Add project homepage to control file. (closes: #887764)
 
- -- Simon Kelley <simon@thekelleys.org.uk>  Sat, 20 Jan 2018 22:17:01 +0000
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 6 Feb 2018 17:23:21 +0000
+
+dnsmasq (2.78-2) unstable; urgency=high
+
+   * Change ownership of pid file, to keep systemd happy. (closes: #889336)
+
+ -- Simon Kelley <simon@thekelleys.org.uk>  Tue, 6 Feb 2018 17:21:30 +0000
 
 dnsmasq (2.78-1) unstable; urgency=high
 

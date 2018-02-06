@@ -541,7 +541,14 @@ int main (int argc, char **argv)
 	    }
 	  else
 	    {
-	      if (!read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
+	      /* We're still running as root here. Change the ownership of the PID file
+		 to the user we will be running as. Note that this is not to allow
+		 us to delete the file, since that depends on the permissions 
+		 of the directory containing the file. That directory will
+		 need to by owned by the dnsmasq user, and the ownership of the
+		 file has to match, to keep systemd >273 happy. */
+	      if ((getuid() == 0 && ent_pw && ent_pw->pw_uid != 0 && fchown(fd, ent_pw->pw_uid, ent_pw->pw_gid) == -1) ||
+		  !read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
 		err = 1;
 	      else
 		{
