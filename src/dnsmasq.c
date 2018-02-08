@@ -48,6 +48,7 @@ int main (int argc, char **argv)
   long i, max_fd = sysconf(_SC_OPEN_MAX);
   char *baduser = NULL;
   int log_err;
+  int chown_warn = 0;
 #if defined(HAVE_LINUX_NETWORK)
   cap_user_header_t hdr = NULL;
   cap_user_data_t data = NULL;
@@ -547,8 +548,10 @@ int main (int argc, char **argv)
 		 of the directory containing the file. That directory will
 		 need to by owned by the dnsmasq user, and the ownership of the
 		 file has to match, to keep systemd >273 happy. */
-	      if ((getuid() == 0 && ent_pw && ent_pw->pw_uid != 0 && fchown(fd, ent_pw->pw_uid, ent_pw->pw_gid) == -1) ||
-		  !read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
+	      if (getuid() == 0 && ent_pw && ent_pw->pw_uid != 0 && fchown(fd, ent_pw->pw_uid, ent_pw->pw_gid) == -1)
+		chown_warn = errno;
+
+	      if (!read_write(fd, (unsigned char *)daemon->namebuff, strlen(daemon->namebuff), 0))
 		err = 1;
 	      else
 		{
@@ -737,6 +740,9 @@ int main (int argc, char **argv)
     }
   
   my_syslog(LOG_INFO, _("compile time options: %s"), compile_opts);
+
+  if (chown_warn != 0)
+    my_syslog(LOG_WARNING, "chown of PID file %s failed: %s", daemon->runfile, strerror(chown_warn));
   
 #ifdef HAVE_DBUS
   if (option_bool(OPT_DBUS))
