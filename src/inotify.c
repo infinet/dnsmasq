@@ -227,19 +227,21 @@ int inotify_check(time_t now)
       
       for (p = inotify_buffer; rc - (p - inotify_buffer) >= (int)sizeof(struct inotify_event); p += sizeof(struct inotify_event) + in->len) 
 	{
+	  size_t namelen;
+
 	  in = (struct inotify_event*)p;
 	  
-	  for (res = daemon->resolv_files; res; res = res->next)
-	    if (res->wd == in->wd && in->len != 0 && strcmp(res->file, in->name) == 0)
-	      hit = 1;
-
 	  /* ignore emacs backups and dotfiles */
-	  if (in->len == 0 || 
-	      in->name[in->len - 1] == '~' ||
-	      (in->name[0] == '#' && in->name[in->len - 1] == '#') ||
+	  if (in->len == 0 || (namelen = strlen(in->name)) == 0 ||
+	      in->name[namelen - 1] == '~' ||
+	      (in->name[0] == '#' && in->name[namelen - 1] == '#') ||
 	      in->name[0] == '.')
 	    continue;
-	  
+
+	  for (res = daemon->resolv_files; res; res = res->next)
+	    if (res->wd == in->wd && strcmp(res->file, in->name) == 0)
+	      hit = 1;
+
 	  for (ah = daemon->dynamic_dirs; ah; ah = ah->next)
 	    if (ah->wd == in->wd)
 	      {
