@@ -216,9 +216,9 @@ static int dhcp6_maybe_relay(struct state *state, void *inbuff, size_t sz,
   
   for (opt = opts; opt; opt = opt6_next(opt, end))
     {
-      if (opt6_ptr(opt, 0) + opt6_len(opt) >= end) {
+      if (opt6_ptr(opt, 0) + opt6_len(opt) > end) 
         return 0;
-      }
+     
       int o = new_opt6(opt6_type(opt));
       if (opt6_type(opt) == OPTION6_RELAY_MSG)
 	{
