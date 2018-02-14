@@ -41,6 +41,11 @@ version 2.79
 	the vulnerability tracking and fix release.
 	CVE-2017-15107 applies.
 
+	Remove special handling of A-for-A DNS queries. These
+	are no longer a significant problem in the global DNS.
+	http://cs.northwestern.edu/~ychen/Papers/DNS_ToN15.pdf
+	Thanks to Mattias Hellström for the initial patch.
+	
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris

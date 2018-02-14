@@ -1568,44 +1568,6 @@ size_t answer_request(struct dns_header *header, char *limit, size_t qlen,
 	      if (qtype != type && qtype != T_ANY)
 		continue;
 	      
-	      /* Check for "A for A"  queries; be rather conservative 
-		 about what looks like dotted-quad.  */
-	      if (qtype == T_A)
-		{
-		  char *cp;
-		  unsigned int i, a;
-		  int x;
-
-		  for (cp = name, i = 0, a = 0; *cp; i++)
-		    {
-		      if (!isdigit((unsigned char)*cp) || (x = strtol(cp, &cp, 10)) > 255) 
-			{
-			  i = 5;
-			  break;
-			}
-		      
-		      a = (a << 8) + x;
-		      
-		      if (*cp == '.') 
-			cp++;
-		    }
-		  
-		  if (i == 4)
-		    {
-		      ans = 1;
-		      sec_data = 0;
-		      if (!dryrun)
-			{
-			  addr.addr.addr4.s_addr = htonl(a);
-			  log_query(F_FORWARD | F_CONFIG | F_IPV4, name, &addr, NULL);
-			  if (add_resource_record(header, limit, &trunc, nameoffset, &ansp, 
-						  daemon->local_ttl, NULL, type, C_IN, "4", &addr))
-			    anscount++;
-			}
-		      continue;
-		    }
-		}
-
 	      /* interface name stuff */
 	    intname_restart:
 	      for (intr = daemon->int_names; intr; intr = intr->next)
