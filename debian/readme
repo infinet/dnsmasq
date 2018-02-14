@@ -54,7 +54,7 @@ Notes on configuring dnsmasq as packaged for Debian.
       nodhcp      : omit DHCP support.
       nodhcp6     : omit DHCPv6 support.
       noscript    : omit lease-change script support.
-      use_lua     : provide support for lease-change scripts written
+      uselua      : provide support for lease-change scripts written
                     in Lua.
       noipv6      : omit IPv6 support.
       nodbus      : omit DBus support.
