@@ -11,7 +11,7 @@ Standards-Version: 3.9.8
 
 Package: dnsmasq
 Architecture: all
-Depends: netbase, dnsmasq-base(>= ${binary:Version}),
+Depends: netbase, dnsmasq-base,
          init-system-helpers (>= 1.18~), lsb-base (>= 3.0-6)
 Suggests: resolvconf
 Conflicts: resolvconf (<<1.15)
@@ -29,8 +29,10 @@ Package: dnsmasq-base
 Architecture: any
 Depends: adduser, ${shlibs:Depends}
 Breaks: dnsmasq (<< 2.63-1~)
-Replaces: dnsmasq (<< 2.63-1~)
+Replaces: dnsmasq (<< 2.63-1~), dnsmasq-base
 Recommends: dns-root-data
+Provides: dnsmasq-base
+Conflicts: dnsmasq-base-lua
 Description: Small caching DNS proxy and DHCP/TFTP server
  This package contains the dnsmasq executable and documentation, but
  not the infrastructure required to run it as a system daemon. For
@@ -40,9 +42,10 @@ Package: dnsmasq-base-lua
 Architecture: any
 Depends: adduser, ${shlibs:Depends}
 Breaks: dnsmasq (<< 2.63-1~)
-Replaces: dnsmasq (<< 2.63-1~)
+Replaces: dnsmasq (<< 2.63-1~), dnsmasq-base
 Recommends: dns-root-data
 Provides: dnsmasq-base
+Conflicts: dnsmasq-base
 Description: Small caching DNS proxy and DHCP/TFTP server
  This package contains the dnsmasq executable and documentation, but
  not the infrastructure required to run it as a system daemon. For
