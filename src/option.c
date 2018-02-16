@@ -2970,7 +2970,7 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		      case 'd':
 		      case 'D':
 			fac *= 24;
-			/* fall though */
+			/* fall through */
 		      case 'h':
 		      case 'H':
 			fac *= 60;
