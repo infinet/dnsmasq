@@ -1163,7 +1163,7 @@ static int parse_dhcp_opt(char *errstr, char *arg, int flags)
 	    case 'd':
 	    case 'D':
 	      fac *= 24;
-	      /* fall though */
+	      /* fall through */
 	    case 'h':
 	    case 'H':
 	      fac *= 60;
