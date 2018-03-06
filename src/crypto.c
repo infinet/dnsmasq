@@ -114,17 +114,25 @@ const struct nettle_hash *hash_find(char *name)
   if (!name)
     return NULL;
   
+  /* We provide a "null" hash which returns the input data as digest. */
+  if (strcmp(null_hash.name, name) == 0)
+    return &null_hash;
+
+  /* libnettle >= 3.4 provides nettle_lookup_hash() which avoids nasty ABI
+     incompatibilities if sizeof(nettle_hashes) changes between library
+     versions. */
+  
+#if (NETTLE_VERSION_MAJOR>3) || ((NETTLE_VERSION_MAJOR==3) && (NETTLE_VERSION_MINOR >=4))
+  return nettle_lookup_hash(name);
+#else
   for (i = 0; nettle_hashes[i]; i++)
     {
       if (strcmp(nettle_hashes[i]->name, name) == 0)
 	return nettle_hashes[i];
     }
 
-  /* We provide a "null" hash which returns the input data as digest. */
-  if (strcmp(null_hash.name, name) == 0)
-    return &null_hash;
-
-  return NULL;
+   return NULL;
+#endif
 }
 
 /* expand ctx and digest memory allocations if necessary and init hash function */
