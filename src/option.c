@@ -3856,6 +3856,7 @@ err:
 
 	while (arg != last)
 	  {
+	    int arglen = strlen(arg);
 	    alias = canonicalise_opt(arg);
 
 	    if (!alias || !target)
@@ -3871,7 +3872,7 @@ err:
 	    new->target = target;
 	    new->ttl = ttl;
 
-	    for (arg += strlen(arg)+1; *arg == ' '; arg++);
+	    for (arg += arglen+1; *arg && isspace(*arg); arg++);
 	  }
       
 	break;
