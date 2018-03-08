@@ -4328,7 +4328,7 @@ static void read_file(char *file, FILE *f, int hard_opt)
   fclose(f);
 }
 
-#ifdef HAVE_DHCP
+#if defined(HAVE_DHCP) && defined(HAVE_INOTIFY)
 int option_read_dynfile(char *file, int flags)
 {
   my_syslog(MS_DHCP | LOG_INFO, _("read %s"), file);
@@ -4529,86 +4529,99 @@ void read_servers_file(void)
  
 
 #ifdef HAVE_DHCP
+static void clear_dynamic_conf(void)
+{
+  struct dhcp_config *configs, *cp, **up;
+  
+  /* remove existing... */
+  for (up = &daemon->dhcp_conf, configs = daemon->dhcp_conf; configs; configs = cp)
+    {
+      cp = configs->next;
+      
+      if (configs->flags & CONFIG_BANK)
+	{
+	  struct hwaddr_config *mac, *tmp;
+	  struct dhcp_netid_list *list, *tmplist;
+	  
+	  for (mac = configs->hwaddr; mac; mac = tmp)
+	    {
+	      tmp = mac->next;
+	      free(mac);
+	    }
+	  
+	  if (configs->flags & CONFIG_CLID)
+	    free(configs->clid);
+	  
+	  for (list = configs->netid; list; list = tmplist)
+	    {
+	      free(list->list);
+	      tmplist = list->next;
+	      free(list);
+	    }
+	  
+	  if (configs->flags & CONFIG_NAME)
+	    free(configs->hostname);
+	  
+	  *up = configs->next;
+	  free(configs);
+	}
+      else
+	up = &configs->next;
+    }
+}
+
+static void clear_dynamic_opt(void)
+{
+  struct dhcp_opt *opts, *cp, **up;
+  struct dhcp_netid *id, *next;
+
+  for (up = &daemon->dhcp_opts, opts = daemon->dhcp_opts; opts; opts = cp)
+    {
+      cp = opts->next;
+      
+      if (opts->flags & DHOPT_BANK)
+	{
+	  if ((opts->flags & DHOPT_VENDOR))
+	    free(opts->u.vendor_class);
+	  free(opts->val);
+	  for (id = opts->netid; id; id = next)
+	    {
+	      next = id->next;
+	      free(id->net);
+	      free(id);
+	    }
+	  *up = opts->next;
+	  free(opts);
+	}
+      else
+	up = &opts->next;
+    }
+}
+
 void reread_dhcp(void)
 {
-  struct hostsfile *hf;
+   struct hostsfile *hf;
 
-  if (daemon->dhcp_hosts_file)
+   /* Do these even if there is no daemon->dhcp_hosts_file or
+      daemon->dhcp_opts_file since entries may have been created by the
+      inotify dynamic file reading system. */
+   
+   clear_dynamic_conf();
+   clear_dynamic_opt();
+
+   if (daemon->dhcp_hosts_file)
     {
-      struct dhcp_config *configs, *cp, **up;
-  
-      /* remove existing... */
-      for (up = &daemon->dhcp_conf, configs = daemon->dhcp_conf; configs; configs = cp)
-	{
-	  cp = configs->next;
-	  
-	  if (configs->flags & CONFIG_BANK)
-	    {
-	      struct hwaddr_config *mac, *tmp;
-	      struct dhcp_netid_list *list, *tmplist;
-	      
-	      for (mac = configs->hwaddr; mac; mac = tmp)
-		{
-		  tmp = mac->next;
-		  free(mac);
-		}
-
-	      if (configs->flags & CONFIG_CLID)
-		free(configs->clid);
-
-	      for (list = configs->netid; list; list = tmplist)
-		{
-		  free(list->list);
-		  tmplist = list->next;
-		  free(list);
-		}
-	      
-	      if (configs->flags & CONFIG_NAME)
-		free(configs->hostname);
-	      
-	      *up = configs->next;
-	      free(configs);
-	    }
-	  else
-	    up = &configs->next;
-	}
-      
       daemon->dhcp_hosts_file = expand_filelist(daemon->dhcp_hosts_file);
       for (hf = daemon->dhcp_hosts_file; hf; hf = hf->next)
-	 if (!(hf->flags & AH_INACTIVE))
-	   {
-	     if (one_file(hf->fname, LOPT_BANK))  
-	       my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
-	   }
+	if (!(hf->flags & AH_INACTIVE))
+	  {
+	    if (one_file(hf->fname, LOPT_BANK))  
+	      my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
+	  }
     }
 
   if (daemon->dhcp_opts_file)
     {
-      struct dhcp_opt *opts, *cp, **up;
-      struct dhcp_netid *id, *next;
-
-      for (up = &daemon->dhcp_opts, opts = daemon->dhcp_opts; opts; opts = cp)
-	{
-	  cp = opts->next;
-	  
-	  if (opts->flags & DHOPT_BANK)
-	    {
-	      if ((opts->flags & DHOPT_VENDOR))
-		free(opts->u.vendor_class);
-	      free(opts->val);
-	      for (id = opts->netid; id; id = next)
-		{
-		  next = id->next;
-		  free(id->net);
-		  free(id);
-		}
-	      *up = opts->next;
-	      free(opts);
-	    }
-	  else
-	    up = &opts->next;
-	}
-      
       daemon->dhcp_opts_file = expand_filelist(daemon->dhcp_opts_file);
       for (hf = daemon->dhcp_opts_file; hf; hf = hf->next)
 	if (!(hf->flags & AH_INACTIVE))
@@ -4617,9 +4630,14 @@ void reread_dhcp(void)
 	      my_syslog(MS_DHCP | LOG_INFO, _("read %s"), hf->fname);
 	  }
     }
+
+#  ifdef HAVE_INOTIFY
+  /* Setup notify and read pre-existing files. */
+  set_dynamic_inotify(AH_DHCP_HST | AH_DHCP_OPT, 0, NULL, 0);
+#  endif
 }
 #endif
-    
+
 void read_opts(int argc, char **argv, char *compile_opts)
 {
   size_t argbuf_size = MAXDNAME;

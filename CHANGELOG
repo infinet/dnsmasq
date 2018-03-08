@@ -45,6 +45,10 @@ version 2.79
 	are no longer a significant problem in the global DNS.
 	http://cs.northwestern.edu/~ychen/Papers/DNS_ToN15.pdf
 	Thanks to Mattias Hellström for the initial patch.
+
+	Fix failure to delete dynamically created dhcp options
+	from files in -dhcp-optsdir directories. Thanks to
+	Lindgren Fredrik for the bug report.
 	
 
 version 2.78
