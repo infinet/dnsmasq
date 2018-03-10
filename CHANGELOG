@@ -49,7 +49,17 @@ version 2.79
 	Fix failure to delete dynamically created dhcp options
 	from files in -dhcp-optsdir directories. Thanks to
 	Lindgren Fredrik for the bug report.
-	
+
+	Add to --synth-domain the ability to create names using
+	sequential numbers, as well as encodings of IP addresses.
+	For instance,
+	--synth-domain=thekelleys.org.uk,192.168.0.50,192.168.0.70,internal-*
+	creates 21 domain names of the form
+	internal-4.thekelleys.org.uk over the address range given, with
+	internal-0.thekelleys.org.uk being 192.168.0.50 and
+	internal-20.thekelleys.org.uk being 192.168.0.70
+	Thanks to Andy Hawkins for the suggestion.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris

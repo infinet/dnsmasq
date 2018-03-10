@@ -2071,7 +2071,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		  char *netpart;
 		  
 		  new->prefix = NULL;
-
+		  new->indexed = 0;
+		  
 		  unhide_metas(comma);
 		  if ((netpart = split_chr(comma, '/')))
 		    {
@@ -2208,8 +2209,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 		    }
 		  else
 		    {
+		      char *star;
 		      new->next = daemon->synth_domains;
 		      daemon->synth_domains = new;
+		      if ((star = strrchr(new->prefix, '*')) && *(star+1) == 0)
+			{
+			  *star = 0;
+			  new->indexed = 1;
+			}
 		    }
 		}
 	      else if (option == 's')
