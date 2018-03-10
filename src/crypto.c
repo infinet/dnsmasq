@@ -109,8 +109,6 @@ static struct nettle_hash null_hash = {
 /* Find pointer to correct hash function in nettle library */
 const struct nettle_hash *hash_find(char *name)
 {
-  int i;
-  
   if (!name)
     return NULL;
   
@@ -125,13 +123,15 @@ const struct nettle_hash *hash_find(char *name)
 #if (NETTLE_VERSION_MAJOR>3) || ((NETTLE_VERSION_MAJOR==3) && (NETTLE_VERSION_MINOR >=4))
   return nettle_lookup_hash(name);
 #else
-  for (i = 0; nettle_hashes[i]; i++)
-    {
+  {
+    int i;
+
+    for (i = 0; nettle_hashes[i]; i++)
       if (strcmp(nettle_hashes[i]->name, name) == 0)
 	return nettle_hashes[i];
-    }
-
-   return NULL;
+  }
+  
+  return NULL;
 #endif
 }
 
