@@ -6,8 +6,8 @@ dnsmasq (2.79-1) unstable; urgency=low
    * Add project homepage to control file. (closes: #887764)
    * New binary package dnsmasq-base-lua, includes Lua support.
    * Remove hardwired shlibs dependency for libnettle 3.3 and
-	fix code to avoid ABI breakage as long as compiled against
-	libnettle 3.4 or later. (closes: #891315)
+     fix code to avoid ABI breakage as long as compiled against
+     libnettle 3.4 or later. (closes: #891315)
 
  -- Simon Kelley <simon@thekelleys.org.uk>  Fri, 16 Feb 2018 19:54:22 +0000
 
