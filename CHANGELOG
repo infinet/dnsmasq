@@ -60,6 +60,9 @@ version 2.79
 	internal-20.thekelleys.org.uk being 192.168.0.70
 	Thanks to Andy Hawkins for the suggestion.
 
+	Tidy up Crypto code, removing workarounds for ancient
+	versions of libnettle. We now require libnettle 3.
+
 
 version 2.78
         Fix logic of appending ".<layer>" to PXE basename. Thanks to Chris
