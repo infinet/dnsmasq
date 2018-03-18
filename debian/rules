@@ -220,6 +220,7 @@ endif
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 	$(DEB_HOST_GNU_TYPE)-strip -R .note -R .comment debian/trees/lua-base/usr/sbin/dnsmasq
 endif
+	ln -s $(package) debian/trees/lua-base/usr/share/doc/dnsmasq-base-lua
 	cd debian/trees/lua-base && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | LC_ALL=C sort -z | xargs -r0 md5sum > DEBIAN/md5sums
 	dpkg-shlibdeps --warnings=1 debian/trees/lua-base/usr/sbin/dnsmasq
 	dpkg-gencontrol $(PACKAGE_VERSION) -pdnsmasq-base-lua -Pdebian/trees/lua-base
