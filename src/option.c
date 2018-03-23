@@ -160,6 +160,7 @@ struct myoption {
 #define LOPT_DHCPTTL       348
 #define LOPT_TFTP_MTU      349
 #define LOPT_REPLY_DELAY   350
+#define LOPT_RAPID_COMMIT  351
  
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -325,6 +326,7 @@ static const struct myoption opts[] =
     { "script-arp", 0, 0, LOPT_SCRIPT_ARP },
     { "dhcp-ttl", 1, 0 , LOPT_DHCPTTL },
     { "dhcp-reply-delay", 1, 0, LOPT_REPLY_DELAY },
+    { "dhcp-rapid-commit", 0, 0, LOPT_RAPID_COMMIT },
     { NULL, 0, 0, 0 }
   };
 
@@ -497,6 +499,7 @@ static struct {
   { LOPT_IGNORE_ADDR, ARG_DUP, "<ipaddr>", gettext_noop("Ignore DNS responses containing ipaddr."), NULL }, 
   { LOPT_DHCPTTL, ARG_ONE, "<ttl>", gettext_noop("Set TTL in DNS responses with DHCP-derived addresses."), NULL }, 
   { LOPT_REPLY_DELAY, ARG_ONE, "<integer>", gettext_noop("Delay DHCP replies for at least number of seconds."), NULL },
+  { LOPT_RAPID_COMMIT, OPT_RAPID_COMMIT, NULL, gettext_noop("Enables DHCPv4 Rapid Commit option."), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 

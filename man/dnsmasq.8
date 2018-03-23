@@ -1452,6 +1452,13 @@ allows dnsmasq to rebuild its lease database without each client needing to
 reacquire a lease, if the database is lost. For DHCPv6 it sets the
 priority in replies to 255 (the maximum) instead of 0 (the minimum).
 .TP
+.B --dhcp-rapid-commit
+Enable DHCPv4 Rapid Commit Option specified in RFC 4039. When enabled, dnsmasq
+will respond to a DHCPDISCOVER message including a Rapid Commit
+option with a DHCPACK including a Rapid Commit option and fully committed
+address and configuration information. Should only be enabled if either the
+server is  the only server for the subnet, or multiple servers are present and they each commit a binding for all clients.
+.TP
 .B --dhcp-alternate-port[=<server port>[,<client port>]]
 (IPv4 only) Change the ports used for DHCP from the default. If this option is
 given alone, without arguments, it changes the ports used for DHCP
