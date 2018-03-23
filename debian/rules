@@ -217,6 +217,8 @@ else
 	rm -rf debian/trees/lua-base/usr/share/man
 endif
 	$(call add_files,debian/trees/lua-base)
+	install -m 755 -d debian/trees/lua-base/usr/share/lintian/overrides
+	install -m 644 debian/lintian-override debian/trees/lua-base/usr/share/lintian/overrides/dnsmasq-base-lua
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 	$(DEB_HOST_GNU_TYPE)-strip -R .note -R .comment debian/trees/lua-base/usr/sbin/dnsmasq
 endif
