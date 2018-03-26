@@ -2,7 +2,7 @@ dnsmasq (2.79-1) unstable; urgency=low
 
    * New upstream. (closes: #888200)
    * Fix trust-anchor regex in init script. (closes: #884347)
-   * Fix exit code for dhcp_release6 (closes: #833596)
+   * Fix exit code for dhcp_release6 (closes: #883596)
    * Add project homepage to control file. (closes: #887764)
    * New binary package dnsmasq-base-lua, includes Lua support.
    * Remove hardwired shlibs dependency for libnettle 3.3 and
