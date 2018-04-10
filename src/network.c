@@ -1234,7 +1234,8 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname)
   struct serverfd *sfd;
   unsigned int ifindex = 0;
   int errsave;
-
+  int opt = 1;
+  
   /* when using random ports, servers which would otherwise use
      the INADDR_ANY/port0 socket have sfd set to NULL */
   if (!daemon->osport && intname[0] == 0)
@@ -1274,10 +1275,11 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname)
       free(sfd);
       return NULL;
     }
-  
-  if (!local_bind(sfd->fd, addr, intname, ifindex, 0) || !fix_fd(sfd->fd))
+
+  if ((addr->sa.sa_family == AF_INET6 && setsockopt(sfd->fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) == -1) ||
+      !local_bind(sfd->fd, addr, intname, ifindex, 0) || !fix_fd(sfd->fd))
     { 
-      errsave = errno; /* save error from bind. */
+      errsave = errno; /* save error from bind/setsockopt. */
       close(sfd->fd);
       free(sfd);
       errno = errsave;
