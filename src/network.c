@@ -1290,6 +1290,7 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname)
   sfd->source_addr = *addr;
   sfd->next = daemon->sfds;
   sfd->ifindex = ifindex;
+  sfd->preallocated = 0;
   daemon->sfds = sfd;
 
   return sfd; 
@@ -1300,6 +1301,7 @@ static struct serverfd *allocate_sfd(union mysockaddr *addr, char *intname)
 void pre_allocate_sfds(void)
 {
   struct server *srv;
+  struct serverfd *sfd;
   
   if (daemon->query_port != 0)
     {
@@ -1311,7 +1313,8 @@ void pre_allocate_sfds(void)
 #ifdef HAVE_SOCKADDR_SA_LEN
       addr.in.sin_len = sizeof(struct sockaddr_in);
 #endif
-      allocate_sfd(&addr, "");
+      if ((sfd = allocate_sfd(&addr, "")))
+	sfd->preallocated = 1;
 #ifdef HAVE_IPV6
       memset(&addr, 0, sizeof(addr));
       addr.in6.sin6_family = AF_INET6;
@@ -1320,7 +1323,8 @@ void pre_allocate_sfds(void)
 #ifdef HAVE_SOCKADDR_SA_LEN
       addr.in6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
-      allocate_sfd(&addr, "");
+      if ((sfd = allocate_sfd(&addr, "")))
+	sfd->preallocated = 1;
 #endif
     }
   
@@ -1473,9 +1477,10 @@ void check_servers(void)
   /* interface may be new since startup */
   if (!option_bool(OPT_NOWILD))
     enumerate_interfaces(0);
-  
+
+  /* don't garbage collect pre-allocated sfds. */
   for (sfd = daemon->sfds; sfd; sfd = sfd->next)
-    sfd->used = 0;
+    sfd->used = sfd->preallocated;
 
   for (count = 0, serv = daemon->servers; serv; serv = serv->next)
     {

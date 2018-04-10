@@ -506,7 +506,7 @@ struct serverfd {
   int fd;
   union mysockaddr source_addr;
   char interface[IF_NAMESIZE+1];
-  unsigned int ifindex, used;
+  unsigned int ifindex, used, preallocated;
   struct serverfd *next;
 };
 
