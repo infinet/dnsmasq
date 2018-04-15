@@ -872,11 +872,19 @@ int dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char 
   if (qtype != T_DS || qclass != class)
     rc = STAT_BOGUS;
   else
-    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 1, &neganswer, &nons);
+    rc = dnssec_validate_reply(now, header, plen, name, keyname, NULL, 0, &neganswer, &nons);
   
   if (rc == STAT_INSECURE)
-    rc = STAT_BOGUS;
- 
+    {
+      static int reported = 0;
+      if (!reported)
+	{
+	  reported = 1;
+	  my_syslog(LOG_WARNING, _("Insecure DS reply received, do upstream DNS servers support DNSSEC?"));
+	}
+      rc = STAT_BOGUS;
+    }
+  
   p = (unsigned char *)(header+1);
   extract_name(header, plen, &p, name, 1, 4);
   p += 4; /* qtype, qclass */
@@ -1906,7 +1914,6 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
 	      
 	      if (rc == STAT_BOGUS || rc == STAT_NEED_KEY || rc == STAT_NEED_DS)
 		{
-		  /* Zone is insecure, don't need to validate RRset */
 		  if (class)
 		    *class = class1; /* Class for NEED_DS or NEED_KEY */
 		  return rc;
@@ -1966,7 +1973,7 @@ int dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, ch
     }
 
   /* OK, all the RRsets validate, now see if we have a missing answer or CNAME target. */
-  if (check_unsigned)
+  if (secure == STAT_SECURE)
     for (j = 0; j <targetidx; j++)
       if ((p2 = targets[j]))
 	{
