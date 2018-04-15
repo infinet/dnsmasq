@@ -311,7 +311,7 @@ static const struct myoption opts[] =
     { "dnssec", 0, 0, LOPT_SEC_VALID },
     { "trust-anchor", 1, 0, LOPT_TRUST_ANCHOR },
     { "dnssec-debug", 0, 0, LOPT_DNSSEC_DEBUG },
-    { "dnssec-check-unsigned", 0, 0, LOPT_DNSSEC_CHECK },
+    { "dnssec-check-unsigned", 2, 0, LOPT_DNSSEC_CHECK },
     { "dnssec-no-timecheck", 0, 0, LOPT_DNSSEC_TIME },
     { "dnssec-timestamp", 1, 0, LOPT_DNSSEC_STAMP },
 #ifdef OPTION6_PREFIX_CLASS 
@@ -484,7 +484,7 @@ static struct {
   { LOPT_SEC_VALID, OPT_DNSSEC_VALID, NULL, gettext_noop("Activate DNSSEC validation"), NULL },
   { LOPT_TRUST_ANCHOR, ARG_DUP, "<domain>,[<class>],...", gettext_noop("Specify trust anchor key digest."), NULL },
   { LOPT_DNSSEC_DEBUG, OPT_DNSSEC_DEBUG, NULL, gettext_noop("Disable upstream checking for DNSSEC debugging."), NULL },
-  { LOPT_DNSSEC_CHECK, OPT_DNSSEC_NO_SIGN, NULL, gettext_noop("Ensure answers without DNSSEC are in unsigned zones."), NULL },
+  { LOPT_DNSSEC_CHECK, ARG_DUP, NULL, gettext_noop("Ensure answers without DNSSEC are in unsigned zones."), NULL },
   { LOPT_DNSSEC_TIME, OPT_DNSSEC_TIME, NULL, gettext_noop("Don't check DNSSEC signature timestamps until first cache-reload"), NULL },
   { LOPT_DNSSEC_STAMP, ARG_ONE, "<path>", gettext_noop("Timestamp file to verify system clock for DNSSEC"), NULL },
 #ifdef OPTION6_PREFIX_CLASS 
@@ -4139,6 +4139,16 @@ err:
       daemon->timestamp_file = opt_string_alloc(arg); 
       break;
 
+    case LOPT_DNSSEC_CHECK:
+      if (arg)
+	{
+	  if (strcmp(arg, "no") == 0)
+	    set_option_bool(OPT_DNSSEC_IGN_NS);
+	  else
+	    ret_err(_("bad value for dnssec-check-unsigned"));
+	}
+      break;
+      
     case LOPT_TRUST_ANCHOR:
       {
 	struct ds_config *new = opt_malloc(sizeof(struct ds_config));

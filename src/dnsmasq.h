@@ -241,7 +241,7 @@ struct event_desc {
 #define OPT_DNSSEC_VALID   45
 #define OPT_DNSSEC_TIME    46
 #define OPT_DNSSEC_DEBUG   47
-#define OPT_DNSSEC_NO_SIGN 48 
+#define OPT_DNSSEC_IGN_NS  48 
 #define OPT_LOCAL_SERVICE  49
 #define OPT_LOOP_DETECT    50
 #define OPT_EXTRALOG       51
