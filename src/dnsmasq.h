@@ -268,7 +268,11 @@ struct all_addr {
     /* for log_query */
     struct {
       unsigned short keytag, algo, digest;
-    } log; 
+    } log;
+    /* for log_query */
+    struct {
+      unsigned int rcode;
+    } rcode;
     /* for cache_insert of DNSKEY, DS */
     struct {
       unsigned short class, type;
@@ -459,6 +463,7 @@ struct crec {
 #define F_IPSET     (1u<<26)
 #define F_NOEXTRA   (1u<<27)
 #define F_SERVFAIL  (1u<<28)
+#define F_RCODE     (1u<<29)
 
 /* Values of uid in crecs with F_CONFIG bit set. */
 #define SRC_INTERFACE 0

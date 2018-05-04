@@ -563,6 +563,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   unsigned char *pheader, *sizep;
   char **sets = 0;
   int munged = 0, is_sign;
+  unsigned int rcode = RCODE(header);
   size_t plen; 
   
   (void)ad_reqd;
@@ -593,6 +594,9 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   
   if ((pheader = find_pseudoheader(header, n, &plen, &sizep, &is_sign, NULL)))
     {
+      /* Get extended RCODE. */
+      rcode |= sizep[2] << 4;
+
       if (check_subnet && !check_source(header, plen, pheader, query_source))
 	{
 	  my_syslog(LOG_WARNING, _("discarding DNS reply: subnet option mismatch"));
@@ -641,11 +645,20 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
   if (!is_sign && !option_bool(OPT_DNSSEC_PROXY))
      header->hb4 &= ~HB4_AD;
   
-  if (OPCODE(header) != QUERY || (RCODE(header) != NOERROR && RCODE(header) != NXDOMAIN))
+  if (OPCODE(header) != QUERY)
     return resize_packet(header, n, pheader, plen);
+
+  if (rcode != NOERROR && rcode != NXDOMAIN)
+    {
+      struct all_addr a;
+      a.addr.rcode.rcode = rcode;
+      log_query(F_UPSTREAM | F_RCODE, "error", &a, NULL);
+      
+      return resize_packet(header, n, pheader, plen);
+    }
   
   /* Complain loudly if the upstream server is non-recursive. */
-  if (!(header->hb4 & HB4_RA) && RCODE(header) == NOERROR &&
+  if (!(header->hb4 & HB4_RA) && rcode == NOERROR &&
       server && !(server->flags & SERV_WARNED_RECURSIVE))
     {
       prettyprint_addr(&server->addr, daemon->namebuff);
@@ -654,7 +667,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
 	server->flags |= SERV_WARNED_RECURSIVE;
     }  
 
-  if (daemon->bogus_addr && RCODE(header) != NXDOMAIN &&
+  if (daemon->bogus_addr && rcode != NXDOMAIN &&
       check_for_bogus_wildcard(header, n, daemon->namebuff, daemon->bogus_addr, now))
     {
       munged = 1;
@@ -666,7 +679,7 @@ static size_t process_reply(struct dns_header *header, time_t now, struct server
     {
       int doctored = 0;
       
-      if (RCODE(header) == NXDOMAIN && 
+      if (rcode == NXDOMAIN && 
 	  extract_request(header, n, daemon->namebuff, NULL) &&
 	  check_for_local_domain(daemon->namebuff, now))
 	{
@@ -1090,7 +1103,7 @@ void reply_query(int fd, int family, time_t now)
 	      if (status == STAT_BOGUS && extract_request(header, n, daemon->namebuff, NULL))
 		domain = daemon->namebuff;
 	      
-	      log_query(F_KEYTAG | F_SECSTAT, domain, NULL, result);
+	      log_query(F_SECSTAT, domain, NULL, result);
 	    }
 	  
 	  if (status == STAT_SECURE)
@@ -1948,7 +1961,7 @@ unsigned char *tcp_request(int confd, time_t now,
 			  if (status == STAT_BOGUS && extract_request(header, m, daemon->namebuff, NULL))
 			    domain = daemon->namebuff;
 
-			  log_query(F_KEYTAG | F_SECSTAT, domain, NULL, result);
+			  log_query(F_SECSTAT, domain, NULL, result);
 			  
 			  if (status == STAT_BOGUS)
 			    {

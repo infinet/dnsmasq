@@ -926,12 +926,11 @@ unsigned int extract_request(struct dns_header *header, size_t qlen, char *name,
   return F_QUERY;
 }
 
-
 size_t setup_reply(struct dns_header *header, size_t qlen,
 		struct all_addr *addrp, unsigned int flags, unsigned long ttl)
 {
   unsigned char *p;
-
+  
   if (!(p = skip_questions(header, qlen)))
     return 0;
   
@@ -948,7 +947,12 @@ size_t setup_reply(struct dns_header *header, size_t qlen,
   else if (flags == F_NXDOMAIN)
     SET_RCODE(header, NXDOMAIN);
   else if (flags == F_SERVFAIL)
-    SET_RCODE(header, SERVFAIL);
+    {
+      struct all_addr a;
+      a.addr.rcode.rcode = SERVFAIL;
+      log_query(F_CONFIG | F_RCODE, "error", &a, NULL);
+      SET_RCODE(header, SERVFAIL);
+    }
   else if (flags == F_IPV4)
     { /* we know the address */
       SET_RCODE(header, NOERROR);
@@ -966,8 +970,13 @@ size_t setup_reply(struct dns_header *header, size_t qlen,
     }
 #endif
   else /* nowhere to forward to */
-    SET_RCODE(header, REFUSED);
- 
+    {
+      struct all_addr a;
+      a.addr.rcode.rcode = REFUSED;
+      log_query(F_CONFIG | F_RCODE, "error", &a, NULL);
+      SET_RCODE(header, REFUSED);
+    }
+  
   return p - (unsigned char *)header;
 }
 
