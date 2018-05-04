@@ -14,7 +14,8 @@ version 2.80
         when the upstream namesevers do not support DNSSEC, and in this
         case no DNSSEC validation at all is occuring.
 
-
+        Fix DHCP broken-ness when --no-ping AND --dhcp-sequential-ip
+	are set. Thanks to Daniel Miess for help with this.
 
 
 version 2.79
