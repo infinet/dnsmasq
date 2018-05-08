@@ -161,6 +161,8 @@ struct myoption {
 #define LOPT_TFTP_MTU      349
 #define LOPT_REPLY_DELAY   350
 #define LOPT_RAPID_COMMIT  351
+#define LOPT_DUMPFILE      352
+#define LOPT_DUMPMASK      353
  
 #ifdef HAVE_GETOPT_LONG
 static const struct option opts[] =  
@@ -327,6 +329,8 @@ static const struct myoption opts[] =
     { "dhcp-ttl", 1, 0 , LOPT_DHCPTTL },
     { "dhcp-reply-delay", 1, 0, LOPT_REPLY_DELAY },
     { "dhcp-rapid-commit", 0, 0, LOPT_RAPID_COMMIT },
+    { "dumpfile", 1, 0, LOPT_DUMPFILE },
+    { "dumpmask", 1, 0, LOPT_DUMPMASK },
     { NULL, 0, 0, 0 }
   };
 
@@ -500,6 +504,8 @@ static struct {
   { LOPT_DHCPTTL, ARG_ONE, "<ttl>", gettext_noop("Set TTL in DNS responses with DHCP-derived addresses."), NULL }, 
   { LOPT_REPLY_DELAY, ARG_ONE, "<integer>", gettext_noop("Delay DHCP replies for at least number of seconds."), NULL },
   { LOPT_RAPID_COMMIT, OPT_RAPID_COMMIT, NULL, gettext_noop("Enables DHCPv4 Rapid Commit option."), NULL },
+  { LOPT_DUMPFILE, ARG_ONE, "<path>", gettext_noop("Path to debug packet dump file"), NULL },
+  { LOPT_DUMPMASK, ARG_ONE, "<hex>", gettext_noop("Mask which packets to dump"), NULL },
   { 0, 0, NULL, NULL, NULL }
 }; 
 
@@ -1811,6 +1817,14 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	ret_err(_("bad MX target"));
       break;
 
+    case LOPT_DUMPFILE:  /* --dumpfile */
+      daemon->dump_file = opt_string_alloc(arg);
+      break;
+
+    case LOPT_DUMPMASK:  /* --dumpmask */
+      daemon->dump_mask = strtol(arg, NULL, 0);
+      break;
+      
 #ifdef HAVE_DHCP      
     case 'l':  /* --dhcp-leasefile */
       daemon->lease_file = opt_string_alloc(arg);

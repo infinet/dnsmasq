@@ -366,7 +366,16 @@ int main (int argc, char **argv)
   else
     daemon->inotifyfd = -1;
 #endif
-       
+
+  if (daemon->dump_file)
+#ifdef HAVE_DUMPFILE
+    dump_init();
+  else 
+    daemon->dumpfd = -1;
+#else
+  die(_("Packet dumps not available: set HAVE_DUMP in src/config.h"), NULL, EC_BADCONF);
+#endif
+  
   if (option_bool(OPT_DBUS))
 #ifdef HAVE_DBUS
     {
@@ -1424,6 +1433,11 @@ static void async_event(int pipe, time_t now)
 
 	if (daemon->runfile)
 	  unlink(daemon->runfile);
+
+#ifdef HAVE_DUMPFILE
+	if (daemon->dumpfd != -1)
+	  close(daemon->dumpfd);
+#endif
 	
 	my_syslog(LOG_INFO, _("exiting on receipt of SIGTERM"));
 	flush_log();

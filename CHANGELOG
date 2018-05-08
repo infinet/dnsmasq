@@ -17,6 +17,12 @@ version 2.80
         Fix DHCP broken-ness when --no-ping AND --dhcp-sequential-ip
 	are set. Thanks to Daniel Miess for help with this.
 
+	Add a facilty to store DNS packets sent/recieved in a
+	pcap-format file for later debugging. The file location
+	is given by the --dumpfile option, and a bitmap controlling
+	which packets should be dumped is given by the --dumpmask
+	option.
+
 
 version 2.79
 	Fix parsing of CNAME arguments, which are confused by extra spaces.

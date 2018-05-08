@@ -508,6 +508,10 @@ static int forward_query(int udpfd, union mysockaddr *udpaddr,
 	    
 	      if (errno == 0)
 		{
+#ifdef HAVE_DUMPFILE
+		  dump_packet(DUMP_UP_QUERY, (void *)header, plen, NULL, &start->addr);
+#endif
+		  
 		  /* Keep info in case we want to re-send this packet */
 		  daemon->srv_save = start;
 		  daemon->packet_len = plen;
@@ -769,7 +773,7 @@ void reply_query(int fd, int family, time_t now)
 #endif
   
   header = (struct dns_header *)daemon->packet;
-  
+
   if (n < (int)sizeof(struct dns_header) || !(header->hb3 & HB3_QR))
     return;
   
@@ -795,6 +799,12 @@ void reply_query(int fd, int family, time_t now)
   
   if (!(forward = lookup_frec(ntohs(header->id), hash)))
     return;
+  
+#ifdef HAVE_DUMPFILE
+  dump_packet((forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY)) ? DUMP_SEC_REPLY : DUMP_UP_REPLY,
+	      (void *)header, n, &serveraddr, NULL);
+#endif
+  
   
   /* log_query gets called indirectly all over the place, so 
      pass these in global variables - sorry. */
@@ -934,6 +944,11 @@ void reply_query(int fd, int family, time_t now)
 		    status = dnssec_validate_reply(now, header, n, daemon->namebuff, daemon->keyname, &forward->class, 
 						   !option_bool(OPT_DNSSEC_IGN_NS) && (server->flags & SERV_DO_DNSSEC),
 						   NULL, NULL);
+#ifdef HAVE_DUMPFILE
+		  if (status == STAT_BOGUS)
+		    dump_packet((forward->flags & (FREC_DNSKEY_QUERY | FREC_DS_QUERY)) ? DUMP_SEC_BOGUS : DUMP_BOGUS,
+				header, (size_t)n, &serveraddr, NULL);
+#endif
 		}
 	      
 	      /* Can't validate, as we're missing key data. Put this
@@ -1060,6 +1075,11 @@ void reply_query(int fd, int family, time_t now)
 				setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(unsigned int));
 			    }
 #endif
+			  
+#ifdef HAVE_DUMPFILE
+			  dump_packet(DUMP_SEC_QUERY, (void *)header, (size_t)nn, NULL, &server->addr);
+#endif
+			  
 			  while (retry_send(sendto(fd, (char *)header, nn, 0, 
 						   &server->addr.sa, 
 						   sa_len(&server->addr)))); 
@@ -1114,8 +1134,8 @@ void reply_query(int fd, int family, time_t now)
 	      bogusanswer = 1;
 	    }
 	}
-#endif     
-      
+#endif
+
       /* restore CD bit to the value in the query */
       if (forward->flags & FREC_CHECKING_DISABLED)
 	header->hb4 |= HB4_CD;
@@ -1141,6 +1161,11 @@ void reply_query(int fd, int family, time_t now)
 	      nn = resize_packet(header, nn, NULL, 0);
 	    }
 #endif
+
+#ifdef HAVE_DUMPFILE
+	  dump_packet(DUMP_REPLY, daemon->packet, (size_t)nn, NULL, &forward->source);
+#endif
+	  
 	  send_from(forward->fd, option_bool(OPT_NOWILD) || option_bool (OPT_CLEVERBIND), daemon->packet, nn, 
 		    &forward->source, &forward->dest, forward->iface);
 	}
@@ -1394,7 +1419,11 @@ void receive_query(struct listener *listen, time_t now)
      pass these in global variables - sorry. */
   daemon->log_display_id = ++daemon->log_id;
   daemon->log_source_addr = &source_addr;
-  
+
+#ifdef HAVE_DUMPFILE
+  dump_packet(DUMP_QUERY, daemon->packet, (size_t)n, &source_addr, NULL);
+#endif
+	  
   if (extract_request(header, (size_t)n, daemon->namebuff, &type))
     {
 #ifdef HAVE_AUTH
