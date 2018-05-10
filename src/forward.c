@@ -817,7 +817,7 @@ void reply_query(int fd, int family, time_t now)
 
   /* Note: if we send extra options in the EDNS0 header, we can't recreate
      the query from the reply. */
-  if (RCODE(header) == REFUSED &&
+  if ((RCODE(header) == REFUSED || RCODE(header) == SERVFAIL) &&
       forward->forwardall == 0 &&
       !(forward->flags & FREC_HAS_EXTRADATA))
     /* for broken servers, attempt to send to another one. */
