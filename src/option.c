@@ -2603,8 +2603,6 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
 	    
 	    if (size < 0)
 	      size = 0;
-	    else if (size > 10000)
-	      size = 10000;
 	    
 	    daemon->cachesize = size;
 	  }

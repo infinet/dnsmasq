@@ -740,7 +740,11 @@ int main (int argc, char **argv)
   else 
     {
       if (daemon->cachesize != 0)
-	my_syslog(LOG_INFO, _("started, version %s cachesize %d"), VERSION, daemon->cachesize);
+	{
+	  my_syslog(LOG_INFO, _("started, version %s cachesize %d"), VERSION, daemon->cachesize);
+	  if (daemon->cachesize > 10000)
+	    my_syslog(LOG_WARNING, _("cache size greater than 10000 may cause performance issues, and is unlikely to be useful."));
+	}
       else
 	my_syslog(LOG_INFO, _("started, version %s cache disabled"), VERSION);
 
