@@ -835,14 +835,6 @@ void reply_query(int fd, int family, time_t now)
 	  plen = forward->stash_len;
 
 	  forward->forwardall = 2; /* only retry once */
-	  
-	  if (forward->sentto->addr.sa.sa_family == AF_INET) 
-	    log_query(F_NOEXTRA | F_DNSSEC | F_IPV4, "retry", (struct all_addr *)&forward->sentto->addr.in.sin_addr, "dnssec");
-#ifdef HAVE_IPV6
-	  else
-	    log_query(F_NOEXTRA | F_DNSSEC | F_IPV6, "retry", (struct all_addr *)&forward->sentto->addr.in6.sin6_addr, "dnssec");
-#endif
-
 	  start = forward->sentto;
 
 	  /* for non-domain specific servers, see if we can find another to try. */
@@ -885,6 +877,13 @@ void reply_query(int fd, int family, time_t now)
 	  while (retry_send(sendto(fd, (char *)header, plen, 0,
 				   &start->addr.sa,
 				   sa_len(&start->addr))));
+	  
+	  if (start->addr.sa.sa_family == AF_INET) 
+	    log_query(F_NOEXTRA | F_DNSSEC | F_IPV4, "retry", (struct all_addr *)&start->addr.in.sin_addr, "dnssec");
+#ifdef HAVE_IPV6
+	  else
+	    log_query(F_NOEXTRA | F_DNSSEC | F_IPV6, "retry", (struct all_addr *)&start->addr.in6.sin6_addr, "dnssec");
+#endif
 	  
 	  return;
 	}
