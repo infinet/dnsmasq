@@ -37,16 +37,20 @@ comparison be used to confirm the search.
 Precompiled OpenWrt packages
 ----------------------------
 
-For OpenWrt Chaos Calmer 15.05 on
-[ar71xx and mt7620 platform](http://sourceforge.net/projects/dnsmasq-fast-lookup/files/). DNSSEC is disabled.
+For OpenWrt Chaos Calmer 15.05 on ar71xx and mt7620 platform:
 
-    sha1sum
-    0a1a7c13714e982b2cf98b33fe16d572f3d1a58d dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
-    58b1b3e9447f55ae26dc6a5834cea826ae7a51c1 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
+[dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk](https://ipfs.io/ipfs/QmYktJLB7f1CmM4sLzZBTBTBSVxu3HD6wjfZE3bqHzBK48/dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk)
 
-    md5sum
-    5aa14fc279f182820b8462a5f38ca0f4 dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
-    f4b5b8c71f05efbf1f5b98ba1abb7ed8 dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
+[dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk](https://ipfs.io/ipfs/QmYktJLB7f1CmM4sLzZBTBTBSVxu3HD6wjfZE3bqHzBK48/dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk)
+
+For LEDE 17.01 on mt7628NN platform(GL-MT300N-V2):
+
+[dnsmasq-full_2.73-11_mipsel_24kc_LEDE_17.01.ipk](https://ipfs.io/ipfs/QmYktJLB7f1CmM4sLzZBTBTBSVxu3HD6wjfZE3bqHzBK48/dnsmasq-full_2.73-11_mipsel_24kc_LEDE_17.01.ipk)
+
+	sha1sum
+	0a1a7c13714e982b2cf98b33fe16d572f3d1a58d  dnsmasq-full_2.72-5_ar71xx_Chaos_Calmer_15.05.ipk
+	58b1b3e9447f55ae26dc6a5834cea826ae7a51c1  dnsmasq-full_2.72-5_ramips_24kec_Chaos_Calmer_15.05.ipk
+	c0788585e4ca68b3b8a9107bbbfd89bcaabc0479  dnsmasq-full_2.73-11_mipsel_24kc_LEDE_17.01.ipk
 
 
 Example usage
