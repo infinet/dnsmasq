@@ -263,6 +263,16 @@ void *whine_malloc(size_t size)
   return ret;
 }
 
+void *whine_realloc(void *ptr, size_t size)
+{
+  void *ret = realloc(ptr, size);
+
+  if (!ret)
+    my_syslog(LOG_ERR, _("failed to reallocate %d bytes"), (int) size);
+
+  return ret;
+}
+
 int sockaddr_isequal(union mysockaddr *s1, union mysockaddr *s2)
 {
   if (s1->sa.sa_family == s2->sa.sa_family)
