@@ -663,7 +663,8 @@ static ssize_t tftp_err(int err, char *packet, char *message, char *file)
 static ssize_t tftp_err_oops(char *packet, char *file)
 {
   /* May have >1 refs to file, so potentially mangle a copy of the name */
-  strcpy(daemon->namebuff, file);
+  if (file != daemon->namebuff)
+    strcpy(daemon->namebuff, file);
   return tftp_err(ERR_NOTDEF, packet, _("cannot read %s: %s"), daemon->namebuff);
 }
 
